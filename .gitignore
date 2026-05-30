@@ -1,0 +1,20 @@
+# Rust
+target/
+Cargo.lock.bak
+**/*.rs.bk
+
+# Topology data caches (fetched at build time; not committed)
+crates/cewp-topology/assets/cache/
+out/
+*.snap.bin
+*.arrow
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Python (if scripts get added)
+__pycache__/
+*.pyc
