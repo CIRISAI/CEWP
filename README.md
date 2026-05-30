@@ -71,14 +71,33 @@ scales) is articulated at
 
 ## What's in this repo
 
-This repo is the **platform-identity + simulation home** for CEWP.
-The technical substrate lives in the seven sister repos (linked
-below); this repo is what you read to understand the platform as a
-whole and what you fork to run simulations of it.
+This repo is the **platform-identity + canonical FSDs + simulation
+home** for CEWP. The technical substrate lives in the seven sister
+repos (linked below); this repo is what you read to understand the
+platform as a whole, what you fork to run simulations of it, and
+where the cross-cutting FSDs (those that span more than one substrate
+sister) are mirrored for easy cross-reference.
+
+### Canonical FSDs (mirrored from CIRISNodeCore)
+
+| FSD | What it covers |
+|---|---|
+| [`FSD/CEWP.md`](FSD/CEWP.md) | Platform identity — three load-bearing claims, "we don't need big tech" premise, agents-as-participants, superalignment via distributed epistemic governance |
+| [`FSD/FEDERATION_SCALING_MODEL.md`](FSD/FEDERATION_SCALING_MODEL.md) | Quantitative model. Single-pool storage. Trust × capacity intake + popularity × freshness eviction. L0 / L1 tier model. 13 scenarios up to full-internet-with-video; identity-aware-storage thesis with prior-art comparison. |
+| [`FSD/MEDIA_SHARING.md`](FSD/MEDIA_SHARING.md) | **Multimedia tier — YouTube / TikTok / Netflix / OnlyFans / AdultHUB replacement.** Five new external_content sub_kinds (image / audio / video / film / model_3d); content classification + multi-scheme rating (MPAA / BBFC / PEGI / etc.); operator-managed age gate; takedown_notice + key_grant CEG-native subject_kinds; content encryption (DEK / KEK / X25519+AES-GCM HPKE base mode); international standards mapping (DMCA / DSA / OSA / TVEC / NCMEC / AVMSD / KOSA / EU AI Act). |
+| [`FSD/ANONYMOUS_TIER.md`](FSD/ANONYMOUS_TIER.md) | v2 anonymous publication path — Sphinx onion routing + Ed25519 key blinding + AEAD + rendezvous discoverability for totalitarian-threat deniability. Parallel to v1; doesn't break the identity-aware substrate. |
+| [`FSD/SIMULATION_ENGINE.md`](FSD/SIMULATION_ENGINE.md) | Rust simulation engine spec — modular workspace; scalable from 1 K-agent browser playback to 5 B-agent GPU sim at 1:1. Real-world topology data (PeeringDB, CAIDA, TeleGeography submarine cables, GeoNames). Snapshots feed the website team's existing Three.js viz. |
+
+### Working toy
 
 | Path | Purpose |
 |---|---|
-| [`FSD/SIMULATION_ENGINE.md`](FSD/SIMULATION_ENGINE.md) | **The Rust simulation engine spec.** Modular workspace; scalable from 1 K-agent browser playback to 5 B-agent GPU sim at 1:1. Uses real-world topology data (PeeringDB, CAIDA, TeleGeography submarine cables, GeoNames). Side-by-side comparison of centralized internet vs CEWP on the same workload. Snapshots feed the website team's existing Three.js viz. |
+| [`examples/scale_model.rs`](examples/scale_model.rs) | The runnable scaling-model toy. `cargo run --example scale_model` (from CIRISNodeCore workspace; mirrored here for reference). **13 scenarios** covering bootstrap → village → dunbar → media-heavy → twitter → news → full-internet → adulthub → tiktok → youtube → netflix → full-internet-with-video. All feasible per-server at v1 gates (1 TB / 1 Gbps / 1 core). |
+
+### Explanation docs (for general audience + website team)
+
+| Path | Purpose |
+|---|---|
 | [`docs/overview.md`](docs/overview.md) | Plain-language platform explanation |
 | [`docs/seven-repos.md`](docs/seven-repos.md) | Agent 3.0 architecture: who does what across the seven repos |
 | [`docs/the-bet.md`](docs/the-bet.md) | The premise + the empirical bet from the research synthesis |
