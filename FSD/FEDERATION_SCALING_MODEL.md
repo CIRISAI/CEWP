@@ -157,11 +157,14 @@ conservative-by-design baseline. Dev-host CPUs run 2–3× faster.
 
 **Triple currency note.** Empirical inputs §2.1-§2.3 reference the
 substrate baselines circa Verify v2.8.0 / Edge v0.10.0 / Persist
-v3.3.0. The model now ships at the substrate triple keyring v4.4.2 /
-persist v3.6.4 / edge v1.0.1 (FY2026 spring federation triple).
+v3.3.0. The model now ships at the substrate triple verify v4.8.0 /
+persist v3.11.0 / edge v1.1.x (FY2026 federation triple, CEG 0.10).
 Underlying op costs (hybrid_sign, envelope_canonicalize, SQLite row
 write) are within noise of the baselines; the §2.4 multimedia
-primitives are net-new since CEG 0.3. Refresh cadence is per
+primitives are net-new since CEG 0.3, and the CEG 0.10 delivery axis
+(streaming multicast — per-`stream_id` STH + epoch-key cascade) is
+net-new and not yet benched here (substrate pending CIRISPersist#142).
+Refresh cadence is per
 substrate release per [NodeCore#23](https://github.com/CIRISAI/CIRISNodeCore/issues/23)
 living-document audit.
 

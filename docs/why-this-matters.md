@@ -147,7 +147,7 @@ CEWP changes the structural choice. Once you have:
 - Federation directory + identity-aware storage (Persist)
 - Trust × capacity intake gate (Persist + Edge)
 - Popularity × freshness eviction (Persist)
-- Wire-format authoritative spec (Registry / CEG 0.2)
+- Wire-format authoritative spec (Registry / CEG 0.10)
 - Federation consensus primitives (NodeCore)
 - Detection layer for misalignment (LensCore)
 - Agent runtime with H3ERE pipeline (Agent)

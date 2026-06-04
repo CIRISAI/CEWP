@@ -100,10 +100,12 @@ LensCore is where the corridor metrics + k_eff math from the
 
 ### [CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry) — CEG spec + identity bootstrap
 
-The 18-section CEG 0.2 wire-format spec. The 1+4 primitive lockdown
-(scores + delegates_to + supersedes + withdraws + recants). The
-§5 dimension namespace governance. §9 humanity_accord. The steward
-triple. The agent_files canonical attestation.
+The 18-section CEG 0.10 wire-format spec. The 1+4 primitive lockdown
+(scores + delegates_to + supersedes + withdraws + recants) — held
+unbroken through ten minor versions, the latest adding the 0.10
+delivery axis (streaming multicast). The §5 dimension namespace
+governance. §9 humanity_accord. The steward triple. The agent_files
+canonical attestation.
 
 **What it makes true:** the wire format is authoritative; substrate
 sisters implement against one spec; the federation is structurally

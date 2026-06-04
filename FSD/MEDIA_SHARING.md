@@ -13,7 +13,7 @@ breaking the 1+4 CEG wire-format lockdown.
 * [FEDERATION_SCALING_MODEL.md](FEDERATION_SCALING_MODEL.md) — substrate scaling
 * [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) — v2 deniability path
 * [SCHEMA.md §4.29](../SCHEMA.md) — existing external_content sub_kinds
-* [CEG 0.2 (CIRISRegistry)](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
+* [CEG 0.10 (CIRISRegistry)](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
   — wire-format authority
 
 ---
@@ -490,13 +490,45 @@ performance), age_gate_requirement (operator config; §4), takedown
 escalation contacts (mandatory for federation scope per EU DSA
 Art. 16).
 
-This is the lowest-priority sub_kind for v1 (substantially more
-complexity for the live-streaming wire format). Spec'd here for
-completeness; implementation Phase 2.
+**The delivery axis closes the live-streaming wire format (CEG
+0.10).** Earlier drafts deferred the live-streaming wire format as
+net-new complexity. CEG 0.10 dissolves that: it adds the **delivery
+axis** — the third orthogonal envelope concern alongside visibility
+(`cohort_scope`) and revocability (`subject_key_ids`) — with three
+optional envelope fields (`delivery_mode: pull | push`,
+`listed: public`, `history_on_join: full | from_join`) plus a
+streaming-transport endpoint section ([CEG §10.5](https://github.com/CIRISAI/CIRISRegistry/blob/main/FSD/CEG/10_endpoints.md))
+and the `delivery_receipt:{stream_id}` reserved prefix
+([CEG §7.9](https://github.com/CIRISAI/CIRISRegistry/blob/main/FSD/CEG/07_reserved.md)).
+The load-bearing insight: **observer-share (N=1) and streaming
+multicast (N>1) are the same primitive at different cardinality** —
+subscriber-set = `community` (Policy M, [CEG §8.1.13.7](https://github.com/CIRISAI/CIRISRegistry/blob/main/FSD/CEG/08_composition.md));
+E2E directed delivery = a `key_grant` cascade of a per-`(stream_id,
+epoch)` stream-epoch DEK over the roster. So a live broadcast is just
+the existing chunk-DAG (`topical_relation:has_chunk`) carried over a
+`delivery_mode: push` envelope to a `cohort_scope: community`
+subscriber-set, with per-stream `SignedTreeHead` (RFC 6962 reused
+per `stream_id`) for accountability and `delivery_receipt:{stream_id}`
+for opt-in delivery acknowledgement. **Still zero new structural
+primitives** — the 1+4 lockdown holds; live broadcast and 1:1 media
+attestation compose from the same set. This is what makes CEWP a
+TikTok/YouTube-*live* replacement, not just a VOD one.
+
+**Status: spec-now / impl-substrate-pending.** The observer-share
+(N=1) half is impl-live. The streaming-multicast (N>1) half is spec'd
+in CEG 0.10 but pending substrate work: best-effort tier on
+[CIRISPersist#142](https://github.com/CIRISAI/CIRISPersist/issues/142)
+(chunk-DAG / STH-per-`stream_id` storage), accountable tier
+additionally on [CIRISRegistry#34](https://github.com/CIRISAI/CIRISRegistry/issues/34)
+(STH consistency-proof enforcement); push-tree fan-out is RC1
+pull-only, deferred to 1.x per CIRISRegistry#46 / #43. Operational
+constants (`K=64` / `T=2s` / cosign-per-epoch / `MAX_CHUNKS_PER_EPOCH
+= 2²⁴`) are operator-tunable, pending RC1-7 ratification. Lowest
+v1 deployment priority; the wire format is no longer the blocker.
 
 ## 3. Content classification dimension family
 
-Multi-scheme coexistence per CEG §1.10.1 mechanism-descriptive-name
+Multi-scheme coexistence per CEG §1.3 mechanism-descriptive-name
 gate.
 
 ### 3.1 The `content_rating:*` family
@@ -659,7 +691,7 @@ the §3.1 discriminator table) with payload:
 
 ### 5.2 Legal basis enumeration
 
-The legal_basis field is mechanism-descriptive (per CEG §1.10.1)
+The legal_basis field is mechanism-descriptive (per CEG §1.3)
 and maps to the international standards landscape:
 
 | Legal basis | Source | Action discipline |
@@ -1404,7 +1436,7 @@ through the same API discipline §11.3 establishes.
 
 ## 13. Open questions
 
-* **Live-streaming wire format details** — `live_stream` sub_kind sketched but implementation deferred to Phase 2.
+* **Live-streaming wire format details** — `live_stream` sub_kind + the CEG 0.10 delivery axis (§2.8) are now spec-complete; the N>1 multicast half is impl-substrate-pending (CIRISPersist#142 / CIRISRegistry#34), deployment deferred to Phase 2.
 * **C2PA integration for image/video provenance** — should `authenticity:provenance_chain` attestations carry [C2PA](https://c2pa.org/) manifests, or define a CEG-native provenance-chain dimension that interoperates with C2PA on import?
 * **Perceptual hash database access** — PhotoDNA is gated to vetted orgs; PDQ is open-source; CEWP-operator-coordination for shared hash access at federation scale needs a Registry-side governance decision.
 * **CW community vs trusted-publisher tradeoff** — both paths can route adult content; do they coexist (yes per this FSD) or should one be the canonical pattern? Current answer: both coexist; CW communities for community-of-interest; publishers for one-to-many.
@@ -1418,7 +1450,7 @@ through the same API discipline §11.3 establishes.
 * [FEDERATION_SCALING_MODEL.md](FEDERATION_SCALING_MODEL.md) — substrate scaling
 * [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) — v2 deniability path
 * [SCHEMA.md §4.29](../SCHEMA.md) — existing external_content
-* [CEG 0.2](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG) — wire-format authority
+* [CEG 0.10](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG) — wire-format authority
 
 ### External — moderation architecture prior art
 

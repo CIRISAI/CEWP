@@ -24,10 +24,12 @@ of those repos. This doc is the pointer map.
 
 ### Wire format
 
-- **[CEG 0.2 PWD](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)**
+- **[CEG 0.10 PWD](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)**
   (in CIRISRegistry) — the 18-section authoritative wire-format
-  spec. 1+4 primitive lockdown. §5 dimension namespace.
-  §9 humanity_accord. Implementers pin against the 0.x series.
+  spec. 1+4 primitive lockdown (held through ten minor versions).
+  §5 dimension namespace. §9 humanity_accord. The 0.10 delivery axis
+  (`delivery_mode` / streaming multicast, §10.5) is the latest
+  addition. Implementers pin against the 0.x series.
 
 ### Ethical framework
 
@@ -86,7 +88,7 @@ of those repos. This doc is the pointer map.
 
 - **High-level positioning** — CIRISAgent#839 (the Agent 3.0 / CEWP umbrella tracker)
 - **Quantitative model questions** — CIRISNodeCore#23 (the substrate alignment audit) or comments on FEDERATION_SCALING_MODEL.md
-- **Wire-format proposals** — CIRISRegistry repo (CEG 0.2 PWD; §4.9.2 amendment process)
+- **Wire-format proposals** — CIRISRegistry repo (CEG 0.10 PWD; §11.2 amendment process)
 - **Implementation work** — the appropriate substrate / fabric repo
 - **Conformance test reports** — CIRISConformance repo
 
@@ -101,7 +103,7 @@ If you want one hour:
 4. Play with the [interactive toy](../toy/index.html) to feel the scale
 
 If you want one day:
-1. CEG 0.2 spec (the wire format authority)
+1. CEG 0.10 spec (the wire format authority)
 2. [FSD/FEDERATION_SCALING_MODEL.md](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_SCALING_MODEL.md) (the quantitative model)
 3. [FSD/CEWP.md](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/CEWP.md) (the platform identity)
 4. The substrate-sister orientation issues (the per-repo positioning)

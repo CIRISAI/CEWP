@@ -164,7 +164,7 @@ for the pointer map.
 - [Platform identity FSD](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/CEWP.md) — the load-bearing claims (in CIRISNodeCore)
 - [Scaling model FSD](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_SCALING_MODEL.md) — the quantitative bet
 - [Anonymous tier v2 FSD](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/ANONYMOUS_TIER.md) — totalitarian-threat deniability path
-- [CEG 0.2 wire-format spec](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG) — the authoritative wire-format spec (in CIRISRegistry)
+- [CEG 0.10 wire-format spec](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG) — the authoritative wire-format spec (in CIRISRegistry)
 - [The Accord](https://ciris.ai/ciris_accord.pdf) — ethical framework the substrate enforces
 - [Research synthesis](https://ciris.ai/research-status/) — the empirical bet
 
@@ -179,6 +179,6 @@ you cannot use it to capture the substrate.
 - High-level positioning / discussion: [CIRISAgent#839](https://github.com/CIRISAI/CIRISAgent/issues/839) (Agent 3.0 / CEWP umbrella tracker)
 - Simulation-engine implementation: issues in this repo (once it lands)
 - Substrate-sister implementation: appropriate sister repo
-- Wire-format proposals: CIRISRegistry (CEG 0.2 PWD; §4.9.2 amendment process)
+- Wire-format proposals: CIRISRegistry (CEG 0.10 PWD; §11.2 amendment process)
 
 The soup is on. Come participate.
