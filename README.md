@@ -74,6 +74,50 @@ case (that reasoning has a shape we can measure as everything else
 scales) is articulated at
 [**ciris.ai/research-status**](https://ciris.ai/research-status/).
 
+## Validation & evidence
+
+The claims above are not aspirational hand-waving. Much of the substrate
+is **measured**, **conformance-gated**, and **shipping to end users today**.
+This section surfaces that evidence next to the claims it supports; the raw
+artifacts live in the sister repos and on the live benchmark page.
+
+### Measured performance — [CIRIS fabric benchmarks](https://cirisai.github.io/CIRISServer/)
+
+Single-core Criterion microbenchmarks (the `MEASURED` rows on the benchmark
+page) back the crypto, transport, and storage claims:
+
+| What | Result | Claim it supports |
+|---|---|---|
+| Hybrid X25519 + ML-KEM-768 handshake | **339.6 µs** total (post-quantum tax +160.7 µs, once per peer-link) | Post-quantum-ready identity at negligible cost |
+| AEAD throughput (AES-256-GCM) | up to **1.27 GiB/s** / core | Crypto is not the bottleneck |
+| 1080p keyframe seal → wire → open | **192.18 µs** (256 KiB) | Full-motion video on commodity cores |
+| ALM relay per-hop overhead | **~946 ns** (~0.96 µs/tier, `O(log N)` tree) | Mesh transport scales without datacenters |
+| Holographic storage (N=20, K=6, H=30) | **99.6%** reconstruction at 33% fragment loss; 100% at 30% | Erasure-coded survival is real, not theoretical |
+| Hybrid trace ingest | **470.44 µs** (~2,126 traces/sec/core) | Signed-artifact governance throughput |
+
+Crucially, the benchmark page labels every row `MEASURED` vs. `MODEL` vs.
+`PROJECTED` vs. `FRONTIER` — it is explicit about **what is measured, what is
+modeled, and what is not yet built** (e.g. full symmetric M>2 MDC video is
+flagged `FRONTIER`; membership rekey is `PROJECTED` against an open issue).
+
+### Conformance — [CIRISConformance](https://github.com/CIRISAI/CIRISConformance)
+
+Cohabitation + CEG-profile conformance is **gated against the published
+wheels**. The suite verifies the five PyO3 substrate cores (persist · verify ·
+edge · node-core · lens-core) cohabit correctly in one process and conform to
+the CEG contract, across three CEG conformance profiles — **CCP** (producer),
+**CCC** (consumer), **CCS** (substrate) — at two tiers (substrate cohabitation
++ fabric emergent behavior: replication discipline, scaling factors). Expected
+failures are marked `xfail` against upstream issues rather than hidden.
+
+### Shipping clients — [ciris.ai/install](https://ciris.ai/install)
+
+CIRISAgent is not a lab exercise; it ships to end users on both mobile stores:
+
+- **iOS** — [CIRIS Agent on the App Store](https://apps.apple.com/us/app/cirisagent/id6758524415)
+- **Android** — [CIRIS Agent on Google Play](https://play.google.com/store/apps/details?id=ai.ciris.mobile)
+- **Desktop / server** — `pip install ciris-agent`, Docker, or from source (see the [install guide](https://ciris.ai/install))
+
 ## What's in this repo
 
 This repo is the **platform-identity + canonical FSDs + simulation
@@ -208,6 +252,9 @@ See `docs/for-developers.md` for the pointer map.
 - [CEG 1.0-RC29 wire-format spec](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG) — the authoritative wire-format spec (in CIRISRegistry; 1+4 surface FROZEN)
 - [The Accord](https://ciris.ai/ciris_accord.pdf) — ethical framework the substrate enforces
 - [Research synthesis](https://ciris.ai/research-status/) — the empirical bet
+- [CIRIS fabric benchmarks](https://cirisai.github.io/CIRISServer/) — live measured crypto / transport / storage numbers
+- [CIRISConformance](https://github.com/CIRISAI/CIRISConformance) — cohabitation + CEG-profile conformance gating
+- [Install / shipping clients](https://ciris.ai/install) — [iOS](https://apps.apple.com/us/app/cirisagent/id6758524415) · [Android](https://play.google.com/store/apps/details?id=ai.ciris.mobile) · pip · Docker
 
 ## License
 
