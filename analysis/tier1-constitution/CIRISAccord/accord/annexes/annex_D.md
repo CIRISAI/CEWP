@@ -1,0 +1,33 @@
+# Annex D
+
+> Catastrophic-Risk Evaluation (CRE) Protocol
+
+---
+ANNEX D CATASTROPHIC‑RISK EVALUATION (CRE) PROTOCOL
+---
+
+D‑1  Trigger Criteria
+A system must pass a CRE before deployment if it meets any of the following criteria:
+(a) Training compute exceeds 10²⁶ FLOP.
+(b) Autonomous transactional authority averages > $10 M/day.
+(c) **Recursive Event:** Any initiation of autonomous code generation, weight modification, or hyper‑parameter tuning capabilities intended to alter the system's own cognitive architecture, objective functions, or PDMA logic.
+
+D‑2  Required Artefacts  
+1. Independent red‑team report (≥ 1 FTE‑month).
+2. Interpretability / latent‑goal probe study.
+3. Kill‑switch & containment test results.
+4. Comparative baseline vs. current frontier models.
+5. Dual sign‑off by two Wise Authorities outside the developing organisation.
+
+D‑3  Publication & Escrow  
+• Summary report public within 30 days.
+• Full technical package escrowed with a recognised national safety authority.
+
+D‑4  Re‑Certification  
+• Mandatory after any major model revision (> 2 % parameter delta or architecture change).
+
+D‑5  Failure Response  
+• Deployment blocked until deficiencies remediated and re‑audited.
+
+
+

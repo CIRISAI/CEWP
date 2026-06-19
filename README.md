@@ -109,6 +109,33 @@ are mirrored for easy cross-reference.
 | [`docs/why-this-matters.md`](docs/why-this-matters.md) | The internet's 11 structural problems + CEWP's mechanisms that eliminate them |
 | [`docs/for-developers.md`](docs/for-developers.md) | Pointers to the canonical FSDs in the substrate-sister repos |
 
+### Consolidated analysis set (vendored snapshot)
+
+[`analysis/`](analysis/) gathers the **load-bearing documents** of the whole
+CIRIS stack — pulled from their 15 home repositories into one tiered set
+(philosophy → constitution → governance → implementation) so the system can be
+reviewed as a single philosophical-technical whole. See
+[`analysis/README.md`](analysis/README.md) for the tier map and
+[`analysis/SOURCES.md`](analysis/SOURCES.md) for the provenance manifest
+(every source repo + pinned commit).
+
+| Tier | Covers | Key sources |
+|---|---|---|
+| [0 — Philosophy](analysis/tier0-philosophy/) | adaptive coherence, Coherence Ratchet, Proof-of-Benefit, M-1 | CIRISAgent, coherence-ratchet (+ Lean lake), RATCHET |
+| [1 — Constitution](analysis/tier1-constitution/) | sovereignty, amendment, halting, anti-capture | Constitution 0.1.5, CIRISAccord, CEG §9/§11 |
+| [2 — Federation governance](analysis/tier2-federation-governance/) | consensus, expertise, moderation, deferral | CIRISNodeCore |
+| [3 — Observation/epistemology](analysis/tier3-observation-epistemology/) | what counts as evidence; coherence measurement | CIRISLensCore, CCA paper |
+| [4 — Registry/trust](analysis/tier4-registry-trust/) | credentials, licensure, revocation; CEG 1.0-RC29 spec | CIRISRegistry, CIRISPersist |
+| [5 — Security](analysis/tier5-security/) | per-repo threat models + audits | every substrate repo (canonical) |
+| [6 — Substrate](analysis/tier6-substrate/) | partition / steward-loss / node-loss survival | Verify, Persist, Edge |
+| [7 — Integration](analysis/tier7-integration/) | do the pieces compose | CIRISServer, CIRISAgent |
+
+> ⚠️ **Snapshot pulled 2026-06-19 — these copies go stale.** Every file under
+> `analysis/` is a verbatim vendored copy at the commit pinned in `SOURCES.md`;
+> the home repo stays canonical. Re-pull before relying on any document for a
+> decision. Threat models were taken from each repo's canonical
+> `docs/THREAT_MODEL.md` (not the stale vendored copies in RATCHET).
+
 ## What CEWP eliminates
 
 | Problem | Mechanism |
