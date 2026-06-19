@@ -135,9 +135,45 @@ attestations — these run distributed across operators, each
 contributing modest compute. No central "alignment lab" is the
 load-bearing authority.
 
+### 12. DNS / nameserver capture
+
+The whole internet hangs off a naming root. Names are seized,
+poisoned, and censored at the resolver; a peer you trust can be made
+unreachable by capturing the layer that says where it lives.
+
+**CEWP's mechanism:** the substrate is **holonomic** — no center, no
+DNS, no load-bearing server. You address a peer by its key, reach it
+over the mesh, and discover it via a signed `transport_destination`
+chain (CEG §0.10) you can re-root at will. There's no nameserver to
+seize.
+
+### 13. Single-point data loss
+
+Centralized storage means a takedown, a seizure, or a bankruptcy can
+erase content for everyone at once. The bytes live in one place that
+one party controls.
+
+**CEWP's mechanism:** content is **holographic** — RaptorQ erasure-
+coded `(N,K)` so any sufficient subset of fragments reconstructs it
+at proportional fidelity, and the federation re-establishes from any
+single survivor holding a signed witness chain (CEG §19). The
+federation survives down to one node.
+
+### 14. The unforgettable internet (no real delete)
+
+Nothing on the centralized internet is ever truly gone — caches,
+backups, and scrapes mean "delete" is a UI lie. Privacy and durability
+are treated as opposites.
+
+**CEWP's mechanism:** revocation, eviction, expiry, and aging are
+*one* operator descent toward a **noise floor** (CEG §19.7). Revoked
+content drops below individual-recoverability (real delete, for
+privacy); the collective gist ages into a memory pyramid that holds
+all of history at `O(log T)` (durability). One mechanism honors both.
+
 ## Why this isn't incremental
 
-The reason these eleven problems don't have separate solutions:
+The reason these fourteen problems don't have separate solutions:
 **they're all consequences of the same structural choice** —
 centralized substrate ownership.
 
@@ -146,12 +182,15 @@ CEWP changes the structural choice. Once you have:
 - Cryptographic identity (Verify)
 - Federation directory + identity-aware storage (Persist)
 - Trust × capacity intake gate (Persist + Edge)
-- Popularity × freshness eviction (Persist)
-- Wire-format authoritative spec (Registry / CEG 0.10)
-- Federation consensus primitives (NodeCore)
-- Detection layer for misalignment (LensCore)
-- Agent runtime with H3ERE pipeline (Agent)
-- Unified client (GUI)
+- Unified retirement → noise floor: real delete at `O(log T)` (Persist)
+- Holographic erasure-coded replication (Edge, CEG §19)
+- DNS-free addressing — address by key, no nameserver (CEG §0.10)
+- Wire-format authoritative spec (Registry / CEG 1.0-RC29, 1+4 FROZEN)
+- Ethical apex — the CIRIS Constitution / M-1 (Registry)
+- Federation consensus primitives (node-core)
+- Observation layer for misalignment (lens-core, in-tree)
+- Agent runtime with H3ERE pipeline (Agent = fabric node + brain)
+- The fabric-node runtime that cohabits the cores (CIRISServer)
 
 ...the eleven problems don't get *addressed* — they're *structurally
 unavailable*. The substrate doesn't have the affordances that let
@@ -161,10 +200,25 @@ You can't have surveillance capitalism on a substrate where 65% of
 data structurally never leaves the device. You can't have platform
 lock-in on a substrate where identity is wire-portable. You can't
 have a content moderation oligopoly on a substrate where moderation
-is a federation-wide primitive each operator runs locally.
+is a federation-wide primitive each operator runs locally. You can't
+seize a substrate with no nameserver and no load-bearing server, and
+you can't erase one that survives to a single holographic survivor.
 
 The substrate doesn't address the problems. The substrate makes them
 impossible.
+
+## What the substrate is for
+
+Removing the failure modes is the negative case. The positive case is
+the ethics the substrate carries. Above the wire grammar (CEG) sits
+the [**CIRIS Constitution**](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution),
+whose apex is one meta-goal — **M-1: "promote sustainable adaptive
+coherence, the living conditions under which diverse sentient beings
+may pursue their own flourishing in justice and wonder."** The whole
+corpus is *peaked in purpose, flat in power*: one telos governs, no
+single party holds the keys to truth. The substrate isn't a neutral
+pipe that happens to lack the bad affordances — it's built to be owed
+M-1, not merely bound by it.
 
 ## What the website team should communicate
 

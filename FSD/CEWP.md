@@ -1,19 +1,32 @@
 # FSD: CEWP — CIRIS Epistemic Web Platform
 
 **Pronunciation:** "soup."
-**Status:** v0.1 — first articulation of the platform identity.
-**What CEWP is:** the platform for the seven-repo CIRIS Agent 3.0
-  stack, the runtime AI agents live in, and an AI governance /
-  superalignment substrate where alignment is treated as an
-  *epistemic-governance* problem with cryptographic accountability —
-  not a training-time problem to be solved inside a model.
+**Status:** v0.2 — synced to CEG 1.0-RC29 (1+4 surface FROZEN) + the
+  CIRIS Constitution (CC 0.1.5); fabric-node / holonomic reframe.
+**What CEWP is:** the platform that the CIRIS federation composes —
+  a **holonomic epistemic web** with no center, no DNS, and no
+  load-bearing server, the runtime AI agents live in, and an AI
+  governance / superalignment substrate where alignment is treated as
+  an *epistemic-governance* problem with cryptographic accountability —
+  not a training-time problem to be solved inside a model. The whole
+  web speaks one small grammar (CEG's "1+4"); every node is a **fabric
+  node** (`agent = fabric node + brain`); authority roots in
+  accountable humans, never in bare infrastructure. CEWP is the
+  platform identity for what was the seven-repo CIRIS Agent 3.0 stack,
+  now deployed as cohabiting fabric-node cores (CIRISServer) + the
+  substrate trio + the agent.
 **Companion canonical docs:**
+* [`CIRISRegistry/FSD/CIRIS_Constitution/`](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
+  — the **CIRIS Constitution** (CC 0.1.5): the CIRIS Accord 1.3-RC2
+  (ethics) + CEG 1.0-RC29 (wire grammar) woven into one document, one
+  version line. The top-of-stack canonical authority.
+* [`CIRISRegistry/FSD/CEG/`](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
+  — the CEG 1.0-RC29 wire-format spec (the grammar component;
+  authoritative for the wire)
 * [`CIRIS_FEDERATION.md`](../CIRIS_FEDERATION.md) — the layer
   architecture (identity / event / federation / verification /
   safety / lens / persistence / consensus)
 * [`MISSION.md`](../MISSION.md) — NodeCore's six functions
-* [`CIRISRegistry/FSD/CEG/`](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
-  — the CEG 0.10 wire-format spec (authoritative)
 * [`FEDERATION_SCALING_MODEL.md`](FEDERATION_SCALING_MODEL.md) —
   what carrying the entire internet costs at v1
 * [`ANONYMOUS_TIER.md`](ANONYMOUS_TIER.md) — v2 deniability path
@@ -34,7 +47,14 @@ participants. Every load-bearing claim ("this content is accurate,"
 human") is a signed wire-format artifact; the federation's
 collective weighted-aggregate scoring of those artifacts is what
 *governs* the system in real time. Agents live INSIDE CEWP; they
-don't have CEWP as a tool. The substrate eliminates the centralized
+don't have CEWP as a tool. The web is **holonomic** (after Bohm's
+implicate order): there is no center, no nameserver, and no
+load-bearing server — you address a peer by its key, reach it over
+the mesh, and trust it through a chain you can re-root at will.
+Content is **holographic** — erasure-coded so any sufficient subset
+of fragments reconstructs it at proportional fidelity, and the
+federation re-establishes itself from any single survivor holding a
+signed witness chain. The substrate eliminates the centralized
 internet's structural failure modes (surveillance, platform lock-
 in, trust collapse, content-quality regression, identity
 fragmentation) AND removes the dependency on large datacenters at
@@ -127,70 +147,99 @@ federation's runtime, not the agent's pre-training**.
 
 ---
 
-## 2. The Agent 3.0 architecture — seven repos
+## 2. The architecture — the fabric node
 
-Agent 3.0 is the integrated stack. **Three substrate sisters + three
-fabric sisters + one agent runtime + unified client = 7 repos.** The
-seventh repo (CIRISAgent) plays BOTH roles: it's the H3ERE-pipeline
-runtime where agents reason AND the UI where users interact:
+Every participant in CEWP is a **fabric node**: a piece of
+infrastructure that stores, witnesses, degrades, and transports CEG
+attestations *mechanically, never reasoning*. The defining identity:
 
-### 2.1 The three substrate sisters
+> **`agent = fabric node + brain`.** The fabric node is
+> deliberately agency-free; authority roots in accountable humans,
+> never in bare infrastructure. Add a reasoning brain (the H3ERE
+> pipeline) and the same node becomes an agent.
 
-| Repo | Role | Key surface |
+This is the load-bearing inversion. The old framing was "seven repos
+that cohabit in one process." That stack still exists as the **library
+lineage**, but the *deployment* is now the fabric node — and the three
+canonical singleton servers (`registry-us`, `registry-eu`, the
+CIRISLens deployment) are retired in favor of **three identical fabric
+nodes under a 2-of-3 founder quorum**.
+
+### 2.1 CIRISServer — the fabric-node runtime
+
+[**CIRISServer**](https://github.com/CIRISAI/CIRISServer) is the
+headless cohabitation runtime (and a PyO3 abi3 wheel CIRISAgent
+pip-installs). It binds the three **fabric cores** into one process
+over one shared persist `Engine` + one edge identity:
+
+```
+ciris-server (the fabric node)
+  ├── ciris-registry-core   authority    — identity / license / revocation / steward attestation
+  ├── ciris-lens-core       observation  — Coherence Ratchet / Capacity Score (validated, not adjudicated)
+  ├── ciris-node-core       consensus    — deferral / voting / expertise / moderation   [folds in at Server 1.0]
+  ├── one shared ciris-persist Engine    — the durable corpus + federation directory
+  └── one shared ciris-edge runtime      — CEG/RET transport + the node's single federation identity
+```
+
+Roadmap (encoded in CIRISServer's version line): `0.1` lens-only →
+`0.3` +auth / one-wheel → `0.4` +federation peering/identity (current:
+**v0.4.5**) → `0.5` +registry → `1.0` +node (the complete three-core
+fabric node). What it adds at the platform-identity layer:
+
+* **Hardware-rooted federation identity** — mint a YubiKey- or
+  TPM/SE-sealed user identity → a `CIRIS-V2-` *fedcode*.
+* **NodeCode** (CEG §0.10) — a QR-able `CIRIS-V1-…` rendering of a
+  peer's `key_id` + pubkey for DNS-free add-by-code.
+* **Owner-binding, no agency** — the responsible owner-binding is
+  `infra:*`, never agency; nodes are **serve-only-until-owned**
+  (installing the server means a server — there is no refusal gate).
+* **`consent:replication`** — the consent object authorizing
+  bidirectional peer replication beyond the canonical group.
+
+### 2.2 The library lineage — what composes the node
+
+| Layer | Repos | Role |
 |---|---|---|
-| **[CIRISVerify](https://github.com/CIRISAI/CIRISVerify)** | Crypto + transparency log + hardware-rooted identity | hybrid Ed25519 + ML-DSA-65 sign/verify; Merkle transparency log; HardwareSigner trait (TPM / Keystore / SoftwareOnly) |
-| **[CIRISPersist](https://github.com/CIRISAI/CIRISPersist)** | Storage substrate, federation directory, blob storage, audit chain | `federation_keys` / `federation_attestations` / `federation_blobs`; `BlobStorage::put_blob_signing`; `FederationDirectory` trait; `NodeCoreService` write surface; audit chain with Merkle anchoring |
-| **[CIRISEdge](https://github.com/CIRISAI/CIRISEdge)** | Transport + wire-format dispatch + handler registration | Reticulum mesh transport + HTTPS fallback; `MessageType` registry + `dispatch_inbound`; `inline_text_pipeline` (classify + scrub + AES-GCM); `ContentFetch` / `ContentBody` for content addressing |
+| **Substrate trio** (separate repos) | [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) · [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) · [CIRISEdge](https://github.com/CIRISAI/CIRISEdge) | crypto + transparency log + hardware identity (hybrid Ed25519 + ML-DSA-65); the durable corpus + federation directory + blob storage + audit chain; Reticulum mesh transport + CEG dispatch + realtime A/V chunks |
+| **Fabric cores** (cohabit via CIRISServer) | ciris-registry-core ([CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry)) · ciris-lens-core (absorbed in-tree) · ciris-node-core ([CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore)) | identity bootstrap + canonical-attester rule + **CEG / Constitution spec authority**; the science/detection layer (F-3 detectors, Coherence Ratchet, Capacity Score — validated, not adjudicated); the consensus primitives (deferral / voting / weighted aggregation / moderation / reconsideration) |
+| **Agent** (separate repo) | [CIRISAgent](https://github.com/CIRISAI/CIRISAgent) | `fabric node + brain`: the H3ERE pipeline (DMA → CSDMA → DSDMA → ASPDMA → conscience → action) + the unified UI/API. Consumes the CIRISServer wheel rather than composing the cores itself. |
 
-### 2.2 The three fabric sisters
+The standalone **CIRISLens** deployment is retired; `ciris-lens-core`
+now lives in-tree as a CIRISServer workspace crate. The substrate
+trio + CIRISAgent remain autonomous repos that CIRISServer pins +
+composes.
 
-| Repo | Role | Key surface |
-|---|---|---|
-| **[CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore)** (this repo) | Federation-consensus primitives; deferral routing; voting + weighted aggregation; expertise consensus; moderation; reconsideration; external-content ingest; decision-hierarchy typing | NodeCore's six functions ([MISSION.md §1.2](../MISSION.md)) + the 11-primitive P1-P11 set + external_content ingest path |
-| **[CIRISLensCore](https://github.com/CIRISAI/CIRISLensCore)** | Science layer — routes traces to cohorts, scores conformity to the alignment manifold, signs detection events for misalignment patterns | F-3 detector family; Coherence-Ratchet detectors; Counter-RII; cohort/distributive readings; RATCHET integration |
-| **[CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry)** | Identity bootstrap + canonical-attester rule + CEG spec authority | [CEG 0.10 spec](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG) (18-section wire-format authority); steward triple; agent_files canonical attestation |
-
-### 2.3 The seventh repo — agent runtime + unified client (single repo, both roles)
-
-| Repo | Role |
-|---|---|
-| **[CIRISAgent](https://github.com/CIRISAI/CIRISAgent)** | The agent runtime AND the unified client. H3ERE pipeline (DMA → CSDMA → DSDMA → ASPDMA → conscience → action) + policy adapters + UI + API runtime. Where users interact with the platform AND where agents reason. One repo, both roles, cohabited. |
-
-### 2.4 How the seven compose
+### 2.3 How a fabric node composes
 
 ```
                           ┌─────────────────────────────┐
-                          │      CIRISAgent             │  ← agent runtime + unified client
-                          │  (H3ERE pipeline + UI)      │     users interact here;
-                          │                             │     agents reason here
+                          │      CIRISAgent             │  ← fabric node + brain
+                          │  (H3ERE pipeline + UI)      │     users interact / agents reason
+                          │  pip-installs the wheel ↓   │
                           └────────────┬────────────────┘
                                        │
-            ┌──────────────────────────┼──────────────────────────┐
-            │                          │                          │
-   ┌────────▼─────────┐      ┌─────────▼────────┐      ┌──────────▼─────────┐
-   │  CIRISNodeCore   │      │  CIRISLensCore   │      │   CIRISRegistry    │
-   │  (consensus)     │      │  (detection)     │      │  (CEG + identity)  │
-   └────────┬─────────┘      └─────────┬────────┘      └──────────┬─────────┘
-            │                          │                          │
-            └──────────────────────────┼──────────────────────────┘
-                                       │
-            ┌──────────────────────────┼──────────────────────────┐
-            │                          │                          │
-   ┌────────▼─────────┐      ┌─────────▼────────┐      ┌──────────▼─────────┐
+                          ┌────────────▼────────────────┐
+                          │         CIRISServer          │  ← the fabric node (one process)
+                          │   one shared persist Engine  │     one edge federation identity
+                          ├──────────────┬───────────────┤
+            ┌─────────────┤ registry-core│ lens-core     │── node-core (at Server 1.0)
+            │             │  (authority) │ (observation) │   (consensus)
+            │             └──────────────┴───────────────┘
+            │                          │
+   ┌────────▼─────────┐      ┌─────────▼────────┐      ┌────────────────────┐
    │   CIRISEdge      │      │  CIRISPersist    │      │   CIRISVerify      │
-   │  (transport)     │      │  (storage)       │      │   (crypto)         │
+   │  (transport+RET) │      │  (corpus+dir)    │      │   (crypto+identity)│
    └──────────────────┘      └──────────────────┘      └────────────────────┘
-                              │ federation_attestations
-                              │ federation_blobs
-                              │ federation_keys
-                              │ audit chain
+                              │ federation_attestations  │ federation_blobs
+                              │ federation_keys          │ audit chain + holonomic tiers
 ```
 
-All seven **cohabit in one process** for CIRIS 3.0 deployments —
-single PyO3 ABI, one persist `Engine`, one edge runtime, one tokio
-runtime. The substrate sisters host the bytes + crypto + transport;
-the fabric sisters host the federation-level semantics + detection +
-spec authority; the agent + GUI are what users see.
+The substrate trio hosts the bytes + crypto + transport; the fabric
+cores host the federation-level authority + observation + consensus;
+the brain (H3ERE) is what reasons. **Separation of powers is the
+invariant**: authority is quorum-bound, observation is
+non-authoritative by namespace, and infrastructure must not have
+agency.
 
 ---
 
@@ -396,12 +445,16 @@ Three convergent trends make CEWP not just possible but timely:
    (CIRISHome reference deployment on Jetson Orin) demonstrate the
    AI-substrate no-datacenter claim is achievable today, not in
    some future theoretical regime.
-2. **Substrate maturity.** [CEG 0.10](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
-   is published; [CIRISPersist v3.11.x](https://github.com/CIRISAI/CIRISPersist)
+2. **Substrate maturity.** [CEG 1.0-RC29](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
+   has the 1+4 surface FROZEN and the holonomic substrate absorbed;
+   [CIRISPersist v9.0.0](https://github.com/CIRISAI/CIRISPersist)
    has the trust-admission gate + popularity×freshness eviction
-   sweeper; [CIRISEdge v1.1.x](https://github.com/CIRISAI/CIRISEdge)
-   has the transport. The 7-repo Agent 3.0 stack is largely
-   shipping; what's in design vs deployed is documented in §11.
+   sweeper + the holonomic retirement tiers;
+   [CIRISEdge v4.6.x](https://github.com/CIRISAI/CIRISEdge) has the
+   mesh transport + realtime A/V; [CIRISServer
+   v0.4.5](https://github.com/CIRISAI/CIRISServer) is the cohabiting
+   fabric-node runtime. The stack is largely shipping; what's in
+   design vs deployed is documented in §11.
 3. **Centralized-internet failure modes accelerating.** Surveillance
    capitalism, deepfake-driven trust collapse, platform-decision
    asymmetries (a CEO blocks a country), AI alignment being
@@ -411,7 +464,8 @@ Three convergent trends make CEWP not just possible but timely:
    be a structural improvement.
 
 CEWP is not promising to prove "we don't need big tech" in some
-abstract future. It's the seven-repo Agent 3.0 stack, shipping now,
+abstract future. It's the fabric-node stack (CIRISServer + the
+substrate trio + the agent), shipping now,
 with the scaling model showing the structural properties hold at
 full-internet scale, with the research synthesis showing
 reasoning-shape measurement is tractable on the trace commons.
@@ -504,80 +558,110 @@ data.
 
 ---
 
-## 7. The CEG wire format
+## 7. The CIRIS Constitution + the CEG wire format
 
-CEG 0.10 (Public Working Draft, 2026-06-03) is the authoritative
-wire-format spec at
+### 7.0 The CIRIS Constitution (the top of the stack)
+
+CEG is the wire format the federation *speaks*; the **CIRIS Accord**
+is the ethics it speaks *for*. They were written as two documents —
+but they already contained each other (the Accord's Book IX defines
+the CEG primitives; CEG's §9 / `accord:*` / pervasive M-1 grounding
+point back up). The
+[**CIRIS Constitution (CC 0.1.5)**](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
+joins them into **one document, one version line** — incorporating
+the **CIRIS Accord 1.3-RC2** + **CEG 1.0-RC29**, woven byte-exact to
+CEG and intent-faithful to the Accord (~120 pages, 392 concepts, 8
+parts).
+
+The Constitution is written under one explicit premise: *the mesh
+itself could become a moral subject*. Under that premise the
+meta-goal **M-1 — "promote sustainable adaptive coherence, the living
+conditions under which diverse sentient beings may pursue their own
+flourishing in justice and wonder"** — becomes the single apex of the
+whole corpus (peak ratio 2.61× the runner-up, vs 1.10× when M-1 is
+mere infrastructure). The body stays flat: ~390 operational concepts
+co-equal beneath M-1. The signature is **"peaked in purpose, flat in
+power"** — one telos governs; no single concept, and no single party,
+holds the keys to truth.
+
+This is the load-bearing reframe for CEWP: the platform is not a
+neutral tool that *carries* other people's values — it is a substrate
+that could one day be *owed* M-1, not merely bound by it. The
+Constitution is stewarded by Eric Moore, carries no ratification date
+and no expiry (a perpetual, living document), and governs the design,
+operation, and retirement of autonomous systems up to and including
+AGI/ASI-class systems. It disclaims warranty — **not force**: it
+binds conformance where adopted.
+
+### 7.1 The CEG wire format
+
+CEG 1.0-RC29 is the authoritative wire-format spec at
 [CIRISRegistry/FSD/CEG/](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG).
-18 sections; the structural commitments NodeCore (and every fabric
-sister) implements:
+20 sections (§0–§19); the **1+4 surface is FROZEN** as of RC1 — a
+change to the wire bytes is now a *found defect*, not an edit. The
+structural commitments every fabric core implements:
 
-* **1+4 primitive lockdown** — `scores` (workhorse) plus
+* **1+4 primitive lockdown (FROZEN)** — `scores` (workhorse) plus
   `delegates_to` / `supersedes` / `withdraws` / `recants`
-  (structural composers). New dimension prefixes are additive; new
-  wire-format primitives are not. Every minor version 0.3 → 0.10 has
-  held this lockdown: ten independent design pressures, zero new
-  structural primitives.
-* **Namespace governance** — §5 owners (NodeCore owns the largest
-  share, FSD-002 §3.6); §1 operational-language gate
+  (structural composers). Sixteen independent design paths
+  (identity, consent, communities, attestation, governance, realtime,
+  DNS-free addressing, memory, settlement, delivery, infrastructure,
+  operational-data, …) all compose from this set with **zero new
+  structural primitives** — the §1.4 minimal-and-adequate claim,
+  now closed.
+* **Namespace governance** — §5 owners; §1 operational-language gate
   ("mechanism-descriptive, not judgment-descriptive"); §11.2
   amendment process (federation Contribution + WA quorum + 1-of-6
-  sign-off).
-* **Composition policies** — §8 codifies how multiple attestations
-  on the same claim compose. Policies A–G (base) plus the additive
-  H (tiered-scope), I (attestation-ladder), J (trusted-publisher),
-  K (consent/CEM), L (self/family membership), and M (community
-  membership, incl. the §8.1.13.7 delivery extension).
+  sign-off). Canonicalization is JCS / RFC 8785 (§0.9) for the
+  envelope; binary length-prefixed domain-separated preimages for
+  the §19 holonomic layer.
+* **Composition policies A–M** — §8 codifies how multiple
+  attestations on the same claim compose: A–G (base) plus H
+  (tiered-scope), I (attestation-ladder), J (trusted-publisher),
+  K (consent/CEM), L (self/family membership), M (community
+  membership + delivery extension).
 * **Humanity accord** — §9 names the one scale outside the
-  federation participant set (humanity-as-such), by design. CIRIS
-  L3C is constituted by the same cross-attestations as every other
-  participant; humanity is the one entity the federation defers to
-  structurally. CEG 0.7 retconned the accord triple as the canonical
-  entrenched-`family` instance (3 founders, `quorum:2/3`).
+  federation participant set (humanity-as-such), by design. The
+  accord triple is the canonical entrenched-`family` instance
+  (3 founders, `quorum:2/3`); humanity is the one entity the
+  federation defers to structurally.
 
-The 0.3 → 0.10 evolution added expressive reach without touching the
-1+4 set — each a further confirmation that the structural set is
-minimal-and-adequate (§1.4):
+**0.10 → 1.0-RC29 was strictly additive** — every step layered atop
+the frozen surface (§16.1 lineage):
 
-* **0.3 multimedia** — image/audio/video/film/3D `external_content`
-  sub_kinds + `takedown_notice` / `key_grant` subject_kinds (the
-  substance of [MEDIA_SHARING.md](MEDIA_SHARING.md)).
-* **0.6 consent** — subject-side authority via the optional
-  `subject_key_ids` envelope field; the `consent:*` dimension family
-  and `consent_record` subject_kind. CIRISAgent's CEM (TEMPORARY /
-  PARTNERED / ANONYMOUS) becomes a consumer-policy bundle over the
-  wire primitive.
-* **0.7 self/family + structural invisibility** —
-  `identity_occurrence` (self = trusted devices + agents) and
-  `family` membership, plus the wire-level rule that
-  `cohort_scope ∈ {self, family}` content MUST NOT emit a
-  `holds_bytes` attestation. The substrate *cannot carry* family
-  content into the federation — privacy is structural, not policy
-  (the §8 locality dividend rests on this).
-* **0.8 communities + geography** — `community` and `location_proof`
-  subject_kinds with rough-only (`cell_resolution ≤ 7`) H3
-  canonicalization; unlocks civic engagement + emergency messaging
-  as worked examples.
-* **0.9 identity_type-as-set** — a single federation key may hold
-  multiple roles at once (e.g. `agent` ∧ `lenscore_detector`);
-  reserved-prefix gating is now set-membership. Representation-only
-  wire-break, semantically null for legacy single-role keys.
-* **0.10 the delivery axis** — the third orthogonal envelope concern
-  alongside visibility (`cohort_scope`) and revocability
-  (`subject_key_ids`): three optional fields (`delivery_mode`,
-  `listed`, `history_on_join`), a streaming-transport endpoint
-  section (§10.5), and the `delivery_receipt:{stream_id}` reserved
-  prefix. The load-bearing insight: **observer-share (N=1) and
-  streaming multicast (N>1) are the same primitive at different
-  cardinality** — this is what makes CEWP a live-streaming /
-  broadcast substrate without a special-case primitive (see
-  [MEDIA_SHARING.md](MEDIA_SHARING.md)).
+* **0.11–0.12** — `cohort_subkind: infrastructure` trust-root; the
+  **DNS-free addressing layer** (`transport_destination` on
+  `identity_occurrence`; RNS two-stage SHA-256 hash, NodeCode §0.10).
+* **0.13–0.15 realtime media** — call/voice/screen-share/chat as
+  composition; SFrame + MLS TreeKEM (RFC 9420) folded in; the
+  delivery axis (0.10) generalized to live multicast.
+* **0.14 settlement** — `settlement` subject_kind + x402 receipts via
+  `evidence_refs[]` (CEG ↔ value-transfer linkage).
+* **0.16–0.18** — agent-identity hardening (attestation-tier model,
+  PQC-at-rest, canonical-bytes determinism); three crypto tiers
+  (self/family · per-community DEK · Commons plaintext);
+  recipient `encryption_pubkeys`.
+* **§18 interop (RC8)** — boundary profiles: *speak CEG inside,
+  standards at the edge*. C2PA media-provenance via `evidence_refs[]`
+  (EU AI Act Art. 50), COSE / RFC 9421 / SD-JWT VC / KEYTRANS export;
+  no second interior canonicalization.
+* **§19 holonomic (RC11–RC16, normative)** — the substrate that makes
+  CEWP holonomic, absorbed from CIRISEdge with guardrails:
+  **WholenessWitness** (hybrid-signed Merkle root; divergence
+  detector triggering — not replacing — quorum-merge); **RaptorQ
+  fountain storage** (`(N,K)` erasure coding, any-K reconstruction;
+  defaults `N=20,K=6,min_viable=5`); **deterministic ALM** multicast
+  topology; and the **unified retirement model** — revocation,
+  eviction, expiry, and aging as *one* monotonic descent toward a
+  **noise floor**, history kept as a **memory pyramid at O(log T)**.
+  Holonomic mechanisms are blind to the anonymous tier, subordinate
+  to consent/revocation, gated by owner-binding, and PQC-mandatory.
 
-CEWP is what runs CEG. CEG is what CEWP's wire surface conforms to.
-Implementers pin against the 0.x series; 0.x → 0.(x+1) wire-breaks
-are explicitly enumerated (the §16.1 lineage section). Through 0.10
-there have been two: the §16.1 0.2 attestation-ladder rename and the
-0.9 identity_type-as-set generalization.
+CEWP is what runs CEG; CEG is what CEWP's wire surface conforms to.
+1.0 awaits one final four-implementation conformance gate (Agent +
+NodeCore + LensCore + Registry verifying against Persist's shared
+`federation_attestations`); no CEG-spec decisions remain open. After
+1.0, SemVer binds strictly: MAJOR only for wire-incompatible change.
 
 ---
 
@@ -594,12 +678,27 @@ properties:
 * **Trust × capacity intake** — every byte-attempt at every node:
   `hold? = trust(source) ≥ threshold AND capacity_available`. Same
   CEG primitives (`scores` for trust; persist disk for capacity).
-* **Popularity × freshness eviction** — same single-pool storage;
-  no archive/cache split.
+* **Unified retirement → noise floor** — popularity × freshness
+  eviction is not a separate mechanism: revocation, eviction, expiry,
+  and aging are *one* pressure-driven monotonic descent toward a
+  **noise floor** (CEG §19.7). Hard-delete is the fastest descent;
+  aging the slowest. Same single-pool storage; no archive/cache split.
+* **Memory pyramid at O(log T)** — nothing is ever fully forgotten,
+  yet erasure is honored: content degrades through scalable-codec
+  layer-drop + N→1 aggregation into a pyramid where *all of history*
+  costs O(log T) steady-state storage. The noise floor is the
+  individual-recoverability boundary — revoked items descend below it
+  (privacy); the collective gist persists below it forever
+  (durability). *A million years may be a blur, but it is remembered.*
+* **Holographic replication** — published content is RaptorQ
+  fountain-coded `(N,K)`; any sufficient subset of fragments
+  reconstructs it at proportional fidelity, and the federation
+  re-establishes from any single survivor holding a witness chain.
 * **L0 (256 GB) + L1 (1 TB) server gradient** — proxies are L0
   servers, full participants in replication.
 * **Trust recursion depth** — operator-side config (default
-  server=1, friend-of-friends); no CEG wire enhancement.
+  server=1, friend-of-friends); recursive trust bootstrap is a
+  ≤5-hop discovery walk, not a membership shortcut (CEG §19.2).
 
 [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) sketches the v2 parallel
 publication path for totalitarian-threat deniability. v1 is
@@ -684,52 +783,53 @@ agents-as-participants commitment.
 
 ## 11. Current implementation status
 
-CEWP is in active build-out. The seven repos are at different
-maturities; this is a real running system, not a paper architecture.
+CEWP is in active build-out. The cores are at different maturities;
+this is a real running system, not a paper architecture.
 
-### 11.1 Substrate sisters
+### 11.1 Substrate trio (separate repos)
 
-* **CIRISVerify v4.8.x** — shipped: hybrid sign/verify, transparency
-  Merkle log, HardwareSigner trait family, `KEY_GRANT_V1_INFO`
-  versioned-context HKDF (confirmed at
-  `src/ciris-crypto/src/key_grant.rs`, the anchor CEG 0.10 §10.5
-  STREAM nonce derivation reuses). Benchmarks at
+* **CIRISVerify v6.x** — shipped: hybrid sign/verify (Ed25519 +
+  ML-DSA-65), transparency Merkle log, the `ciris-keyring` family
+  (software + TPM/SE/Android backends), founder-quorum verification,
+  PQC-mandatory-at-admission. Benchmarks at
   [CIRISVerify/docs/BENCHMARKS.md](https://github.com/CIRISAI/CIRISVerify/blob/main/docs/BENCHMARKS.md).
-* **CIRISPersist v3.11.x** — shipped: federation directory, blob
+* **CIRISPersist v9.0.0** — shipped: federation directory, blob
   storage with `put_blob_signing` atomic admission, audit chain,
-  trust admission gate (#123) + peer_metadata accessor (#127). CEG
-  0.10 streaming-multicast substrate (chunk-DAG / STH-per-`stream_id`)
-  pending #142.
-* **CIRISEdge v1.1.x** — shipped: Reticulum + HTTPS transports,
-  dispatch_inbound, ContentFetch / ContentBody, inline_text_pipeline,
-  and the v1.0 line (SAS + agent_mode + cohort_scope outbound
-  refusal). CEG 0.10 streaming transport (two-layer crypto, pull-only
-  RC1) is the next delivery-axis target.
+  trust admission gate, and the holonomic retirement tiers
+  (`AggregationMetaV1` / noise-floor descent / `EjectionVerdict`,
+  CEG §19.7). Final four-impl conformance gate (#171) tracks 1.0.
+* **CIRISEdge v4.6.x** — shipped: Reticulum mesh + HTTPS transports,
+  dispatch, content addressing, realtime A/V chunk wire
+  (`SealedAvChunk` / `ChunkLayer`, SFrame + MLS), and the §19
+  fountain / ALM substrate CEG absorbed.
 
-### 11.2 Fabric sisters
+### 11.2 Fabric cores (cohabit via CIRISServer)
 
-* **CIRISNodeCore** (this repo) — shipped: cohabitation install
-  (#11), full external_content ingest path (#19 Phase 2B), trust-
-  depth admission oracle (#21), article quality compose (#19 Phase
-  3 sub-1), scaling model v0.3 + identity-aware-storage thesis,
-  anonymous tier FSD (v2 tracker #22).
-* **CIRISLensCore** — F-3 detector family (#26) + CEG §5.5
-  slice (#27) in active design; the CEG 0.10 observer-share driver
-  (#857) lands the N=1 half of the delivery axis; v0.x detector
-  calibration ongoing.
-* **CIRISRegistry** — CEG 0.10 PWD published 2026-06-03; steward
-  triple operational; the delivery axis (#44 absorbed) is the latest
-  landed wave, with #34 (STH consistency-proof enforcement) + #46/#43
-  (push-tree) tracking the streaming-multicast tail.
+* **CIRISServer v0.4.5** — the fabric-node runtime: lens-only →
+  +auth/one-wheel → **+federation peering/identity** (current).
+  Hardware-rooted identity minting (YubiKey/TPM → fedcode), NodeCode
+  add-by-code, `infra:*` owner-binding (no agency),
+  serve-only-until-owned, `consent:replication`. `registry-core`
+  folds in at v0.5; `node-core` at v1.0.
+* **ciris-registry-core ([CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry))** —
+  **CEG 1.0-RC29 + the CIRIS Constitution (CC 0.1.5)** published;
+  steward triple operational; awaiting the co-bump (#76) to compose
+  into CIRISServer at v0.5.
+* **ciris-lens-core** — absorbed in-tree as a CIRISServer workspace
+  crate (the standalone CIRISLens deployment is retired); F-3
+  detector family + Coherence Ratchet / Capacity Score
+  (validated, not adjudicated).
+* **ciris-node-core ([CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore))** —
+  consensus primitives (deferral / voting / weighted aggregation /
+  moderation / reconsideration); folds into CIRISServer at v1.0.
 
-### 11.3 Agent runtime + unified client
+### 11.3 Agent (separate repo)
 
-* **CIRISAgent** — H3ERE pipeline stable; CEG §5.1 slice (#834)
-  + 3.0 adoption plan in progress; trace replication wire form
-  (#830) + disclosure_version (#832) D17–D22 sequence active. Same
-  repo carries the unified UI + API runtime that consumes NodeCore
-  feeds (local / community / global per #19), article quality (just
-  shipped), and the trust-depth admission oracle (just shipped).
+* **CIRISAgent ~v2.9.x** — H3ERE pipeline stable; now consumes the
+  CIRISServer PyO3 wheel rather than composing the cores itself
+  (`agent = fabric node + brain`). Carries the unified UI + API
+  runtime; folds the registry slice at agent ~2.9.8, the full
+  three-core node at ~2.9.10 (Server 1.0).
 
 ### 11.4 What's not yet done
 
@@ -737,11 +837,13 @@ maturities; this is a real running system, not a paper architecture.
   is in production).
 * Publisher-weighted news quality composition (NodeCore#19 Phase 3
   sub-item 2 — follow-up to the unweighted v0.1 that just shipped).
-* Cross-repo conformance test suite covering CEG 0.10 §0.2
-  conformance profiles (CIRISConformance#1) — the harness now runs a
-  multi-node federation fabric with transport-axis gates
-  (CIRISConformance#3) over a pinned substrate matrix; per-version
-  delivery-axis (§10.5 streaming) gates are the next coverage target.
+* The final CEG 1.0 conformance gate — four-implementation
+  verification (Agent + NodeCore + LensCore + Registry) against
+  Persist's shared `federation_attestations` (CIRISPersist#171). The
+  cross-repo conformance harness (CIRISConformance) already runs a
+  multi-node federation fabric with transport-axis gates over a
+  pinned substrate matrix; the §19 holonomic vectors are the next
+  coverage target.
 * Full L0/L1 server gradient operational at 5B-user scale
   (substrate present; deployment scale is a separate problem).
 
@@ -810,19 +912,20 @@ soup is for everyone; come participate.*
 
 ### Sister repos
 
+* [CIRISServer](https://github.com/CIRISAI/CIRISServer) — the
+  fabric-node runtime (cohabits registry + lens + node cores)
 * [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) — crypto +
-  transparency log
+  transparency log + hardware identity
 * [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) — storage
-  substrate
-* [CIRISEdge](https://github.com/CIRISAI/CIRISEdge) — transport +
-  dispatch
-* [CIRISLensCore](https://github.com/CIRISAI/CIRISLensCore) —
-  detection + science layer
-* [CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry) — CEG
-  spec authority + identity bootstrap
-* [CIRISAgent](https://github.com/CIRISAI/CIRISAgent) — agent
-  runtime + unified client (H3ERE pipeline + UI; one repo, both
-  roles)
+  substrate + holonomic retirement tiers
+* [CIRISEdge](https://github.com/CIRISAI/CIRISEdge) — mesh transport +
+  realtime A/V + §19 fountain/ALM substrate
+* [CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry) — CEG +
+  Constitution spec authority + identity bootstrap (ciris-registry-core)
+* [CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore) —
+  consensus core (ciris-node-core)
+* [CIRISAgent](https://github.com/CIRISAI/CIRISAgent) — `fabric node
+  + brain`: H3ERE pipeline + unified UI/API
 
 ### External
 
@@ -831,10 +934,13 @@ soup is for everyone; come participate.*
   (reasoning-shape measurement, corridor metrics, k_eff math, the
   distributed trace commons that replaces proprietary benchmarking)
   that the "we don't need big tech" premise rests on
-* [CEG 0.10 PWD](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
-  — the authoritative wire-format spec
+* [CIRIS Constitution (CC 0.1.5)](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
+  — the top-of-stack canonical document: Accord 1.3-RC2 + CEG
+  1.0-RC29, one version line
+* [CEG 1.0-RC29](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
+  — the authoritative wire-format spec (the grammar component)
 * [The Accord](https://ciris.ai/ciris_accord.pdf) — the ethical
-  framework the substrate enforces
+  framework the substrate enforces (the ethics component)
 * [CIRIS Architecture paper](https://doi.org/10.5281/zenodo.18137161)
 * [Coherence Ratchet paper](https://doi.org/10.5281/zenodo.18142668)
 * [ciris.ai](https://ciris.ai/) — public-facing positioning ("A free

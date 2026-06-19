@@ -8,53 +8,58 @@ an AI governance / superalignment platform — built on the bet that
 
 ## What CEWP is
 
-CEWP is the platform identity for the seven-repo CIRIS Agent 3.0
-stack. It's an *epistemic web*: a cryptographically-accountable
-federation where humans, AI agents, and organizations are first-
-class participants with the same identity shape. Every load-bearing
-claim ("this content is accurate," "this peer is trusted," "this
-action should be deferred to a human") is a signed wire-format
-artifact; the federation's collective weighted-aggregate scoring of
-those artifacts is what *governs* the system in real time.
+CEWP is an *epistemic web*: a **holonomic**, cryptographically-
+accountable federation where humans, AI agents, and organizations are
+first-class participants with the same identity shape. Every
+load-bearing claim ("this content is accurate," "this peer is
+trusted," "this action should be deferred to a human") is a signed
+wire-format artifact in one small grammar (CEG's **"1+4"**); the
+federation's collective weighted-aggregate scoring of those artifacts
+is what *governs* the system in real time.
 
-Agents live **inside** CEWP; they don't have CEWP as a tool. The
-substrate eliminates the centralized internet's structural failure
-modes (surveillance, platform lock-in, trust collapse, content-
-quality regression, identity fragmentation) AND removes the
-dependency on large datacenters at both the data-sharing and AI-
-inference layers.
+**No center, no DNS, no load-bearing server.** You address a peer by
+its key, reach it over the mesh, and trust it through a chain you can
+re-root at will. Content is **holographic** — erasure-coded so any
+sufficient subset of fragments reconstructs it, and the federation
+re-establishes from any single survivor with a signed witness chain.
+Memory is forever but still forgets: revocation, eviction, expiry, and
+aging are *one* descent toward a **noise floor**, keeping all of
+history as a memory pyramid at `O(log T)`.
+
+Agents live **inside** CEWP; they don't have CEWP as a tool. Every
+node is a **fabric node** that stores, witnesses, degrades, and
+transports — *mechanically, never reasoning*: **`agent = fabric node
++ brain`**, and authority roots in accountable humans, never in bare
+infrastructure.
 
 ```
                           ┌─────────────────────────────┐
-                          │      CIRISAgent             │  ← agent runtime + unified client
-                          │  (H3ERE pipeline + UI)      │     users interact here; agents reason here
+                          │      CIRISAgent             │  ← fabric node + brain
+                          │  (H3ERE pipeline + UI)      │     pip-installs the wheel ↓
+                          └────────────┬────────────────┘
+                                       │
+                          ┌────────────▼────────────────┐
+                          │         CIRISServer          │  ← the fabric node (one process)
+                          │  registry · lens · node cores│     one persist Engine · one edge identity
                           └────────────┬────────────────┘
                                        │
             ┌──────────────────────────┼──────────────────────────┐
-            │                          │                          │
-   ┌────────▼─────────┐      ┌─────────▼────────┐      ┌──────────▼─────────┐
-   │  CIRISNodeCore   │      │  CIRISLensCore   │      │   CIRISRegistry    │
-   │  (consensus)     │      │  (detection)     │      │  (CEG + identity)  │
-   └────────┬─────────┘      └─────────┬────────┘      └──────────┬─────────┘
-            │                          │                          │
-            └──────────────────────────┼──────────────────────────┘
-                                       │
-            ┌──────────────────────────┼──────────────────────────┐
-            │                          │                          │
    ┌────────▼─────────┐      ┌─────────▼────────┐      ┌──────────▼─────────┐
    │   CIRISEdge      │      │  CIRISPersist    │      │   CIRISVerify      │
-   │  (transport)     │      │  (storage)       │      │   (crypto)         │
+   │ (mesh transport) │      │ (corpus + tiers) │      │ (crypto + identity)│
    └──────────────────┘      └──────────────────┘      └────────────────────┘
 ```
 
-**7 repos total**: 3 substrate sisters (bottom row) + 3 fabric sisters (middle row) + 1 agent runtime + unified client (CIRISAgent).
-
-All seven repos cohabit in one process at CIRIS 3.0 deployments.
-The substrate runs on commodity hardware (down to CIRISHome on
-Jetson Orin — already deployment-ready) and scales to the full
-internet (5 billion users) on ~1 server per 10 humans — the density
-home-internet / IoT deployments already deliver. **No datacenters
-required.**
+**The fabric node** ([CIRISServer](https://github.com/CIRISAI/CIRISServer))
+cohabits the three fabric cores (registry · lens · node) over one
+shared persist Engine + one edge identity; the substrate trio
+(Verify · Persist · Edge) and the agent stay autonomous repos. The
+three canonical singleton servers are retired in favor of identical
+fabric nodes under a 2-of-3 founder quorum. The substrate runs on
+commodity hardware (down to CIRISHome on Jetson Orin — already
+deployment-ready) and scales to the full internet (5 billion users)
+on ~1 server per 10 humans — the density home-internet / IoT
+deployments already deliver. **No datacenters required.**
 
 ## The premise and the bet
 
@@ -72,11 +77,11 @@ scales) is articulated at
 ## What's in this repo
 
 This repo is the **platform-identity + canonical FSDs + simulation
-home** for CEWP. The technical substrate lives in the seven sister
-repos (linked below); this repo is what you read to understand the
-platform as a whole, what you fork to run simulations of it, and
-where the cross-cutting FSDs (those that span more than one substrate
-sister) are mirrored for easy cross-reference.
+home** for CEWP. The technical substrate lives in the sister repos
+(linked below); this repo is what you read to understand the platform
+as a whole, what you fork to run simulations of it, and where the
+cross-cutting FSDs (those that span more than one substrate repo)
+are mirrored for easy cross-reference.
 
 ### Canonical FSDs (mirrored from CIRISNodeCore)
 
@@ -99,7 +104,7 @@ sister) are mirrored for easy cross-reference.
 | Path | Purpose |
 |---|---|
 | [`docs/overview.md`](docs/overview.md) | Plain-language platform explanation |
-| [`docs/seven-repos.md`](docs/seven-repos.md) | Agent 3.0 architecture: who does what across the seven repos |
+| [`docs/seven-repos.md`](docs/seven-repos.md) | The fabric-node architecture: who does what across the cores (CIRISServer cohabitation + substrate trio + agent) |
 | [`docs/the-bet.md`](docs/the-bet.md) | The premise + the empirical bet from the research synthesis |
 | [`docs/why-this-matters.md`](docs/why-this-matters.md) | The internet's 11 structural problems + CEWP's mechanisms that eliminate them |
 | [`docs/for-developers.md`](docs/for-developers.md) | Pointers to the canonical FSDs in the substrate-sister repos |
@@ -113,6 +118,9 @@ sister) are mirrored for easy cross-reference.
 | Trust crisis (deepfakes, deniable provenance) | Cryptographic provenance on every claim |
 | Misinformation amplification | No engagement-optimization layer; consumer-controlled trust depth |
 | Platform lock-in | Federation key portable across deployments; content SHA-addressed |
+| DNS / nameserver capture | No DNS, no forced root — address by key, discover via signed `transport_destination` chain, re-root trust at will |
+| Single-point data loss | Holographic erasure coding — any sufficient fragment subset reconstructs; federation survives to one survivor |
+| The unforgettable internet (no real delete) | One descent operator → noise floor: revoked content drops below individual-recoverability; collective gist ages into an `O(log T)` memory pyramid |
 | Identity fragmentation | One federation key works across the substrate |
 | Content moderation conflicts | Per-cohort moderation; operator chooses trust threshold + recursion depth |
 | Network-effects monopolies | Federation interop at wire format means new entrants are wire-compatible day one |
@@ -138,33 +146,39 @@ these numbers in animation-ready form — modeled at 1:1 over the
 real internet topology (real metros, real submarine cables, real
 peering points).
 
-## The seven repos
+## The fabric-node stack
 
-CEWP is the platform identity for the seven repos of CIRIS Agent
-3.0. Each has a specific role; the platform is what they become
-together.
+CEWP is the platform identity for the CIRIS fabric node. What was
+the "seven-repo Agent 3.0 stack" is now deployed as cohabiting cores;
+the platform is what they become together.
 
-- **Substrate sisters** (bytes + crypto + transport):
+- **The fabric node** ([CIRISServer](https://github.com/CIRISAI/CIRISServer)):
+  the headless runtime (+ PyO3 wheel) cohabiting the three fabric
+  cores — `ciris-registry-core` (authority + CEG/Constitution spec),
+  `ciris-lens-core` (observation; absorbed in-tree), `ciris-node-core`
+  (consensus; folds in at Server 1.0) — over one shared persist
+  Engine + one edge identity.
+- **Substrate trio** (separate repos; bytes + crypto + transport):
   [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) +
   [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) +
   [CIRISEdge](https://github.com/CIRISAI/CIRISEdge)
-- **Fabric sisters** (federation semantics + detection + spec):
-  [CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore) +
-  [CIRISLensCore](https://github.com/CIRISAI/CIRISLensCore) +
-  [CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry)
-- **Agent runtime + unified client**:
-  [CIRISAgent](https://github.com/CIRISAI/CIRISAgent) (the H3ERE pipeline + the UI users interact with — single repo, both roles)
+- **Fabric-core repos**:
+  [CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry) +
+  [CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore)
+  (lens-core is now a CIRISServer workspace crate)
+- **Agent** (`fabric node + brain`):
+  [CIRISAgent](https://github.com/CIRISAI/CIRISAgent) — the H3ERE
+  pipeline + the UI users interact with; consumes the CIRISServer wheel.
 
-Each sister has a CEWP-orientation issue explaining their specific
-role + the v1 posture they implement against. See `docs/for-developers.md`
-for the pointer map.
+See `docs/for-developers.md` for the pointer map.
 
 ## Canonical references
 
 - [Platform identity FSD](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/CEWP.md) — the load-bearing claims (in CIRISNodeCore)
 - [Scaling model FSD](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_SCALING_MODEL.md) — the quantitative bet
 - [Anonymous tier v2 FSD](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/ANONYMOUS_TIER.md) — totalitarian-threat deniability path
-- [CEG 0.10 wire-format spec](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG) — the authoritative wire-format spec (in CIRISRegistry)
+- [CIRIS Constitution (CC 0.1.5)](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution) — the top-of-stack canonical document: Accord 1.3-RC2 + CEG 1.0-RC29, one version line
+- [CEG 1.0-RC29 wire-format spec](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG) — the authoritative wire-format spec (in CIRISRegistry; 1+4 surface FROZEN)
 - [The Accord](https://ciris.ai/ciris_accord.pdf) — ethical framework the substrate enforces
 - [Research synthesis](https://ciris.ai/research-status/) — the empirical bet
 
@@ -179,6 +193,6 @@ you cannot use it to capture the substrate.
 - High-level positioning / discussion: [CIRISAgent#839](https://github.com/CIRISAI/CIRISAgent/issues/839) (Agent 3.0 / CEWP umbrella tracker)
 - Simulation-engine implementation: issues in this repo (once it lands)
 - Substrate-sister implementation: appropriate sister repo
-- Wire-format proposals: CIRISRegistry (CEG 0.10 PWD; §11.2 amendment process)
+- Wire-format proposals: CIRISRegistry (CEG 1.0-RC29; §11.2 amendment process)
 
 The soup is on. Come participate.

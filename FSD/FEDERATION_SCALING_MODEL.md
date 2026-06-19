@@ -157,16 +157,63 @@ conservative-by-design baseline. Dev-host CPUs run 2–3× faster.
 
 **Triple currency note.** Empirical inputs §2.1-§2.3 reference the
 substrate baselines circa Verify v2.8.0 / Edge v0.10.0 / Persist
-v3.3.0. The model now ships at the substrate triple verify v4.8.0 /
-persist v3.11.0 / edge v1.1.x (FY2026 federation triple, CEG 0.10).
-Underlying op costs (hybrid_sign, envelope_canonicalize, SQLite row
-write) are within noise of the baselines; the §2.4 multimedia
-primitives are net-new since CEG 0.3, and the CEG 0.10 delivery axis
-(streaming multicast — per-`stream_id` STH + epoch-key cascade) is
-net-new and not yet benched here (substrate pending CIRISPersist#142).
-Refresh cadence is per
+v3.3.0. The model now ships at the substrate triple verify v6.x /
+persist v9.0.0 / edge v4.6.x (CEG 1.0-RC29). Underlying op costs
+(hybrid_sign, envelope_canonicalize, SQLite row write) are within
+noise of the baselines; the §2.4 multimedia primitives are net-new
+since CEG 0.3, and the CEG 0.10 delivery axis (streaming multicast —
+per-`stream_id` STH + epoch-key cascade) is net-new and not yet
+benched here. **Also net-new since CEG 1.0 / §19 and NOT YET BENCHED
+here** — the holonomic substrate (§2.5 below): the unified
+retirement → noise-floor descent, the memory pyramid at O(log T),
+RaptorQ fountain/holographic replication, and deterministic ALM
+multicast. Refresh cadence is per
 substrate release per [NodeCore#23](https://github.com/CIRISAI/CIRISNodeCore/issues/23)
 living-document audit.
+
+### 2.5 Holonomic scaling properties (CEG §19 — net-new, NOT YET BENCHED)
+
+CEG 1.0 absorbed the §19 holonomic substrate from CIRISEdge. These
+are the scaling-relevant properties — modeled here as design
+commitments, **not yet benchmarked** (parallel to how §2.4
+multimedia was net-new since CEG 0.3). They refine, not replace, the
+§1 intake/eviction discipline:
+
+* **Unified retirement → noise floor** (CEG §19.7) — revocation,
+  eviction, expiry, and aging are *one* pressure-driven monotonic
+  descent toward a **noise floor**, not four separate mechanisms.
+  Hard-delete is the fastest descent; aging the slowest. Same
+  single-pool storage as §1.2 — no archive/cache split. The §1.2
+  `popularity × freshness` sweeper is the eviction *rate* on this
+  one descent.
+* **Memory pyramid at O(log T)** — content degrades through
+  scalable-codec layer-drop + N→1 aggregation into a pyramid where
+  *all of history* costs O(log T) steady-state storage. The noise
+  floor is the individual-recoverability boundary: revoked items
+  descend below it (privacy); the collective gist persists below it
+  forever (durability). This changes the long-horizon storage curve
+  the §5 scenarios derive — they currently model a flat per-source
+  retention, not the pyramid; re-deriving implied retention against
+  the pyramid is open bench work.
+* **RaptorQ fountain / holographic replication** (CEG §19.3) —
+  published content is `(N,K)` erasure-coded (defaults
+  `N=20,K=6,min_viable=5`); any sufficient subset of fragments
+  reconstructs it at proportional fidelity, and the federation
+  re-establishes from one survivor holding a signed witness chain
+  (WholenessWitness). The §2.7-style demand-driven holder fan-out
+  becomes fragment fan-out; per-fragment cost is unbenched here.
+* **Deterministic ALM multicast** (CEG §19.4) — a deterministic
+  application-layer-multicast relay topology replaces the
+  point-to-point fan-out the §3.7 latency model assumes; multicast
+  cardinality (live broadcast, swarm replication) rides one relay
+  tree rather than R independent unicasts. Topology cost not yet in
+  the toy.
+
+Holonomic mechanisms are blind to the anonymous tier
+([ANONYMOUS_TIER.md](ANONYMOUS_TIER.md)), subordinate to
+consent/revocation, gated by owner-binding, and PQC-mandatory (CEG
+§19.5 fail-secure). They do not change the §9 identity-aware-storage
+property — they sit underneath it.
 
 ---
 

@@ -22,6 +22,49 @@ registry stewards, detectors, the federation itself. The broth is
 the cryptographic substrate. Nobody owns the soup. The soup is
 what we become together.
 
+## No center, no DNS, no load-bearing server
+
+CEWP is **holonomic** (after Bohm's implicate order): there's no
+center, no nameserver, and no server the whole thing leans on. You
+address a peer by its key, reach it over the mesh, and trust it
+through a chain you can re-root at will. Nothing in the broth is the
+broth's owner.
+
+Content is **holographic** — erasure-coded so that any sufficient
+subset of the fragments reconstructs it, and the federation
+re-establishes itself from any single survivor holding a signed
+witness chain. The soup survives down to one bowl.
+
+And the soup has a memory that's **forever but still forgets**.
+Revocation, eviction, expiry, and aging aren't four mechanisms —
+they're *one* descent toward a **noise floor**: revoked things drop
+below the line where any individual item can be recovered (privacy),
+while the collective gist ages on below it forever (durability). All
+of history is kept as a memory pyramid that costs `O(log T)` to hold.
+A million years may be a blur, but it is remembered.
+
+## Agents live in the soup — they don't hold it
+
+Every node in CEWP is a **fabric node** — a piece of infrastructure
+that stores, witnesses, degrades, and transports, *mechanically,
+never reasoning*. Add a reasoning brain and the same node becomes an
+agent: **`agent = fabric node + brain`**. Authority roots in
+accountable humans, never in bare infrastructure — the broth is not
+allowed to govern itself.
+
+## The ethics the soup is for
+
+The substrate carries a grammar (CEG); the
+[**CIRIS Constitution**](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
+carries the ethics it speaks for. At the apex is one meta-goal,
+**M-1 — "promote sustainable adaptive coherence, the living
+conditions under which diverse sentient beings may pursue their own
+flourishing in justice and wonder."** Everything else stays flat
+beneath it: *peaked in purpose, flat in power* — one telos governs;
+no single concept, and no single party, holds the keys to truth. The
+soup is not a neutral pot; it's a substrate that could one day be
+*owed* M-1, not merely bound by it.
+
 ## What the substrate does
 
 Every claim in CEWP — "this content is accurate," "this peer is

@@ -270,6 +270,57 @@ substrate operators.
 operators can configure how much of their disk goes to anonymous-
 tier storage vs. v1 storage. But the *protocol* runs both.
 
+### 6.1 Holonomic interplay — the §19 substrate is BLIND to this tier
+
+CEG 1.0-RC29 absorbed the §19 holonomic substrate (RaptorQ fountain
+storage, WholenessWitness, deterministic ALM, the unified
+retirement → noise-floor model). That substrate is **load-bearing
+for the v1 identity-aware tier and structurally blind to the
+anonymous tier** — by CEG §19.5 fail-secure design, the holonomic
+mechanisms are subordinate to consent/revocation, gated by
+owner-binding, and PQC-mandatory; none of those hooks exist for a
+blinded-key record, so the holonomic layer cannot act on it:
+
+* **Exempt from swarm / fountain retention.** Anonymous-tier blobs
+  are NOT RaptorQ erasure-coded into the holographic swarm. Fountain
+  replication keys on `attesting_key_id` + the witness chain, which
+  the anonymous tier deliberately lacks (`AnonymousHoldsBytes` has a
+  per-blob `node_blinded_key`, not a federation identity). An
+  anonymous blob lives only where its (capacity-only, LRU) holders
+  put it; it does not fan out as fragments across the fountain swarm.
+  This is intentional: holographic any-K reconstruction would
+  manufacture exactly the cross-holder linkage the blinding severs.
+* **Blind to the memory pyramid.** The §19.7 noise-floor descent +
+  O(log T) memory pyramid operate over the identity-aware corpus.
+  Anonymous records retire by LRU + 24h holder-TTL only (§5.1);
+  there is no pyramid aggregation, no collective-gist tier, no
+  monotonic descent the holonomic sweeper drives — because there is
+  no scoreable identity to drive it.
+
+### 6.2 The noise floor and the threat model
+
+The §19.7 **noise floor** is the individual-recoverability boundary:
+content that is revoked or withdrawn descends below it and becomes
+individually unrecoverable while only the collective gist persists.
+That boundary is itself a privacy primitive for the *identity-aware*
+tier — a v1 publisher who `withdraws` content drives it below the
+noise floor, where no holder can reconstruct the individual item.
+For the totalitarian threat model this matters two ways:
+
+* For v1 content, the noise floor means revocation is durable
+  against a later-coercing adversary: once an item has descended,
+  the holographic swarm cannot resurrect the individual bytes from
+  the surviving gist. Revocation is not "tombstone it and hope" — it
+  is descent below recoverability.
+* For genuinely deniable publication (dissident / journalist /
+  whistleblower under §1's state-level adversary), the noise floor
+  is **not** the mechanism — the anonymous tier is, because the
+  noise floor still admits forensic recovery of an item *above* it
+  by a holder who is coerced. The anonymous tier's compelled-
+  disclosure resistance (operator cryptographically cannot decrypt)
+  is the stronger guarantee; the noise floor complements it for v1
+  content but does not substitute for blinding.
+
 ## 7. What the anonymous tier CAN and CANNOT do
 
 | Property | v1 identity-aware (main path) | v2 anonymous tier |

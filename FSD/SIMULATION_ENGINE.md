@@ -48,17 +48,17 @@ snapshot stream; the website team renders.
   evolve demand on top of it.
 - **Not a UI.** Website team owns the visualization layer (see §10).
 - **Not a benchmark tool for any one substrate.** It compares two
-  topologies under identical workload; the substrate sisters'
+  topologies under identical workload; the substrate trio's
   CI benches are the ground truth for per-op costs (see §2 inputs).
 
 ---
 
 ## 2. Empirical inputs (measured + sourced)
 
-### 2.1 Per-op compute costs (from substrate-sister benchmarks)
+### 2.1 Per-op compute costs (from substrate-trio benchmarks)
 
 These are the load-bearing numbers the engine uses for per-node CPU
-accounting. They come from the substrate sisters' published
+accounting. They come from the substrate trio's published
 benchmark suites:
 
 | Op | Cost | Source |
@@ -67,7 +67,7 @@ benchmark suites:
 | `hybrid_verify` | 276 µs | same |
 | AES-GCM @ 64 KiB | 5.45 GiB/s encrypt, 5.91 GiB/s decrypt | same |
 | Persist SQLite per-row write | ~1.5 ms | [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) v3.x storage_floor bench |
-| Edge dispatch_inbound (256 B) | < 400 µs | [CIRISEdge v0.10.0+](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/BENCHMARKS.md) |
+| Edge dispatch_inbound (256 B) | < 400 µs | [CIRISEdge v4.6.x](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/BENCHMARKS.md) |
 | H3ERE trace per agent decision | ~14 KB | [CIRISPersist INTEGRATION_LENS.md](https://github.com/CIRISAI/CIRISPersist/blob/main/docs/INTEGRATION_LENS.md) |
 | Scrub regex pass | 5–10 ns/byte | Edge inline_text_pipeline |
 
@@ -146,6 +146,29 @@ same submarine cables and terrestrial fiber as in the centralized
 case — but originate and terminate at consumer endpoints, not
 hyperscale facilities. The animation contrast: same fiber, no
 datacenters in the middle.
+
+**Holonomic substrate properties (CEG §19) the sim should
+represent.** The CEWP topology is holonomic — no center, no DNS, no
+load-bearing server. Three §19 properties refine the flow model
+above and the per-node accounting:
+
+* **Deterministic ALM multicast relay tree** (CEG §19.4) —
+  cross-metro fan-out for `cohort_scope ≥ community` content rides a
+  deterministic application-layer-multicast relay tree, not R
+  independent unicasts. The sim models multicast edges as one relay
+  tree per (publisher, subscriber-set), so popular content + live
+  broadcast don't replicate the same byte R times across the same
+  fiber.
+* **RaptorQ erasure-coded / holographic storage** (CEG §19.3) —
+  published blobs are `(N,K)` fountain-coded; holders carry
+  *fragments*, and any sufficient subset reconstructs. Per-node
+  `bytes_held` accounts for fragment shares, not whole blobs; the
+  sim shows the substrate surviving node loss down to one survivor.
+* **Noise-floor memory pyramid** (CEG §19.7, O(log T)) — retirement
+  (revocation / eviction / expiry / aging) is one monotonic descent
+  toward a noise floor; all of history costs O(log T) steady-state
+  storage. The sim models long-horizon `bytes_held` as the pyramid,
+  not flat per-source retention.
 
 ---
 

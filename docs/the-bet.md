@@ -7,7 +7,7 @@
 Not "should be regulated." Not "is harmful." Not "can be improved."
 **Not necessary.**
 
-This is the load-bearing claim. Everything in CEWP — the seven-repo
+This is the load-bearing claim. Everything in CEWP — the fabric-node
 architecture, the cryptographic substrate, the federation discipline,
 the H3ERE pipeline, the trace commons — exists to test this claim.
 
@@ -37,6 +37,27 @@ Ed25519 + ML-DSA-65 verify on ubuntu-latest CI; AES-GCM at
 The [scaling model](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_SCALING_MODEL.md)
 puts numbers on this — see the [interactive toy](../toy/index.html)
 for the playable version.
+
+The substrate is also **holonomic** — and that's part of the case,
+not decoration:
+
+- **No datacenters.** Full-internet scale (5 B users) fits on ~1
+  server per 10 humans, the density home-internet / IoT deployments
+  already deliver.
+- **No DNS, no load-bearing server.** You address a peer by its key
+  and re-root trust at will; there's no nameserver to capture and no
+  central server to seize.
+- **Holographic survival.** Published content is RaptorQ erasure-
+  coded so any sufficient fragment subset reconstructs it; the
+  federation re-establishes from any single survivor with a signed
+  witness chain.
+- **Real delete at `O(log T)`.** Revocation, eviction, expiry, and
+  aging are *one* descent toward a noise floor; revoked items drop
+  below individual-recoverability while the collective gist persists
+  below it as a memory pyramid forever.
+
+If big tech were necessary, none of these would hold at commodity
+scale. They do.
 
 ### Piece 2 — standardized ethical tracing
 
@@ -71,9 +92,11 @@ And specifies HOW the shape is measured:
 - **Distinct field structures** — completion corridors, refusal
   boundaries, hesitation zones
 
-These metrics run in **CIRISLensCore** — the science layer of the
-seven-repo stack. The F-3 detector family operationalizes them as
-continuously-running detectors over the federation's trace stream.
+These metrics run in **ciris-lens-core** — the observation layer of
+the fabric node (absorbed in-tree as a CIRISServer crate; the
+standalone CIRISLens deployment is retired). The F-3 detector family
+operationalizes them as continuously-running detectors over the
+federation's trace stream.
 
 If the detectors run and the metrics distinguish aligned from
 misaligned behavior at meaningful resolutions, the bet pays out:
@@ -100,7 +123,10 @@ misaligned behavior at meaningful resolutions, the bet pays out:
   The federation is only as trustworthy as the cross-attestations
   it accumulates. The §9 Humanity Accord is the load-bearing
   commitment that humanity-as-such retains the final scale of
-  accountability.
+  accountability — and above the wire grammar, the
+  [CIRIS Constitution](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
+  names the apex the whole substrate answers to (M-1: sustainable
+  adaptive coherence), *peaked in purpose, flat in power*.
 
 ## Why this is worth the bet
 
