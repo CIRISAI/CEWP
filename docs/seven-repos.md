@@ -57,9 +57,10 @@ ciris-server (the fabric node)
 ```
 
 Roadmap (encoded in CIRISServer's version line): `0.1` lens-only →
-`0.3` +auth / one-wheel → `0.4` +federation peering/identity (current:
-**v0.4.5**) → `0.5` +registry → `1.0` +node (the complete three-core
-fabric node). At the platform-identity layer it adds hardware-rooted
+`0.3` +auth / one-wheel → `0.4` +federation peering/identity → `0.5`
+**config-as-CEG + registry** (current: **v0.5.30**, holonomic swarm
+wired via the v6.3.0 substrate unlock) → `1.0` +node (the complete
+three-core fabric node). At the platform-identity layer it adds hardware-rooted
 federation identity (YubiKey/TPM → `CIRIS-V2-` fedcode), NodeCode
 (`CIRIS-V1-…` QR add-by-code, DNS-free), `infra:*` owner-binding (no
 agency), serve-only-until-owned, and `consent:replication`.
@@ -97,12 +98,15 @@ kept as a memory pyramid at O(log T) (CEG §19.7).
 and memory is forever-but-still-forgets. Per-actor eviction is
 possible because every byte knows whose key admitted it.
 
-### [CIRISEdge](https://github.com/CIRISAI/CIRISEdge) v4.6.x — transport + dispatch
+### [CIRISEdge](https://github.com/CIRISAI/CIRISEdge) v6.3.0 — transport + dispatch + holonomic swarm
 
 Reticulum (mesh, primary) + HTTPS (fallback). MessageType registry +
 dispatch. inline_text_pipeline (classify + scrub + AES-GCM). Realtime
 A/V chunk wire (SFrame + MLS), and the §19 RaptorQ fountain / ALM
-substrate CEG absorbed for holographic replication.
+substrate for holographic replication — with the live
+`FountainSwarmRuntime` (publisher + converger) intelligently managing
+shard copies per content-hash: rarity-driven convergence to H holders,
+repair below min-viable, and revoke→hard-delete.
 
 **What it makes true:** switching cost approaches zero, and content
 survives to one holder — published content is erasure-coded so any
@@ -143,7 +147,7 @@ defect*, not an edit. New **§18 interop** ("speak CEG inside, standards
 at the edge"; C2PA via `evidence_refs[]`) and **§19 holonomic**
 (normative). The §5 dimension namespace governance. §9 humanity_accord.
 The steward triple. Also the publication home of the
-[**CIRIS Constitution (CC 0.1.5)**](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
+[**CIRIS Constitution (CC 0.4)**](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
 — the Accord 1.3-RC2 (ethics) + CEG 1.0-RC29 (grammar) woven into one
 document, one version line; the top-of-stack canonical authority.
 

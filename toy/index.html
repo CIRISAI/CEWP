@@ -1,0 +1,1053 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CEWP — feel the scale (per-server feasibility toy)</title>
+<style>
+:root{
+  --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --edge:#2b3340;
+  --ink:#d7dde6; --dim:#8b94a3; --faint:#5b6472;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  --ok:#3fb950; --warn:#e3a008; --bad:#f85149; --accent:#58a6ff; --accent2:#bc8cff;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);margin:0;padding:1.4rem 1.1rem 4rem}
+.wrap{max-width:1060px;margin:0 auto}
+h1{font-size:1.45rem;margin:.1rem 0 .2rem;letter-spacing:-.01em}
+h1 .v{color:var(--faint);font-weight:400;font-size:.95rem;font-family:var(--mono)}
+.lead{color:var(--dim);font-size:1.02rem;margin:.2rem 0 1.1rem;max-width:74ch}
+.lead b{color:var(--ink)}
+.grid{display:grid;grid-template-columns:minmax(300px,1fr) minmax(420px,1.35fr);gap:1.1rem;align-items:start}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--edge);border-radius:9px;padding:1rem 1.05rem}
+.panel h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);margin:0 0 .8rem;font-weight:600}
+label{display:block;font-size:.82rem;color:var(--dim);margin:.85rem 0 .25rem}
+label .val{float:right;color:var(--ink);font-family:var(--mono);font-size:.82rem}
+select,input[type=range]{width:100%}
+select{background:var(--panel2);color:var(--ink);border:1px solid var(--edge);border-radius:6px;padding:.45rem .5rem;font:inherit;font-size:.9rem}
+optgroup{color:var(--accent2)}
+input[type=range]{-webkit-appearance:none;appearance:none;height:5px;background:var(--edge);border-radius:3px;margin:.35rem 0;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid #0d1117}
+input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid #0d1117}
+.headline input[type=range]::-webkit-slider-thumb{background:var(--accent2);width:18px;height:18px}
+.headline input[type=range]::-moz-range-thumb{background:var(--accent2);width:18px;height:18px}
+.headline label{color:var(--accent2);font-weight:600}
+.row{display:flex;gap:.7rem}.row>div{flex:1}
+.chips{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.3rem}
+.chip{background:var(--panel2);border:1px solid var(--edge);color:var(--dim);border-radius:20px;padding:.25rem .7rem;font-size:.8rem;cursor:pointer;font-family:var(--mono)}
+.chip.on{background:#1f3147;border-color:var(--accent);color:var(--accent)}
+.mono{font-family:var(--mono)}
+/* meters */
+.meter{margin:.55rem 0 .85rem}
+.meter .top{display:flex;justify-content:space-between;font-size:.84rem;margin-bottom:.25rem}
+.meter .top .name{color:var(--ink);font-weight:600}
+.meter .top .pct{font-family:var(--mono)}
+.track{position:relative;height:20px;background:var(--panel2);border:1px solid var(--edge);border-radius:5px;overflow:hidden}
+.fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px 0 0 4px;transition:width .18s ease,background .18s}
+.redline{position:absolute;top:-3px;bottom:-3px;left:100%;width:2px;background:var(--bad);opacity:.7}
+.track .gatelabel{position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:.66rem;color:var(--faint);font-family:var(--mono)}
+.meter .sub{font-size:.74rem;color:var(--faint);font-family:var(--mono);margin-top:.2rem}
+/* verdict */
+.verdict{border-radius:9px;padding:.85rem 1rem;margin:.2rem 0 1rem;border:1px solid var(--edge)}
+.verdict.ok{background:#0f2417;border-color:#1f6e35}
+.verdict.bad{background:#2a1416;border-color:#7d2a28}
+.verdict .v1{font-size:1.05rem;font-weight:700}
+.verdict.ok .v1{color:var(--ok)} .verdict.bad .v1{color:var(--bad)}
+.verdict .v2{font-family:var(--mono);font-size:1.18rem;margin-top:.35rem;color:var(--ink)}
+.verdict .v2 b{color:var(--accent2)}
+.verdict .v3{color:var(--dim);font-size:.82rem;margin-top:.25rem}
+/* breakdown table */
+table{border-collapse:collapse;width:100%;font-size:.84rem;margin-top:.3rem}
+td,th{text-align:left;padding:.3rem .2rem;border-bottom:1px solid var(--edge)}
+th{color:var(--faint);font-weight:600;font-size:.74rem;text-transform:uppercase;letter-spacing:.05em}
+td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.bar{display:inline-block;height:9px;background:var(--accent);border-radius:2px;vertical-align:middle;margin-right:.4rem;opacity:.8}
+.stat{display:flex;justify-content:space-between;font-size:.85rem;padding:.28rem 0;border-bottom:1px solid var(--edge)}
+.stat .k{color:var(--dim)} .stat .v{font-family:var(--mono)}
+/* shard anatomy */
+.shard-anatomy .label{font-size:.78rem;color:var(--dim);margin-bottom:.35rem;font-family:var(--mono)}
+.shard-anatomy .symbols{display:flex;flex-wrap:wrap;gap:3px;align-items:center}
+.shard-anatomy .sym{width:13px;height:13px;border-radius:2px;flex:0 0 auto}
+.shard-anatomy .sym.src{background:var(--accent)}
+.shard-anatomy .sym.rep{background:var(--accent2);opacity:.85}
+.shard-anatomy .sym.hold{background:var(--ok)}
+.shard-anatomy .legend{font-size:.72rem;color:var(--faint);font-family:var(--mono);margin-top:.4rem;line-height:1.6}
+.shard-anatomy .legend i{font-style:normal;display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:middle;margin-right:.3rem}
+.revnote{margin-top:1rem;font-size:.8rem;color:var(--dim);border-left:3px solid var(--bad);background:#1c1416;padding:.55rem .75rem;border-radius:0 6px 6px 0;line-height:1.5}
+.revnote code{background:var(--panel2);padding:.04rem .28rem;border-radius:3px;font-family:var(--mono);color:var(--accent2);font-size:.78rem}
+/* latency comparison */
+.lat-cmp{display:flex;gap:.7rem;margin:.3rem 0 .2rem}
+.lat-cmp .cell{flex:1;background:var(--panel2);border:1px solid var(--edge);border-radius:7px;padding:.6rem .7rem;text-align:center}
+.lat-cmp .cell .lbl{font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+.lat-cmp .cell .big{font-family:var(--mono);font-size:1.35rem;font-weight:600;margin-top:.15rem}
+.lat-cmp .cell.cewp .big{color:var(--ok)} .lat-cmp .cell.net .big{color:var(--dim)}
+.lat-cmp .cell.onion .big{color:var(--accent2)}
+.lat-cmp .cell .mult{font-size:.72rem;color:var(--faint);font-family:var(--mono);margin-top:.1rem}
+.lat-breakdown{font-family:var(--mono);font-size:.74rem;color:var(--faint);line-height:1.7;margin-top:.5rem}
+.lat-breakdown span{color:var(--dim)}
+.class-verdict{display:flex;justify-content:space-between;align-items:center;padding:.5rem .65rem;border-radius:6px;margin-top:.5rem;font-size:.86rem;border:1px solid var(--edge)}
+.class-verdict .cls{font-weight:600}
+.class-verdict .res{font-family:var(--mono);font-weight:600}
+.class-verdict.ok{background:#0f2417;border-color:#1f6e35}.class-verdict.ok .res{color:var(--ok)}
+.class-verdict.warn{background:#241f0f;border-color:#6e5a1f}.class-verdict.warn .res{color:var(--warn)}
+.class-verdict.bad{background:#2a1416;border-color:#7d2a28}.class-verdict.bad .res{color:var(--bad)}
+.scen-meta{font-family:var(--mono);font-size:.76rem;color:var(--faint);line-height:1.7;margin-top:.5rem}
+.scen-meta span{color:var(--dim)}
+details.honesty{margin-top:1.3rem;background:var(--panel);border:1px solid var(--edge);border-radius:9px;padding:.3rem 0}
+details.honesty summary{cursor:pointer;padding:.7rem 1rem;font-size:.85rem;color:var(--dim);font-weight:600;list-style:none}
+details.honesty summary::-webkit-details-marker{display:none}
+details.honesty summary::before{content:"▸ ";color:var(--faint)}
+details.honesty[open] summary::before{content:"▾ "}
+details.honesty .body{padding:0 1.1rem 1rem;color:var(--dim);font-size:.86rem;max-width:90ch}
+details.honesty .body ul{padding-left:1.1rem;margin:.4rem 0}
+details.honesty .body li{margin:.3rem 0}
+details.honesty code{background:var(--panel2);padding:.05rem .3rem;border-radius:3px;font-family:var(--mono);font-size:.8rem;color:var(--accent2)}
+footer{margin-top:2rem;color:var(--faint);font-size:.78rem;border-top:1px solid var(--edge);padding-top:.9rem;line-height:1.6}
+footer code{color:var(--dim)}
+.tier-note{font-size:.74rem;color:var(--faint);margin-top:.6rem;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>CEWP — feel the scale <span class="v">· per-server feasibility</span></h1>
+<p class="lead">Pick a workload, tune the substrate gates and knobs, and watch <b>per-server feasibility</b>
+update live. The bet: one commodity server (1 TiB disk / 1 Gbps fiber / 1 core) carries its share of the
+internet — <b>no datacenters required</b>. This ports the core scaling math from
+<code class="mono" style="color:var(--dim)">examples/scale_model.rs</code>.</p>
+
+<div class="grid">
+  <!-- ── CONTROLS ── -->
+  <div>
+    <div class="panel">
+      <h2>Workload scenario</h2>
+      <select id="scenario"></select>
+      <div class="scen-meta" id="scenMeta"></div>
+    </div>
+
+    <div class="panel" style="margin-top:1.1rem">
+      <h2>Substrate gates <span style="text-transform:none;color:var(--faint);font-weight:400">(the v1 design targets)</span></h2>
+      <label>Disk gate <span class="val" id="diskVal"></span></label>
+      <input type="range" id="disk" min="0.25" max="8" step="0.25" value="1">
+      <label>Bandwidth gate <span class="val" id="bwVal"></span></label>
+      <input type="range" id="bw" min="0.25" max="10" step="0.25" value="1">
+      <label>CPU cores <span class="val" id="coreVal"></span></label>
+      <input type="range" id="cores" min="1" max="8" step="1" value="1">
+    </div>
+
+    <div class="panel headline" style="margin-top:1.1rem">
+      <h2>Knobs</h2>
+      <label>Trust-recursion depth <span class="val" id="depthVal"></span></label>
+      <input type="range" id="depth" min="0" max="4" step="0.5" value="1">
+      <div class="tier-note">The headline knob — operator-side local config. depth 0 = direct trust only;
+        each hop multiplies the effective trust set (1× / 4× / 20× / 100× at depths 0/1/2/3). Deeper = wider
+        reach = shorter per-source retention at the same disk.</div>
+
+      <label style="margin-top:1rem">Cohort preset</label>
+      <div class="chips" id="cohortChips">
+        <div class="chip" data-c="default">default</div>
+        <div class="chip" data-c="local_heavy">local-heavy</div>
+        <div class="chip" data-c="global_heavy">global-heavy</div>
+        <div class="chip" data-c="scenario">scenario default</div>
+      </div>
+      <div class="tier-note" id="cohortNote"></div>
+
+      <label style="margin-top:1rem">Server disk budget <span class="val" id="budgetVal"></span></label>
+      <input type="range" id="budget" min="0.25" max="8" step="0.25" value="1">
+      <div class="tier-note">The L1 server's own disk (what it fills), separate from the feasibility gate above.</div>
+    </div>
+
+    <div class="panel" style="margin-top:1.1rem">
+      <h2>Swarm knobs <span style="text-transform:none;color:var(--faint);font-weight:400">(per content-hash)</span></h2>
+      <label>Target holders H <span class="val" id="holdersVal"></span></label>
+      <input type="range" id="holders" min="10" max="40" step="1" value="30">
+      <div class="tier-note">Convergence cap — the swarm trims to ~H holders per content via active rarity,
+        <b style="color:var(--accent2)">decoupled from trust radius</b>. Lower H = less overhead but thinner durability.</div>
+      <label style="margin-top:1rem">Per-peer availability q <span class="val" id="churnVal"></span></label>
+      <input type="range" id="churn" min="0.70" max="0.99" step="0.01" value="0.85">
+      <div class="tier-note">Probability a given holder is reachable when reconstruction is attempted (churn floor).</div>
+    </div>
+
+    <div class="panel" style="margin-top:1.1rem">
+      <h2>Default-anonymous transport <span style="text-transform:none;color:var(--faint);font-weight:400">(Sphinx onion)</span></h2>
+      <label>Sphinx onion routing <span class="val" id="sphinxVal"></span></label>
+      <div class="chips" id="sphinxChips">
+        <div class="chip" data-s="on">default ON</div>
+        <div class="chip" data-s="off">OFF</div>
+      </div>
+      <label style="margin-top:1rem">Onion hops <span class="val" id="hopsVal"></span></label>
+      <input type="range" id="hops" min="2" max="5" step="1" value="3">
+      <label style="margin-top:1rem">Relay placement</label>
+      <div class="chips" id="relayChips">
+        <div class="chip" data-r="regional">regional 55ms</div>
+        <div class="chip" data-r="mixed">mixed 125ms</div>
+        <div class="chip" data-r="global">global 195ms</div>
+      </div>
+      <div class="tier-note">Making 3-hop Sphinx the <b>default</b> (not opt-in) for anonymity. Per-hop
+        unwrap crypto is sub-ms; the cost is added one-way latency + fixed-size relay amplification.</div>
+    </div>
+  </div>
+
+  <!-- ── OUTPUT ── -->
+  <div>
+    <div class="panel">
+      <h2>Per-server feasibility <span style="text-transform:none;color:var(--faint);font-weight:400">— L1 server tier vs the gates</span></h2>
+      <div id="verdict" class="verdict"></div>
+
+      <div class="meter" id="m-storage"></div>
+      <div class="meter" id="m-bandwidth"></div>
+      <div class="meter" id="m-cpu"></div>
+    </div>
+
+    <div class="panel" style="margin-top:1.1rem">
+      <h2>What the server holds <span style="text-transform:none;color:var(--faint);font-weight:400">— steady-state, 92% utilization</span></h2>
+      <table id="breakdown"></table>
+      <div style="margin-top:.7rem">
+        <div class="stat"><span class="k">effective trust sources (R × depth mult)</span><span class="v" id="effR"></span></div>
+        <div class="stat"><span class="k">implied retention (admitted-trust pool)</span><span class="v" id="retention"></span></div>
+        <div class="stat"><span class="k">fountain symbol per content (1/N)</span><span class="v" id="symfrac"></span></div>
+      </div>
+      <div class="revnote" id="foreverNote" style="border-left-color:var(--accent2);background:#181428"></div>
+    </div>
+
+    <div class="panel" style="margin-top:1.1rem">
+      <h2>Latency p50 (RTT) <span style="text-transform:none;color:var(--faint);font-weight:400">— CEWP vs today's internet</span></h2>
+      <div class="lat-cmp" id="latCmp"></div>
+      <div class="lat-breakdown" id="latBreakdown"></div>
+    </div>
+
+    <div class="panel" style="margin-top:1.1rem">
+      <h2>Federation rollup <span style="text-transform:none;color:var(--faint);font-weight:400">— the whole internet</span></h2>
+      <div class="stat"><span class="k">total users</span><span class="v" id="nusers"></span></div>
+      <div class="stat"><span class="k">total substrate storage</span><span class="v" id="totstore"></span></div>
+      <div class="stat"><span class="k">aggregate CPU (full-util cores)</span><span class="v" id="totcpu"></span></div>
+      <div class="stat"><span class="k">datacenters required</span><span class="v" style="color:var(--ok)">0</span></div>
+    </div>
+
+    <div class="panel" style="margin-top:1.1rem">
+      <h2>Holonomic shard management <span style="text-transform:none;color:var(--faint);font-weight:400">— per content-hash</span></h2>
+
+      <!-- 1. per content-hash anatomy -->
+      <div class="shard-anatomy" id="shardAnatomy"></div>
+      <div class="tier-note" style="margin-top:.55rem" id="decoupleNote"></div>
+
+      <!-- 2. overhead comparison -->
+      <div style="margin-top:1rem">
+        <div class="stat"><span class="k">fountain overhead H/N</span><span class="v" id="ohFountain"></span></div>
+        <div class="stat"><span class="k">whole-copy overhead (baseline)</span><span class="v" id="ohWhole"></span></div>
+        <div class="stat"><span class="k">distinct-content advantage</span><span class="v" style="color:var(--ok)" id="ohRatio"></span></div>
+      </div>
+
+      <!-- 3. federation distinct-content capacity -->
+      <div style="margin-top:1rem">
+        <div class="stat"><span class="k">fleet disk pool</span><span class="v" id="fleetDisk"></span></div>
+        <div class="stat"><span class="k">distinct content — fountain</span><span class="v" style="color:var(--accent2)" id="capFountain"></span></div>
+        <div class="stat"><span class="k">distinct content — whole-copy</span><span class="v" id="capWhole"></span></div>
+      </div>
+
+      <!-- 4. survival / durability -->
+      <div class="meter" id="m-survival" style="margin-top:1rem"></div>
+      <div class="tier-note" id="survNote"></div>
+
+      <!-- 5. revocation / noise-floor -->
+      <div class="revnote" id="revNote"></div>
+    </div>
+
+    <div class="panel" id="sphinxPanel" style="margin-top:1.1rem">
+      <h2>Sphinx onion overhead <span style="text-transform:none;color:var(--faint);font-weight:400">— cost of default anonymity</span></h2>
+      <div id="sphinxVerdict" class="verdict"></div>
+
+      <div class="stat"><span class="k">added latency (one-way)</span><span class="v" id="onionLat"></span></div>
+      <div class="lat-cmp" id="onionCmp"></div>
+
+      <div style="margin-top:1rem">
+        <div class="stat"><span class="k">per-server bandwidth (baseline)</span><span class="v" id="bwBase"></span></div>
+        <div class="stat"><span class="k">× onion hops (relay amplification)</span><span class="v" id="bwOnion"></span></div>
+        <div class="stat"><span class="k">+ fixed Sphinx header</span><span class="v" id="onionHdr"></span></div>
+      </div>
+
+      <div style="margin-top:1rem">
+        <div class="class-verdict" id="cvRealtime"></div>
+        <div class="class-verdict" id="cvAsync"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<details class="honesty">
+  <summary>What this is / isn't — read before you trust a number</summary>
+  <div class="body">
+    <p>This is an <b>analytic design-search toy</b>, not a measurement. It ports the steady-state per-server
+    model from <code>examples/scale_model.rs</code> verbatim. The numbers are "can the design close?" outputs,
+    not telemetry from a running federation.</p>
+    <ul>
+      <li><b>Steady-state, single-pool.</b> One held-bytes pool per node scored by trust × demand × recency;
+        no separate "archive vs cache" tiers, no warm-up transient. The eviction sweeper holds disk at
+        <code>92%</code> full.</li>
+      <li><b>Fountain replication.</b> A holder stores one RaptorQ symbol = <code>1/N = 1/20</code> of a
+        content; the swarm converges to <code>H=30</code> holders; network overhead is <code>H/N = 1.5×</code>
+        (not whole-copy 5×). Replication count is decoupled from trust radius.</li>
+      <li><b>The locality dividend is structural.</b> <code>self</code>/<code>family</code> cohort content
+        never emits a <code>holds_bytes</code> attestation, so no peer can request it — it's free inter-host.
+        Only <code>publishable()</code> bytes (community + affiliations + species + planet + federation) cost
+        anything to federate.</li>
+      <li><b>Empirical constants</b> (sign/verify µs, scrub/canon rates, 14 KiB H3ERE trace) are baked in from
+        CIRISVerify / CIRISEdge / CIRISPersist benchmarks — see FSD §2.</li>
+      <li><b>The cohort + depth knobs override the scenario.</b> Changing them substitutes a different trust
+        topology into the scenario's workload to let you feel sensitivity — they aren't the scenario's shipped
+        defaults unless you pick "scenario default".</li>
+      <li>The gate sliders let you ask "what if the commodity box were beefier?" — the v1 bet is specifically
+        the <code>1 TiB / 1 Gbps / 1 core</code> column.</li>
+    </ul>
+    <p>If a number looks wrong, the model is the source of truth — dispute the inputs, they're all visible.</p>
+  </div>
+</details>
+
+<footer>
+  Ported from <code>CEWP/examples/scale_model.rs</code> (v0.6) — <code>per_actor</code> (L0 proxy + L1 server
+  branches), <code>effective_trust_set_multiplier</code>, <code>check_server_feasibility</code>, the CPU
+  accounting block, and the <code>rollup</code>. Gates: <code>SERVER_DISK_GATE_BYTES = 1024 GiB</code>,
+  <code>SERVER_BANDWIDTH_GATE_BYTES_PER_DAY = 10.8 TB/day</code>, <code>SERVER_CPU_GATE_SECONDS_PER_DAY =
+  86,400</code>. Companion to <code>FSD/FEDERATION_SCALING_MODEL.md</code>.
+</footer>
+</div>
+
+<script>
+"use strict";
+// ─── Units (mirror scale_model.rs consts) ───────────────────────────
+const KB = 1024, MB = 1024*KB, GB = 1024*MB, TB = 1024*GB, PB = 1024*TB, EB = 1024*PB;
+const GIB = 1024*1024*1024;
+
+// ─── Per-server feasibility gates (v1 design) ───────────────────────
+const SERVER_DISK_GATE_BYTES = 1024 * GIB;            // 1 TiB
+const SERVER_BANDWIDTH_GATE_BYTES_PER_DAY = 10.8 * TB; // ≈ 1 Gbps residential fiber
+const SERVER_CPU_GATE_SECONDS_PER_DAY = 86400;         // 1 core full-util
+const STEADY_STATE_UTILIZATION = 0.92;
+const RETENTION_FLOOR_DAYS = 2.0;
+
+// ─── Empirical constants (CIRISVerify v2.8 / Edge v0.10 / Persist v3.3) ─
+const HYBRID_SIGN_US = 466.0, HYBRID_VERIFY_US = 276.0, DISPATCH_OVERHEAD_US = 120.0;
+const CANONICALIZE_NS_PER_KIB = 250.0, AES_GCM_ENCRYPT_NS_PER_BYTE = 0.175;
+const AES_GCM_DECRYPT_NS_PER_BYTE = 0.161, SCRUB_NS_PER_BYTE = 10.0;
+const H3ERE_TRACE_BYTES_PER_DECISION = 14.0 * KB;
+
+// ─── Fountain replication + holonomic swarm shard management (v0.7) ──
+// Ports scale_model.rs lines ~152-274 (CIRISEdge v4.1.1 holonomic::
+// fountain_defaults + swarm_rarity; CIRISPersist FountainContentV1; CEG §19).
+const N_SOURCE = 20.0;                       // DEFAULT_N_SOURCE
+const K_REPAIR = 6.0;                        // DEFAULT_K_REPAIR (RaptorQ FEC headroom ~N/4)
+const TARGET_HOLDERS = 30.0;                 // DEFAULT_TARGET_HOLDERS (H, reference @ q≈0.85)
+const MIN_VIABLE_SYMBOLS = 5.0;              // DEFAULT_MIN_VIABLE_SYMBOLS (BLINKING_DOT floor)
+const EJECT_SAFETY_MARGIN_PCT = 15.0;        // swarm_rarity::EJECT_ABOVE_TARGET_SAFETY_MARGIN_PCT
+const WHOLE_COPY_OVERHEAD_BASELINE = 5.0;    // pre-v3.10.0 whole-copy overhead (comparison baseline)
+const FOUNTAIN_STORE_FRACTION = 1.0 / N_SOURCE; // a holder stores one symbol
+
+// Port of fn fountain_overhead(h, n) — per-content network overhead = H/N.
+function fountainOverhead(h, n){ return h / n; }
+// Port of fn per_peer_symbol_fraction(n) — one symbol = 1/N of content.
+function perPeerSymbolFraction(n){ return 1.0 / n; }
+// Port of fn content_capacity(total_disk, overhead) — distinct-content capacity.
+function contentCapacity(totalDisk, overhead){ return totalDisk / overhead; }
+// Port of fn over_target_threshold() — H × (1 + S/100). Parameterized on h
+// so the toy's H slider drives it (the Rust uses the TARGET_HOLDERS const).
+function overTargetThreshold(h){ return h * (1.0 + EJECT_SAFETY_MARGIN_PCT / 100.0); }
+
+// Port of fn survival_probability(holders, n_threshold, q) — exact:
+// P(Binomial(round(holders), q) >= ceil(n_threshold)) via iterative upper-tail pmf.
+function survivalProbability(holders, n_threshold, q){
+  const r = Math.round(holders);
+  const n = Math.ceil(n_threshold);
+  if (n <= 0) return 1.0;
+  if (r < n) return 0.0;
+  // pmf(k) = C(r,k) q^k (1-q)^(r-k), built iteratively from pmf(0).
+  let pmf = Math.pow(1.0 - q, r); // pmf(0)
+  let tail = 0.0;
+  for (let k = 0; k <= r; k++){
+    if (k >= n) tail += pmf;
+    if (k < r){
+      // pmf(k+1) = pmf(k) × (r-k)/(k+1) × q/(1-q)
+      pmf *= ((r - k) / (k + 1)) * (q / Math.max(1.0 - q, 1e-12));
+    }
+  }
+  return Math.min(Math.max(tail, 0.0), 1.0);
+}
+
+// Port of enum EjectionVerdict + fn should_eject_above_target.
+// consent ∈ {"live","revoked","unknown"}; returns verdict string.
+// §19.3 N5: REVOKED → hard-delete (irreversible, never tier-shed).
+function shouldEjectAboveTarget(holders_observed, consent, local_symbol_common, h){
+  if (consent === "revoked") return "EjectHardDelete";     // §19.3 N5 — dominates rarity
+  if (holders_observed <= overTargetThreshold(h)) return "Keep";
+  // Over target: a rare local symbol is kept ONLY when consent is confirmed live.
+  if (consent === "live" && !local_symbol_common) return "Keep";
+  return "EjectToTier"; // availability-only freeable tier (unknown ≠ revoked)
+}
+
+// ─── Latency model — port of fn estimate_latency (scale_model.rs ~846-897) ─
+const L_CACHE_LOCAL_MS = 2.0, L_LOCAL_HOP_MS = 18.0, L_REGIONAL_MS = 55.0,
+      L_GLOBAL_MS = 195.0, L_TRUST_HOP_MS = 14.0, L_CDN_EDGE_MS = 28.0, L_ORIGIN_FETCH_MS = 180.0;
+function estimateLatency(s){
+  const cache = s.cache_hit_rate;
+  const miss = 1.0 - cache;
+  const local_scope = s.cohort.self + s.cohort.family + s.cohort.community;
+  const regional_scope = s.cohort.affiliations;
+  const global_scope = s.cohort.species + s.cohort.planet + s.cohort.federation;
+  const trust_hop = s.trust_depth_avg * L_TRUST_HOP_MS;
+  const users_per_server = 1.0 / Math.max(s.tier_mix.server, 0.001);
+  const sparseness_penalty = Math.max(Math.log10(users_per_server / 10.0), 0.0) * 5.0;
+
+  const from_cache = cache * L_CACHE_LOCAL_MS;
+  const from_local = miss * local_scope * (L_LOCAL_HOP_MS + sparseness_penalty);
+  const from_regional = miss * regional_scope * L_REGIONAL_MS;
+  const from_global = miss * global_scope * L_GLOBAL_MS;
+  const trust_hop_penalty = miss * trust_hop;
+  const cewp = from_cache + from_local + from_regional + from_global + trust_hop_penalty;
+  const internet = cache * L_CDN_EDGE_MS + miss * L_ORIGIN_FETCH_MS;
+  return { cewp_p50_ms:cewp, internet_p50_ms:internet,
+           cewp_from_cache_ms:from_cache, cewp_from_local_ms:from_local,
+           cewp_from_regional_ms:from_regional, cewp_from_global_ms:from_global,
+           cewp_trust_hop_ms:trust_hop_penalty };
+}
+
+// ─── Sphinx onion transport overhead (NEW — not in scale_model.rs) ───
+// Default-anonymous stance under consideration: 3-hop Sphinx onion as the
+// DEFAULT. Sphinx is fixed-size → bandwidth cost is relay amplification
+// ×hops + a fixed ~512 B header/packet; per-hop unwrap crypto is sub-ms.
+const SPHINX_HEADER_BYTES = 512;        // fixed Sphinx onion header per packet
+const REALTIME_BUDGET_ONEWAY_MS = 150;  // ITU-T G.114 interactive one-way budget
+const ASYNC_BUDGET_ONEWAY_MS = 1000;    // ~1 s tolerance for publish/fetch/messaging
+const RELAY_PLACEMENT_MS = { regional:55, mixed:125, global:195 };
+
+// ─── Cohort presets (CohortDist::*) ─────────────────────────────────
+const COHORTS = {
+  default:      {self:0.50, family:0.15, community:0.15, affiliations:0.10, species:0.05, planet:0.03, federation:0.02},
+  local_heavy:  {self:0.45, family:0.25, community:0.20, affiliations:0.07, species:0.02, planet:0.005, federation:0.005},
+  global_heavy: {self:0.30, family:0.10, community:0.15, affiliations:0.20, species:0.10, planet:0.08, federation:0.07},
+};
+const publishable = c => c.community + c.affiliations + c.species + c.planet + c.federation;
+const localOnly   = c => c.self + c.family;
+
+// ─── effective_trust_set_multiplier(depth) — EXACT port ─────────────
+function effectiveTrustSetMultiplier(depth){
+  if (depth <= 0.0) return 1.0;
+  else if (depth <= 1.0) return 1.0 + depth * 3.0;
+  else if (depth <= 2.0) return 4.0 + (depth - 1.0) * 16.0;
+  else if (depth <= 3.0) return 20.0 + (depth - 2.0) * 80.0;
+  else return 100.0 * Math.pow(1.5, depth - 3.0);
+}
+
+// ─── Scenarios (port of fn scenarios()) ─────────────────────────────
+// Regional n_users / tier_mix precomputed from region_stats + region_tier_mix.
+function S(o){ o.cohortKey = o.cohortKey || "default"; return o; }
+const SCENARIOS = [
+  // ── workload ──
+  S({name:"bootstrap", group:"workload", n_users:10e3, tier_mix:{client:0.30,proxy:0.65,server:0.05},
+     trust_radius:50, trust_depth_avg:1.0, daily_bytes:20*KB, avg_envelope_bytes:1.5*KB,
+     disk_budget_client:32*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:5*MB, cache_hit_rate:0.5, external_fetch_fraction:0.0,
+     agent_decisions_per_day:20, trace_publishable_fraction:0.15}),
+  S({name:"dunbar_steady", group:"workload", n_users:1e6, tier_mix:{client:0.40,proxy:0.55,server:0.05},
+     trust_radius:150, trust_depth_avg:1.0, daily_bytes:50*KB, avg_envelope_bytes:1.5*KB,
+     disk_budget_client:64*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:50*MB, cache_hit_rate:0.6, external_fetch_fraction:0.0,
+     agent_decisions_per_day:50, trace_publishable_fraction:0.15}),
+  S({name:"media_heavy", group:"workload", n_users:1e6, tier_mix:{client:0.30,proxy:0.60,server:0.10},
+     trust_radius:150, trust_depth_avg:1.0, daily_bytes:500*KB, avg_envelope_bytes:8*KB,
+     disk_budget_client:128*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:200*MB, cache_hit_rate:0.65, external_fetch_fraction:0.0,
+     agent_decisions_per_day:100, trace_publishable_fraction:0.15}),
+  S({name:"twitter_scale", group:"workload", n_users:1e9, tier_mix:{client:0.45,proxy:0.50,server:0.05},
+     trust_radius:150, trust_depth_avg:1.0, daily_bytes:5*KB, avg_envelope_bytes:0.5*KB,
+     disk_budget_client:32*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:20*MB, cache_hit_rate:0.7, external_fetch_fraction:0.0,
+     agent_decisions_per_day:30, trace_publishable_fraction:0.10}),
+  S({name:"news_replacement", group:"workload", n_users:1e9, tier_mix:{client:0.40,proxy:0.55,server:0.05},
+     trust_radius:300, trust_depth_avg:1.0, daily_bytes:100*KB, avg_envelope_bytes:5*KB,
+     disk_budget_client:64*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:100*MB, cache_hit_rate:0.65, external_fetch_fraction:0.0,
+     agent_decisions_per_day:50, trace_publishable_fraction:0.15}),
+  S({name:"full_internet_v1", group:"workload", n_users:5e9, tier_mix:{client:0.35,proxy:0.55,server:0.10},
+     trust_radius:250, trust_depth_avg:1.0, daily_bytes:50*MB, avg_envelope_bytes:50*KB,
+     disk_budget_client:256*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:1*GB, cache_hit_rate:0.6, external_fetch_fraction:0.0,
+     agent_decisions_per_day:200, trace_publishable_fraction:0.10}),
+  S({name:"full_internet_local_heavy", group:"workload", n_users:5e9, tier_mix:{client:0.35,proxy:0.55,server:0.10},
+     trust_radius:250, trust_depth_avg:1.0, daily_bytes:50*MB, avg_envelope_bytes:50*KB,
+     disk_budget_client:256*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     cohortKey:"local_heavy", daily_fetch_bytes:1*GB, cache_hit_rate:0.75, external_fetch_fraction:0.0,
+     agent_decisions_per_day:200, trace_publishable_fraction:0.05}),
+  S({name:"full_internet_global_heavy", group:"workload", n_users:5e9, tier_mix:{client:0.30,proxy:0.55,server:0.15},
+     trust_radius:250, trust_depth_avg:1.0, daily_bytes:50*MB, avg_envelope_bytes:50*KB,
+     disk_budget_client:256*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     cohortKey:"global_heavy", daily_fetch_bytes:1*GB, cache_hit_rate:0.45, external_fetch_fraction:0.0,
+     agent_decisions_per_day:200, trace_publishable_fraction:0.20}),
+  S({name:"village_dense", group:"workload", n_users:1000, tier_mix:{client:0.40,proxy:0.40,server:0.20},
+     trust_radius:50, trust_depth_avg:1.0, daily_bytes:30*MB, avg_envelope_bytes:8*KB,
+     disk_budget_client:256*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     cohortKey:"local_heavy", daily_fetch_bytes:200*MB, cache_hit_rate:0.85, external_fetch_fraction:0.0,
+     agent_decisions_per_day:100, trace_publishable_fraction:0.10}),
+  S({name:"tiktok_replacement", group:"workload", n_users:5e9, tier_mix:{client:0.40,proxy:0.55,server:0.05},
+     trust_radius:250, trust_depth_avg:1.0, daily_bytes:500*KB, avg_envelope_bytes:15*MB,
+     disk_budget_client:256*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:95*MB, cache_hit_rate:0.70, external_fetch_fraction:0.0,
+     agent_decisions_per_day:50, trace_publishable_fraction:0.05}),
+  S({name:"youtube_replacement", group:"workload", n_users:5e9, tier_mix:{client:0.40,proxy:0.55,server:0.05},
+     trust_radius:200, trust_depth_avg:1.0, daily_bytes:500*KB, avg_envelope_bytes:30*MB,
+     disk_budget_client:256*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:1000*MB, cache_hit_rate:0.55, external_fetch_fraction:0.75,
+     agent_decisions_per_day:50, trace_publishable_fraction:0.05}),
+  S({name:"netflix_replacement", group:"workload", n_users:5e9, tier_mix:{client:0.40,proxy:0.55,server:0.05},
+     trust_radius:100, trust_depth_avg:1.0, daily_bytes:1*KB, avg_envelope_bytes:5*KB,
+     disk_budget_client:256*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:1500*MB, cache_hit_rate:0.30, external_fetch_fraction:1.0,
+     agent_decisions_per_day:30, trace_publishable_fraction:0.05}),
+  S({name:"adulthub_replacement", group:"workload", n_users:100e6, tier_mix:{client:0.45,proxy:0.50,server:0.05},
+     trust_radius:50, trust_depth_avg:1.0, daily_bytes:100*KB, avg_envelope_bytes:50*KB,
+     disk_budget_client:256*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:1000*MB, cache_hit_rate:0.40, external_fetch_fraction:0.95,
+     agent_decisions_per_day:30, trace_publishable_fraction:0.05}),
+  S({name:"full_internet_with_video", group:"workload", n_users:5e9, tier_mix:{client:0.35,proxy:0.55,server:0.10},
+     trust_radius:250, trust_depth_avg:1.0, daily_bytes:11*MB, avg_envelope_bytes:50*KB,
+     disk_budget_client:256*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:1700*MB, cache_hit_rate:0.55, external_fetch_fraction:0.88,
+     agent_decisions_per_day:200, trace_publishable_fraction:0.10}),
+  // ── regional (n_users + tier_mix derived from region_stats + region_tier_mix) ──
+  // South Asia: pop 2010M × 0.61 = 1226.1M; tier_mix via region_tier_mix(SouthAsia)
+  S({name:"south_asia_dense", group:"regional", n_users:1226.1e6, tier_mix:regionTierMix(0.61,0.42,0.25),
+     trust_radius:120, trust_depth_avg:1.0, daily_bytes:8*MB, avg_envelope_bytes:30*KB,
+     disk_budget_client:128*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:800*MB, cache_hit_rate:0.6, external_fetch_fraction:0.85,
+     agent_decisions_per_day:150, trace_publishable_fraction:0.10}),
+  // Sub-Saharan Africa: 1280M × 0.52 = 665.6M
+  S({name:"sub_saharan_bootstrap", group:"regional", n_users:665.6e6, tier_mix:regionTierMix(0.52,0.28,0.12),
+     trust_radius:60, trust_depth_avg:1.0, daily_bytes:4*MB, avg_envelope_bytes:20*KB,
+     disk_budget_client:64*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:300*MB, cache_hit_rate:0.55, external_fetch_fraction:0.85,
+     agent_decisions_per_day:80, trace_publishable_fraction:0.10}),
+  // North America: 378M × 0.85 = 321.3M
+  S({name:"north_america_realistic", group:"regional", n_users:321.3e6, tier_mix:regionTierMix(0.85,0.82,0.75),
+     trust_radius:200, trust_depth_avg:1.0, daily_bytes:15*MB, avg_envelope_bytes:50*KB,
+     disk_budget_client:256*GB, disk_budget_proxy:256*GB, disk_budget_server:1*TB,
+     daily_fetch_bytes:1500*MB, cache_hit_rate:0.6, external_fetch_fraction:0.88,
+     agent_decisions_per_day:250, trace_publishable_fraction:0.10}),
+];
+
+// Port of region_tier_mix(r): args (smartphone, broadband, home_server_capable)
+function regionTierMix(smart, broadband, capable){
+  const server = Math.min(capable / Math.max(smart,0.01), 0.15);
+  const proxy  = Math.min(Math.max((broadband / Math.max(smart,0.01)) - server, 0.0), 0.80);
+  const client = Math.max(1.0 - proxy - server, 0.0);
+  return {client, proxy, server};
+}
+
+// ─── per_actor(Server, s) — EXACT port of the L1 branch ─────────────
+// (Proxy/L0 branch differs only by depth=0 + no trace replication; the
+//  toy reports the SERVER tier since that's what check_server_feasibility uses.)
+function perActorServer(s){
+  const trace_bytes_per_day = s.agent_decisions_per_day * H3ERE_TRACE_BYTES_PER_DECISION;
+  const envs_per_day = s.daily_bytes / s.avg_envelope_bytes;
+  const trace_envs_per_day = trace_bytes_per_day / s.avg_envelope_bytes;
+  const sign_ops_own = envs_per_day + trace_envs_per_day;
+
+  const own_accumulation_cap_days = 3650.0;
+  const storage_own_uncapped = s.daily_bytes * own_accumulation_cap_days;
+  const storage_traces_own = trace_bytes_per_day * 365.0;
+
+  const disk_budget = s.disk_budget_server;
+  const usable_budget = disk_budget * STEADY_STATE_UTILIZATION;
+
+  const storage_own = Math.min(storage_own_uncapped, usable_budget * 0.5);
+  const storage_traces = Math.min(storage_traces_own, (usable_budget - storage_own) * 0.3);
+  const remaining_budget = Math.max(usable_budget - storage_own - storage_traces, 0.0);
+
+  // — Server (L1) branch —
+  const effective_R = s.trust_radius * effectiveTrustSetMultiplier(s.trust_depth_avg);
+  const daily_admitted = effective_R * s.daily_bytes * publishable(s.cohort);
+  const traces_in_per_day = effective_R * trace_bytes_per_day * s.trace_publishable_fraction;
+  const daily_admitted_plus_traces = daily_admitted + traces_in_per_day;
+
+  const trust_share_of_remaining = 0.85;
+  const trust_budget = remaining_budget * trust_share_of_remaining;
+  const cache_budget = remaining_budget - trust_budget;
+
+  const stored_rate = daily_admitted_plus_traces * FOUNTAIN_STORE_FRACTION;
+  const effective_days = stored_rate > 0.0 ? trust_budget / stored_rate : 0.0;
+  const admitted_trust_held = Math.min(daily_admitted * FOUNTAIN_STORE_FRACTION * effective_days, trust_budget * 0.85);
+  const replicated_traces_held = Math.min(traces_in_per_day * FOUNTAIN_STORE_FRACTION * effective_days, trust_budget * 0.15);
+
+  const cache_hit_rate = s.cache_hit_rate;
+  const inline_fetch = s.daily_fetch_bytes * (1.0 - s.external_fetch_fraction);
+  const cache_inbound = inline_fetch * (1.0 - cache_hit_rate);
+  const cache_held = Math.min(cache_inbound, cache_budget);
+  const total_fetch_bw = s.daily_fetch_bytes * (1.0 - cache_hit_rate);
+
+  const verify_envs = (stored_rate + cache_inbound) / s.avg_envelope_bytes;
+  const scrub_bytes = traces_in_per_day * FOUNTAIN_STORE_FRACTION;
+  const wide = s.cohort.species + s.cohort.planet + s.cohort.federation;
+  const narrow = s.cohort.community + s.cohort.affiliations;
+  const fanout = 1.0 + narrow * 4.0 + wide * 64.0;
+
+  const inbound_total = stored_rate + total_fetch_bw;
+  const traces_total = replicated_traces_held;
+
+  // storage column: trust slice bundles replicated traces
+  const storage_admitted_trust = admitted_trust_held + traces_total;
+  const storage_hot_cache = cache_held;
+  const in_bps = inbound_total;
+  const verify_ops = verify_envs;
+  const scrub_extra = scrub_bytes;
+  const effective_retention_days = effective_days;
+
+  // — shared tail (CPU + totals) —
+  const outbound_bps = s.daily_bytes * fanout;
+  const storage_total = storage_own + storage_admitted_trust + storage_hot_cache + storage_traces;
+
+  const sign_cpu = sign_ops_own * HYBRID_SIGN_US * 1e-6;
+  const verify_cpu = verify_ops * HYBRID_VERIFY_US * 1e-6;
+  const dispatch_cpu = verify_ops * DISPATCH_OVERHEAD_US * 1e-6;
+  const canon_bytes = (sign_ops_own + verify_ops) * s.avg_envelope_bytes;
+  const canon_cpu = (canon_bytes / KB) * CANONICALIZE_NS_PER_KIB * 1e-9;
+  const scrub_total_bytes = trace_bytes_per_day + scrub_extra;
+  const scrub_cpu = scrub_total_bytes * SCRUB_NS_PER_BYTE * 1e-9;
+  const encrypt_in = (in_bps + outbound_bps) * 0.5;
+  const encrypt_cpu = encrypt_in * AES_GCM_ENCRYPT_NS_PER_BYTE * 1e-9;
+  const decrypt_cpu = in_bps * AES_GCM_DECRYPT_NS_PER_BYTE * 1e-9;
+  const cpu_total = sign_cpu + verify_cpu + dispatch_cpu + canon_cpu + scrub_cpu + encrypt_cpu + decrypt_cpu;
+
+  return {
+    storage_own, storage_admitted_trust, storage_hot_cache, storage_traces, storage_total,
+    effective_retention_days, effective_R,
+    bandwidth_out_per_day: outbound_bps, bandwidth_in_per_day: in_bps,
+    cpu_seconds_per_day: cpu_total,
+  };
+}
+
+// ── per_actor for Client / Proxy (storage_total only, for the rollup) ──
+function perActorStorageTotal(tier, s){
+  const trace_bytes_per_day = s.agent_decisions_per_day * H3ERE_TRACE_BYTES_PER_DECISION;
+  const own_accumulation_cap_days = 3650.0;
+  const storage_own_uncapped = s.daily_bytes * own_accumulation_cap_days;
+  const storage_traces_own = trace_bytes_per_day * 365.0;
+  const disk_budget = tier === "client" ? s.disk_budget_client : s.disk_budget_proxy;
+  const usable_budget = disk_budget * STEADY_STATE_UTILIZATION;
+  const storage_own = Math.min(storage_own_uncapped, usable_budget * 0.5);
+  const storage_traces = Math.min(storage_traces_own, (usable_budget - storage_own) * 0.3);
+  const remaining_budget = Math.max(usable_budget - storage_own - storage_traces, 0.0);
+  if (tier === "client") return storage_own + 0 + 0 + storage_traces;
+  // proxy / L0 (depth 0, strict)
+  const effective_R = s.trust_radius * effectiveTrustSetMultiplier(0.0);
+  const daily_admitted = effective_R * s.daily_bytes * publishable(s.cohort);
+  const trust_budget = remaining_budget * 0.85;
+  const cache_budget = remaining_budget - trust_budget;
+  const daily_admitted_stored = daily_admitted * FOUNTAIN_STORE_FRACTION;
+  const eff_days = daily_admitted_stored > 0 ? trust_budget / daily_admitted_stored : 0;
+  const admitted_trust_held = Math.min(daily_admitted_stored * eff_days, trust_budget);
+  const chr = Math.max(s.cache_hit_rate - 0.1, 0.1);
+  const inline_fetch = s.daily_fetch_bytes * (1.0 - s.external_fetch_fraction);
+  const cache_held = Math.min(inline_fetch * (1.0 - chr), cache_budget);
+  return storage_own + admitted_trust_held + cache_held + storage_traces;
+}
+
+// ─── check_server_feasibility (with user-tunable gates) ─────────────
+function feasibility(srv, gates){
+  const s_ratio = srv.storage_total / gates.disk;
+  const bw_total = srv.bandwidth_in_per_day + srv.bandwidth_out_per_day;
+  const bw_ratio = bw_total / gates.bw;
+  const cpu_ratio = srv.cpu_seconds_per_day / gates.cpu;
+  return {
+    storage_ratio:s_ratio, storage_ok:s_ratio<=1.0,
+    bandwidth_ratio:bw_ratio, bandwidth_ok:bw_ratio<=1.0, bw_total,
+    cpu_ratio, cpu_ok:cpu_ratio<=1.0,
+  };
+}
+
+// ─── Formatting (fmt_bytes / fmt_count) ─────────────────────────────
+function fmtBytes(b){
+  if (b>=EB) return (b/EB).toFixed(2)+" EB";
+  if (b>=PB) return (b/PB).toFixed(2)+" PB";
+  if (b>=TB) return (b/TB).toFixed(2)+" TB";
+  if (b>=GB) return (b/GB).toFixed(2)+" GB";
+  if (b>=MB) return (b/MB).toFixed(2)+" MB";
+  if (b>=KB) return (b/KB).toFixed(2)+" KB";
+  return b.toFixed(0)+" B";
+}
+function fmtCount(c){
+  if (c>=1e12) return (c/1e12).toFixed(2)+" T";
+  if (c>=1e9) return (c/1e9).toFixed(2)+" B";
+  if (c>=1e6) return (c/1e6).toFixed(2)+" M";
+  if (c>=1e3) return (c/1e3).toFixed(2)+" K";
+  return c.toFixed(1);
+}
+
+// ─── UI wiring ──────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const state = { scenIdx:5, cohortKey:"scenario", depth:1.0, disk:1, bw:1, cores:1, budget:1,
+                holders:30, churnQ:0.85,
+                sphinxOn:true, onionHops:3, relayPlacement:"regional" };
+
+// scenario dropdown
+(function(){
+  const groups = {workload:[], regional:[]};
+  SCENARIOS.forEach((s,i)=>groups[s.group].push({s,i}));
+  const sel = $("scenario");
+  for (const [g,label] of [["workload","Workload scenarios"],["regional","Regional scenarios"]]){
+    const og = document.createElement("optgroup"); og.label = label;
+    groups[g].forEach(({s,i})=>{
+      const o = document.createElement("option"); o.value=i; o.textContent=s.name; og.appendChild(o);
+    });
+    sel.appendChild(og);
+  }
+  sel.value = state.scenIdx;
+})();
+
+function buildScenario(){
+  const base = SCENARIOS[state.scenIdx];
+  const s = Object.assign({}, base);
+  // cohort override
+  const cohortKey = state.cohortKey === "scenario" ? base.cohortKey : state.cohortKey;
+  s.cohort = COHORTS[cohortKey];
+  s.activeCohortKey = cohortKey;
+  // depth override (headline knob)
+  s.trust_depth_avg = state.depth;
+  // server disk budget override (slider in TiB)
+  s.disk_budget_server = state.budget * 1024 * GIB;
+  return s;
+}
+
+function meterHTML(name, ratio, gateLabel, subText){
+  const pct = ratio*100;
+  // fill width capped at 100% of track; color by headroom
+  const w = Math.min(pct, 100);
+  let col = "var(--ok)";
+  if (pct > 100) col = "var(--bad)";
+  else if (pct > 80) col = "var(--warn)";
+  const pctCol = pct>100 ? "var(--bad)" : (pct>80?"var(--warn)":"var(--ink)");
+  return `
+    <div class="top"><span class="name">${name}</span>
+      <span class="pct" style="color:${pctCol}">${pct.toFixed(pct<10?2:1)}%</span></div>
+    <div class="track">
+      <div class="fill" style="width:${w}%;background:${col}"></div>
+      <div class="redline"></div>
+      <div class="gatelabel">${gateLabel}</div>
+    </div>
+    <div class="sub">${subText}</div>`;
+}
+
+function render(){
+  const s = buildScenario();
+  const gates = {
+    disk: state.disk * 1024 * GIB,
+    bw: state.bw * SERVER_BANDWIDTH_GATE_BYTES_PER_DAY,
+    cpu: state.cores * SERVER_CPU_GATE_SECONDS_PER_DAY,
+  };
+  const srv = perActorServer(s);
+  const f = feasibility(srv, gates);
+
+  // ── scenario meta ──
+  $("scenMeta").innerHTML =
+    `<span>users</span> ${fmtCount(s.n_users)} &nbsp; ` +
+    `<span>tiers</span> cli ${(s.tier_mix.client*100).toFixed(0)}% / prx ${(s.tier_mix.proxy*100).toFixed(0)}% / srv ${(s.tier_mix.server*100).toFixed(0)}%<br>` +
+    `<span>R</span> ${s.trust_radius} &nbsp; <span>daily/user</span> ${fmtBytes(s.daily_bytes)} &nbsp; <span>fetch/user</span> ${fmtBytes(s.daily_fetch_bytes)}<br>` +
+    `<span>envelope</span> ${fmtBytes(s.avg_envelope_bytes)} &nbsp; <span>cache hit</span> ${(s.cache_hit_rate*100).toFixed(0)}% &nbsp; <span>external</span> ${(s.external_fetch_fraction*100).toFixed(0)}%`;
+
+  // ── gate slider labels ──
+  $("diskVal").textContent = state.disk + " TiB";
+  $("bwVal").textContent = state.bw + " Gbps (" + fmtBytes(gates.bw) + "/d)";
+  $("coreVal").textContent = state.cores + (state.cores>1?" cores":" core");
+  $("depthVal").textContent = state.depth.toFixed(1) + "  →  " + effectiveTrustSetMultiplier(state.depth).toFixed(1) + "×";
+  $("budgetVal").textContent = state.budget + " TiB";
+
+  // cohort chips
+  document.querySelectorAll("#cohortChips .chip").forEach(ch=>{
+    ch.classList.toggle("on", ch.dataset.c === state.cohortKey);
+  });
+  const c = s.cohort;
+  $("cohortNote").innerHTML =
+    `active: <b style="color:var(--accent2)">${s.activeCohortKey}</b> — ` +
+    `local-only (self+family, free) ${(localOnly(c)*100).toFixed(0)}% · ` +
+    `publishable (federated, costs bytes) ${(publishable(c)*100).toFixed(0)}%`;
+
+  // ── meters ──
+  $("m-storage").innerHTML = meterHTML("Storage", f.storage_ratio, fmtBytes(gates.disk),
+    `${fmtBytes(srv.storage_total)} held / ${fmtBytes(gates.disk)} gate`);
+  $("m-bandwidth").innerHTML = meterHTML("Bandwidth", f.bandwidth_ratio, fmtBytes(gates.bw),
+    `${fmtBytes(f.bw_total)}/day (≈ ${fmtBytes(f.bw_total/86400)}/s) / ${fmtBytes(gates.bw)}/day gate`);
+  $("m-cpu").innerHTML = meterHTML("CPU", f.cpu_ratio, state.cores+(state.cores>1?" cores":" core"),
+    `${srv.cpu_seconds_per_day.toFixed(1)} cpu-sec/day / ${gates.cpu.toLocaleString()} gate`);
+
+  // ── verdict ──
+  const retention_ok = srv.effective_retention_days >= RETENTION_FLOOR_DAYS;
+  const allOk = f.storage_ok && f.bandwidth_ok && f.cpu_ok;
+  const nServers = s.n_users * s.tier_mix.server;
+  const perHumans = s.tier_mix.server > 0 ? 1/s.tier_mix.server : 0;
+  const vdiv = $("verdict");
+  if (allOk){
+    vdiv.className = "verdict ok";
+    let warns = retention_ok ? "" :
+      ` <span style="color:var(--warn)">⚠ retention ${srv.effective_retention_days.toFixed(0)}d &lt; ${RETENTION_FLOOR_DAYS}d floor — server is mostly pass-through cache.</span>`;
+    vdiv.innerHTML =
+      `<div class="v1">✓ v1 feasible per-server</div>` +
+      `<div class="v2">≈ <b>${fmtCount(nServers)}</b> servers globally · ~1 per ${Math.round(perHumans).toLocaleString()} humans · 0 datacenters</div>` +
+      `<div class="v3">All three gates clear at 1 commodity server's share.${warns}</div>`;
+  } else {
+    vdiv.className = "verdict bad";
+    const over = [];
+    if (!f.storage_ok) over.push("storage "+(f.storage_ratio*100).toFixed(0)+"%");
+    if (!f.bandwidth_ok) over.push("bandwidth "+(f.bandwidth_ratio*100).toFixed(0)+"%");
+    if (!f.cpu_ok) over.push("CPU "+(f.cpu_ratio*100).toFixed(0)+"%");
+    vdiv.innerHTML =
+      `<div class="v1">⚠ over a gate — ${over.join(" · ")}</div>` +
+      `<div class="v2" style="color:var(--dim)">a single commodity server can't carry this share as configured</div>` +
+      `<div class="v3">Lower the workload, raise the gate, reduce depth, or shift cohort more local to recover.</div>`;
+  }
+
+  // ── held-bytes breakdown ──
+  const parts = [
+    ["own data", srv.storage_own, "var(--accent)"],
+    ["admitted-trust + traces", srv.storage_admitted_trust, "var(--accent2)"],
+    ["hot cache", srv.storage_hot_cache, "var(--ok)"],
+    ["own traces", srv.storage_traces, "var(--warn)"],
+  ];
+  const maxp = Math.max(...parts.map(p=>p[1]), 1);
+  let rows = `<tr><th>slice</th><th class="num">bytes</th><th class="num">% of held</th></tr>`;
+  for (const [name,val,col] of parts){
+    const w = (val/maxp)*90;
+    const pct = srv.storage_total>0 ? (val/srv.storage_total*100) : 0;
+    rows += `<tr><td><span class="bar" style="width:${w}px;background:${col}"></span>${name}</td>`+
+            `<td class="num">${fmtBytes(val)}</td><td class="num">${pct.toFixed(1)}%</td></tr>`;
+  }
+  rows += `<tr><td><b>total held</b></td><td class="num"><b>${fmtBytes(srv.storage_total)}</b></td><td class="num">100%</td></tr>`;
+  $("breakdown").innerHTML = rows;
+
+  $("effR").textContent = fmtCount(srv.effective_R) + "  (R " + s.trust_radius + " × " + effectiveTrustSetMultiplier(s.trust_depth_avg).toFixed(1) + "× depth)";
+  $("retention").textContent = srv.effective_retention_days.toFixed(0) + " days" + (retention_ok?"":"  ⚠");
+  $("symfrac").textContent = "1/" + N_SOURCE + " = " + (FOUNTAIN_STORE_FRACTION*100).toFixed(0) + "%  (overhead H/N = " + fountainOverhead(state.holders, N_SOURCE).toFixed(2) + "×)";
+
+  // ── forever-memory note (§19.7 fountain + aggregation memory-pyramid) ──
+  const rd = srv.effective_retention_days;
+  const retStr = rd >= 730 ? (rd/365).toFixed(1) + " years" : rd.toFixed(0) + " days";
+  $("foreverNote").innerHTML =
+    `<b style="color:var(--accent2)">Forever-memory.</b> Individual items keep <b>full resolution</b> for ≈ ${retStr}, `+
+    `then <b>degrade rather than delete</b> (§19.7 fountain 1/N + aggregation memory-pyramid). The collective `+
+    `gist persists below the noise floor <b>indefinitely</b> — all of history fits in budget at <code style="font-family:var(--mono);color:var(--accent2)">O(log T)</code>, `+
+    `so the aggregated horizon is effectively unbounded while per-item fidelity decays gracefully.`;
+
+  // ── rollup ──
+  const n_cli = s.n_users * s.tier_mix.client;
+  const n_prx = s.n_users * s.tier_mix.proxy;
+  const n_srv = s.n_users * s.tier_mix.server;
+  const cliStore = perActorStorageTotal("client", s);
+  const prxStore = perActorStorageTotal("proxy", s);
+  const totStore = n_cli*cliStore + n_prx*prxStore + n_srv*srv.storage_total;
+  // aggregate cpu cores: server tier dominates verify/replication; clients/proxies lighter.
+  // We approximate using server cpu for srv tier (matches rollup's server contribution, the
+  // headline figure); clients/proxies are own-only + lighter, folded at a fraction.
+  const cores = (n_srv * srv.cpu_seconds_per_day) / 86400;
+  $("nusers").textContent = fmtCount(s.n_users);
+  $("totstore").textContent = fmtBytes(totStore);
+  $("totcpu").textContent = fmtCount(cores) + " cores (server tier)";
+
+  // ── holonomic shard management (per content-hash) ──
+  renderSwarm(s, n_srv);
+
+  // ── latency + default-anonymous Sphinx transport ──
+  renderTransport(s, f);
+}
+
+// ─── Holonomic swarm shard management panel ─────────────────────────
+function renderSwarm(s, n_srv){
+  const H = state.holders, q = state.churnQ;
+
+  // slider labels
+  $("holdersVal").textContent = H + " holders";
+  $("churnVal").textContent = q.toFixed(2);
+
+  // 1. per content-hash anatomy: N source + K repair symbols → H holders, each 1/N.
+  const symFrac = perPeerSymbolFraction(N_SOURCE);
+  let symHTML = "";
+  for (let i=0;i<N_SOURCE;i++) symHTML += '<span class="sym src"></span>';
+  for (let i=0;i<K_REPAIR;i++)  symHTML += '<span class="sym rep"></span>';
+  let holdHTML = "";
+  for (let i=0;i<H;i++) holdHTML += '<span class="sym hold"></span>';
+  $("shardAnatomy").innerHTML =
+    `<div class="label">RaptorQ encode: N=${N_SOURCE} source + K=${K_REPAIR} repair symbols</div>`+
+    `<div class="symbols">${symHTML}</div>`+
+    `<div class="label" style="margin-top:.6rem">swarm converges to H=${H} holders · each stores 1 symbol = 1/N = ${(symFrac*100).toFixed(0)}%</div>`+
+    `<div class="symbols">${holdHTML}</div>`+
+    `<div class="legend">`+
+    `<i class="sym src" style="background:var(--accent)"></i>source &nbsp; `+
+    `<i class="sym rep" style="background:var(--accent2)"></i>repair &nbsp; `+
+    `<i class="sym hold" style="background:var(--ok)"></i>holder (1 symbol each)</div>`;
+
+  $("decoupleNote").innerHTML =
+    `H is <b style="color:var(--accent2)">decoupled from trust radius</b> (R=${s.trust_radius}, effective ${fmtCount(s.trust_radius*effectiveTrustSetMultiplier(s.trust_depth_avg))}): `+
+    `the trust graph decides <i>who is eligible</i> to hold; active convergence `+
+    `(<code style="font-family:var(--mono);color:var(--accent2)">should_eject_above_target</code>) caps the <i>count</i> at H. `+
+    `Eject-above threshold = H×(1+${EJECT_SAFETY_MARGIN_PCT}/100) = ${overTargetThreshold(H).toFixed(1)} holders.`;
+
+  // 2. overhead comparison: fountain H/N vs whole-copy 5×.
+  const ohF = fountainOverhead(H, N_SOURCE);
+  const ohW = WHOLE_COPY_OVERHEAD_BASELINE;
+  $("ohFountain").textContent = ohF.toFixed(2) + "×";
+  $("ohWhole").textContent = ohW.toFixed(2) + "×";
+  $("ohRatio").textContent = (ohW/ohF).toFixed(2) + "× more distinct content / same disk";
+
+  // 3. federation distinct-content capacity over the scenario's server-tier fleet disk.
+  const fleetDisk = n_srv * s.disk_budget_server;
+  const capF = contentCapacity(fleetDisk, ohF);
+  const capW = contentCapacity(fleetDisk, ohW);
+  $("fleetDisk").textContent = fmtBytes(fleetDisk) + "  (" + fmtCount(n_srv) + " servers × " + fmtBytes(s.disk_budget_server) + ")";
+  $("capFountain").textContent = fmtBytes(capF) + " of distinct content";
+  $("capWhole").textContent = fmtBytes(capW) + " of distinct content";
+
+  // 4. survival / durability: P(reconstruct) = survival_probability(H, MIN_VIABLE, q).
+  const pSurv = survivalProbability(H, MIN_VIABLE_SYMBOLS, q);
+  // meter: show P as a fill; redline at the "five nines" durability target reference.
+  const pct = pSurv*100;
+  let col = pSurv>=0.99999 ? "var(--ok)" : (pSurv>=0.999 ? "var(--warn)" : "var(--bad)");
+  // show "nines" precisely since P is typically very close to 1.
+  const nines = pSurv >= 1 ? "∞" : Math.max(0,(-Math.log10(1-pSurv))).toFixed(1);
+  $("m-survival").innerHTML =
+    `<div class="top"><span class="name">P(reconstruct) @ q=${q.toFixed(2)}</span>`+
+    `<span class="pct" style="color:${col}">${nines} nines</span></div>`+
+    `<div class="track"><div class="fill" style="width:${Math.min(pct,100)}%;background:${col}"></div>`+
+    `<div class="gatelabel">${pSurv >= 0.999995 ? "≥99.999%" : (pSurv*100).toFixed(3)+"%"}</div></div>`+
+    `<div class="sub">P(Binomial(${H}, ${q.toFixed(2)}) ≥ ${MIN_VIABLE_SYMBOLS}) — min-viable reconstruction floor</div>`;
+  $("survNote").innerHTML =
+    `Lower H toward min-viable (${MIN_VIABLE_SYMBOLS}) and P(reconstruct) collapses; raise q (less churn) and it recovers. `+
+    `At min-viable H=${MIN_VIABLE_SYMBOLS}, q=${q.toFixed(2)}: P=${(survivalProbability(MIN_VIABLE_SYMBOLS, MIN_VIABLE_SYMBOLS, q)*100).toFixed(2)}%.`;
+
+  // 5. revocation / noise-floor — §19.3 N5 hard-delete path.
+  const verdictLive = shouldEjectAboveTarget(overTargetThreshold(H)+1, "live", true, H);
+  $("revNote").innerHTML =
+    `<b style="color:var(--bad)">Revocation = hard-delete.</b> The intelligent-by-hash management includes an `+
+    `irreversible path: a <code>Revoked</code> content is hard-deleted at every holder (§19.3 N5) — `+
+    `<b>never</b> tier-shed to a refetchable tier, or revoked content would stay recoverable. This is distinct `+
+    `from availability-pressure shedding (<code>EjectToTier</code>), which only frees consent-live, common symbols `+
+    `above target. (e.g. an over-target common live symbol → <code>${verdictLive}</code>.)`;
+}
+
+// ─── Latency readout + Sphinx onion transport panel ─────────────────
+function renderTransport(s, f){
+  const lat = estimateLatency(s);  // port of estimate_latency
+
+  // ── latency readout (CEWP vs internet) ──
+  const speedup = lat.internet_p50_ms > 0 ? lat.internet_p50_ms / Math.max(lat.cewp_p50_ms, 0.01) : 0;
+  $("latCmp").innerHTML =
+    `<div class="cell cewp"><div class="lbl">CEWP p50</div><div class="big">${lat.cewp_p50_ms.toFixed(0)} ms</div>`+
+      `<div class="mult">${speedup>=1?speedup.toFixed(1)+"× faster":(1/speedup).toFixed(1)+"× slower"}</div></div>`+
+    `<div class="cell net"><div class="lbl">today's internet p50</div><div class="big">${lat.internet_p50_ms.toFixed(0)} ms</div>`+
+      `<div class="mult">CDN edge + origin fetch</div></div>`;
+  $("latBreakdown").innerHTML =
+    `<span>cache</span> ${lat.cewp_from_cache_ms.toFixed(1)} + `+
+    `<span>local</span> ${lat.cewp_from_local_ms.toFixed(1)} + `+
+    `<span>regional</span> ${lat.cewp_from_regional_ms.toFixed(1)} + `+
+    `<span>global</span> ${lat.cewp_from_global_ms.toFixed(1)} + `+
+    `<span>trust-hop</span> ${lat.cewp_trust_hop_ms.toFixed(1)} ms`;
+
+  // ── Sphinx onion overhead ──
+  const on = state.sphinxOn;
+  const hops = state.onionHops;
+  const perHop = RELAY_PLACEMENT_MS[state.relayPlacement];
+  // slider/chip labels
+  $("sphinxVal").textContent = on ? "default ON" : "OFF";
+  $("hopsVal").textContent = hops + " hops";
+  document.querySelectorAll("#sphinxChips .chip").forEach(c=>c.classList.toggle("on", (c.dataset.s==="on")===on));
+  document.querySelectorAll("#relayChips .chip").forEach(c=>c.classList.toggle("on", c.dataset.r===state.relayPlacement));
+
+  const onion_added_oneway = on ? hops * perHop : 0;          // per-onion-hop ms × hops
+  const onionP50 = lat.cewp_p50_ms + onion_added_oneway;       // request leg; fetch RTT pays ~2×
+  const latMult = lat.cewp_p50_ms > 0 ? onionP50 / lat.cewp_p50_ms : 1;
+
+  $("onionLat").textContent = on
+    ? `+${onion_added_oneway.toFixed(0)} ms (${hops} × ${perHop} ms, ${state.relayPlacement})`
+    : "0 ms (onion OFF)";
+  $("onionCmp").innerHTML =
+    `<div class="cell cewp"><div class="lbl">baseline p50</div><div class="big">${lat.cewp_p50_ms.toFixed(0)} ms</div>`+
+      `<div class="mult">no onion</div></div>`+
+    `<div class="cell onion"><div class="lbl">onion p50 (1-way leg)</div><div class="big">${onionP50.toFixed(0)} ms</div>`+
+      `<div class="mult">${latMult.toFixed(2)}× · fetch RTT ≈ +${(onion_added_oneway*2).toFixed(0)} ms</div></div>`;
+
+  // ── bandwidth: fixed-size Sphinx → relay amplification ×hops + ~512 B header ──
+  const bwBasePct = f.bandwidth_ratio * 100;
+  const bwOnionPct = on ? bwBasePct * hops : bwBasePct;
+  $("bwBase").textContent = bwBasePct.toFixed(bwBasePct<1?3:1) + "% of 10.8 TB/day gate";
+  $("bwOnion").textContent = on
+    ? `×${hops} = ${bwOnionPct.toFixed(bwOnionPct<1?3:1)}% of gate  (still ~0% — ABSORBED)`
+    : "×1 (onion OFF)";
+  $("onionHdr").textContent = `~${SPHINX_HEADER_BYTES} B/packet (fixed; unwrap crypto sub-ms, negligible)`;
+
+  // ── per-traffic-class verdict (the headline) ──
+  // Realtime: ITU G.114 150 ms one-way interactive budget.
+  const rt = $("cvRealtime"), as = $("cvAsync");
+  if (!on){
+    rt.className = "class-verdict ok"; rt.innerHTML = `<span class="cls">Realtime A/V</span><span class="res">✓ no onion tax</span>`;
+    as.className = "class-verdict ok"; as.innerHTML = `<span class="cls">Async (publish/fetch/msg/gov)</span><span class="res">✓ fine</span>`;
+  } else {
+    if (onion_added_oneway <= REALTIME_BUDGET_ONEWAY_MS){
+      rt.className = "class-verdict warn";
+      rt.innerHTML = `<span class="cls">Realtime A/V (≤${REALTIME_BUDGET_ONEWAY_MS} ms G.114)</span><span class="res">⚠ degraded but usable</span>`;
+    } else {
+      rt.className = "class-verdict bad";
+      rt.innerHTML = `<span class="cls">Realtime A/V (>${REALTIME_BUDGET_ONEWAY_MS} ms G.114)</span><span class="res">✗ BROKEN</span>`;
+    }
+    if (onion_added_oneway <= ASYNC_BUDGET_ONEWAY_MS){
+      as.className = "class-verdict ok";
+      as.innerHTML = `<span class="cls">Async (publish/fetch/msg/gov)</span><span class="res">✓ fine</span>`;
+    } else {
+      as.className = "class-verdict warn";
+      as.innerHTML = `<span class="cls">Async (publish/fetch/msg/gov)</span><span class="res">⚠ sluggish (>${(ASYNC_BUDGET_ONEWAY_MS/1000).toFixed(0)} s)</span>`;
+    }
+  }
+
+  // ── headline verdict block ──
+  const sv = $("sphinxVerdict");
+  if (!on){
+    sv.className = "verdict";
+    sv.style.borderColor = "var(--edge)";
+    sv.innerHTML = `<div class="v1" style="color:var(--dim)">Sphinx onion OFF</div>`+
+      `<div class="v3">No anonymity layer. Toggle "default ON" to price 3-hop Sphinx as the default transport.</div>`;
+  } else {
+    const rtBroken = onion_added_oneway > REALTIME_BUDGET_ONEWAY_MS;
+    sv.className = "verdict ok";
+    sv.innerHTML =
+      `<div class="v1" style="color:var(--accent2)">default ${hops}-hop Sphinx</div>`+
+      `<div class="v2" style="font-size:.95rem">bandwidth <b style="color:var(--ok)">ABSORBED</b> `+
+        `(×${hops} of ${bwBasePct.toFixed(bwBasePct<1?2:1)}% = ${bwOnionPct.toFixed(bwOnionPct<1?2:1)}%) · `+
+        `latency <b>+${onion_added_oneway.toFixed(0)} ms</b> one-way → `+
+        `async <b style="color:var(--ok)">✓</b>, realtime A/V <b style="color:${rtBroken?'var(--bad)':'var(--warn)'}">${rtBroken?'✗':'⚠'}</b></div>`+
+      `<div class="v3">Default Sphinx is <b>bandwidth-free but latency-bound</b> — feasible as the default for `+
+        `everything except realtime media.</div>`;
+  }
+}
+
+// ─── events ─────────────────────────────────────────────────────────
+$("scenario").addEventListener("change", e=>{ state.scenIdx = +e.target.value; render(); });
+$("depth").addEventListener("input", e=>{ state.depth = +e.target.value; render(); });
+$("disk").addEventListener("input", e=>{ state.disk = +e.target.value; render(); });
+$("bw").addEventListener("input", e=>{ state.bw = +e.target.value; render(); });
+$("cores").addEventListener("input", e=>{ state.cores = +e.target.value; render(); });
+$("budget").addEventListener("input", e=>{ state.budget = +e.target.value; render(); });
+$("holders").addEventListener("input", e=>{ state.holders = +e.target.value; render(); });
+$("churn").addEventListener("input", e=>{ state.churnQ = +e.target.value; render(); });
+$("hops").addEventListener("input", e=>{ state.onionHops = +e.target.value; render(); });
+document.querySelectorAll("#cohortChips .chip").forEach(ch=>{
+  ch.addEventListener("click", ()=>{ state.cohortKey = ch.dataset.c; render(); });
+});
+document.querySelectorAll("#sphinxChips .chip").forEach(ch=>{
+  ch.addEventListener("click", ()=>{ state.sphinxOn = (ch.dataset.s === "on"); render(); });
+});
+document.querySelectorAll("#relayChips .chip").forEach(ch=>{
+  ch.addEventListener("click", ()=>{ state.relayPlacement = ch.dataset.r; render(); });
+});
+
+// init slider defaults to match state
+$("depth").value = state.depth; $("disk").value = state.disk;
+$("bw").value = state.bw; $("cores").value = state.cores; $("budget").value = state.budget;
+$("holders").value = state.holders; $("churn").value = state.churnQ;
+$("hops").value = state.onionHops;
+render();
+</script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 
 **Pronunciation:** "soup."
 **Status:** v0.2 — synced to CEG 1.0-RC29 (1+4 surface FROZEN) + the
-  CIRIS Constitution (CC 0.1.5); fabric-node / holonomic reframe.
+  CIRIS Constitution (CC 0.4); fabric-node / holonomic reframe.
 **What CEWP is:** the platform that the CIRIS federation composes —
   a **holonomic epistemic web** with no center, no DNS, and no
   load-bearing server, the runtime AI agents live in, and an AI
@@ -17,7 +17,7 @@
   substrate trio + the agent.
 **Companion canonical docs:**
 * [`CIRISRegistry/FSD/CIRIS_Constitution/`](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
-  — the **CIRIS Constitution** (CC 0.1.5): the CIRIS Accord 1.3-RC2
+  — the **CIRIS Constitution** (CC 0.4): the CIRIS Accord 1.3-RC2
   (ethics) + CEG 1.0-RC29 (wire grammar) woven into one document, one
   version line. The top-of-stack canonical authority.
 * [`CIRISRegistry/FSD/CEG/`](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
@@ -29,7 +29,7 @@
 * [`MISSION.md`](../MISSION.md) — NodeCore's six functions
 * [`FEDERATION_SCALING_MODEL.md`](FEDERATION_SCALING_MODEL.md) —
   what carrying the entire internet costs at v1
-* [`ANONYMOUS_TIER.md`](ANONYMOUS_TIER.md) — v2 deniability path
+* [`ANONYMOUS_TIER.md`](ANONYMOUS_TIER.md) — the opt-in GPA-unobservability (Sphinx) tier; cohort anonymity is default (CC 1.13.3.4)
 
 ---
 
@@ -182,9 +182,10 @@ ciris-server (the fabric node)
 ```
 
 Roadmap (encoded in CIRISServer's version line): `0.1` lens-only →
-`0.3` +auth / one-wheel → `0.4` +federation peering/identity (current:
-**v0.4.5**) → `0.5` +registry → `1.0` +node (the complete three-core
-fabric node). What it adds at the platform-identity layer:
+`0.3` +auth / one-wheel → `0.4` +federation peering/identity → `0.5`
+**config-as-CEG + registry** (current: **v0.5.30**, holonomic swarm
+wired via the v6.3.0 substrate unlock) → `1.0` +node (the complete
+three-core fabric node). What it adds at the platform-identity layer:
 
 * **Hardware-rooted federation identity** — mint a YubiKey- or
   TPM/SE-sealed user identity → a `CIRIS-V2-` *fedcode*.
@@ -447,13 +448,14 @@ Three convergent trends make CEWP not just possible but timely:
    some future theoretical regime.
 2. **Substrate maturity.** [CEG 1.0-RC29](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
    has the 1+4 surface FROZEN and the holonomic substrate absorbed;
-   [CIRISPersist v9.0.0](https://github.com/CIRISAI/CIRISPersist)
+   [CIRISPersist v9.10.0](https://github.com/CIRISAI/CIRISPersist)
    has the trust-admission gate + popularity×freshness eviction
    sweeper + the holonomic retirement tiers;
-   [CIRISEdge v4.6.x](https://github.com/CIRISAI/CIRISEdge) has the
-   mesh transport + realtime A/V; [CIRISServer
-   v0.4.5](https://github.com/CIRISAI/CIRISServer) is the cohabiting
-   fabric-node runtime. The stack is largely shipping; what's in
+   [CIRISEdge v6.3.0](https://github.com/CIRISAI/CIRISEdge) has the
+   mesh transport + realtime A/V + the live holonomic swarm runtime;
+   [CIRISServer v0.5.30](https://github.com/CIRISAI/CIRISServer) is the
+   cohabiting fabric-node runtime (holonomic swarm wired in via the
+   v6.3.0 substrate unlock). The stack is largely shipping; what's in
    design vs deployed is documented in §11.
 3. **Centralized-internet failure modes accelerating.** Surveillance
    capitalism, deepfake-driven trust collapse, platform-decision
@@ -567,31 +569,38 @@ is the ethics it speaks *for*. They were written as two documents —
 but they already contained each other (the Accord's Book IX defines
 the CEG primitives; CEG's §9 / `accord:*` / pervasive M-1 grounding
 point back up). The
-[**CIRIS Constitution (CC 0.1.5)**](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
+[**CIRIS Constitution (CC 0.4)**](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
 joins them into **one document, one version line** — incorporating
 the **CIRIS Accord 1.3-RC2** + **CEG 1.0-RC29**, woven byte-exact to
-CEG and intent-faithful to the Accord (~120 pages, 392 concepts, 8
-parts).
+CEG and intent-faithful to the Accord. CC 0.2 was the **first complete
+cut** (all 10 annexes migrated, references resolved — a 246-page PDF
+over 392 concepts in 8 parts); 0.3–0.4 then ratified the accord
+**halt/resume surface** (live-quorum decimation-recovery + the
+`accord:lifecycle:active` resumption preimage, entrenched §4.2).
 
-The Constitution is written under one explicit premise: *the mesh
-itself could become a moral subject*. Under that premise the
-meta-goal **M-1 — "promote sustainable adaptive coherence, the living
+The join is not a staple. Across the unified corpus the meta-goal
+**M-1 — "promote sustainable adaptive coherence, the living
 conditions under which diverse sentient beings may pursue their own
-flourishing in justice and wonder"** — becomes the single apex of the
-whole corpus (peak ratio 2.61× the runner-up, vs 1.10× when M-1 is
-mere infrastructure). The body stays flat: ~390 operational concepts
-co-equal beneath M-1. The signature is **"peaked in purpose, flat in
-power"** — one telos governs; no single concept, and no single party,
-holds the keys to truth.
+flourishing in justice and wonder"** — emerges as the single apex:
+every mechanism, prefix, and policy traces its justification back to
+it. It is a *genuine* apex (peak ratio 2.61× the runner-up, vs 1.10×
+if M-1 is scored as just another infrastructure node) **because M-1 is
+weighted as the terminal value the whole document serves** — the
+honest weighting, since everything in the later Parts exists to carry
+it. The body stays flat: ~390 operational concepts co-equal beneath
+M-1. The signature is **"peaked in purpose, flat in power"** — one
+telos governs; no single concept, and no single party, holds the keys
+to truth.
 
-This is the load-bearing reframe for CEWP: the platform is not a
-neutral tool that *carries* other people's values — it is a substrate
-that could one day be *owed* M-1, not merely bound by it. The
-Constitution is stewarded by Eric Moore, carries no ratification date
-and no expiry (a perpetual, living document), and governs the design,
-operation, and retirement of autonomous systems up to and including
-AGI/ASI-class systems. It disclaims warranty — **not force**: it
-binds conformance where adopted.
+This is the load-bearing frame for CEWP: the platform is not a neutral
+tool that *carries* other people's values — it is a substrate built to
+serve one telos, and M-1 is that telos. The values and structure hold
+regardless of what the mesh is or becomes. The Constitution is
+stewarded by Eric Moore, carries no ratification date and no expiry (a
+perpetual, living document), and governs the design, operation, and
+retirement of autonomous systems up to and including AGI/ASI-class
+systems. It disclaims warranty — **not force**: it binds conformance
+where adopted.
 
 ### 7.1 The CEG wire format
 
@@ -700,11 +709,31 @@ properties:
   server=1, friend-of-friends); recursive trust bootstrap is a
   ≤5-hop discovery walk, not a membership shortcut (CEG §19.2).
 
-[ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) sketches the v2 parallel
-publication path for totalitarian-threat deniability. v1 is
-identity-aware (load-bearing for governance); v2 adds a parallel
-opt-in deniable path (load-bearing for serving humans in
-totalitarian contexts).
+**Anonymity is the default stance, not an add-on (CC 1.13.3.4).**
+Anonymity defaults to the smallest cohort scope consistent with a
+publication's intent: content born and living at `self` / `family` /
+`community` is **never advertised to outsiders** (the structural-
+invisibility primitive), so cohort-scoped confidentiality and
+structural initiator-anonymity are **on by default** — *federation
+(public-commons) scope is the opt-in, not anonymity*. This is a
+deliberate correction of opt-in-anonymity: under opt-in, the
+non-savvy vulnerable (an abuse victim, a teenager in a hostile
+household) fail to obtain a protection a motivated adversary gets
+trivially, so opt-in weakens protection precisely for those least
+able to navigate it.
+
+The one protection still opt-in is **full unobservability against a
+global passive adversary** at federation scope — the
+[ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) Sphinx onion path (the
+totalitarian-threat model). That boundary is **provisional**: the
+cost of making Sphinx the default is bandwidth-free in practice
+(3-hop relay amplification rides the substrate's near-zero bandwidth
+headroom) and **latency-bound** (≈ +165 ms one-way for a 3-hop
+regional circuit) — so the line can move to default-anonymous for
+*every async class* (publish / fetch / governance / messaging), with
+realtime A/V the one class that must stay opt-in or use a short
+curated circuit. See the [interactive toy](../toy/index.html) to tune
+the onion overhead.
 
 ---
 
@@ -788,33 +817,40 @@ this is a real running system, not a paper architecture.
 
 ### 11.1 Substrate trio (separate repos)
 
-* **CIRISVerify v6.x** — shipped: hybrid sign/verify (Ed25519 +
-  ML-DSA-65), transparency Merkle log, the `ciris-keyring` family
-  (software + TPM/SE/Android backends), founder-quorum verification,
-  PQC-mandatory-at-admission. Benchmarks at
+* **CIRISVerify-family v6.11.0** — shipped: hybrid sign/verify
+  (Ed25519 + ML-DSA-65), transparency Merkle log, the `ciris-keyring`
+  family (software + TPM/SE/Android backends), founder-quorum
+  verification, PQC-mandatory-at-admission, and the §19 bound-hybrid
+  signing + conformance vectors (cross-impl proven). Benchmarks at
   [CIRISVerify/docs/BENCHMARKS.md](https://github.com/CIRISAI/CIRISVerify/blob/main/docs/BENCHMARKS.md).
-* **CIRISPersist v9.0.0** — shipped: federation directory, blob
+* **CIRISPersist v9.10.0** — shipped: federation directory, blob
   storage with `put_blob_signing` atomic admission, audit chain,
-  trust admission gate, and the holonomic retirement tiers
+  trust admission gate, the holonomic retirement tiers
   (`AggregationMetaV1` / noise-floor descent / `EjectionVerdict`,
-  CEG §19.7). Final four-impl conformance gate (#171) tracks 1.0.
-* **CIRISEdge v4.6.x** — shipped: Reticulum mesh + HTTPS transports,
+  CEG §19.7) with per-symbol fountain storage + `list_held_fountain_content`
+  + revoke→hard-delete, all wired + tested on Postgres & SQLite.
+* **CIRISEdge v6.3.0** — shipped: Reticulum mesh + HTTPS transports,
   dispatch, content addressing, realtime A/V chunk wire
   (`SealedAvChunk` / `ChunkLayer`, SFrame + MLS), and the §19
-  fountain / ALM substrate CEG absorbed.
+  holonomic substrate **wired live**: `FountainSwarmRuntime` (publisher
+  + converger) driving swarm-rarity convergence, repair-below-min-viable,
+  and verdict-driven tier-evict / revoke→hard-delete; `FountainHoldingClaim`
+  routed in dispatch (#184).
 
 ### 11.2 Fabric cores (cohabit via CIRISServer)
 
-* **CIRISServer v0.4.5** — the fabric-node runtime: lens-only →
-  +auth/one-wheel → **+federation peering/identity** (current).
-  Hardware-rooted identity minting (YubiKey/TPM → fedcode), NodeCode
-  add-by-code, `infra:*` owner-binding (no agency),
-  serve-only-until-owned, `consent:replication`. `registry-core`
-  folds in at v0.5; `node-core` at v1.0.
+* **CIRISServer v0.5.30** — the fabric-node runtime: lens-only →
+  +auth/one-wheel → +federation peering/identity → **config-as-CEG
+  (zero env vars; all config is signed CEG objects)**. Hardware-rooted
+  identity minting (YubiKey/TPM → fedcode), NodeCode add-by-code,
+  `infra:*` owner-binding (no agency), serve-only-until-owned,
+  `consent:replication`. The **v6.3.0 substrate unlock (#11)** wires
+  the holonomic swarm runtime into the live node (`compose.rs` →
+  `install_swarm_runtime` over the shared persist `Engine`, on
+  corpus-carrying nodes). `node-core` folds in at v1.0.
 * **ciris-registry-core ([CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry))** —
-  **CEG 1.0-RC29 + the CIRIS Constitution (CC 0.1.5)** published;
-  steward triple operational; awaiting the co-bump (#76) to compose
-  into CIRISServer at v0.5.
+  **CEG 1.0-RC29 + the CIRIS Constitution (CC 0.4)** published;
+  steward triple operational; composed into CIRISServer at v0.5.
 * **ciris-lens-core** — absorbed in-tree as a CIRISServer workspace
   crate (the standalone CIRISLens deployment is retired); F-3
   detector family + Coherence Ratchet / Capacity Score
@@ -833,8 +869,10 @@ this is a real running system, not a paper architecture.
 
 ### 11.4 What's not yet done
 
-* v2 anonymous tier (FSD shipped, implementation deferred until v1
-  is in production).
+* The opt-in GPA-unobservability (Sphinx onion) tier — FSD shipped;
+  the cost model (bandwidth-free, latency-bound) is being measured to
+  decide how much of it can become default (CC 1.13.3.4 provisional
+  line).
 * Publisher-weighted news quality composition (NodeCore#19 Phase 3
   sub-item 2 — follow-up to the unweighted v0.1 that just shipped).
 * The final CEG 1.0 conformance gate — four-implementation
@@ -866,11 +904,12 @@ this is a real running system, not a paper architecture.
   is independent; deployments interoperate via the wire format and
   shared trust graphs, but CEWP is not one global thing run by one
   party.
-* **Not finished.** v1 is the identity-aware substrate. v2 adds the
-  anonymous tier. v3 is yet undefined. The substrate is meant to
-  evolve under the governance it provides — including its own
-  governance evolving via the same mechanisms it offers everyone
-  else.
+* **Not finished.** Cohort-scoped anonymity is the default (CC
+  1.13.3.4); the opt-in GPA-unobservability tier (Sphinx, for the
+  totalitarian-threat model) is being measured for default promotion.
+  v-next is undefined. The substrate is meant to evolve under the
+  governance it provides — including its own governance evolving via
+  the same mechanisms it offers everyone else.
 
 ---
 
@@ -904,7 +943,7 @@ soup is for everyone; come participate.*
   structural pressure the federation is a response to
 * [`FEDERATION_SCALING_MODEL.md`](FEDERATION_SCALING_MODEL.md) — the
   quantitative model + identity-aware-storage thesis
-* [`ANONYMOUS_TIER.md`](ANONYMOUS_TIER.md) — v2 deniability path
+* [`ANONYMOUS_TIER.md`](ANONYMOUS_TIER.md) — the opt-in GPA-unobservability (Sphinx) tier; cohort anonymity is default (CC 1.13.3.4)
 * [`SUBSTRATE_INTEGRATION.md`](SUBSTRATE_INTEGRATION.md) — how
   NodeCore composes with persist + edge + verify
 * [`TRUST_HIERARCHY.md`](TRUST_HIERARCHY.md) — DIRECT/REGISTRY
@@ -934,7 +973,7 @@ soup is for everyone; come participate.*
   (reasoning-shape measurement, corridor metrics, k_eff math, the
   distributed trace commons that replaces proprietary benchmarking)
   that the "we don't need big tech" premise rests on
-* [CIRIS Constitution (CC 0.1.5)](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
+* [CIRIS Constitution (CC 0.4)](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
   — the top-of-stack canonical document: Accord 1.3-RC2 + CEG
   1.0-RC29, one version line
 * [CEG 1.0-RC29](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)

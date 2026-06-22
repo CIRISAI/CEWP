@@ -157,8 +157,9 @@ conservative-by-design baseline. Dev-host CPUs run 2–3× faster.
 
 **Triple currency note.** Empirical inputs §2.1-§2.3 reference the
 substrate baselines circa Verify v2.8.0 / Edge v0.10.0 / Persist
-v3.3.0. The model now ships at the substrate triple verify v6.x /
-persist v9.0.0 / edge v4.6.x (CEG 1.0-RC29). Underlying op costs
+v3.3.0. The model now ships at the substrate triple verify v6.11.0 /
+persist v9.10.0 / edge v6.3.0 (CEG 1.0-RC29; CIRISServer v0.5.30, the
+v6.3.0 substrate unlock wiring the live holonomic swarm). Underlying op costs
 (hybrid_sign, envelope_canonicalize, SQLite row write) are within
 noise of the baselines; the §2.4 multimedia primitives are net-new
 since CEG 0.3, and the CEG 0.10 delivery axis (streaming multicast —
@@ -214,6 +215,43 @@ Holonomic mechanisms are blind to the anonymous tier
 consent/revocation, gated by owner-binding, and PQC-mandatory (CEG
 §19.5 fail-secure). They do not change the §9 identity-aware-storage
 property — they sit underneath it.
+
+### 2.6 Storage duration — effectively indefinite
+
+`implied retention` is the full-fidelity dwell time before content
+begins to degrade — `trust_budget_share / daily_admitted_stored`
+(§7), where the fountain `1/N` symbol store (≈5%, `H/N=1.5×` overhead
+vs the old whole-copy 5×) is what stretches it ~3.3×. Run
+`cargo run --example scale_model` (toy v0.7, single **1 TB / 1 core**
+v1 server, default cohort, depth 1):
+
+| Scenario | Full-fidelity retention | |
+|---|---:|---|
+| netflix_replacement | 1,966,119 d | **~5,400 yr** |
+| bootstrap | 1,713,300 d | ~4,700 yr |
+| adulthub_replacement | 1,498,617 d | ~4,100 yr |
+| twitter_scale | 639,635 d | ~1,750 yr |
+| news_replacement | 99,897 d | ~274 yr |
+| youtube_replacement | 99,750 d | ~273 yr |
+| tiktok_replacement | 79,800 d | ~219 yr |
+| media_heavy | 72,526 d | ~199 yr |
+| village_dense | 7,951 d | ~22 yr |
+| full_internet_local_heavy | 877 d | ~2.4 yr |
+| **full_internet_v1** | **747 d** | **~2.0 yr** |
+| **full_internet_global_heavy** | **435 d** | **~1.2 yr** (tightest) |
+
+For essentially every realistic workload — messaging, social, news,
+even YouTube/Netflix-class video — full-fidelity retention is
+**centuries to millennia** on one commodity server. The only runs
+that compress to ~1–2 years are the literal "the entire internet,
+*with video*, on one 2020-era home server" saturation scenarios, at
+the deliberately conservative v1 gate (double the disk → double the
+retention). **And full-fidelity retention is not the end of the data:
+past it, content degrades into the §2.5 memory pyramid rather than
+deleting, so the collective gist persists below the noise floor
+indefinitely at O(log T).** The binding constraint is disk at the v1
+gate for the single hardest scenario — never time. Effectively
+indefinite storage holds.
 
 ---
 

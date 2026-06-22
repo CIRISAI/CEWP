@@ -43,7 +43,7 @@ happens if accord holders disagree.*
 
 | Document | Source |
 |---|---|
-| [`CIRIS_Constitution/`](./tier1-constitution/CIRIS_Constitution/) | CIRISRegistry — Constitution 0.1.5 (`.tex` + `.pdf`) |
+| [`CIRIS_Constitution/`](./tier1-constitution/CIRIS_Constitution/) | CIRISRegistry — Constitution 0.4 (`.tex` + `.pdf`) |
 | [`CIRISAccord/`](./tier1-constitution/CIRISAccord/) | CIRISAccord — the Accord books + annexes + PDF |
 | [`CEG__09_humanity_accord.md`](./tier1-constitution/CEG__09_humanity_accord.md) | CEG §9 humanity_accord (anti-capture) |
 | [`CEG__11_governance.md`](./tier1-constitution/CEG__11_governance.md) | CEG §11 governance |

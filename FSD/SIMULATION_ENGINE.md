@@ -67,7 +67,7 @@ benchmark suites:
 | `hybrid_verify` | 276 µs | same |
 | AES-GCM @ 64 KiB | 5.45 GiB/s encrypt, 5.91 GiB/s decrypt | same |
 | Persist SQLite per-row write | ~1.5 ms | [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) v3.x storage_floor bench |
-| Edge dispatch_inbound (256 B) | < 400 µs | [CIRISEdge v4.6.x](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/BENCHMARKS.md) |
+| Edge dispatch_inbound (256 B) | < 400 µs | [CIRISEdge v6.3.0](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/BENCHMARKS.md) |
 | H3ERE trace per agent decision | ~14 KB | [CIRISPersist INTEGRATION_LENS.md](https://github.com/CIRISAI/CIRISPersist/blob/main/docs/INTEGRATION_LENS.md) |
 | Scrub regex pass | 5–10 ns/byte | Edge inline_text_pipeline |
 

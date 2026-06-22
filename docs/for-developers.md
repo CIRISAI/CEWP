@@ -22,9 +22,11 @@ the pointer map.
   eviction). L0/L1 tier model. Scaling scenarios up to 5B users.
   Identity-aware-storage thesis. Prior-art comparison.
 - **[FSD/ANONYMOUS_TIER.md](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/ANONYMOUS_TIER.md)**
-  (in CIRISNodeCore) — v2 deniability path for totalitarian-threat
-  contexts. Parallel anonymous publication tier sketched. Not v1
-  scope; design committed.
+  (in CIRISNodeCore) — the opt-in GPA-unobservability (Sphinx onion)
+  tier for totalitarian-threat contexts. Cohort-scoped anonymity is
+  already the default (CC 1.13.3.4); this is the residual opt-in, with
+  the default-promotion cost (bandwidth-free, latency-bound) being
+  measured.
 
 ### Wire format
 
@@ -40,10 +42,11 @@ the pointer map.
 
 ### Ethical framework
 
-- **[CIRIS Constitution (CC 0.1.5)](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)**
+- **[CIRIS Constitution (CC 0.4)](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)**
   (in CIRISRegistry) — the **top-of-stack canonical document**: the
   CIRIS Accord 1.3-RC2 (ethics) + CEG 1.0-RC29 (grammar) woven into
-  one version line. M-1 apex (sustainable adaptive coherence);
+  one version line. The first complete cut (all 10 annexes migrated,
+  references resolved). M-1 apex (sustainable adaptive coherence);
   *peaked in purpose, flat in power*.
 - **[The Accord](https://ciris.ai/ciris_accord.pdf)** — the ethical
   commitment the substrate enforces (the ethics component of the
@@ -61,30 +64,31 @@ the pointer map.
 
 - [README.md](https://github.com/CIRISAI/CIRISServer) — the headless
   cohabitation runtime (+ PyO3 wheel) that binds the three fabric
-  cores over one persist Engine + one edge identity. Current **v0.4.5**
-  (+federation peering/identity); roadmap 0.1 lens-only → 0.3
-  +auth/one-wheel → 0.4 +peering → 0.5 +registry → 1.0 +node.
+  cores over one persist Engine + one edge identity. Current **v0.5.30**
+  (config-as-CEG + registry; the v6.3.0 substrate unlock wires the
+  holonomic swarm into the live node); roadmap 0.1 lens-only → 0.3
+  +auth/one-wheel → 0.4 +peering → 0.5 +config-as-CEG/registry → 1.0 +node.
 - Adds hardware-rooted identity (YubiKey/TPM → `CIRIS-V2-` fedcode),
   NodeCode (`CIRIS-V1-…` QR add-by-code), `infra:*` owner-binding,
   serve-only-until-owned, `consent:replication`.
 
-### CIRISVerify v6.x — crypto + transparency
+### CIRISVerify-family v6.11.0 — crypto + transparency
 
 - [docs/BENCHMARKS.md](https://github.com/CIRISAI/CIRISVerify/blob/main/docs/BENCHMARKS.md) — measured costs (hybrid sign 466 µs, hybrid verify 276 µs, AES-GCM 5.45 GiB/s, Merkle ops)
 - [docs/THREAT_MODEL.md](https://github.com/CIRISAI/CIRISVerify/blob/main/docs/THREAT_MODEL.md) — assumed adversary capabilities
 
-### CIRISPersist v9.0.0 — storage substrate
+### CIRISPersist v9.10.0 — storage substrate
 
 - [CHANGELOG.md](https://github.com/CIRISAI/CIRISPersist/blob/main/CHANGELOG.md) — release notes (the identity-aware-storage seam `list_held_by` + `evict_actor`, plus the holonomic retirement tiers — noise-floor descent / `AggregationMetaV1` / `EjectionVerdict`, CEG §19.7)
 - [docs/PUBLIC_SCHEMA_CONTRACT.md](https://github.com/CIRISAI/CIRISPersist/blob/main/docs/PUBLIC_SCHEMA_CONTRACT.md) — the schema downstream consumers can rely on
 - [docs/COHABITATION.md](https://github.com/CIRISAI/CIRISPersist/blob/main/docs/COHABITATION.md) — how the cohabitation triple works
 - [docs/INTEGRATION_LENS.md](https://github.com/CIRISAI/CIRISPersist/blob/main/docs/INTEGRATION_LENS.md) — the H3ERE trace event integration (~14 KB per agent decision)
 
-### CIRISEdge v4.6.x — transport + dispatch
+### CIRISEdge v6.3.0 — transport + dispatch + holonomic swarm
 
 - [docs/BENCHMARKS.md](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/BENCHMARKS.md) — dispatch_inbound, outbound_enqueue, content_fetch_roundtrip, inline_text_pipeline costs
 - [docs/STANDARDS_COMPARISON.md](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/STANDARDS_COMPARISON.md) — comparison to libp2p, NATS, iroh
-- realtime A/V chunk wire (SFrame + MLS) + the §19 RaptorQ fountain / ALM substrate CEG absorbed for holographic replication
+- realtime A/V chunk wire (SFrame + MLS) + the §19 RaptorQ fountain / ALM substrate, with the live `FountainSwarmRuntime` (publisher + converger) driving swarm-rarity convergence, repair, and revoke→hard-delete for holographic replication
 - [docs/THREAT_MODEL.md](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/THREAT_MODEL.md)
 
 ### CIRISNodeCore — consensus core (ciris-node-core; folds in at Server 1.0)
@@ -102,7 +106,7 @@ the pointer map.
 ### CIRISRegistry — CEG + Constitution spec authority (ciris-registry-core)
 
 - [FSD/CEG/](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG) — the wire format spec (CEG 1.0-RC29; 20 sections, 1+4 FROZEN)
-- [FSD/CIRIS_Constitution/](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution) — the top-of-stack canonical document (CC 0.1.5)
+- [FSD/CIRIS_Constitution/](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution) — the top-of-stack canonical document (CC 0.4)
 - [docs/CEG_EXPLORATION_PAGE_PRIMER.md](https://github.com/CIRISAI/CIRISRegistry/blob/main/docs/CEG_EXPLORATION_PAGE_PRIMER.md) — the consumer surface for the wire format
 
 ### CIRISAgent — `fabric node + brain` (agent runtime + unified client)

@@ -138,4 +138,4 @@ CEWP is not:
 - A content moderation service (it gives the federation moderation primitives)
 - A replacement for top-down regulation (it provides the enforcement substrate regulation currently lacks)
 - A single-deployment system (every federation is independent; deployments interoperate via wire format)
-- Finished (v1 ships the identity-aware substrate; v2 adds an anonymous tier for totalitarian-threat deniability; v3 is yet undefined)
+- Finished (cohort-scoped anonymity is the default per CC 1.13.3.4; the opt-in GPA-unobservability tier — Sphinx onion, for totalitarian-threat deniability — is being measured for default promotion; v-next is undefined)

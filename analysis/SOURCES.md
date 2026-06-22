@@ -13,7 +13,7 @@ canonical — re-pull before relying on any document for a decision.
 | [CIRISAccord](https://github.com/CIRISAI/CIRISAccord) | `6302d62` | Constitutional/ethics layer — the Accord books |
 | [coherence-ratchet](https://github.com/CIRISAI/coherence-ratchet) | `f6f6b41` | Integration paper + Lean formal lake (Zenodo 20300774) |
 | [RATCHET](https://github.com/CIRISAI/RATCHET) | `c266982` | Coherence/PoB papers, CCA paper, federation threat-model index |
-| [CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry) | `56ad95d` | CEG 1.0-RC29 spec + CIRIS Constitution 0.1.5 |
+| [CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry) | `2fb7a2c` | CEG 1.0-RC29 spec + CIRIS Constitution 0.4 |
 | [CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore) | `b4dbe49` | Consensus core — federation governance |
 | [CIRISLensCore](https://github.com/CIRISAI/CIRISLensCore) | `3f6c0d8` | Observation/epistemology core |
 | [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) | `dbbfb70` | Crypto + identity substrate |

@@ -83,32 +83,47 @@ artifacts live in the sister repos and on the live benchmark page.
 
 ### Measured performance — [CIRIS fabric benchmarks](https://cirisai.github.io/CIRISServer/)
 
-Single-core Criterion microbenchmarks (the `MEASURED` rows on the benchmark
-page) back the crypto, transport, and storage claims:
+Single-core Criterion microbenchmarks from the CIRISServer scoreboard
+(schema `bench/2`) back the crypto, transport, and storage claims. The raw
+export is vendored at
+[`benchmarks/ciris-server-bench.json`](benchmarks/ciris-server-bench.json)
+(single-core, one thread; 100% hybrid PQC — Ed25519+ML-DSA-65 sigs,
+X25519+ML-KEM-768 KEM, no classical-only path; receivers charged open-only):
 
-| What | Result | Claim it supports |
-|---|---|---|
-| Hybrid X25519 + ML-KEM-768 handshake | **339.6 µs** total (post-quantum tax +160.7 µs, once per peer-link) | Post-quantum-ready identity at negligible cost |
-| AEAD throughput (AES-256-GCM) | up to **1.27 GiB/s** / core | Crypto is not the bottleneck |
-| 1080p keyframe seal → wire → open | **192.18 µs** (256 KiB) | Full-motion video on commodity cores |
-| ALM relay per-hop overhead | **~946 ns** (~0.96 µs/tier, `O(log N)` tree) | Mesh transport scales without datacenters |
-| Holographic storage (N=20, K=6, H=30) | **99.6%** reconstruction at 33% fragment loss; 100% at 30% | Erasure-coded survival is real, not theoretical |
-| Hybrid trace ingest | **470.44 µs** (~2,126 traces/sec/core) | Signed-artifact governance throughput |
+| What | Result | Label | Claim it supports |
+|---|---|---|---|
+| Hybrid X25519 + ML-KEM-768 handshake | **161.9 µs** total (PQC tax **+83.2 µs** over classical 78.7 µs; once per peer-link) | MEASURED | Post-quantum-ready identity at negligible cost |
+| AV frame seal + open throughput | up to **2.24 GiB/s** / core (64 KiB frame) | MEASURED | Crypto is not the bottleneck |
+| 1080p keyframe seal → wire → open | **112.3 µs** (256 KiB; seal 56.8 + open 49.0) | MEASURED | Full-motion video on commodity cores |
+| A 50-person room, 720p/30fps | **~0.45%** of one core to receive (open-only); ≤ **10,823** concurrent 30fps streams/core | MODEL | Group media without datacenters |
+| Shared-inner-seal fan-out (N=50) | **2.07×** vs naive per-recipient seal | MEASURED | 1:N multicast amortizes |
+| Membership-change rekey (tree, N=50) | **0.41 ms** (8.3× vs flat rewrap) | PROJECTED | Churn cost stays sublinear (CIRISEdge#129) |
+| ALM relay per-hop overhead | **~946 ns** (~0.96 µs/tier, `O(log N)` tree) | MEASURED | Mesh transport scales without datacenters |
+| Holographic storage (N=20, K=6, H=30) | **99.6%** reconstruction at 33% fragment loss; 100% at 30% | MODEL | Erasure-coded survival is real, not theoretical |
+| Hybrid trace ingest | **230.6 µs** (~**4,336** traces/sec/core; dedup 205.8 µs) | MEASURED | Signed-artifact governance throughput |
 
-Crucially, the benchmark page labels every row `MEASURED` vs. `MODEL` vs.
-`PROJECTED` vs. `FRONTIER` — it is explicit about **what is measured, what is
-modeled, and what is not yet built** (e.g. full symmetric M>2 MDC video is
-flagged `FRONTIER`; membership rekey is `PROJECTED` against an open issue).
+The scoreboard labels every row `MEASURED` vs. `MODEL` vs. `PROJECTED` vs.
+`FRONTIER` — it is explicit about **what is measured, what is modeled, and
+what is not yet built** (e.g. full symmetric M>2 MDC video is `FRONTIER`;
+membership rekey is `PROJECTED` from the real hybrid-KEM primitive against
+[CIRISEdge#129](https://github.com/CIRISAI/CIRISEdge/issues/129)). The ALM
+and fountain-reconstruction figures come from the same suite
+(`benches/alm_chain.rs` + the `FountainPolicy` reference N=20/K=6/H=30).
 
 ### Conformance — [CIRISConformance](https://github.com/CIRISAI/CIRISConformance)
 
 Cohabitation + CEG-profile conformance is **gated against the published
-wheels**. The suite verifies the five PyO3 substrate cores (persist · verify ·
-edge · node-core · lens-core) cohabit correctly in one process and conform to
-the CEG contract, across three CEG conformance profiles — **CCP** (producer),
-**CCC** (consumer), **CCS** (substrate) — at two tiers (substrate cohabitation
-+ fabric emergent behavior: replication discipline, scaling factors). Expected
-failures are marked `xfail` against upstream issues rather than hidden.
+wheels**. The latest fabric run is vendored at
+[`benchmarks/ciris-server-fabric-conformance.json`](benchmarks/ciris-server-fabric-conformance.json):
+**13 PASS / 0 FAIL** (30 N/A, 1 SKIP) across 44 checks over 10 modules
+(auth · sdk · telemetry · agent · system · memory · audit · tools · guidance ·
+ceg-native-fabric). The suite verifies the five PyO3 substrate cores
+(persist · verify · edge · node-core · lens-core) cohabit correctly in one
+process and conform to the CEG contract, across three CEG conformance
+profiles — **CCP** (producer), **CCC** (consumer), **CCS** (substrate) — at
+two tiers (substrate cohabitation + fabric emergent behavior: replication
+discipline, scaling factors). Expected failures are marked `xfail` against
+upstream issues rather than hidden.
 
 ### Shipping clients — [ciris.ai/install](https://ciris.ai/install)
 
@@ -134,14 +149,15 @@ are mirrored for easy cross-reference.
 | [`FSD/CEWP.md`](FSD/CEWP.md) | Platform identity — three load-bearing claims, "we don't need big tech" premise, agents-as-participants, superalignment via distributed epistemic governance |
 | [`FSD/FEDERATION_SCALING_MODEL.md`](FSD/FEDERATION_SCALING_MODEL.md) | Quantitative model. Single-pool storage. Trust × capacity intake + popularity × freshness eviction. L0 / L1 tier model. 13 scenarios up to full-internet-with-video; identity-aware-storage thesis with prior-art comparison. |
 | [`FSD/MEDIA_SHARING.md`](FSD/MEDIA_SHARING.md) | **Multimedia tier — YouTube / TikTok / Netflix / OnlyFans / AdultHUB replacement.** Five new external_content sub_kinds (image / audio / video / film / model_3d); content classification + multi-scheme rating (MPAA / BBFC / PEGI / etc.); operator-managed age gate; takedown_notice + key_grant CEG-native subject_kinds; content encryption (DEK / KEK / X25519+AES-GCM HPKE base mode); international standards mapping (DMCA / DSA / OSA / TVEC / NCMEC / AVMSD / KOSA / EU AI Act). |
-| [`FSD/ANONYMOUS_TIER.md`](FSD/ANONYMOUS_TIER.md) | v2 anonymous publication path — Sphinx onion routing + Ed25519 key blinding + AEAD + rendezvous discoverability for totalitarian-threat deniability. Parallel to v1; doesn't break the identity-aware substrate. |
+| [`FSD/ANONYMOUS_TIER.md`](FSD/ANONYMOUS_TIER.md) | The opt-in GPA-unobservability tier — Sphinx onion routing + Ed25519 key blinding + AEAD + rendezvous discoverability for totalitarian-threat deniability. **Cohort-scoped anonymity is already the default (CC 1.13.3.4);** this is the residual federation-scope opt-in, whose default-promotion cost (bandwidth-free, latency-bound) the [toy](toy/index.html) models. |
 | [`FSD/SIMULATION_ENGINE.md`](FSD/SIMULATION_ENGINE.md) | Rust simulation engine spec — modular workspace; scalable from 1 K-agent browser playback to 5 B-agent GPU sim at 1:1. Real-world topology data (PeeringDB, CAIDA, TeleGeography submarine cables, GeoNames). Snapshots feed the website team's existing Three.js viz. |
 
 ### Working toy
 
 | Path | Purpose |
 |---|---|
-| [`examples/scale_model.rs`](examples/scale_model.rs) | The runnable scaling-model toy. `cargo run --example scale_model` (from CIRISNodeCore workspace; mirrored here for reference). **13 scenarios** covering bootstrap → village → dunbar → media-heavy → twitter → news → full-internet → adulthub → tiktok → youtube → netflix → full-internet-with-video. All feasible per-server at v1 gates (1 TB / 1 Gbps / 1 core). |
+| [`examples/scale_model.rs`](examples/scale_model.rs) | The runnable scaling-model toy. `cargo run --example scale_model` (from CIRISNodeCore workspace; mirrored here for reference). **14 workload scenarios** (bootstrap → dunbar → media-heavy → twitter → news → full-internet → tiktok → youtube → netflix → adulthub → full-internet-with-video) **+ 3 regional-realism scenarios** (south-asia-dense, sub-saharan-bootstrap, north-america-realistic) **+ a threat-model pass + per-scenario environmental footprint**. All feasible per-server at v1 gates (1 TB / 1 Gbps / 1 core). |
+| [`toy/index.html`](toy/index.html) | The **interactive** browser toy — pick a scenario, tune the gates (disk / bandwidth / core, cohort mix, trust depth), watch per-server feasibility update live. Mirrors the `scale_model.rs` math; no build step, just open it. |
 
 ### Explanation docs (for general audience + website team)
 
@@ -166,7 +182,7 @@ reviewed as a single philosophical-technical whole. See
 | Tier | Covers | Key sources |
 |---|---|---|
 | [0 — Philosophy](analysis/tier0-philosophy/) | adaptive coherence, Coherence Ratchet, Proof-of-Benefit, M-1 | CIRISAgent, coherence-ratchet (+ Lean lake), RATCHET |
-| [1 — Constitution](analysis/tier1-constitution/) | sovereignty, amendment, halting, anti-capture | Constitution 0.1.5, CIRISAccord, CEG §9/§11 |
+| [1 — Constitution](analysis/tier1-constitution/) | sovereignty, amendment, halting, anti-capture | Constitution 0.4, CIRISAccord, CEG §9/§11 |
 | [2 — Federation governance](analysis/tier2-federation-governance/) | consensus, expertise, moderation, deferral | CIRISNodeCore |
 | [3 — Observation/epistemology](analysis/tier3-observation-epistemology/) | what counts as evidence; coherence measurement | CIRISLensCore, CCA paper |
 | [4 — Registry/trust](analysis/tier4-registry-trust/) | credentials, licensure, revocation; CEG 1.0-RC29 spec | CIRISRegistry, CIRISPersist |
@@ -211,6 +227,7 @@ At "full internet replacement" — 5 billion users, 50 MB/user/day:
 | Per-user disk owned | ~0 (your data lives on their servers) | Yours, on your hardware |
 | Per-user trust signal | Platform-controlled "verified" checkmark | Cryptographic attestation graph, locally computable |
 | Switching cost | Network-effects lock-in (Facebook holds your graph) | ~Zero (federation key portable) |
+| Storage duration | Platform-decided; deletion is a promise | **Effectively indefinite** — full-fidelity for centuries-to-millennia on one commodity server (the fountain `1/N` store); the hardest "entire internet *with video* on one home server" run still holds ~1–2 yr at full fidelity, then degrades-not-deletes into the O(log T) memory pyramid forever ([scaling model §2.6](FSD/FEDERATION_SCALING_MODEL.md)) |
 
 The simulation engine (FSD/SIMULATION_ENGINE.md) is what produces
 these numbers in animation-ready form — modeled at 1:1 over the
@@ -247,8 +264,8 @@ See `docs/for-developers.md` for the pointer map.
 
 - [Platform identity FSD](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/CEWP.md) — the load-bearing claims (in CIRISNodeCore)
 - [Scaling model FSD](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_SCALING_MODEL.md) — the quantitative bet
-- [Anonymous tier v2 FSD](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/ANONYMOUS_TIER.md) — totalitarian-threat deniability path
-- [CIRIS Constitution (CC 0.1.5)](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution) — the top-of-stack canonical document: Accord 1.3-RC2 + CEG 1.0-RC29, one version line
+- [Anonymous tier FSD](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/ANONYMOUS_TIER.md) — the opt-in GPA-unobservability (Sphinx) tier (cohort anonymity is default, CC 1.13.3.4)
+- [CIRIS Constitution (CC 0.4)](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution) — the top-of-stack canonical document: Accord 1.3-RC2 + CEG 1.0-RC29, one version line (first complete cut + accord halt/resume surface)
 - [CEG 1.0-RC29 wire-format spec](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG) — the authoritative wire-format spec (in CIRISRegistry; 1+4 surface FROZEN)
 - [The Accord](https://ciris.ai/ciris_accord.pdf) — ethical framework the substrate enforces
 - [Research synthesis](https://ciris.ai/research-status/) — the empirical bet

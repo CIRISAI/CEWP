@@ -1,25 +1,45 @@
-# FSD: Anonymous Tier (v2 parallel publication path)
+# FSD: Anonymous Tier (the opt-in GPA-unobservability path)
 
-**Status:** v2 design — architectural commitment, not v1 scope.
+**Status:** design — the opt-in tier for the strongest threat model.
+  **Anonymity itself is the default** (CC 1.13.3.4): cohort-scoped
+  confidentiality + structural initiator-anonymity are on by default
+  at every scope below federation. This FSD is *only* the residual
+  opt-in: full unobservability against a global passive adversary at
+  federation (public-commons) scope.
 **Companion:** [FEDERATION_SCALING_MODEL.md §9.9](FEDERATION_SCALING_MODEL.md)
 **Threat model:** totalitarian government coercing a node operator
   or subpoenaing the federation directory to identify dissident
   publication.
 
-This FSD captures CIRIS's v2 commitment to a **parallel anonymous
-publication path** alongside the v1 identity-aware substrate. The
-v1 substrate (every Contribution carries `author_id`, every blob
-admission cites `attesting_key_id`, the trust graph is observable)
-serves humans + agents operating in tractable trust contexts —
-communities, governance, federation. The mission goal is to serve
-ALL of humanity, which includes humans operating in totalitarian
-contexts where federation-attribution is a lethal risk. The
-anonymous tier closes that gap.
+**The default already protects most of humanity.** Per CC 1.13.3.4,
+content born and living at `self` / `family` / `community` is never
+advertised to outsiders (the structural-invisibility primitive), so
+structural anonymity-to-outsiders is the protective default — a
+deliberate correction of opt-in-anonymity, which weakens protection
+precisely for the non-savvy vulnerable. What this FSD adds is the one
+protection the default does **not** buy: federation-scope
+unobservability against an adversary observing every network link.
+That is genuinely costly (onion latency) and only reached by an
+operator already publishing to the public commons.
 
-The mental model: the v1 substrate is the **public square**; the
-anonymous tier is the **encrypted letter dropped in a mailbox**.
-Both are first-class postal-system functions. v1 builds the
-public square; v2 adds the mailbox. Neither breaks the other.
+**Default-promotion cost (the provisional line).** CC 1.13.3.4 marks
+the opt-in boundary as provisional — it MAY move toward default as
+the overhead is measured. The model's first-order read: a 3-hop
+Sphinx default is **bandwidth-free in practice** (3× relay
+amplification + a fixed ~512 B onion header, riding the substrate's
+near-zero bandwidth headroom — ~0% of the 10.8 TB/day per-server
+gate) and **latency-bound** (≈ +`hops × per-hop-RTT` one-way; ~+165 ms
+for a 3-hop regional circuit, up to ~+585 ms global). So the line can
+move to default for **every async class** (publish / fetch /
+governance / messaging); **realtime A/V** is the one class that must
+stay opt-in or use a short curated circuit. Tune it in the
+[interactive toy](../toy/index.html).
+
+The mental model: cohort scopes are the **rooms of your house**
+(private by default); federation scope is the **public square**; this
+tier is the **anonymous remailer** you reach the square through when
+the square itself is watched. The default builds the private house;
+this FSD adds the remailer. Neither breaks the other.
 
 ---
 

@@ -508,7 +508,7 @@ chat — is modeled as composition: **SFrame + MLS TreeKEM
 ([RFC 9420](https://datatracker.ietf.org/doc/html/rfc9420))** folded
 in for per-frame encryption + group key agreement, and Edge ships the
 realtime A/V chunk wire (`SealedAvChunk` / `ChunkLayer`,
-CIRISEdge v4.6.x). This builds on the **delivery axis** (introduced
+CIRISEdge v6.3.0). This builds on the **delivery axis** (introduced
 at 0.10) — the third orthogonal envelope concern alongside visibility
 (`cohort_scope`) and revocability (`subject_key_ids`) — with three
 optional envelope fields (`delivery_mode: pull | push`,
@@ -533,7 +533,7 @@ replacement, not just a VOD one.
 
 **Status: wire FROZEN / multicast-impl tail.** The wire format is
 spec-complete and frozen in CEG 1.0-RC29; the realtime A/V chunk wire
-(`SealedAvChunk` / `ChunkLayer`) ships in CIRISEdge v4.6.x. The
+(`SealedAvChunk` / `ChunkLayer`) ships in CIRISEdge v6.3.0. The
 observer-share (N=1) half is impl-live. The streaming-multicast (N>1)
 half rides the same frozen wire but has a substrate-impl tail:
 best-effort tier on
@@ -832,10 +832,25 @@ protocol but with federation-cryptographic provenance throughout.
 ### 5.6 Substrate-level hash-matching
 
 For CSAM specifically, PhotoDNA-class perceptual hash matching
-happens at the federation propagation event (the moment
-`put_blob_signing` would emit a `holds_bytes` advertisement) — NOT
-at the user's device. This is the architecturally-defensible line
-that [Apple's NeuralHash 2021 proposal](https://arxiv.org/abs/2111.06628)
+happens at **every event that emits (or re-emits) a `holds_bytes`
+advertisement to federation scope** — NOT at the user's device.
+That is two classes of event, not one:
+
+1. **Initial federation publish** — `put_blob_signing` at
+   `cohort_scope: federation` emits the first `holds_bytes:sha256:X`.
+2. **Scope-widening promotion** — a community→federation
+   `supersedes` Contribution (§8.1.5 promotion example) re-emits
+   `holds_bytes` for content that was previously cohort-scoped. This
+   is the seam where *spreading* happens — content leaving the cohort
+   it was born in and entering the public commons — and it is the
+   harm vector that creates new victims. Matching at this seam
+   recovers the spreading-correlated catches that a publish-only
+   tripwire would miss, **without** scanning content that stays
+   within its cohort.
+
+In both cases the match fires at the federation handoff, NOT on the
+user's device. This is the architecturally-defensible line that
+[Apple's NeuralHash 2021 proposal](https://arxiv.org/abs/2111.06628)
 failed to draw and that [Signal](https://signal.org/bigbrother/)
 correctly refuses on the user's device.
 
@@ -850,10 +865,14 @@ Implementation:
   jurisdiction; evict any existing copies via the per-actor
   pathway
 
-Locally-scoped content (self/family) is never federation-propagated
-and so never hash-matched — same Signal-equivalent posture. The
-defensible line: at the federation handoff, hash-match is
-substrate-protective; at the user's device, scanning is
+Content that stays within its cohort (`self` / `family` /
+`community`) is never federation-propagated and so never
+hash-matched — same Signal-equivalent posture, and the foundation of
+the scope-native anonymity default ([CC 1.13.3.4](#)). The tripwire
+binds the *moment content widens to the public commons*, whether at
+first publish or at a later promotion seam — not the moment it is
+created. The defensible line: at the federation handoff, hash-match
+is substrate-protective; at the user's device, scanning is
 surveillance.
 
 ## 6. Content encryption + key distribution
