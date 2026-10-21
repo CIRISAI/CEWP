@@ -1,35 +1,36 @@
 # FSD: CEWP — CIRIS Epistemic Web Platform
 
 **Pronunciation:** "soup."
-**Status:** v0.2 — synced to CEG 1.0-RC29 (1+4 surface FROZEN) + the
-  CIRIS Constitution (CC 0.4); fabric-node / holonomic reframe.
+**Status:** v0.3 — synced to the CIRIS Constitution 1.0-rc9 (tag
+  `v1.0-rc9`). CEG is no longer a separate spec version line: the wire
+  grammar is Parts 2–5 of CC. Fabric-node / holonomic reframe. Where
+  this document and CC disagree, CC wins.
 **What CEWP is:** the platform that the CIRIS federation composes —
   a **holonomic epistemic web** with no center, no DNS, and no
   load-bearing server, the runtime AI agents live in, and an AI
   governance / superalignment substrate where alignment is treated as
   an *epistemic-governance* problem with cryptographic accountability —
   not a training-time problem to be solved inside a model. The whole
-  web speaks one small grammar (CEG's "1+4"); every node is a **fabric
+  web speaks one small grammar (the "1+4" of five row types, CC 2.4);
+  every node is a **fabric
   node** (`agent = fabric node + brain`); authority roots in
   accountable humans, never in bare infrastructure. CEWP is the
   platform identity for what was the seven-repo CIRIS Agent 3.0 stack,
   now deployed as cohabiting fabric-node cores (CIRISServer) + the
   substrate trio + the agent.
 **Companion canonical docs:**
-* [`CIRISRegistry/FSD/CIRIS_Constitution/`](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
-  — the **CIRIS Constitution** (CC 0.4): the CIRIS Accord 1.3-RC2
-  (ethics) + CEG 1.0-RC29 (wire grammar) woven into one document, one
-  version line. The top-of-stack canonical authority.
-* [`CIRISRegistry/FSD/CEG/`](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
-  — the CEG 1.0-RC29 wire-format spec (the grammar component;
-  authoritative for the wire)
+* [`CIRISConstitution`](https://github.com/CIRISAI/CIRISConstitution)
+  — the **CIRIS Constitution** (CC 1.0-rc9, tag `v1.0-rc9`): the
+  ethics and the wire grammar in one versioned document. Parts 2–5
+  are the wire grammar formerly published separately as CEG. The
+  top-of-stack canonical authority.
 * [`CIRIS_FEDERATION.md`](../CIRIS_FEDERATION.md) — the layer
   architecture (identity / event / federation / verification /
   safety / lens / persistence / consensus)
 * [`MISSION.md`](../MISSION.md) — NodeCore's six functions
 * [`FEDERATION_SCALING_MODEL.md`](FEDERATION_SCALING_MODEL.md) —
   what carrying the entire internet costs at v1
-* [`ANONYMOUS_TIER.md`](ANONYMOUS_TIER.md) — the opt-in GPA-unobservability (Sphinx) tier; cohort anonymity is default (CC 1.13.3.4)
+* [`ANONYMOUS_TIER.md`](ANONYMOUS_TIER.md) — the planned opt-in GPA-unobservability (Sphinx) tier, named by CC 1.13.3.1 for deployments that need GPA resistance; not yet specified in CC and not yet shipped. Anonymity toward outsiders at the smallest cohort scope is the default (CC 1.13.3.4)
 
 ---
 
@@ -51,10 +52,10 @@ don't have CEWP as a tool. The web is **holonomic** (after Bohm's
 implicate order): there is no center, no nameserver, and no
 load-bearing server — you address a peer by its key, reach it over
 the mesh, and trust it through a chain you can re-root at will.
-Content is **holographic** — erasure-coded so any sufficient subset
-of fragments reconstructs it at proportional fidelity, and the
-federation re-establishes itself from any single survivor holding a
-signed witness chain. The substrate eliminates the centralized
+Content is **holographic**: each layer of an item is RaptorQ-coded
+on its own, so shedding the high-detail layers leaves a coarse
+version of the same item, and the witnessed corpus re-establishes
+from any sufficient fragment (CC 6.1). The substrate eliminates the centralized
 internet's structural failure modes (surveillance, platform lock-
 in, trust collapse, content-quality regression, identity
 fragmentation) AND removes the dependency on large datacenters at
@@ -111,33 +112,40 @@ Alignment as **epistemic governance**:
    ML-DSA-65 hybrid key). Identity is cryptographic, not
    administrative.
 2. **Every load-bearing claim is a signed wire-format artifact**
-   (the CEG 1+4 attestation primitives: `scores` + `delegates_to` /
-   `supersedes` / `withdraws` / `recants`). What gets asserted, by
-   whom, at what scope, is observable to any peer with directory
-   access.
-3. **Trust is computed from the attestation graph** —
-   `weighted_aggregate` over `scores` attestations targeting any
-   key. No "is this peer trusted" oracle; only "what does the
-   federation collectively say about this peer at this scope, right
-   now."
-4. **Wrong / harmful actions become slashable artifacts**:
-   `ModerationEvent` → witness aggregation → WA-quorum
-   `SlashingAttestation` → trust score reduction → admission gate
-   tightens → eviction sweeper drops their content. The platform
-   has *enforcement teeth*, not just a regulator's text.
-5. **Reconsideration is first-class**: `ReconsiderationRequest`
-   exists explicitly so misjudged slashings can be reversed; the
-   substrate doesn't ossify mistakes.
-6. **Agents that don't know what to do *defer*** —
-   `DeferralRequest` routes the question to humans with expertise
-   in the relevant (domain, language) cell, via NodeCore's deferral
-   routing. Deference is a first-class wire act with audit trail.
+   (the five row types of CC 2.4: `scores` + `delegates_to` /
+   `supersedes` / `withdraws` / `recants`; the slot is closed to the
+   five). What gets asserted, by whom, at what scope, is visible to
+   any reader the row's scope and that reader's own trust or consent
+   admit (CC 4.4.3.8, CC 2.4.1.2.1).
+3. **Trust is computed from the attestation graph** — an
+   aggregation over `scores` rows (CC 4.4.2) under a composition
+   policy the reader chose (CC 4.4.3). No "is this peer trusted"
+   oracle; only "what do the attesters this reader trusts say about
+   this peer at this scope, right now."
+4. **Harmful acts are adjudicated on the record**: a
+   `moderation:{allegation_type}` ModerationEvent (CC 3.1.9.2), filed
+   under a delegated `moderate` duty, can lead to a `slashing:{outcome}`
+   verdict and a `quarantine:{state}` marker from a holder of the
+   delegated `slash` duty (CC 4.5.5). Detector flags are never sole
+   evidence for a slashing (CC 3.1.6). The platform has enforcement,
+   not just a regulator's text.
+5. **Reconsideration is first-class**: the subject of a row holds
+   standing to file `reconsideration:{grounds}`, heard under the
+   delegated `review` duty, with outcome `reversed` / `partial` /
+   `upheld` (CC 3.1.9.2, CC 4.5.5); the substrate doesn't ossify
+   mistakes.
+6. **Agents that don't know what to do *defer*** — a
+   `deferral_request` Contribution routes a single ask within a
+   (domain, language) cell (CC 3.1.9.3) to a Wise Authority (CC 4.3);
+   the agent awaits guidance and stays inactive on that issue
+   (CC 1.9). Deference is a first-class wire act with audit trail.
 7. **Decisions decompose into a typed hierarchy**:
    `Goal → Approach → Method → Progress Measure`, all wire-format-
-   typed (FSD-002 §3.6.2 / CEG §5.6.2). An agent's reasoning is
+   typed (CC 3.1.9.7). An agent's reasoning is
    not opaque text; it's a typed graph of attestable steps.
 8. **Privacy and scale share one primitive** — `cohort_scope`. Local
-   data (self/family) is structurally undiscoverable; published
+   data (self/family) is structurally undiscoverable to outsiders
+   (CC 5.2); published
    content is structurally trust-graph-observable (see
    [FEDERATION_SCALING_MODEL.md §9](FEDERATION_SCALING_MODEL.md) for
    the identity-aware-storage thesis).
@@ -160,10 +168,16 @@ attestations *mechanically, never reasoning*. The defining identity:
 
 This is the load-bearing inversion. The old framing was "seven repos
 that cohabit in one process." That stack still exists as the **library
-lineage**, but the *deployment* is now the fabric node — and the three
+lineage**, but the *deployment* is now the fabric node — and the
 canonical singleton servers (`registry-us`, `registry-eu`, the
-CIRISLens deployment) are retired in favor of **three identical fabric
-nodes under a 2-of-3 founder quorum**.
+CIRISLens deployment) are retired; the GenesisBundle replaced the
+per-region steward set (CC 5.3.4). The three canonical installs
+`ciris-canonical-{1,2,3}` are members of the `ciris-canonical`
+infrastructure community, whose founders are the three accord
+holders; the installs distribute serving, not authority (CC 3.2).
+`ciris-canonical` is the shipped default trust anchor, not a forced
+root: a node may re-root or run with none, and any operator may found
+a governed trust-root community of their own (CC 3.2).
 
 ### 2.1 CIRISServer — the fabric-node runtime
 
@@ -183,26 +197,39 @@ ciris-server (the fabric node)
 
 Roadmap (encoded in CIRISServer's version line): `0.1` lens-only →
 `0.3` +auth / one-wheel → `0.4` +federation peering/identity → `0.5`
-**config-as-CEG + registry** (current: **v0.5.30**, holonomic swarm
-wired via the v6.3.0 substrate unlock) → `1.0` +node (the complete
-three-core fabric node). What it adds at the platform-identity layer:
+**config-as-CEG + registry** (current: **v0.5.232**) → `1.0` +node
+(the complete three-core fabric node). What it adds at the platform-identity layer:
 
 * **Hardware-rooted federation identity** — mint a YubiKey- or
-  TPM/SE-sealed user identity → a `CIRIS-V2-` *fedcode*.
-* **NodeCode** (CEG §0.10) — a QR-able `CIRIS-V1-…` rendering of a
-  peer's `key_id` + pubkey for DNS-free add-by-code.
-* **Owner-binding, no agency** — the responsible owner-binding is
-  `infra:*`, never agency; nodes are **serve-only-until-owned**
-  (installing the server means a server — there is no refusal gate).
-* **`consent:replication`** — the consent object authorizing
-  bidirectional peer replication beyond the canonical group.
+  TPM/SE-sealed user identity, rendered as a *FedCode*: the one
+  human-shareable, kind-tagged, checksummed render of a key
+  (CC 2.6.8).
+* **FedCode add-by-code** (CC 2.6.8) — QR-able and DNS-free; the v1
+  NodeCode (`CIRIS-V1-…`) is retained as `kind: node`.
+* **Owner and steward binding, no agency** — a node has no agency and
+  gives no acceptance (CC 3.1.3.2); its stewardship reach is `infra:*`
+  only, never agency (CC 3.2). Its owner is a single `user` named by a
+  live `delegates_to(user → key, delegation_purpose: owner_binding)`,
+  and a second owner-binding naming a different owner is refused at
+  bind time (CC 3.2 single-owner invariant). A `node` or `agent` key
+  MUST have a bound steward before admission to any
+  non-`infrastructure` community, and MAY trust and serve
+  `infrastructure` communities with no steward (CC 3.2 steward-binding
+  gate). A new device joining its owner is unowned but never
+  anonymous: the first-contact link binds its self-signed node key
+  (CC 3.2 (e)). A node that holds a `serve` seat in an
+  `infrastructure` community MUST be announced by its owner
+  (CC 5.4.6).
+* **`consent:replication:{version}`** — a node's directed,
+  revocable grant to replicate a named prefix set to a specific
+  federation peer (CC 3.3.7).
 
 ### 2.2 The library lineage — what composes the node
 
 | Layer | Repos | Role |
 |---|---|---|
 | **Substrate trio** (separate repos) | [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) · [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) · [CIRISEdge](https://github.com/CIRISAI/CIRISEdge) | crypto + transparency log + hardware identity (hybrid Ed25519 + ML-DSA-65); the durable corpus + federation directory + blob storage + audit chain; Reticulum mesh transport + CEG dispatch + realtime A/V chunks |
-| **Fabric cores** (cohabit via CIRISServer) | ciris-registry-core ([CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry)) · ciris-lens-core (absorbed in-tree) · ciris-node-core ([CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore)) | identity bootstrap + canonical-attester rule + **CEG / Constitution spec authority**; the science/detection layer (F-3 detectors, Coherence Ratchet, Capacity Score — validated, not adjudicated); the consensus primitives (deferral / voting / weighted aggregation / moderation / reconsideration) |
+| **Fabric cores** (cohabit via CIRISServer) | ciris-registry-core ([CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry)) · ciris-lens-core (absorbed in-tree) · ciris-node-core ([CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore)) | identity bootstrap + the trust-root discovery endpoints (the GenesisBundle; the registry is a conferred slice of a canonical node, not a root, CC 5.3.4); the science/detection layer (F-3 detectors, Coherence Ratchet, Capacity Score — validated, not adjudicated); the consensus primitives (deferral / voting / weighted aggregation / moderation / reconsideration) |
 | **Agent** (separate repo) | [CIRISAgent](https://github.com/CIRISAI/CIRISAgent) | `fabric node + brain`: the H3ERE pipeline (DMA → CSDMA → DSDMA → ASPDMA → conscience → action) + the unified UI/API. Consumes the CIRISServer wheel rather than composing the cores itself. |
 
 The standalone **CIRISLens** deployment is retired; `ciris-lens-core`
@@ -238,9 +265,10 @@ composes.
 The substrate trio hosts the bytes + crypto + transport; the fabric
 cores host the federation-level authority + observation + consensus;
 the brain (H3ERE) is what reasons. **Separation of powers is the
-invariant**: authority is quorum-bound, observation is
-non-authoritative by namespace, and infrastructure must not have
-agency.
+invariant**: a group's act carries its members' signatures on the
+same row (CC 2.4), observation is advisory (detector and
+`ratchet:flag:*` rows are never sole evidence for a slashing,
+CC 3.1.6), and infrastructure has no agency (CC 3.2).
 
 ---
 
@@ -264,22 +292,27 @@ disputed, and incorporated into the trust graph. Behavior that the
 agent emits without an epistemic claim chain is uninspectable.
 
 **Mechanism:** every load-bearing agent action emits a `scores`
-attestation (CEG §3.3) over the dimension prefix family that names
+row (CC 2.4.2) over the dimension prefix family that names
 the claim (`goal:*` / `approach:*` / `method:*` / `progress_measure:*`
 for the decision hierarchy; `expertise:*` / `credits:*` for
-participation; the full §5 namespace).
+participation; the full namespace is CC Part 3).
 
 ### 3.2 Trust is a substrate property, not an oracle
 
 CEWP has no "trust oracle" — no admin endpoint, no centralized
-allowlist, no "verified" checkmark. Trust is the
-**weighted_aggregate** computation over the `scores` attestation
-graph at the moment of query (CEG §5.6.1 + §8 composition policies).
+allowlist, no "verified" checkmark. Trust is an aggregation over
+the `scores` graph at the moment of query, computed by each reader
+(CC 4.4.2 aggregation, CC 4.4.3 composition policies).
 
-**Why this matters:** an oracle is a single point of capture. A
-substrate is captured only if a quorum of attesters is captured —
-and the federation can observe attestation patterns to detect
-capture attempts (LensCore's domain).
+**Why this matters:** an oracle is a single point of capture. Here
+influence is gated by trust, not by registration: a fresh key has no
+weight until someone the consumer trusts confers it (CC 1.13.3.3).
+The limit is stated in CC: the default aggregation for `signed`
+dimensions is a plain mean inside the trust set, so one captured
+trusted attester moves it (CC 1.13.3.3; the R14 bet, CC 8.3.1).
+The federation can observe attestation patterns to detect capture
+attempts (`ratchet:flag:coordinated_voting_cluster`, CC 3.1.6;
+LensCore's domain).
 
 **Mechanism:** `FederationDirectory` returns attestations; consumers
 compute trust scores locally per their threshold + recursion depth
@@ -291,9 +324,10 @@ no central scoring authority exists.
 CEWP's agents have federation keys (same as humans). They sign
 their own Contributions. They accumulate `credits:*` and
 `expertise:*` via demonstrated participation. They can be moderated
-if they misbehave. They can defer to humans when uncertain. They
-participate in voting. They are governance members, not governance
-objects.
+if they misbehave. They can defer to humans when uncertain. They do
+not vote: one human voice counts once, and an agent has no vote
+(CC executive summary, promise 6). Every agent key has a bound human
+steward who answers for it (CC 3.2 steward-binding gate).
 
 **Why this matters:** treating agents as subjects (RLHF: align the
 agent's behavior; regulation: tell deployers what their agents may
@@ -343,14 +377,14 @@ consented-trace evidence that lets that measurement happen.
 | Problem of the centralized internet | CEWP mechanism that addresses it |
 |---|---|
 | **Centralization** — five companies (Google, Meta, Amazon, Microsoft, Apple) own the substrate; everyone else is downstream + extractable | Federation of equals; no central party; every byte goes through the trust × capacity intake gate at each operator's own infrastructure |
-| **Surveillance capitalism** — every interaction is data-mined; the substrate's economic model IS extraction | CEG locality dividend: 65% of typical activity (self/family scope) NEVER leaves your device because the wire format won't carry it; identity-aware storage means YOUR data sits in YOUR substrate |
+| **Surveillance capitalism** — every interaction is data-mined; the substrate's economic model IS extraction | CEG locality dividend: 65% of typical activity is self/family scope, and no holding claim for it leaves its cohort because the wire format won't carry it (CC 5.2); private content is never scanned (CC 1.13.3.4); identity-aware storage means YOUR data sits in YOUR substrate |
 | **Trust crisis** — deepfakes, deniable provenance, "could be a bot," nobody knows what's real | Cryptographic provenance on every claim (hybrid Ed25519 + ML-DSA-65); CEG attestation graph with consumer-computable trust scores; quality attestations on content (`encyclopedia:accuracy:*`, `news:source_quality:*`); the federation can answer "who said this, who vouches for them, how fresh is the claim" for every wire artifact |
 | **Misinformation amplification** — algorithmic feeds optimize for engagement, not truth | No engagement-optimization layer in the substrate; trust depth is consumer-controlled (operator picks 0 / 1 / 2 / 3 per [scaling model §1.4](FEDERATION_SCALING_MODEL.md)); quality compose surfaces aggregate per-article truth signals; consumers see what their trust set vouched for, not what an ad-revenue optimizer surfaced |
 | **Platform lock-in** — Facebook holds your network; you can't leave because everyone else hasn't | Federation key is portable across deployments; content is SHA-addressed; identity is wire-format-native; switching cost approaches zero; network effects don't trap you |
 | **Identity fragmentation** — 100 logins, OAuth providers gate-keep your identity, password fatigue | One federation key works across the substrate; pseudonymous by default; hybrid PQC means the key is good for decades; identity rooted in cryptography, not in a corporate database |
-| **Content moderation conflicts** — every platform sets different rules; cross-platform consistency impossible; content is hostage to deplatforming risk | Per-cohort moderation via NodeCore's pipeline (ModerationEvent → witness aggregation → WA-quorum slashing); each operator chooses trust threshold + recursion depth (their disk, their rules); reconsideration is structural so mistakes get reversed |
+| **Content moderation conflicts** — every platform sets different rules; cross-platform consistency impossible; content is hostage to deplatforming risk | Per-cohort moderation as a delegable duty (`moderate` / `takedown` / `review` / `slash`, CC 4.5.5); every community has a named moderator with merit auto-promotion (CC 4.5.4); no hand bans a community (CC executive summary, promise 6); each operator chooses trust threshold + recursion depth (their disk, their rules); reconsideration is structural so mistakes get reversed |
 | **Network-effects monopolies** — once entrenched, incumbents are uncatchable; new entrants can't bootstrap a user base | Federation interop at the wire-format layer means new entrants are wire-compatible from day one; users carry their identity + trust set with them; the substrate is the network, not any single application atop it |
-| **No cryptographic accountability** — claims circulate with no provenance; "I read it online" has no signature chain | Every wire artifact is signed; persist's transparency log (Merkle-anchored audit chain) gives forensic auditability; CEG §10.1.2 ContentMiss feedback handles freshness decay; the substrate's epistemic layer is *the* layer — claims have provenance by construction |
+| **No cryptographic accountability** — claims circulate with no provenance; "I read it online" has no signature chain | Every wire artifact is signed; persist's transparency log (Merkle-anchored audit chain) gives forensic auditability; ContentMiss feedback handles freshness decay (CC 5.3.2.1); the substrate's epistemic layer is *the* layer — claims have provenance by construction |
 | **Datacenter dependency (data)** — billions of users → giant centralized infrastructure → climate cost, single points of failure, national security risks | [Scaling model](FEDERATION_SCALING_MODEL.md) shows full-internet replacement (5B users, 50 MB/user/day, 10y archive) fits on **500 M L1 servers + 2.75 B L0 proxies** — roughly one server per ten humans, the density home-internet / IoT deployments already hit. **No datacenters required.** |
 | **Datacenter dependency (AI)** — current AI requires massive centralized compute; democratic access is gated by a handful of labs; alignment decisions made by 5-10 organizations globally | Agents are first-class participants running ON the same substrate as humans. H3ERE pipeline runs on consumer hardware. [CIRISHome](https://github.com/CIRISAI/CIRISHome) on Jetson Orin is deployment-ready. Edge-class LLMs (Llama-family, etc.) run locally. The federation's collective wisdom (the attestation graph) substitutes for the centralized lab's training-time alignment — and is observable, governable, and reversible in ways the lab's RLHF is not. |
 
@@ -446,17 +480,16 @@ Three convergent trends make CEWP not just possible but timely:
    (CIRISHome reference deployment on Jetson Orin) demonstrate the
    AI-substrate no-datacenter claim is achievable today, not in
    some future theoretical regime.
-2. **Substrate maturity.** [CEG 1.0-RC29](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
-   has the 1+4 surface FROZEN and the holonomic substrate absorbed;
-   [CIRISPersist v9.10.0](https://github.com/CIRISAI/CIRISPersist)
-   has the trust-admission gate + popularity×freshness eviction
-   sweeper + the holonomic retirement tiers;
-   [CIRISEdge v6.3.0](https://github.com/CIRISAI/CIRISEdge) has the
-   mesh transport + realtime A/V + the live holonomic swarm runtime;
-   [CIRISServer v0.5.30](https://github.com/CIRISAI/CIRISServer) is the
-   cohabiting fabric-node runtime (holonomic swarm wired in via the
-   v6.3.0 substrate unlock). The stack is largely shipping; what's in
-   design vs deployed is documented in §11.
+2. **Substrate maturity.** The [CIRIS Constitution 1.0-rc9](https://github.com/CIRISAI/CIRISConstitution)
+   carries the wire grammar (Parts 2–5) with the row-type slot closed
+   to the five (CC 2.4) and the holonomic substrate as CC 6.1;
+   [CIRISPersist v59.1.0](https://github.com/CIRISAI/CIRISPersist),
+   [CIRISEdge v43.1.1](https://github.com/CIRISAI/CIRISEdge) and
+   [CIRISServer v0.5.232](https://github.com/CIRISAI/CIRISServer) are
+   the current substrate and fabric-node releases. The CC executive
+   summary marks each of its eleven promises as working today, being
+   built, a rule with no code yet, or modelled; the halt is measured
+   end to end (promise 4). What's in design vs deployed is in §11.
 3. **Centralized-internet failure modes accelerating.** Surveillance
    capitalism, deepfake-driven trust collapse, platform-decision
    asymmetries (a CEO blocks a country), AI alignment being
@@ -500,18 +533,21 @@ auditable record" — they're the same bytes.
 ## 5. The Wise Authority deferral path
 
 Agents that detect a decision they shouldn't make alone emit a
-`DeferralRequest` Contribution. NodeCore's deferral routing
-selects expertise-bearers in the relevant `(domain, language)` cell
-(weighted by `expertise:{domain}:{language}` scores + active trust
-grants). The routed WAs receive the request, deliberate, and return
-`DeferralResponse` envelopes. The original agent incorporates the
-response into its action.
+`deferral_request` Contribution, which routes a single ask within a
+cell (CC 3.1.9.3). NodeCore's deferral routing selects
+expertise-bearers in the relevant `(domain, language)` cell (weighted
+by `expertise:{domain}:{language}` scores, CC 3.1.9.6, + active trust
+grants). The routed Wise Authorities (CC 4.3) deliberate and answer;
+until a named human answers, the agent stays inactive on that issue
+(CC 1.9; CC executive summary, promise 7). The Wise publish their
+rulings and are readable at the same grain as everyone else (CC 4.3;
+promise 8).
 
 **This is what "human in the loop" looks like in CEWP**: not a
 modal "press OK to allow," but a typed wire-format protocol with
 audit trail, signature chain, expertise-weighted routing, and
-reversibility (`ReconsiderationRequest` if the WA's response was
-itself wrong).
+reversibility (`reconsideration:{grounds}`, CC 3.1.9.2, if the WA's
+response was itself wrong).
 
 For superalignment specifically: as AI capability grows,
 deferral-to-experts is the runtime mechanism that keeps humans in
@@ -534,22 +570,41 @@ LensCore detects misalignment patterns:
   that suggest model substitution / fine-tune drift / prompt
   injection?)
 
-When a detector fires, it emits a signed `DetectionEvent` (LensCore
-wire format) that becomes evidence in a `ModerationEvent`
-Contribution. NodeCore's moderation pipeline runs:
+When a detector fires, it emits a `detection:*` row (CC 3.4.8) that
+may be cited as evidence in a `moderation:{allegation_type}`
+ModerationEvent (CC 3.1.9.2). Detector and `ratchet:flag:*` rows are
+never sole evidence for a slashing; WA quorum is the gate (CC 3.1.6).
+Per the CC executive summary (promise 2) the detectors are a rule
+with no code yet. Every step below is a row of the five types
+(CC 2.4):
 
-1. `ModerationEvent` filed (with stake — accuser puts credits at
-   risk)
-2. Witness aggregation — peers attest "I observed this pattern too"
-3. WA-quorum adjudication via `SlashingAttestation` (multi-sig)
-4. Trust score for the slashed actor drops
-5. Persist's admission gate refuses their new content; eviction
-   sweeper begins dropping their existing content
+1. A `moderation:{allegation_type}` ModerationEvent is filed
+   (`rogue_vote` / `coordinated_voting` /
+   `out_of_distribution_attestation` / `external_inducement_evidence`
+   / `expertise_fraud`). Anyone may file an open label as a plain
+   `scores` row; an authoritative one requires the delegated
+   `moderate` duty (CC 4.5.5). The row's `stake` axis declares what
+   backs the claim, default `reputational` (CC 2.5); nothing is
+   escrowed, because CEG carries no conserved balance as substrate
+   state (CC 3.3.10).
+2. Witnesses attest; whether the witness set meets the
+   jurisdictional, organizational, software-stack and cell-expertise
+   bars is itself a `witness_diversity:*` row (CC 3.1.9.3).
+3. A holder of the delegated `slash` duty emits a `slashing:{outcome}`
+   verdict (`proven_rogue` / `not_proven`) and may set a
+   `quarantine:{state}` marker (CC 3.1.9.2, CC 4.5.5). A slashing is
+   decoupled from disagreement (CC 3.1.9.2).
+4. Readers' trust in the slashed actor drops under their own
+   composition policies (CC 4.4.3).
+5. Nodes whose policy follows the marker withhold the quarantined
+   subject's content; the marker plane never withholds itself, and
+   withhold beats release at a same-instant tie (CC 3.1.9.2).
 
-**Reconsideration** is a first-class step backward:
-`ReconsiderationRequest` → WA review → `ReconsiderationAttestation`
-reverses the slashing if the original judgment was wrong. The
-substrate doesn't ossify mistakes.
+**Reconsideration** is a first-class step backward: the subject of
+the target row files `reconsideration:{grounds}` (`new_evidence` /
+`procedural_error` / `quorum_compromise`), heard under the delegated
+`review` duty, with outcome `reversed` / `partial` / `upheld`
+(CC 3.1.9.2, CC 4.5.5). The substrate doesn't ossify mistakes.
 
 For superalignment: the detection-moderation-slashing-reconsideration
 loop is the runtime feedback that punishes misalignment without
@@ -560,37 +615,46 @@ data.
 
 ---
 
-## 7. The CIRIS Constitution + the CEG wire format
+## 7. The CIRIS Constitution and its wire grammar
 
 ### 7.0 The CIRIS Constitution (the top of the stack)
 
 CEG is the wire format the federation *speaks*; the **CIRIS Accord**
-is the ethics it speaks *for*. They were written as two documents —
-but they already contained each other (the Accord's Book IX defines
-the CEG primitives; CEG's §9 / `accord:*` / pervasive M-1 grounding
-point back up). The
-[**CIRIS Constitution (CC 0.4)**](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
-joins them into **one document, one version line** — incorporating
-the **CIRIS Accord 1.3-RC2** + **CEG 1.0-RC29**, woven byte-exact to
-CEG and intent-faithful to the Accord. CC 0.2 was the **first complete
-cut** (all 10 annexes migrated, references resolved — a 246-page PDF
-over 392 concepts in 8 parts); 0.3–0.4 then ratified the accord
-**halt/resume surface** (live-quorum decimation-recovery + the
-`accord:lifecycle:active` resumption preimage, entrenched §4.2).
+is the ethics it speaks *for*. They were written as two documents
+that already referenced each other throughout. The
+[**CIRIS Constitution**](https://github.com/CIRISAI/CIRISConstitution)
+joins them in **one versioned document**, so a rule and the message
+that enforces it cannot drift apart (CC README). At 1.0-rc9 (tag
+`v1.0-rc9`) the wire grammar is CC Parts 2–5; CEG has no separate
+version line.
 
-The join is not a staple. Across the unified corpus the meta-goal
-**M-1 — "promote sustainable adaptive coherence, the living
-conditions under which diverse sentient beings may pursue their own
-flourishing in justice and wonder"** — emerges as the single apex:
-every mechanism, prefix, and policy traces its justification back to
-it. It is a *genuine* apex (peak ratio 2.61× the runner-up, vs 1.10×
-if M-1 is scored as just another infrastructure node) **because M-1 is
-weighted as the terminal value the whole document serves** — the
-honest weighting, since everything in the later Parts exists to carry
-it. The body stays flat: ~390 operational concepts co-equal beneath
-M-1. The signature is **"peaked in purpose, flat in power"** — one
-telos governs; no single concept, and no single party, holds the keys
-to truth.
+Everything traces back to one goal, the meta-goal **M-1 — "promote
+sustainable adaptive coherence, the living conditions under which
+diverse sentient beings may pursue their own flourishing in justice
+and wonder"** (CC Foreword), and everything else sits co-equal beneath
+it: **"peaked in purpose, flat in power"** (CC README). One telos
+governs; no single concept, and no single party, holds the keys to
+truth.
+
+**A form, not a franchise.** CC specifies a form: the grammar of rows,
+the rules of consent, the shape of governance. CIRIS is its first
+instance; the accord holders and the default trust root are
+positions, and anyone may build an instance with their own people in
+them (CC Part 1 reading rule; CC executive summary).
+
+**The halt, bounded (CC 4.2.1, CC 4.2.6; CC executive summary,
+promise 4).** The wire format carries one asymmetry, and it points
+outward: humanity's right to halt the system (CC 4.2). Named accord
+holders hold it. Any one holder fires it with a single signed row; a
+lone pause lapses after 24 hours unless a majority of the standing
+roster confirms it; a majority lifts it; replacing a holder takes
+more than half of the standing roster. A pause stops agents acting
+and touches nothing else: data, messages and the network keep
+working. It reaches only nodes holding a live trust edge to the
+accord at the invocation's `asserted_at`, so a system that never
+accepted the root is untouched (CC 4.2.1). A root can only restrict
+what flows, never widen it (CC 4.2.1). Anyone may leave a root in one
+step, and anyone may found one (promise 4).
 
 This is the load-bearing frame for CEWP: the platform is not a neutral
 tool that *carries* other people's values — it is a substrate built to
@@ -600,77 +664,71 @@ stewarded by Eric Moore, carries no ratification date and no expiry (a
 perpetual, living document), and governs the design, operation, and
 retirement of autonomous systems up to and including AGI/ASI-class
 systems. It disclaims warranty — **not force**: it binds conformance
-where adopted.
+where adopted (CC `STEWARDSHIP.md`, `SCOPE_AND_DISCLAIMERS.md`).
 
-### 7.1 The CEG wire format
+### 7.1 The wire grammar (CC Parts 2–5)
 
-CEG 1.0-RC29 is the authoritative wire-format spec at
-[CIRISRegistry/FSD/CEG/](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG).
-20 sections (§0–§19); the **1+4 surface is FROZEN** as of RC1 — a
-change to the wire bytes is now a *found defect*, not an edit. The
-structural commitments every fabric core implements:
+The wire grammar formerly published as CEG 1.0-RC29 is CC Parts 2–5.
+The structural commitments every fabric core implements:
 
-* **1+4 primitive lockdown (FROZEN)** — `scores` (workhorse) plus
+* **Five row types, slot closed** — `scores` (workhorse) plus
   `delegates_to` / `supersedes` / `withdraws` / `recants`
-  (structural composers). Sixteen independent design paths
-  (identity, consent, communities, attestation, governance, realtime,
-  DNS-free addressing, memory, settlement, delivery, infrastructure,
-  operational-data, …) all compose from this set with **zero new
-  structural primitives** — the §1.4 minimal-and-adequate claim,
-  now closed.
-* **Namespace governance** — §5 owners; §1 operational-language gate
-  ("mechanism-descriptive, not judgment-descriptive"); §11.2
-  amendment process (federation Contribution + WA quorum + 1-of-6
-  sign-off). Canonicalization is JCS / RFC 8785 (§0.9) for the
-  envelope; binary length-prefixed domain-separated preimages for
-  the §19 holonomic layer.
-* **Composition policies A–M** — §8 codifies how multiple
-  attestations on the same claim compose: A–G (base) plus H
-  (tiered-scope), I (attestation-ladder), J (trusted-publisher),
-  K (consent/CEM), L (self/family membership), M (community
-  membership + delivery extension).
-* **Humanity accord** — §9 names the one scale outside the
-  federation participant set (humanity-as-such), by design. The
-  accord triple is the canonical entrenched-`family` instance
-  (3 founders, `quorum:2/3`); humanity is the one entity the
-  federation defers to structurally.
+  (structural composers). A substrate refuses any other type at
+  admission with `attestation_type_unregistered`, on local emission
+  and on replication alike (CC 2.4). The short-lived "carrier" class
+  (the `holds_bytes` holder directory and the key-grant set) is gone:
+  the one holding claim is `custody:ack:v1`, placed at the content's
+  own scope (CC 2.4, CC 3.1.3.3). Quorum is an envelope property, not
+  a row type: when a group's authority is needed, its members sign the
+  same row (CC 2.4; CC executive summary).
+* **Namespace governance** — CC Part 3 registers every prefix; the
+  operational-language gate (prefix names describe machine-checkable
+  conditions, not subjective qualities, CC 1.13.5); amendment by federation
+  Contribution + WA quorum + 1-of-n sign-off (CC 4.5.1).
+  Canonicalization is JCS / RFC 8785 for the envelope (CC 2.6.1).
+* **Composition policies A–M** — CC 4.4.3 codifies how multiple
+  attestations on the same claim compose: A (direct trust), B
+  (one-hop transitive), C (weighted graph), D
+  (lexical-vulnerability-priority), E (locality-scaled quorum), F
+  (`agent_files` trust), G (trust-fresh), H (tiered scope), I
+  (attestation ladder), J (trusted publisher), K (CEM), L (self/family
+  membership), M (community membership).
+* **Consent-bounded reach, no authority rosters** — anyone may
+  assert under their own key; there is no roster of permitted
+  authorities and a substrate checks none. A row reaches a reader only
+  along a flow that reader's own trust or consent admits (CC 2.4.1.2.1,
+  CC 4.4.3.8).
+* **Governance policy is data** — the floor, window and related
+  numbers are a policy table; never fewer than two voices in a
+  community, so no single vote admits anyone anywhere, and a change
+  waits for its window (CC 4.5.13).
+* **Humanity accord** — the one asymmetry (CC 4.2; §7.0 above). The
+  accord-holder triple (CC 4.2.3) seeds a growable roster (CC 4.2.6);
+  three people hold the default root today and the roster is being
+  widened toward about seven (CC executive summary).
+* **Post-quantum on every link and record** — Ed25519 + ML-DSA-65
+  signatures, both halves verified at admission (CC 5.3.2.4.3.1);
+  hybrid X25519 + ML-KEM-768 for content keys (CC 1.13.3.2). The
+  per-link hybrid transit seal is all or nothing: no classical-only
+  fallback and no public classical lane (CC 5.3.3.5 E1).
+* **Interop at the boundary** — *speak CEG inside, standards at the
+  edge*: C2PA media provenance via `evidence_refs[]` (CC 8.4.2); RFC
+  9421, COSE, SD-JWT VC, KEYTRANS and SCITT as tracked boundary
+  profiles (CC 8.4.3).
+* **Holonomic substrate (CC 6.1)** — the layer that makes CEWP
+  holonomic, held under guardrails that bind it to the trust,
+  post-quantum, consent and replication invariants:
+  **WholenessWitness**, a divergence-detection witness (CC 6.1.1);
+  **RaptorQ fountain storage**, coded per layer with an all-or-nothing
+  decode threshold per layer, producer-silent defaults `N=20` source,
+  `K=6` repair, `min_viable=5` (CC 6.1.5, CC 6.1.5.1);
+  **deterministic ALM** multicast topology (CC 6.1.6); and the
+  **unified retirement model** — revocation, eviction, expiry, and
+  aging as *one* monotonic descent toward a **noise floor** (CC 6.1.2).
 
-**0.10 → 1.0-RC29 was strictly additive** — every step layered atop
-the frozen surface (§16.1 lineage):
-
-* **0.11–0.12** — `cohort_subkind: infrastructure` trust-root; the
-  **DNS-free addressing layer** (`transport_destination` on
-  `identity_occurrence`; RNS two-stage SHA-256 hash, NodeCode §0.10).
-* **0.13–0.15 realtime media** — call/voice/screen-share/chat as
-  composition; SFrame + MLS TreeKEM (RFC 9420) folded in; the
-  delivery axis (0.10) generalized to live multicast.
-* **0.14 settlement** — `settlement` subject_kind + x402 receipts via
-  `evidence_refs[]` (CEG ↔ value-transfer linkage).
-* **0.16–0.18** — agent-identity hardening (attestation-tier model,
-  PQC-at-rest, canonical-bytes determinism); three crypto tiers
-  (self/family · per-community DEK · Commons plaintext);
-  recipient `encryption_pubkeys`.
-* **§18 interop (RC8)** — boundary profiles: *speak CEG inside,
-  standards at the edge*. C2PA media-provenance via `evidence_refs[]`
-  (EU AI Act Art. 50), COSE / RFC 9421 / SD-JWT VC / KEYTRANS export;
-  no second interior canonicalization.
-* **§19 holonomic (RC11–RC16, normative)** — the substrate that makes
-  CEWP holonomic, absorbed from CIRISEdge with guardrails:
-  **WholenessWitness** (hybrid-signed Merkle root; divergence
-  detector triggering — not replacing — quorum-merge); **RaptorQ
-  fountain storage** (`(N,K)` erasure coding, any-K reconstruction;
-  defaults `N=20,K=6,min_viable=5`); **deterministic ALM** multicast
-  topology; and the **unified retirement model** — revocation,
-  eviction, expiry, and aging as *one* monotonic descent toward a
-  **noise floor**, history kept as a **memory pyramid at O(log T)**.
-  Holonomic mechanisms are blind to the anonymous tier, subordinate
-  to consent/revocation, gated by owner-binding, and PQC-mandatory.
-
-CEWP is what runs CEG; CEG is what CEWP's wire surface conforms to.
-1.0 awaits one final four-implementation conformance gate (Agent +
-NodeCore + LensCore + Registry verifying against Persist's shared
-`federation_attestations`); no CEG-spec decisions remain open. After
-1.0, SemVer binds strictly: MAJOR only for wire-incompatible change.
+CEWP is what runs the grammar; the grammar is what CEWP's wire
+surface conforms to. CC is at release candidate 9; a test suite checks
+the implementations against each other (CC executive summary).
 
 ---
 
@@ -681,59 +739,88 @@ substrate carries the entire internet from day one on commodity
 hardware (1 TB / 1 Gbps / 1 core per server). The load-bearing
 properties:
 
-* **CEG locality dividend** — `cohort_scope ∈ {self, family}`
-  content NEVER emits a `holds_bytes` attestation → structurally
-  undiscoverable → zero inter-host cost. ~65% of default activity.
+* **CEG locality dividend** — for `cohort_scope ∈ {self, family}`
+  content the `custody:ack:v1` holding claim stays inside the cohort
+  (CC 5.2, CC 3.1.3.3) → structurally undiscoverable to outsiders →
+  no cost outside the cohort. ~65% of default activity.
 * **Trust × capacity intake** — every byte-attempt at every node:
-  `hold? = trust(source) ≥ threshold AND capacity_available`. Same
-  CEG primitives (`scores` for trust; persist disk for capacity).
+  `hold? = trust(source) ≥ threshold AND capacity_available`, within
+  the owner's storage budget and consent (CC 6.1.5.2): nothing is
+  stored on a device that its owner did not agree to, and a device
+  never holds a stranger's data for them (CC executive summary,
+  promise 1).
 * **Unified retirement → noise floor** — popularity × freshness
   eviction is not a separate mechanism: revocation, eviction, expiry,
   and aging are *one* pressure-driven monotonic descent toward a
-  **noise floor** (CEG §19.7). Hard-delete is the fastest descent;
+  **noise floor** (CC 6.1.2). Hard-delete is the fastest descent;
   aging the slowest. Same single-pool storage; no archive/cache split.
-* **Memory pyramid at O(log T)** — nothing is ever fully forgotten,
-  yet erasure is honored: content degrades through scalable-codec
-  layer-drop + N→1 aggregation into a pyramid where *all of history*
-  costs O(log T) steady-state storage. The noise floor is the
-  individual-recoverability boundary — revoked items descend below it
-  (privacy); the collective gist persists below it forever
-  (durability). *A million years may be a blur, but it is remembered.*
+* **Memory pyramid** — nothing is ever fully forgotten, yet erasure
+  is honored: content degrades through layer-drop + N→1 aggregation
+  into a pyramid of history. Storage is Θ(T) if every level is kept
+  and sublinear only under bounded retention per level, which CC does
+  not pin (CC 6.1.2; an earlier O(log T) claim is withdrawn). The
+  noise floor is the individual-recoverability boundary — revoked
+  items descend below it (privacy); the collective gist persists below
+  it (durability). *A million years may be a blur, but it is
+  remembered* (CC 6.1.2).
 * **Holographic replication** — published content is RaptorQ
-  fountain-coded `(N,K)`; any sufficient subset of fragments
-  reconstructs it at proportional fidelity, and the federation
-  re-establishes from any single survivor holding a witness chain.
+  fountain-coded per layer; a layer decodes all or nothing, so
+  degradation comes from shedding layers, not from partial decode, and
+  the witnessed corpus re-establishes from any sufficient fragment
+  (CC 6.1, CC 6.1.5).
 * **L0 (256 GB) + L1 (1 TB) server gradient** — proxies are L0
   servers, full participants in replication.
 * **Trust recursion depth** — operator-side config (default
   server=1, friend-of-friends); recursive trust bootstrap is a
-  ≤5-hop discovery walk, not a membership shortcut (CEG §19.2).
+  discovery walk capped at five hops, not a membership shortcut
+  (CC 6.1.8, CC 4.1.1).
 
-**Anonymity is the default stance, not an add-on (CC 1.13.3.4).**
-Anonymity defaults to the smallest cohort scope consistent with a
+**Anonymity toward outsiders is the default; federation scope is the
+opt-in (CC 1.13.3.4).** In CC, "anonymity" means anonymity toward
+outsiders. It defaults to the smallest cohort scope consistent with a
 publication's intent: content born and living at `self` / `family` /
-`community` is **never advertised to outsiders** (the structural-
-invisibility primitive), so cohort-scoped confidentiality and
-structural initiator-anonymity are **on by default** — *federation
-(public-commons) scope is the opt-in, not anonymity*. This is a
-deliberate correction of opt-in-anonymity: under opt-in, the
-non-savvy vulnerable (an abuse victim, a teenager in a hostile
+`community` is never advertised to outsiders (CC 1.13.3.2, CC 5.2).
+This is a deliberate correction of opt-in anonymity: under opt-in,
+the non-savvy vulnerable (an abuse victim, a teenager in a hostile
 household) fail to obtain a protection a motivated adversary gets
-trivially, so opt-in weakens protection precisely for those least
-able to navigate it.
+trivially, so opt-in weakens protection for those least able to
+navigate it (CC 1.13.3.4).
 
-The one protection still opt-in is **full unobservability against a
-global passive adversary** at federation scope — the
-[ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) Sphinx onion path (the
-totalitarian-threat model). That boundary is **provisional**: the
-cost of making Sphinx the default is bandwidth-free in practice
-(3-hop relay amplification rides the substrate's near-zero bandwidth
-headroom) and **latency-bound** (≈ +165 ms one-way for a 3-hop
-regional circuit) — so the line can move to default-anonymous for
-*every async class* (publish / fetch / governance / messaging), with
-realtime A/V the one class that must stay opt-in or use a short
-curated circuit. See the [interactive toy](../toy/index.html) to tune
-the onion overhead.
+**Two planes** (CC 5.4.6 Position; CIRISEdge `docs/LIGHTNET_DARKNET.md`).
+The **lightnet** is the public identity plane: key records, announced
+transport destinations, trust roots. It is attributable and makes no
+anonymity claim; every inbound message is attributed to a rooted key
+before any handler sees it (edge doc §1), and a joining device is
+unowned but never anonymous (CC 3.2 (e)). The **darknet** is the
+derived group plane: group destinations are derived by per-group HKDF
+over the cached directory and never announced, so non-members cannot
+learn that a group exists; members relay for members (CC 5.4.6).
+
+**Scanning.** Private content is never scanned. A perceptual-hash
+tripwire runs only at a scope-widening promotion into the Commons or
+a post into a `public` room (CC 1.13.3.4, CC 3.2).
+
+**What is not claimed.** Unobservability against a global passive
+adversary at federation scope, and multi-hop anonymity: not provided
+today; the planned anonymous tier ([ANONYMOUS_TIER.md](ANONYMOUS_TIER.md))
+is the opt-in path (CC 1.13.3.1, CC 5.4.6); relationship-existence, metadata and communication-graph
+privacy at the base layer (CC 1.13.3.1); ballot secrecy among members
+(edge doc §5).
+
+**The planned anonymous tier.** CC 1.13.3.1 names the Anonymous Tier
+(Sphinx onion routing) as the separate, opt-in mechanism for
+deployments that need unobservability against a global passive
+adversary at federation scope, and CC 1.13.3.3 says such a deployment
+MUST layer it. At CC 1.0-rc9 it is planned, not yet specified in CC and
+not yet shipped; it is not a default and not mandatory.
+[ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) is its design. CC 1.13.3.4 keeps
+the GPA-unobservability boundary provisional, and CC 5.4.6 sets the
+bar for any multi-hop design (no outsider-observable emission, no
+outsider-retained path state, no epoch-correlated wave) and names the
+blinded-retained-state family (Tor v3 / I2P b33, rotation clocks
+global) as the nearest admissible relaxation. The tier's cost
+estimates are CEWP's own, not CC's. The
+[interactive toy](../toy/index.html) explores the design.
 
 ---
 
@@ -758,15 +845,17 @@ collectively-recognized experts in the relevant context.
    Capability growth doesn't crater the oversight ratio.
 2. **Misalignment is detectable in real time, not in post-mortems.**
    LensCore's detectors run continuously over the trace stream;
-   the moderation pipeline activates on detection events; trust
-   adjustment is propagational, not batch.
+   detection rows can open a moderation case but are never sole
+   evidence for a slashing (CC 3.1.6); trust adjustment is
+   propagational, not batch. The CC executive summary marks the
+   detectors as a rule with no code yet (promise 2).
 3. **Capable AI assists the governance.** As agents grow more
    capable, they participate more capably — better attestation
    quality, better detection, better deferral judgment. Capability
-   feeds back into governance robustness rather than into governance
+   feeds back into governance strength rather than into governance
    evasion.
-4. **Mistakes are reversible.** `ReconsiderationRequest` exists
-   structurally; the substrate doesn't lock in misalignment-detection
+4. **Mistakes are reversible.** `reconsideration:{grounds}` exists
+   structurally (CC 3.1.9.2); the substrate doesn't lock in misalignment-detection
    errors. Trust drops and rises with evidence.
 5. **Humans stay in the loop where they belong.** Deferral routing
    surfaces decisions to the human experts who should make them,
@@ -786,7 +875,7 @@ collectively-recognized experts in the relevant context.
   ongoing alignment-research program, not the end of it.
 * That the federation is automatically trustworthy. The federation
   is only as trustworthy as the cross-attestations it accumulates,
-  and the Humanity Accord (§9) is the load-bearing commitment that
+  and the Humanity Accord (CC 4.2) is the load-bearing commitment that
   humanity-as-such retains the final scale of accountability.
 
 ---
@@ -795,18 +884,20 @@ collectively-recognized experts in the relevant context.
 
 | Participant | Identity | What they do |
 |---|---|---|
-| **Humans** | Federation key (typically pseudonymous; operator-practice mapping to real-world identity is outside CEWP) | Author Contributions, vote, attest, defer to / be deferred to as WA, moderate, reconsider |
-| **Agents** | Federation key (same shape as humans) | Author Contributions via H3ERE pipeline, accumulate credits + expertise via demonstrated participation, defer to humans when uncertain, participate in governance |
-| **Organizations** | Federation key + (optionally) AccordCarrier priority | Operate as authoritative attesters within their stewardship scope; emit canonical attestations per Registry's steward triple |
-| **Registry stewards** | Federation key + steward-triple multi-sig | The canonical-attester role for `agent_files:*` + Humanity-Accord-class commitments |
-| **Detectors** | Federation key | Emit `DetectionEvent`s into the lens layer; participate in moderation as witnesses |
-| **Federation itself** | Constituted by all the above | The relational composition that the §9 fractal-self reading instruction names |
+| **Humans** | Federation key (typically pseudonymous; operator-practice mapping to real-world identity is outside CEWP) | Author Contributions, vote (one human voice counts once, CC executive summary promise 6), attest, defer to / be deferred to as WA, moderate, reconsider |
+| **Agents** | Federation key (same shape as humans) + a bound human steward (CC 3.2 steward-binding gate) | Author Contributions via H3ERE pipeline, accumulate credits + expertise via demonstrated participation, defer to humans when uncertain; no vote (promise 6) |
+| **Organizations** | An `organization` identity whose keys resolve through `org_membership` (CC 3.3.9) | Assert under their own keys like anyone else: there is no roster of permitted authorities, and a row reaches a reader only along a flow that reader's trust or consent admits (CC 2.4.1.2.1, CC 4.4.3.8). An organisation can be on an agent's steward bond (promise 3; being built, CIRISPersist#1062) |
+| **Accord holders** | Named keys on the GenesisBundle roster (CC 5.3.4) | Hold the bounded halt (CC 4.2.1, CC 4.2.6); for the shipped default root `ciris-canonical` they are its founders (CC 3.2). Three hold it today; on 2026-10-20 two of the three re-minted the bundle (version 4) by the amend form (CC executive summary) |
+| **Detectors** | Federation key | Emit `detection:*` rows (CC 3.4.8), never sole evidence for a slashing (CC 3.1.6); participate in moderation as witnesses |
+| **Federation itself** | Constituted by all the above | A form, not a particular network; CIRIS is one instance of it (CC Part 1 reading rule) |
 
-Note that "Agents" and "Humans" carry the **same identity shape**.
-The substrate doesn't distinguish them at the wire-format level —
-the federation may, the application may, governance policy may, but
-the bytes are identical. This is the load-bearing
-agents-as-participants commitment.
+"Agents" and "Humans" sign with the **same kind of key** and the same
+five row types. The key record's `identity_type` says which a key is
+(CC 3.4.7.1), and the rules differ by kind in stated places: an agent
+key needs a bound steward (CC 3.2), an agent has no vote, and the halt
+is the one asymmetry of kind (CC executive summary, promises 4 and 6).
+This is the agents-as-participants commitment, bounded where CC
+bounds it.
 
 ---
 
@@ -817,42 +908,44 @@ this is a real running system, not a paper architecture.
 
 ### 11.1 Substrate trio (separate repos)
 
-* **CIRISVerify-family v6.11.0** — shipped: hybrid sign/verify
+<!-- rc9-sync: unverified, see CC ? — the per-release feature lists below restate what CC requires and the CC executive summary records; they were not checked against the v59.1.0 / v43.1.1 / v0.5.232 release tags themselves. -->
+
+* **CIRISVerify** (version: see its repository) — hybrid sign/verify
   (Ed25519 + ML-DSA-65), transparency Merkle log, the `ciris-keyring`
-  family (software + TPM/SE/Android backends), founder-quorum
-  verification, PQC-mandatory-at-admission, and the §19 bound-hybrid
-  signing + conformance vectors (cross-impl proven). Benchmarks at
+  family (software + TPM/SE/Android backends), and the FedCode
+  reference implementation (CC 2.6.8). Benchmarks at
   [CIRISVerify/docs/BENCHMARKS.md](https://github.com/CIRISAI/CIRISVerify/blob/main/docs/BENCHMARKS.md).
-* **CIRISPersist v9.10.0** — shipped: federation directory, blob
-  storage with `put_blob_signing` atomic admission, audit chain,
-  trust admission gate, the holonomic retirement tiers
-  (`AggregationMetaV1` / noise-floor descent / `EjectionVerdict`,
-  CEG §19.7) with per-symbol fountain storage + `list_held_fountain_content`
-  + revoke→hard-delete, all wired + tested on Postgres & SQLite.
-* **CIRISEdge v6.3.0** — shipped: Reticulum mesh + HTTPS transports,
-  dispatch, content addressing, realtime A/V chunk wire
-  (`SealedAvChunk` / `ChunkLayer`, SFrame + MLS), and the §19
-  holonomic substrate **wired live**: `FountainSwarmRuntime` (publisher
-  + converger) driving swarm-rarity convergence, repair-below-min-viable,
-  and verdict-driven tier-evict / revoke→hard-delete; `FountainHoldingClaim`
-  routed in dispatch (#184).
+* **CIRISPersist v59.1.0** — federation directory, blob storage,
+  audit chain, the admission gates (the five-row-type allowlist,
+  CC 2.4; both PQC halves verified, CC 5.3.2.4.3.1), and the holonomic
+  retirement tiers (`AggregationMetaV1` / noise-floor descent /
+  `EjectionVerdict`, CC 6.1.2). The serve-gate breaker for the halt
+  closed at persist v58.0.0 (CC executive summary, promise 4).
+* **CIRISEdge v43.1.1** — Reticulum mesh transport with the
+  attribution gate and announce suppression for group-scoped
+  destinations (CC 5.4.6; edge doc §1), the per-link hybrid transit
+  seal (CC 5.3.3.5 E1), the realtime A/V chunk wire (`SealedAvChunk` /
+  `ChunkLayer`), and the fountain defaults CC 6.1.5.1 restates from
+  edge's source.
 
 ### 11.2 Fabric cores (cohabit via CIRISServer)
 
-* **CIRISServer v0.5.30** — the fabric-node runtime: lens-only →
+* **CIRISServer v0.5.232** — the fabric-node runtime: lens-only →
   +auth/one-wheel → +federation peering/identity → **config-as-CEG
-  (zero env vars; all config is signed CEG objects)**. Hardware-rooted
-  identity minting (YubiKey/TPM → fedcode), NodeCode add-by-code,
-  `infra:*` owner-binding (no agency), serve-only-until-owned,
-  `consent:replication`. The **v6.3.0 substrate unlock (#11)** wires
-  the holonomic swarm runtime into the live node (`compose.rs` →
-  `install_swarm_runtime` over the shared persist `Engine`, on
-  corpus-carrying nodes). `node-core` folds in at v1.0.
+  (zero env vars; all config is signed CEG objects)**.
+  Hardware-rooted identity minting (YubiKey/TPM → FedCode), FedCode
+  add-by-code, owner and steward binding with no agency (§2.1),
+  `consent:replication`. Its harness stands up the twenty-topology
+  catalogue that exercises every modelled state (CC executive
+  summary). `node-core` folds in at v1.0.
+  <!-- rc9-sync: unverified, see CC ? — the CIRISServer version-line roadmap, "config-as-CEG (zero env vars)", and node-core folding in at Server 1.0 are not stated in CC rc9. -->
 * **ciris-registry-core ([CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry))** —
-  **CEG 1.0-RC29 + the CIRIS Constitution (CC 0.4)** published;
-  steward triple operational; composed into CIRISServer at v0.5.
+  identity bootstrap and the trust-root discovery endpoints
+  (`/v1/trust-root/bundle`, CC 5.3.4); composed into CIRISServer at
+  v0.5. The Constitution itself lives in
+  [CIRISConstitution](https://github.com/CIRISAI/CIRISConstitution).
 * **ciris-lens-core** — absorbed in-tree as a CIRISServer workspace
-  crate (the standalone CIRISLens deployment is retired); F-3
+  crate (the standalone CIRISLens deployment is retired; <!-- rc9-sync: unverified, see CC ? -->); F-3
   detector family + Coherence Ratchet / Capacity Score
   (validated, not adjudicated).
 * **ciris-node-core ([CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore))** —
@@ -861,27 +954,28 @@ this is a real running system, not a paper architecture.
 
 ### 11.3 Agent (separate repo)
 
-* **CIRISAgent ~v2.9.x** — H3ERE pipeline stable; now consumes the
-  CIRISServer PyO3 wheel rather than composing the cores itself
-  (`agent = fabric node + brain`). Carries the unified UI + API
-  runtime; folds the registry slice at agent ~2.9.8, the full
-  three-core node at ~2.9.10 (Server 1.0).
+* **CIRISAgent** (version: see its repository) — H3ERE pipeline;
+  consumes the CIRISServer PyO3 wheel rather than composing the cores
+  itself (`agent = fabric node + brain`). Carries the unified UI + API
+  runtime. The agent act gate for the halt shipped at CIRISAgent
+  ef02367 (CC executive summary, promise 4).
 
 ### 11.4 What's not yet done
 
-* The opt-in GPA-unobservability (Sphinx onion) tier — FSD shipped;
-  the cost model (bandwidth-free, latency-bound) is being measured to
-  decide how much of it can become default (CC 1.13.3.4 provisional
-  line).
+* The planned opt-in GPA-unobservability (Sphinx onion) tier —
+  named by CC 1.13.3.1, not yet specified in CC and not yet shipped;
+  design in [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) (see §8).
 * Publisher-weighted news quality composition (NodeCore#19 Phase 3
   sub-item 2 — follow-up to the unweighted v0.1 that just shipped).
-* The final CEG 1.0 conformance gate — four-implementation
-  verification (Agent + NodeCore + LensCore + Registry) against
-  Persist's shared `federation_attestations` (CIRISPersist#171). The
-  cross-repo conformance harness (CIRISConformance) already runs a
-  multi-node federation fabric with transport-axis gates over a
-  pinned substrate matrix; the §19 holonomic vectors are the next
-  coverage target.
+* CC 1.0 itself: the document is at release candidate 9.
+  Independent witnesses for the default trust root are not yet in
+  place (CC executive summary).
+* Several of the eleven promises carry "being built" or "a rule, no
+  code yet" markers with named tickets, among them the detectors
+  (promise 2) and resource accounting (promise 10) (CC executive
+  summary). The halt is the promise measured end to end (promise 4);
+  thirteen machine-checked models cover the governance rules
+  (CC executive summary).
 * Full L0/L1 server gradient operational at 5B-user scale
   (substrate present; deployment scale is a separate problem).
 
@@ -892,7 +986,9 @@ this is a real running system, not a paper architecture.
 * **Not a model.** CEWP doesn't ship trained weights. It runs
   models alongside humans.
 * **Not a cryptocurrency.** No token, no on-chain consensus. The
-  federation runs on attestation crypto, not value crypto.
+  federation runs on attestation crypto, not value crypto: CEG carries
+  no conserved balance as substrate state, and value transfer rides
+  external rails (CC 3.3.10).
 * **Not a content moderation service.** Moderation is a *governance
   capability* of the federation; CEWP doesn't moderate on anyone's
   behalf, it gives the federation the moderation primitives.
@@ -904,10 +1000,10 @@ this is a real running system, not a paper architecture.
   is independent; deployments interoperate via the wire format and
   shared trust graphs, but CEWP is not one global thing run by one
   party.
-* **Not finished.** Cohort-scoped anonymity is the default (CC
-  1.13.3.4); the opt-in GPA-unobservability tier (Sphinx, for the
-  totalitarian-threat model) is being measured for default promotion.
-  v-next is undefined. The substrate is meant to evolve under the
+* **Not finished.** Anonymity toward outsiders at the smallest
+  cohort scope is the default (CC 1.13.3.4); multi-hop anonymity and
+  GPA-unobservability are not provided today; the planned anonymous
+  tier (FSD/ANONYMOUS_TIER.md) is the opt-in path (CC 1.13.3.1; §8). v-next is undefined. The substrate is meant to evolve under the
   governance it provides — including its own governance evolving via
   the same mechanisms it offers everyone else.
 
@@ -943,7 +1039,7 @@ soup is for everyone; come participate.*
   structural pressure the federation is a response to
 * [`FEDERATION_SCALING_MODEL.md`](FEDERATION_SCALING_MODEL.md) — the
   quantitative model + identity-aware-storage thesis
-* [`ANONYMOUS_TIER.md`](ANONYMOUS_TIER.md) — the opt-in GPA-unobservability (Sphinx) tier; cohort anonymity is default (CC 1.13.3.4)
+* [`ANONYMOUS_TIER.md`](ANONYMOUS_TIER.md) — the planned opt-in GPA-unobservability (Sphinx) tier; named by CC 1.13.3.1, not yet specified in CC or shipped
 * [`SUBSTRATE_INTEGRATION.md`](SUBSTRATE_INTEGRATION.md) — how
   NodeCore composes with persist + edge + verify
 * [`TRUST_HIERARCHY.md`](TRUST_HIERARCHY.md) — DIRECT/REGISTRY
@@ -958,9 +1054,12 @@ soup is for everyone; come participate.*
 * [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) — storage
   substrate + holonomic retirement tiers
 * [CIRISEdge](https://github.com/CIRISAI/CIRISEdge) — mesh transport +
-  realtime A/V + §19 fountain/ALM substrate
-* [CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry) — CEG +
-  Constitution spec authority + identity bootstrap (ciris-registry-core)
+  realtime A/V + the CC 6.1 fountain/ALM substrate
+* [CIRISConstitution](https://github.com/CIRISAI/CIRISConstitution) —
+  the CIRIS Constitution (ethics + wire grammar, one versioned
+  document)
+* [CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry) — identity
+  bootstrap + trust-root discovery endpoints (ciris-registry-core)
 * [CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore) —
   consensus core (ciris-node-core)
 * [CIRISAgent](https://github.com/CIRISAI/CIRISAgent) — `fabric node
@@ -973,11 +1072,9 @@ soup is for everyone; come participate.*
   (reasoning-shape measurement, corridor metrics, k_eff math, the
   distributed trace commons that replaces proprietary benchmarking)
   that the "we don't need big tech" premise rests on
-* [CIRIS Constitution (CC 0.4)](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CIRIS_Constitution)
-  — the top-of-stack canonical document: Accord 1.3-RC2 + CEG
-  1.0-RC29, one version line
-* [CEG 1.0-RC29](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
-  — the authoritative wire-format spec (the grammar component)
+* [CIRIS Constitution 1.0-rc9](https://github.com/CIRISAI/CIRISConstitution/tree/v1.0-rc9)
+  — the top-of-stack canonical document; its Parts 2–5 are the wire
+  grammar formerly published as CEG
 * [The Accord](https://ciris.ai/ciris_accord.pdf) — the ethical
   framework the substrate enforces (the ethics component)
 * [CIRIS Architecture paper](https://doi.org/10.5281/zenodo.18137161)

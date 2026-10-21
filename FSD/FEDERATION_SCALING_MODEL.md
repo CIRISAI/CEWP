@@ -1,9 +1,12 @@
 # Federation Scaling Model
 
 **Status:** model v0.3 — single-pool, CEG-organic, trust-depth recursive.
-**Empirical inputs:** Verify v2.7.0 / v2.8.0 measured on
-ubuntu-latest CI; Edge v0.10.0 targets carrying into v1.0; Persist
-v3.3.0 storage floor.
+Wire-format names reconciled with the CIRIS Constitution 1.0-rc9 (tag
+`v1.0-rc9`); the CEG specification is now Parts 2–5 of CC. The model
+mathematics is unchanged.
+**Empirical inputs:** CIRISVerify, CIRISEdge and CIRISPersist
+microbenchmarks measured on ubuntu-latest CI at early releases (the
+release numbers are in this file's git history; see §2.4 note).
 **Companion:** `examples/scale_model.rs` — `cargo run --example
 scale_model`.
 
@@ -46,19 +49,24 @@ evict_score(blob) = popularity(blob) × freshness(blob)
 | Element | CEG primitive |
 |---|---|
 | Popularity (local) | `last_accessed_at` + access counter on persist's blob rows |
-| Popularity (federation-observable) | Count of `holds_bytes:sha256:{prefix}` advertisers for this content_sha |
-| Freshness floor | 24h TTL on `holds_bytes` per CEG §10.1.2 |
-| Eviction wire-event | `withdraws` against own prior `holds_bytes` — the §10.1.2 ContentMiss feedback loop |
+| Popularity (federation-observable) | Count of live `custody:ack:v1` `here` reports for this content_sha — federation-scope content only; at a bounded scope the reports reach only the cohort (CC 3.1.3.3) |
+| Freshness floor | A custody report is live for 72 hours and re-acknowledged about daily; that window is the row's `expires_at`, with no second TTL (CC 3.1.3.3) |
+| Eviction wire-event | The holder re-acknowledges `none` (or `withdraws` its own report); only the signer can retract it (CC 3.1.3.3 rule 4) |
 | Decay curve | Per-deployment config (Pi-at-home wants slow decay; phone wants aggressive) |
 
 ### 1.3 The locality dividend (structural, free)
 
 ```
-cohort_scope ∈ {self, family}  ⇒  no holds_bytes emission
-                                ⇒  undiscoverable
+cohort_scope ∈ {self, family}  ⇒  no holding claim leaves the cohort (CC 5.2)
+                                ⇒  undiscoverable by outsiders
                                 ⇒  intake gate never reached
-                                ⇒  ZERO inter-host cost
+                                ⇒  ZERO inter-host cost (in this model)
 ```
+
+(The model counts within-cohort replication among an owner's or a
+family's own devices as local; CC 5.2 delivers those bytes to admitted
+members only, and custody reports stay at the content's scope, CC
+3.1.3.3.)
 
 The 65% local-only fraction in the default cohort distribution
 disappears from every inter-host bandwidth, storage, and CPU column
@@ -114,7 +122,7 @@ friends, so the unique-set growth per hop is far less than `R^depth`.
 All numbers wall-clock on GitHub Actions `ubuntu-latest` —
 conservative-by-design baseline. Dev-host CPUs run 2–3× faster.
 
-### 2.1 Crypto (CIRISVerify v2.8.0)
+### 2.1 Crypto (CIRISVerify; early-release bench)
 
 | Op | Cost |
 |---|---|
@@ -123,7 +131,7 @@ conservative-by-design baseline. Dev-host CPUs run 2–3× faster.
 | `aes_gcm_encrypt` @ 64 KiB | 11.2 µs (**5.45 GiB/s**) — cache encryption is free |
 | `aes_gcm_decrypt` @ 64 KiB | 10.3 µs (**5.91 GiB/s**) |
 
-### 2.2 Edge (v0.10.0 → v1.0 contract)
+### 2.2 Edge (early benchmark-contract targets)
 
 | Op | Target |
 |---|---|
@@ -134,7 +142,7 @@ conservative-by-design baseline. Dev-host CPUs run 2–3× faster.
 | `content_fetch_roundtrip` 1 MiB | < 500 ms |
 | `inline_text_pipeline` Classify+Scrub | **5–10 ns/byte** |
 
-### 2.3 Persist (v3.3.0)
+### 2.3 Persist (early storage floor)
 
 | Op | Cost |
 |---|---|
@@ -143,78 +151,79 @@ conservative-by-design baseline. Dev-host CPUs run 2–3× faster.
 | Software signer | ~100 µs/sign |
 | H3ERE trace per agent decision | ~14 KB |
 
-### 2.4 Multimedia primitives (Persist v3.6.x)
+### 2.4 Multimedia primitives (CIRISPersist)
 
 | Op | Cost / shape |
 |---|---|
 | `put_blob_signing` (16 MiB inline cap; matcher off) | per-row write + hybrid_sign, ~1.6 ms |
-| Perceptual-hash check at `put_blob_signing` (matcher on) | matcher-dependent; PDQ ~1 ms / image, fails closed if unreachable per operator policy |
-| `takedown_notice` Contribution write + propagation | ~1.5 ms write + `withdraws` emission against matched `holds_bytes` rows |
-| `key_grant` Contribution write | ~1.5 ms write + per-subscriber wrap (~10 µs HKDF-SHA256 + ~10 µs AES-256-GCM + ~250 µs X25519) |
+| Perceptual-hash check (matcher on) — runs only at the scope-widening seam: promotion into the Commons or a post into a `public` room (CC 1.13.3.4, CC 3.2), or at an enabled per-group watchlist (CC 4.5.7) | matcher-dependent; PDQ ~1 ms / image, fails closed if unreachable per operator policy |
+| `takedown_notice` Contribution write + propagation | ~1.5 ms write + one replicated bytes-plane tombstone (CC 4.5.3); nobody withdraws another device's holding claim (CC 3.1.3.3) |
+| `key_grant:{axis}:v1` row write (one per recipient, CC 3.3.2) | ~1.5 ms write + per-subscriber wrap (~10 µs HKDF-SHA256 + ~10 µs AES-256-GCM + ~250 µs X25519). CC requires the hybrid v2 wrap (X25519 + ML-KEM-768, CC 3.3.2); the ML-KEM encapsulation is not in these figures and is not benched here |
 | `list_held_by(actor_key)` (identity-aware-storage seam) | indexed read |
-| `evict_actor(actor_key)` (per-actor eviction + `withdraws` emission) | linear in actor's holdings; fail-honest contract |
-| `list_local_holders` (local-truth bypass of CEG §10.1.2 TTL) | indexed read |
+| `evict_actor(actor_key)` (per-actor eviction of local holdings) | linear in actor's holdings; fail-honest contract |
+| `list_local_holders` (local-truth read, independent of the 72-hour custody-report window, CC 3.1.3.3) | indexed read |
 
-**Triple currency note.** Empirical inputs §2.1-§2.3 reference the
-substrate baselines circa Verify v2.8.0 / Edge v0.10.0 / Persist
-v3.3.0. The model now ships at the substrate triple verify v6.11.0 /
-persist v9.10.0 / edge v6.3.0 (CEG 1.0-RC29; CIRISServer v0.5.30, the
-v6.3.0 substrate unlock wiring the live holonomic swarm). Underlying op costs
-(hybrid_sign, envelope_canonicalize, SQLite row write) are within
-noise of the baselines; the §2.4 multimedia primitives are net-new
-since CEG 0.3, and the CEG 0.10 delivery axis (streaming multicast —
-per-`stream_id` STH + epoch-key cascade) is net-new and not yet
-benched here. **Also net-new since CEG 1.0 / §19 and NOT YET BENCHED
-here** — the holonomic substrate (§2.5 below): the unified
-retirement → noise-floor descent, the memory pyramid at O(log T),
-RaptorQ fountain/holographic replication, and deterministic ALM
-multicast. Refresh cadence is per
-substrate release per [NodeCore#23](https://github.com/CIRISAI/CIRISNodeCore/issues/23)
+**Currency note.** Empirical inputs §2.1-§2.3 were measured on early
+substrate releases. Current releases at CC 1.0-rc9 include
+CIRISPersist v59.1.0, CIRISEdge v43.1.1 and CIRISServer v0.5.232
+(CIRISVerify: see its repository). The op costs have not been
+re-benched at those releases. Not benched here at all: the §2.4
+multimedia primitives, the streaming delivery axis (per-`stream_id`
+log + epoch-key cascade, CC 5.1, CC 5.3.3), and the holonomic
+substrate (§2.5 below: noise-floor descent, the aggregation pyramid,
+RaptorQ fountain storage, deterministic ALM multicast). Refresh
+cadence is per substrate release per
+[NodeCore#23](https://github.com/CIRISAI/CIRISNodeCore/issues/23)
 living-document audit.
 
-### 2.5 Holonomic scaling properties (CEG §19 — net-new, NOT YET BENCHED)
+### 2.5 Holonomic scaling properties (CC 6.1 — NOT YET BENCHED)
 
-CEG 1.0 absorbed the §19 holonomic substrate from CIRISEdge. These
-are the scaling-relevant properties — modeled here as design
-commitments, **not yet benchmarked** (parallel to how §2.4
-multimedia was net-new since CEG 0.3). They refine, not replace, the
-§1 intake/eviction discipline:
+The holonomic substrate is specified at CC 6.1. These are the
+scaling-relevant properties — modeled here as design commitments,
+**not yet benchmarked**. They refine, not replace, the §1
+intake/eviction discipline:
 
-* **Unified retirement → noise floor** (CEG §19.7) — revocation,
+* **Unified retirement → noise floor** (CC 6.1.2) — revocation,
   eviction, expiry, and aging are *one* pressure-driven monotonic
   descent toward a **noise floor**, not four separate mechanisms.
   Hard-delete is the fastest descent; aging the slowest. Same
   single-pool storage as §1.2 — no archive/cache split. The §1.2
   `popularity × freshness` sweeper is the eviction *rate* on this
   one descent.
-* **Memory pyramid at O(log T)** — content degrades through
-  scalable-codec layer-drop + N→1 aggregation into a pyramid where
-  *all of history* costs O(log T) steady-state storage. The noise
-  floor is the individual-recoverability boundary: revoked items
-  descend below it (privacy); the collective gist persists below it
-  forever (durability). This changes the long-horizon storage curve
-  the §5 scenarios derive — they currently model a flat per-source
+* **Aggregation pyramid** (CC 6.1.2) — content degrades through
+  scalable-codec layer-drop + N→1 aggregation into a pyramid of
+  history. CC 6.1.2 states the storage honestly: Θ(T) if every level
+  is kept, sublinear only under bounded retention per level, a
+  configuration CC does not pin; the earlier "O(log T)" claim this
+  section repeated is withdrawn in CC. The noise floor is the
+  individual-recoverability boundary: a revoked item must descend
+  below it (privacy); the collective contribution persists below it
+  (durability). This changes the long-horizon storage curve the §5
+  scenarios derive — they currently model a flat per-source
   retention, not the pyramid; re-deriving implied retention against
   the pyramid is open bench work.
-* **RaptorQ fountain / holographic replication** (CEG §19.3) —
-  published content is `(N,K)` erasure-coded (defaults
-  `N=20,K=6,min_viable=5`); any sufficient subset of fragments
-  reconstructs it at proportional fidelity, and the federation
-  re-establishes from one survivor holding a signed witness chain
-  (WholenessWitness). The §2.7-style demand-driven holder fan-out
-  becomes fragment fan-out; per-fragment cost is unbenched here.
-* **Deterministic ALM multicast** (CEG §19.4) — a deterministic
+* **RaptorQ fountain storage** (CC 6.1.5) — published content is
+  `(N,K)` erasure-coded per layer (producer-silent defaults
+  `N=20, K=6, min_viable=5, target_holders=30`; `min_viable` is a
+  per-holder retention floor, not a decode threshold). Decode is
+  all-or-nothing per layer; degradation comes from the
+  layering, and below `min_viable` only the signed envelope survives
+  (CC 6.1, CC 6.1.2). The witnessed corpus re-establishes from any
+  sufficient set of fragments (CC 6.1; WholenessWitness, CC 6.1.1).
+  The demand-driven holder fan-out becomes fragment fan-out;
+  per-fragment cost is unbenched here, and CC 6.1.5 records that no
+  reconstruction bench exists in CIRISEdge or CIRISPersist.
+* **Deterministic ALM multicast** (CC 6.1.6) — a deterministic
   application-layer-multicast relay topology replaces the
   point-to-point fan-out the §3.7 latency model assumes; multicast
   cardinality (live broadcast, swarm replication) rides one relay
   tree rather than R independent unicasts. Topology cost not yet in
   the toy.
 
-Holonomic mechanisms are blind to the anonymous tier
-([ANONYMOUS_TIER.md](ANONYMOUS_TIER.md)), subordinate to
-consent/revocation, gated by owner-binding, and PQC-mandatory (CEG
-§19.5 fail-secure). They do not change the §9 identity-aware-storage
-property — they sit underneath it.
+Holonomic mechanisms are fenced by guardrails that bind them to CC's
+trust, post-quantum, consent, replication and anonymous-tier
+invariants (CC 6.1), and fail secure (CC 6.1.7). They do not change
+the §9 identity-aware-storage property — they sit underneath it.
 
 ### 2.6 Storage duration — effectively indefinite
 
@@ -247,9 +256,10 @@ that compress to ~1–2 years are the literal "the entire internet,
 *with video*, on one 2020-era home server" saturation scenarios, at
 the deliberately conservative v1 gate (double the disk → double the
 retention). **And full-fidelity retention is not the end of the data:
-past it, content degrades into the §2.5 memory pyramid rather than
-deleting, so the collective gist persists below the noise floor
-indefinitely at O(log T).** The binding constraint is disk at the v1
+past it, content degrades into the §2.5 aggregation pyramid rather
+than deleting, so the collective contribution persists below the
+noise floor (CC 6.1.2; its storage cost is sublinear only under
+bounded retention per level).** The binding constraint is disk at the v1
 gate for the single hardest scenario — never time. Effectively
 indefinite storage holds.
 
@@ -272,8 +282,9 @@ server, just smaller disk and shallower default trust depth.
 Each tier still runs the same `trust(source) ≥ threshold AND
 capacity_available` intake discipline; the gradient just changes
 (budget, depth). All three storage tiers (L0/L1/L2) are real
-federation participants — they admit content, sign holds_bytes
-attestations, become discoverable as holders.
+federation participants — they admit content, sign `custody:ack:v1`
+holding reports at the content's scope, and become discoverable as
+holders of federation-scope content (CC 3.1.3.3).
 
 **Per-server feasibility gates** (the model checks at every tier):
 
@@ -555,11 +566,12 @@ The substrate primitives needed to execute this discipline:
 **Edge** (filed as CIRISEdge trust-gate issue):
 - Trust-score short-circuit at `dispatch_inbound` (before handler)
 - `cohort_scope` check at `outbound_enqueue` (refuse self/family
-  outbound — the wire-format locality enforcement)
+  outbound to non-members — the wire-format locality enforcement,
+  CC 5.2)
 
 **Trust recursion depth needs NO upstream change** — it's a local
 operator config consuming the existing `scores` + `delegates_to`
-attestation graph. CEG's 1+4 wire format stays locked.
+attestation graph. The row-type slot stays closed to the five (CC 2.4).
 
 **NodeCore** (already done):
 - The Phase 2B ingest path (CIRISNodeCore#19) produces the wire
@@ -598,20 +610,21 @@ BlobStorage::put_blob_signing(
 The call commits THREE things atomically:
 * the bytes (`federation_blobs` row)
 * the holder attestation (`federation_attestations` row with
-  `attesting_key_id`, `attestation_type=holds_bytes:sha256:{prefix}`,
-  `evidence_refs` containing the SHA)
+  `attesting_key_id`; at CC 1.0-rc9 this is the one holding claim,
+  `custody:ack:v1`, placed at the content's own `cohort_scope` —
+  the retired `holds_bytes` carrier this section was written against
+  no longer exists, CC 3.1.3.3, CC 2.4)
 * the signature over the canonical envelope (persist's
   `PythonJsonDumpsCanonicalizer`, per CIRISPersist#121's
   identity-pin)
 
 After this returns, the substrate can answer:
-* "whose bytes do I hold?" — `SELECT attesting_key_id FROM
-  federation_attestations WHERE attestation_type LIKE
-  'holds_bytes:%' AND blob_sha = ?`
+* "whose bytes do I hold?" — a local query joining `federation_blobs`
+  to the content rows' authors
 * "evict everything from author X" — query `federation_blobs` JOIN
-  `federation_attestations` ON the holder's `attesting_key_id`,
-  delete the rows + emit `withdraws` against each `holds_bytes`
-  attestation
+  the content rows ON author X, delete the bytes, and re-acknowledge
+  `none` on this device's own custody report for each (CC 3.1.3.3
+  rule 4)
 
 The attribution chain is **at the byte level**, not the application
 layer. Eviction granularity is **per-actor**, not just LRU-tail.
@@ -672,20 +685,24 @@ failures this property prevents:
 * **IPFS Cluster's "untrusted peers lying about free space"** —
   resource attestation has no identity-tied recourse
 
-These are the failure modes CIRIS's `holds_bytes` +
-`attesting_key_id` + admission gate forecloses *structurally*. The
+These are the failure modes CIRIS's holding claim (`custody:ack:v1`)
++ `attesting_key_id` + admission gate forecloses *structurally*. The
 substrate doesn't need a curation layer above it; the substrate
 itself is curatable because every byte carries its provenance.
 
 ### 9.5 The precise privacy trade-off
 
 The substrate exposes four federation-queryable surfaces (the
-public directory; this is HOW discovery works):
+public directory; this is HOW discovery works). The holder surfaces
+cover federation-scope content only: Commons content and `public`
+rooms, whose holding claims are at federation scope (CC 3.1.3.3, CC
+3.2). A bounded cohort's custody reports reach only that cohort's
+members (CC 3.1.3.3).
 
 | Query | Returns | Leaks |
 |---|---|---|
-| `list_holders(sha256)` | `attesting_key_id`s holding this content | Where the bytes are |
-| `list_attestations_by(key_id)` | All `holds_bytes` rows by this holder | What this peer holds |
+| `list_holders(sha256)` | `attesting_key_id`s with a live `custody:ack:v1` `here` for this federation-scope content | Where the bytes are |
+| `list_attestations_by(key_id)` | That holder's federation-scope custody reports | What this peer holds in public |
 | `list_attestations_for(key_id)` | Inbound `scores` / `delegates_to` rows | Who vouches for this peer |
 | `list_contributions(filter)` | Contribution envelopes (carry `author_id`) | Who authored what |
 
@@ -695,19 +712,23 @@ peer P admits author X's content**, which transitively reveals
 **P's trust graph at the public-cohort scope**.
 
 So precisely: **the published trust graph is observable for content
-at `community` scope or wider**. Not the access patterns, not the
-bytes — the *admission relations*.
+at federation scope** (the Commons and `public` rooms). Not the
+access patterns — the *admission relations*. Under the retired
+`holds_bytes` carrier this reached down to `community` content too;
+that was the defect CC 2.4 records, and it is gone.
 
 **What's NOT observable** (precisely):
 
 | Surface | Visible to federation? |
 |---|---|
-| Cleartext bytes of any blob | No — only the SHA + signature; bytes are encrypted at rest |
+| Cleartext bytes of bounded-cohort content | No — only members receive the bytes (CC 5.2); at-rest encryption is defense in depth. Federation-scope and `public`-room content is plaintext and readable on request (CC 3.2) |
 | Who fetched what (browse history) | No — fetch logs are local to the serving peer |
 | Local popularity / access counters | No — eviction signal stays local |
 | Local trust thresholds | No — operator config, private |
 | Trust recursion depth choice | No — local config, nothing advertised |
-| `self` / `family` scope content (existence, author, holders) | No — locality dividend, never in `federation_attestations` |
+| `self` / `family` scope content (existence, author, holders) | No — locality dividend; no holding claim leaves the cohort (CC 5.2) |
+| `community` scope holdings | No — custody reports are replicated only to members (CC 3.1.3.3) |
+| Relationship existence, metadata, traffic analysis | Not covered — structural invisibility is content-holding confidentiality only (CC 5.2, CC 1.13.3.1) |
 
 The per-fetch leak still exists but is *bilateral*: when I
 `ContentFetch` from peer P, P learns I'm interested in that SHA —
@@ -731,17 +752,19 @@ attribution on the main substrate, the operator-side options are:
    real-world identity is outside CIRIS's concern. Same posture as
    Bitcoin: keys are pseudonymous unless de-anonymized off-chain.
 2. **Stay at `self` or `family` scope** — never federated, never
-   observable.
+   advertised to outsiders (CC 5.2). That is content-holding
+   confidentiality, not unobservability (CC 5.2 scope note).
 
-A third path — *protocol-level deniability* — is a v2 design
-possibility, sketched in §9.9.
+A third path — *protocol-level deniability* — is the planned opt-in
+anonymous tier (not yet specified in CC, not yet shipped), sketched in
+§9.9.
 
 ### 9.7 Comparison to anonymity systems
 
 | System | Trust graph observable? | Author observable? | Holder observable? |
 |---|---|---|---|
-| **CIRIS public-scope** | **Yes (by design)** | Yes (`author_id`) | Yes (`attesting_key_id`) |
-| CIRIS local-scope | No | n/a (never federated) | n/a |
+| **CIRIS federation scope** | **Yes (by design)** | Yes (`author_id`) | Yes (`attesting_key_id`) |
+| CIRIS bounded scope (self / family / community) | No, to outsiders | Members only | Members only (CC 3.1.3.3) |
 | IPFS / Kubo | No (no trust concept) | No | Pseudonymous |
 | Freenet | No (by design) | No (by design) | No (by design) |
 | Tor hidden services | No (unlinkable) | Onion key, pseudonymous | n/a (no storage layer) |
@@ -759,13 +782,29 @@ governance.
 
 **CIRIS makes the published trust graph observable in exchange for
 the operator-side ability to govern admission and eviction by
-actor; it preserves anonymity for everything at self/family scope,
-and offers pseudonymous federation keys as the operator-practice
+actor; it keeps everything at self / family / community scope
+invisible to outsiders by default (CC 1.13.3.4: anonymity toward
+outsiders at the smallest cohort scope; unobservability against a
+global passive adversary is not provided today, and the planned
+anonymous tier is the opt-in path), and offers pseudonymous federation keys as the operator-practice
 escape hatch — there is no protocol-level "publish anonymously"
 on the main path because that would dissolve the trust-
 enforceability the whole substrate rests on.**
 
 ### 9.9 Could we add deniability? — totalitarian threat model
+
+**Status at CC 1.0-rc9: planned, not yet shipped.** The anonymous
+tier ([ANONYMOUS_TIER.md](ANONYMOUS_TIER.md), Sphinx onion routing) is
+the planned opt-in tier: CC 1.13.3.1 names it as the separate, opt-in
+mechanism for sender/receiver unobservability at federation scope,
+and CC 1.13.3.4 places the opt-in boundary there. It is not yet
+specified normatively in CC and not yet shipped; it is not a default
+and not mandatory today. Multi-hop anonymity is not provided today;
+the planned anonymous tier is the opt-in path. CC 5.4.6 names the
+Tor v3 / I2P b33 blinded-retained-state family as the nearest
+admissible relaxation for any future multi-hop amendment, with
+rotation clocks global. The sketch below predates the CC text; where
+they differ, ANONYMOUS_TIER.md and CC govern.
 
 **Yes, as an opt-in parallel publication path.** The identity-aware
 substrate stays unchanged; a separate anonymous tier rides
@@ -839,7 +878,10 @@ ciphertext → no proof of holding specific content, no proof of
 trust relationship → cryptographic deniability instead of legal /
 operator-discretionary deniability.
 
-#### Important: the anonymous tier needs to be MANDATORY infrastructure
+#### Design argument: the anonymous tier should become standard infrastructure
+
+(This is the sketch's argument for a future deployment rule, not a
+requirement today; the tier is not yet shipped.)
 
 If only some operators run the anonymous tier, those operators
 become identification targets (raid the nodes that run the
@@ -853,10 +895,12 @@ records on my disk belong to which publication."
 
 #### What this would cost CIRIS to build
 
-* **CEG**: a parallel record class (`AnonymousContribution` with
-  blinded-key signature instead of `author_id`). Wire-format
-  addition, not a change to existing primitives. The 1+4 stays
-  locked.
+* **CC**: a parallel record class (`AnonymousContribution` with
+  blinded-key signature instead of `author_id`). This is not a
+  dimension addition: the row-type slot admits exactly the five (CC
+  2.4), so this sketch's record class would need CC text of its own.
+  <!-- rc9-sync: unverified, see CC ? — how the planned tier's
+  records fit the closed row-type slot is not yet specified in CC. -->
 * **Persist**: a parallel storage table for opaque-blinded records;
   same put/get/has surface but no trust-score lookup at admission
   (capacity only).
@@ -901,9 +945,9 @@ Sources for §9.9:
 | Property | CIRIS substrate guarantee | Achieved by |
 |---|---|---|
 | Identity-aware at the byte level | Yes | `put_blob_signing` atomic commit |
-| Per-actor eviction granularity | Yes | `federation_attestations` index on `attesting_key_id` + `withdraws` primitive |
+| Per-actor eviction granularity | Yes | `federation_attestations` index on `attesting_key_id` + the holder's own `none` re-acknowledgement (CC 3.1.3.3) |
 | Operator authority to evict | Yes | Local config consuming `scores` trust graph |
-| Anonymity for sensitive content | Yes (via opt-out) | `cohort_scope ∈ {self, family}` blocks `holds_bytes` emission |
+| Invisibility of bounded-cohort content to outsiders | Yes (the default, CC 1.13.3.4) | no holding claim leaves a bounded cohort (CC 5.2, CC 3.1.3.3) |
 | Per-byte attribution at app layer | NO | Substrate property, not app concern |
 
 This is the load-bearing property. Without it, the trust × capacity

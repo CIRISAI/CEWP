@@ -1,20 +1,27 @@
 # FSD: Media Sharing — Multimedia, Cinema, Content Discipline, Takedowns
 
-**Status:** v0.1 design.
+**Status:** v0.1 design. Reconciled with the CIRIS Constitution
+1.0-rc9 (tag `v1.0-rc9`); where this document and CC disagree, CC
+wins. CC 3.3.2 locks the `takedown_notice` and `key_grant` field
+shapes this FSD first sketched.
 **Goal:** Extend `external_content` with multimedia (image / audio /
 video / film / 3D) sub_kinds; codify the per-cohort content
 discipline that makes CEWP a TikTok/YouTube replacement *where the
 user controls the algorithm*; specify takedown notices as CEG-native
 wire artifacts; ground the design in international standards (DMCA /
 DSA / OSA / AVMSD / TVEC / NCMEC / Christchurch / EU AI Act) without
-breaking the 1+4 CEG wire-format lockdown.
+adding a row type: the row-type slot is closed to the five
+primitives (CC 2.4).
 **Companion docs:**
 * [CEWP.md](CEWP.md) — platform identity + premise/bet
 * [FEDERATION_SCALING_MODEL.md](FEDERATION_SCALING_MODEL.md) — substrate scaling
-* [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) — v2 deniability path
+* [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) — the planned opt-in
+  anonymous tier for GPA unobservability (named by CC 1.13.3.1; not
+  yet specified in CC, not yet shipped)
 * [SCHEMA.md §4.29](../SCHEMA.md) — existing external_content sub_kinds
-* [CEG 1.0-RC29 (CIRISRegistry)](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG)
-  — wire-format authority
+* [CIRIS Constitution 1.0-rc9](https://github.com/CIRISAI/CIRISConstitution/tree/v1.0-rc9/constitution)
+  — wire-format authority (the former CEG specification is now Parts 2–5
+  of CC)
 
 ---
 
@@ -44,9 +51,10 @@ not at the user's device.
 ## 1. The content discipline
 
 The discipline is structural at the wire-format level — refusal to
-carry is enforced at the federation propagation gate (where
-`holds_bytes` would otherwise be emitted), not by per-instance
-volunteer admins. This is the central difference from Mastodon /
+carry is enforced at the scope seams (admission into a cohort, and
+the scope-widening seam: a promotion into the Commons or a post into
+a `public` room, CC 1.13.3.4, CC 3.2), not by per-instance volunteer
+admins. This is the central difference from Mastodon /
 PeerTube prior art, which the [Stanford 2023 fediverse CSAM study](https://stacks.stanford.edu/file/druid:vb515nd6874/20230724-fediverse-csam-report.pdf)
 and the [IFTAS 2024 Needs Assessment](https://about.iftas.org/2024/12/17/the-2024-iftas-needs-assessment-report-is-here/)
 empirically showed cannot scale with volunteer per-instance
@@ -56,8 +64,8 @@ moderation alone.
 
 | `cohort_scope` | Default content rule | Mechanism |
 |---|---|---|
-| `self` | Anything. Substrate doesn't see, doesn't carry, doesn't help distribute. | CEG locality dividend (§1.3 scaling model). No `holds_bytes` emission. Same defensible position as [Signal](https://signal.org/bigbrother/) on E2EE messaging — two parties' private exchange is their concern; the substrate isn't their accomplice because it isn't their distribution channel. |
-| `family` | Anything. Same as `self`. | Same — no inter-host federation; family-trust-path only. |
+| `self` | Anything. Never advertised or delivered beyond the owner's own devices; the substrate doesn't help distribute it. | CEG locality dividend (§1.3 scaling model). No holding claim leaves the cohort (CC 5.2): the one holding claim, `custody:ack:v1`, is placed at `self` scope and replicated only to the owner's devices (CC 3.1.3.3). Same defensible position as [Signal](https://signal.org/bigbrother/) on E2EE messaging — two parties' private exchange is their concern; the substrate isn't their accomplice because it isn't their distribution channel. |
+| `family` | Anything. Same as `self`. | Same — bytes and custody reports go to admitted family members only (CC 5.2, CC 3.1.3.3). |
 | `community` (general) | **PG-13 + community-decency**. Refused at intake if `content_rating > PG-13` (any declared scheme) or if no rating declared on multimedia content. | Trust × capacity intake gate, with content_rating consulted. |
 | `community` (CW) | **The CW community's declared content classification**. Membership = consent. Warning is wire-format-mandatory. | A community-creation attestation declares `cw_class:{horror,art_cinema,erotic,political,...}` ; joining the community requires explicit `delegates_to:cw_community` attestation acknowledging the warning. |
 | `affiliations` | Same as `community` (general). | Federation-publishable but PG-13 default. |
@@ -83,9 +91,10 @@ moderation alone.
   material rides `sub_kind: news_article` with content warnings;
   federation-publishable with consumer opt-in
 * Two people sharing private content at `self`/`family` scope:
-  substrate doesn't see, doesn't carry, doesn't help. Same
-  cryptographic-deniability position [Signal](https://signal.org/bigbrother/)
-  takes; same threat model the [Apple NeuralHash failure](https://arxiv.org/abs/2111.06628)
+  the substrate never advertises it outside the cohort (CC 5.2) and
+  never scans it (CC 1.13.3.4). Same "not our distribution channel"
+  position [Signal](https://signal.org/bigbrother/) takes; same threat
+  model the [Apple NeuralHash failure](https://arxiv.org/abs/2111.06628)
   showed cannot be solved by client-side scanning without breaking
   the rest
 
@@ -137,9 +146,12 @@ content provider with a subscriber model operates on CEWP.
 2. **The subscriber opts in** by emitting `delegates_to:publisher:
    adulthub` from their federation key, where the attestation
    declares:
-   * `age_assurance:provider:{verifier_key}:adult` is present on
-     subscriber's key (operator-required for adult publisher trust;
-     §4 of this FSD; UK OSA / French SREN compliance)
+   * a witness-emitted `age_assurance:provider:adult:v1` (or the
+     `government` rung) is on record for the subscriber's key. This is
+     not an operator option: exiting child protection to reach
+     `content_class:adult` requires at least the `provider` rung, and
+     a self-declaration never satisfies it (CC 3.4.11 protective gate,
+     CC 3.4.13 Q3; §4 of this FSD; UK OSA / French SREN compliance)
    * Subscriber consents to the publisher's content classification
      (the `cw_class:adult` warning is wire-format-mandatory; §3.4)
 
@@ -156,19 +168,26 @@ content provider with a subscriber model operates on CEWP.
 
 4. **Per-creator eviction is native**: if a specific creator violates
    terms (NCII, copyright, takedown_notice from third party), the
-   substrate evicts via `evict_actor(creator_key)` (CIRISPersist
-   v3.5.0 #125). The §9 identity-aware-storage thesis is what makes
+   substrate evicts via `evict_actor(creator_key)`
+   ([CIRISPersist#125](https://github.com/CIRISAI/CIRISPersist/issues/125)). The §9 identity-aware-storage thesis is what makes
    this trivial — the publisher's substrate knows whose bytes it's
    holding; can drop one creator's entire content set as a single
    operation; doesn't have to discover-then-purge.
 
-5. **Children never see it.** Children's federation keys lack the
-   `age_assurance:provider:adult` attestation, so they cannot
-   emit a `delegates_to:publisher:adulthub` (operator-config refuses
-   to admit the delegation), so the publisher's content never
-   reaches their substrate, so the substrate-level "I am not a
-   child" gate is enforced by the trust-graph admission mechanism
-   itself. No separate content-filtering layer required.
+5. **Children never see it.** This does not rest on the publisher
+   delegation alone. CC sets a non-derogable floor: anyone not
+   age-assured to be 18 or over is treated as a child, and no
+   deployment may switch that off (CC 3.4.13 Q2). The protective gate
+   blocks every viewer below `adult` assurance from `adult`
+   `content_class`, and a `minor` band, "declined to state" and an
+   absent assurance all resolve to blocked (CC 3.4.11). Leaving child
+   protection needs at least `age_assurance:provider:adult`;
+   self-declaration is insufficient (CC 3.4.13 Q3). A minor operates
+   under a guardian bound by a live guardianship `delegates_to`, and
+   no guardian consent, alone or stacked with the child's, can open
+   `content_class:adult` to a minor (CC 3.4.13 Q3, Q5). The publisher
+   delegation is refused for such a key in this design, and the CC
+   gate holds even where a deployment did not refuse it.
 
 **What this means structurally:** the substrate is not a CSAM-
 distribution platform because (a) `self`/`family`-scope content is
@@ -190,7 +209,8 @@ CEG-native terms.
 
 **Operator-config knobs for adult publishers:**
 
-* Required `age_assurance` level (self / provider / government)
+* Required `age_assurance` level (`provider` / `government`; the
+  `self` rung never satisfies adult content, CC 3.4.11, CC 3.4.13 Q3)
 * Required `delegates_to:business_verifier` chain (compliance
   certifications: 2257 records, KYC creator verification, etc.)
 * Geographic restrictions (per-jurisdiction admission rules; e.g.,
@@ -215,7 +235,7 @@ two things the substrate can verify:
 
 The substrate doesn't adjudicate "is this art" — the federation's
 attestation graph does. A film with a major distributor's
-canonical attestation (Disney, A24, Criterion, Studio Ghibli,
+attestation (Disney, A24, Criterion, Studio Ghibli,
 international cinema houses, registered film festivals) is
 unambiguously cinema. An "art piece" claim from a low-trust source
 won't pass quality thresholds set by typical consumers, even if
@@ -312,8 +332,10 @@ the art-bearing nature of the content.
 * `production_credits: ProductionCredits` (director / writer /
   cinematographer / etc.)
 * `distributor_key_id: Option<String>` (Disney / A24 / Criterion /
-  Studio Ghibli / etc. — canonical-attester chain for the
-  distributor's "this is legitimate film" claim)
+  Studio Ghibli / etc. — the distributor's own key, under which it
+  asserts its "this is legitimate film" claim; there is no roster of
+  permitted attesters, and a reader admits the claim only if it trusts
+  that emitter's root or has consented to it, CC 2.4.1.2.1)
 * `imdb_id` / `tmdb_id` / equivalent external canonical IDs
   (optional but reduces trust-graph friction)
 * `release_year`
@@ -388,8 +410,9 @@ demand-driven replication (§2.7).
 | Volumetric video / scanned environments | 100 MiB - 10 GiB | ✓ |
 | Large 3D scenes / character rigs | 50 MiB - 5 GiB | ✓ |
 
-For external content, **the federation carries (SHA, holds_bytes
-attestation, the ExternalRef pointing to the publisher's S3-class
+For external content, **the federation carries (SHA, the holding
+claim — `custody:ack:v1` at the content's own scope, CC 3.1.3.3 — the
+ExternalRef pointing to the publisher's S3-class
 store, content access control). The bytes themselves ride that
 external store directly**, federation-mediated by trust + ACL but
 not federation-stored. This is structurally how Netflix Open Connect
@@ -421,16 +444,19 @@ pattern as all other CEWP content
 
 ```
 T=0     Publisher emits the Contribution + put_blob_signing.
-        Publisher's L1 is the sole `holds_bytes:sha256:X` advertiser.
+        Publisher's L1 is the sole holder reporting `custody:ack:v1`
+        `here` for X, at X's own cohort_scope (CC 3.1.3.3).
 T=ε     A user (a friend in the publisher's trust set, or a
         delegates_to:publisher subscriber) fetches via ContentFetch.
         Receiver's intake gate: trust(publisher) ≥ threshold AND
         capacity_available. On pass: bytes admitted to receiver's
-        federation_blobs; receiver emits THEIR OWN
-        holds_bytes:sha256:X. Receiver is now a holder.
+        federation_blobs; receiver signs ITS OWN custody:ack:v1
+        `here` for X at X's scope. Receiver is now a holder.
 T=...   Every subsequent successful fetch creates a new holder.
-        list_holders(X) grows as demand spreads through trust graph
-        layers; popular content fan-outs to many holders;
+        The holder set grows as demand spreads through trust graph
+        layers (at federation scope the `here` rows are the holder
+        directory, CC 3.1.3.3 rule 2; at a bounded scope they are
+        seen only inside the cohort, CC 5.2); popular content fan-outs to many holders;
         unpopular content stays at the publisher.
 T=...   Eviction sweeper (popularity × freshness) drops content
         from holders whose users have lost interest. Cold-metro
@@ -444,7 +470,8 @@ T=...   Eviction sweeper (popularity × freshness) drops content
 ```
 T=0     Publisher emits the Contribution + put_blob_signing where
         BlobBody::External points to the publisher's S3 / CDN.
-        Publisher's L1 emits the holds_bytes attestation.
+        Publisher's L1 reports custody:ack:v1 `here` at the
+        content's scope.
 T=ε     A user fetches the metadata via ContentFetch (small;
         federation-native). The metadata includes the ExternalRef.
         User's edge fetches the bytes directly from the publisher's
@@ -452,8 +479,8 @@ T=ε     A user fetches the metadata via ContentFetch (small;
 T=...   Optional: an L1 server CAN opt in to becoming a CDN edge —
         it full-fetches the external bytes, stores locally (now
         BlobBody::Inline if ≤ 16 MiB OR its own BlobBody::External
-        pointing to its own S3), and emits its own holds_bytes
-        attestation. Now there are two effective holders; other
+        pointing to its own S3), and reports its own custody:ack:v1
+        `here`. Now there are two effective holders; other
         peers fetching can use either. This is the same
         demand-driven replication pattern applied to external
         content; it's opt-in by the L1 operator, gated by the
@@ -468,16 +495,18 @@ CDN topology Netflix / YouTube / Cloudflare maintain via centralized
 control, produced naturally from CEG primitives + trust topology +
 the popularity × freshness eviction sweeper.
 
-**Holonomic refinement (CEG §19, net-new since CEG 1.0).** Published
-media is RaptorQ fountain-coded `(N,K)` (holographic; any sufficient
-subset of fragments reconstructs at proportional fidelity, surviving
-to one survivor + signed witness chain), and ages via the §19.7
-noise-floor memory pyramid — the same single monotonic descent
-(revocation / eviction / expiry / aging) the popularity × freshness
-sweeper drives, where revoked items descend below the
-individual-recoverability boundary (privacy) while the collective
-gist persists below it at O(log T) storage (durability). Fragment
-fan-out replaces whole-blob fan-out; the toy does not yet bench it.
+**Holonomic refinement (CC 6.1).** Published media is RaptorQ
+fountain-coded `(N,K)` per layer (CC 6.1.5). Degradation is a
+property of the layering, not of the fountain code: each
+`ChunkLayer` decodes all-or-nothing, so shedding high-detail layers
+yields a coarse version of the same item, and below `min_viable` only
+the signed envelope survives (CC 6.1, CC 6.1.2). Items age by the
+noise-floor descent (CC 6.1.2), where a revoked item must fall below
+the individual-recoverability boundary (privacy) while the collective
+contribution persists below it (durability). Fragment fan-out
+replaces whole-blob fan-out; the toy does not yet bench it, and CC
+6.1.5 records that no reconstruction bench exists in CIRISEdge or
+CIRISPersist.
 
 **Implication for the toy:** the only new model knob needed is the
 fraction of fetch volume that's external_ref vs inline. External
@@ -501,55 +530,53 @@ performance), age_gate_requirement (operator config; §4), takedown
 escalation contacts (mandatory for federation scope per EU DSA
 Art. 16).
 
-**Realtime A/V is now spec-complete in CEG 1.0.** Earlier drafts
-deferred the live-streaming wire format as net-new complexity; CEG
-0.13–0.15 closed it. Realtime media — call / voice / screen-share /
-chat — is modeled as composition: **SFrame + MLS TreeKEM
-([RFC 9420](https://datatracker.ietf.org/doc/html/rfc9420))** folded
-in for per-frame encryption + group key agreement, and Edge ships the
-realtime A/V chunk wire (`SealedAvChunk` / `ChunkLayer`,
-CIRISEdge v6.3.0). This builds on the **delivery axis** (introduced
-at 0.10) — the third orthogonal envelope concern alongside visibility
-(`cohort_scope`) and revocability (`subject_key_ids`) — with three
-optional envelope fields (`delivery_mode: pull | push`,
-`listed: public`, `history_on_join: full | from_join`) plus a
-streaming-transport endpoint section ([CEG §10.5](https://github.com/CIRISAI/CIRISRegistry/blob/main/FSD/CEG/10_endpoints.md))
-and the `delivery_receipt:{stream_id}` reserved prefix
-([CEG §7.9](https://github.com/CIRISAI/CIRISRegistry/blob/main/FSD/CEG/07_reserved.md)).
+**Realtime A/V is specified in CC (CC 5.3.3).** Earlier drafts
+deferred the live-streaming wire format as net-new complexity; CC now
+carries it. Realtime media — call / voice / screen-share / chat — is
+modeled as composition (CC 5.3.3.2): per-chunk sealing conforms to
+**SFrame**, and the epoch-DEK rekey on member change is the **MLS
+TreeKEM** construction ([RFC 9420](https://datatracker.ietf.org/doc/html/rfc9420)),
+and Edge ships the realtime A/V chunk wire (`SealedAvChunk` /
+`ChunkLayer`; CIRISEdge, see its repository for the version). This
+builds on the **delivery axis** — the third orthogonal envelope
+concern alongside visibility (`cohort_scope`) and revocability
+(`subject_key_ids`) — with three optional envelope fields
+(`delivery_mode: pull | push`, `listed: public`, `history_on_join:
+full | from_join`) plus the streaming-transport surface (CC 5.3.3)
+and the `delivery_receipt:{stream_id}` prefix (registered at CC 3.1.4;
+emitter rule at CC 3.4.6).
 The load-bearing insight: **observer-share (N=1) and streaming
 multicast (N>1) are the same primitive at different cardinality** —
-subscriber-set = `community` (Policy M, [CEG §8.1.13.7](https://github.com/CIRISAI/CIRISRegistry/blob/main/FSD/CEG/08_composition.md));
-E2E directed delivery = a `key_grant` cascade of a per-`(stream_id,
-epoch)` stream-epoch DEK over the roster (now MLS-rooted). So a live
+subscriber-set = `community` (Policy M, CC 4.4.3.2); E2E directed
+delivery = one `key_grant:{axis}:v1` row per recipient carrying the
+per-`(stream_id, epoch)` stream-epoch DEK (CC 3.3.2). So a live
 broadcast is just the `SealedAvChunk` chunk-DAG
 (`topical_relation:has_chunk`) carried over a `delivery_mode: push`
-envelope to a `cohort_scope: community` subscriber-set, with
-per-stream `SignedTreeHead` (RFC 6962 reused per `stream_id`) for
-accountability and `delivery_receipt:{stream_id}` for opt-in delivery
-acknowledgement. **Still zero new structural primitives** — the 1+4
-lockdown holds; live broadcast and 1:1 media attestation compose from
-the same set. This is what makes CEWP a TikTok/YouTube-*live*
-replacement, not just a VOD one.
+envelope to a `cohort_scope: community` subscriber-set, with a
+per-stream log and stream-root for accountability (CC 5.3.3.3) and
+`delivery_receipt:{stream_id}` for opt-in delivery acknowledgement.
+**Still zero new structural primitives** — the row-type slot stays
+closed to the five (CC 2.4); live broadcast and 1:1 media attestation
+compose from the same set. This is what makes CEWP a
+TikTok/YouTube-*live* replacement, not just a VOD one.
 
-**Status: wire FROZEN / multicast-impl tail.** The wire format is
-spec-complete and frozen in CEG 1.0-RC29; the realtime A/V chunk wire
-(`SealedAvChunk` / `ChunkLayer`) ships in CIRISEdge v6.3.0. The
-observer-share (N=1) half is impl-live. The streaming-multicast (N>1)
-half rides the same frozen wire but has a substrate-impl tail:
-best-effort tier on
+**Status at CC 1.0-rc9.** CC 8.3.3 records the observer-share (N=1)
+half as normative-ready with no remaining blockers, and the
+streaming-multicast (N>1) half as specified with its implementation
+substrate-pending (the streaming substrate step is unscheduled; the
+accountable tier is additionally pending). The issue trail this FSD
+tracked:
 [CIRISPersist#142](https://github.com/CIRISAI/CIRISPersist/issues/142)
-(chunk-DAG / STH-per-`stream_id` storage), accountable tier
-additionally on [CIRISRegistry#34](https://github.com/CIRISAI/CIRISRegistry/issues/34)
-(STH consistency-proof enforcement); push-tree fan-out is RC1
-pull-only, deferred to 1.x per CIRISRegistry#46 / #43. Operational
-constants (`K=64` / `T=2s` / cosign-per-epoch / `MAX_CHUNKS_PER_EPOCH
-= 2²⁴`) are operator-tunable. Lowest v1 deployment priority; the
-wire format is no longer the blocker — it is frozen.
+(chunk-DAG / per-`stream_id` log storage) and
+[CIRISRegistry#34](https://github.com/CIRISAI/CIRISRegistry/issues/34)
+(consistency-proof enforcement). The recommended operational cap
+`MAX_CHUNKS_PER_EPOCH = 2²⁴` is from CC 5.3.3.1. Lowest v1 deployment
+priority.
 
 ## 3. Content classification dimension family
 
-Multi-scheme coexistence per CEG §1.3 mechanism-descriptive-name
-gate.
+Multi-scheme coexistence per the mechanism-descriptive-name gate
+(CC 1.13.5).
 
 ### 3.1 The `content_rating:*` family
 
@@ -627,60 +654,94 @@ attestation.
 Operators can define additional CW classes; established schemes
 (MPAA / BBFC / PEGI / etc.) cover the canonical descriptors.
 
-## 4. The age gate — operator-managed, standards-compliant
+## 4. The age gate — a CC floor, with operator choices above it
 
-Per Eric: **operator-managed**, not federation-mandated. Each
-deployment chooses its age-verification posture appropriate to its
-jurisdiction and audience.
+The first draft of this section made the age gate operator-managed,
+not federation-mandated. CC 1.0-rc9 does not allow that. The
+protective gate is normative (CC 3.4.11), and the child-protection
+floor is non-derogable: anyone not age-assured to be 18 or over is
+treated as a child, and no deployment, operator or declared
+jurisdiction may switch that off (CC 3.4.13 Q2). What remains
+operator-managed is everything *above* the floor: which verifiers a
+deployment accepts, and whether it raises protection further (the
+tuning direction is one-way, CC 3.4.13 Q1, Q2).
 
 ### 4.1 The wire-format surface
 
-A user's `federation_keys` row can carry an `age_assurance:*`
-attestation. Operators decide which level is acceptable for
-admission to age-gated content.
+Age assurance is two dimension families (CC 3.4.11):
 
-| Dimension | What it attests | Standard alignment |
-|---|---|---|
-| `age_assurance:self:adult` | User self-declared age. Lowest assurance. | Not OSA-"highly effective"; acceptable for low-stakes deployments |
-| `age_assurance:provider:{provider_key}:adult` | Third-party AV provider attests adult. Provider's reputation is in the trust graph. | UK OSA "highly effective" if provider meets [Ofcom criteria](https://uklitigation.cooley.com/uk-online-safety-act-age-assurance-and-childrens-access-statement/); French [SREN](https://www.twobirds.com/en/insights/2024/france/la-loi-sren-et-la-protection-des-mineurs) "double anonymity" if provider implements that protocol |
-| `age_assurance:government:{credential_class}:adult` | Government-issued credential (eIDAS / national ID / passport) | OSA-"highly effective"; strongest assurance |
+| Dimension | Who emits it | What it attests | Standard alignment |
+|---|---|---|---|
+| `age_self_declared:band:{band}:v1` (e.g. `age_self_declared:band:adult:v1`) | The subject, about itself; not reserved | Self-declared band. Lowest assurance and unfalsifiable from inside the fabric. | Not OSA-"highly effective"; never satisfies a sensitive space or `content_class:adult` (CC 3.4.11, CC 3.4.13 Q3) |
+| `age_assurance:provider:{band}:v1` (the level MAY be qualified with the verifier's key) | A registered age-assurance verifier; witness-reserved, a subject cannot emit it | Third-party AV provider attests the band. Provider's reputation is in the trust graph. | UK OSA "highly effective" if provider meets [Ofcom criteria](https://uklitigation.cooley.com/uk-online-safety-act-age-assurance-and-childrens-access-statement/); French [SREN](https://www.twobirds.com/en/insights/2024/france/la-loi-sren-et-la-protection-des-mineurs) "double anonymity" if provider implements that protocol |
+| `age_assurance:government:{band}:v1` (the level MAY be qualified with a credential class) | A witness, as above | Government-issued credential (eIDAS / national ID / passport) | OSA-"highly effective"; strongest assurance |
 
-The substrate doesn't require any specific provider. Operators
-config their deployment: required assurance level + accepted
-providers + default-deny vs default-allow.
+`{band}` ∈ `minor` | `adult`, with the CC 3.4.13 Q1 developmental
+bands (under-13, 13–15, 16–17, adult) as finer qualifiers above the
+binary wire predicate. `age_assurance:self:*` is malformed and MUST be
+rejected (CC 3.4.11). A consumer unions both families and takes the
+highest level on record; absence resolves to the protective default
+(CC 3.4.11).
+
+Where a verified rung is required, CC prefers a zero-leak proof (an
+mDL `age_over_18` selective disclosure) ranked above full-ID-scan
+providers (CC 3.4.13 Q1).
 
 ### 4.2 Provider integration pattern
 
 Providers (Yoti / Persona / Onfido / Open Banking-rooted AV /
-national identity systems) emit a `delegates_to:age_verifier:{level}`
-attestation against a user's federation key. The user's key now
-carries the attestation; the federation can see "this provider
-attested this user is adult."
+national identity systems) hold a witness key and emit an
+`age_assurance:{level}:{band}:v1` `scores` row about the user's
+federation key (CC 3.4.11). The federation can then see "this
+provider attested this user's band."
 
 [French SREN's "double anonymity"](https://www.twobirds.com/en/insights/2024/france/la-loi-sren-et-la-protection-des-mineurs)
 is satisfied because the provider attests against a federation key,
 not against the user's real-world identity directly; the platform
 sees only the attestation, not the underlying identity proof.
 
-### 4.3 The platform "I am not a child" gate
+### 4.3 The platform gate, and minors
 
-User-facing gate is operator-implemented and consumes the
-`age_assurance:*` attestation. UK / EU deployments default to
-requiring `age_assurance:provider:...:adult`; US deployments
-might default to `age_assurance:self:adult` with provider upgrade
-required for specific content; private home deployments
-(CIRISHome) can default to no gate within the family scope.
+The gate itself is fixed by CC 3.4.11: `general`-class content is
+visible to everyone; `adult`-class content only to a viewer whose
+band is `adult`; a `minor` band, "declined to state" and an absent
+assurance are all blocked. The gate decides visibility only and never
+fires `slashing:*`; a misdeclared age is adjudicated under
+`moderation:age_assurance_misdeclaration` (CC 3.4.11).
 
-The substrate ships the WIRE FORMAT for the attestation. Each
-deployment ships the GATE.
+Entering protection takes only `age_self_declared:band:minor:v1`; leaving it
+to reach `content_class:adult` takes at least
+`age_assurance:provider:adult` (CC 3.4.13 Q3). A minor below the
+solo-autonomy threshold of 16 acts at community scope only with
+guardian co-sign; the guardian holds a live guardianship
+`delegates_to`, must be at least `provider`-assured adult, and must
+have the relationship to that child verified (CC 3.4.13 Q1, Q3). No
+guardian, and no stacked consent of guardian and child, may breach
+the hard floor: no unilateral federation- or Commons-scope publish
+below the teen threshold, not discoverable by unconnected adults,
+profile private by default, and no entry to `content_class:adult`
+(CC 3.4.13 Q5). The help/report channel stays available to every
+minor and no guardian may disable or surveil it (CC 3.4.13 Q4, Q5).
+
+A deployment chooses which providers it accepts and may raise any of
+these protections; it may not lower them (CC 3.4.13 Q1, Q2). A
+private home deployment (CIRISHome) is still bound by the floor.
+
+The substrate ships the WIRE FORMAT for the attestation and CC fixes
+the gate's rule. Each deployment ships the gate's UI and its choice
+of accepted verifiers.
 
 ## 5. Takedown notices — CEG-native, internationally-aligned
 
 The architectural foundation: a takedown notice is a **signed
-Contribution by a claimant against a content SHA**. The
-**`withdraws`-against-`holds_bytes`** structural primitive (already
-in CEG 0.2's 1+4 lockdown) is the propagation mechanism. **No new
-wire primitives needed.**
+Contribution by a claimant against a content SHA** — a `scores` row on
+`takedown_notice:{basis}:v1` with `subject_kind: takedown_notice`
+(CC 3.3.2). Removal propagates as a **tombstone on the bytes plane**,
+not as a `withdraws` of anyone's holding claim: nobody withdraws
+another device's custody report, and holders that see the tombstone
+re-acknowledge `none` (CC 4.5.3, CC 3.1.3.3 rule 4). The retired
+`holds_bytes` carrier this section was first written against no
+longer exists (CC 2.4). **No new wire primitives needed.**
 
 This composes cleanly with [Bluesky / AT Protocol's labeler
 architecture](https://docs.bsky.app/blog/blueskys-moderation-architecture)
@@ -689,8 +750,8 @@ composable signed artifacts) — the validated prior-art design.
 
 ### 5.1 The takedown notice envelope
 
-A new `Contribution` `subject_kind: takedown_notice` (additive to
-the §3.1 discriminator table) with payload:
+A `Contribution` `subject_kind: takedown_notice` with payload (the
+field shape is now locked at CC 3.3.2, which follows this sketch):
 
 ```
 {
@@ -711,96 +772,115 @@ the §3.1 discriminator table) with payload:
 
 ### 5.2 Legal basis enumeration
 
-The legal_basis field is mechanism-descriptive (per CEG §1.3)
-and maps to the international standards landscape:
+The legal_basis field is mechanism-descriptive (CC 1.13.5) and maps
+to the international standards landscape. The wire strings are the
+closed set at CC 3.3.2, byte-compared; a misspelled basis is dropped
+by a fail-secure peer, so the spelling matters. CC adds an eleventh,
+`steward_purge`, for a trust root's cosigned purge of its own
+canonical (CC 2.4.1.1), which is not a media takedown.
 
 | Legal basis | Source | Action discipline |
 |---|---|---|
-| `dmca_512` | [US DMCA §512(c)(3)](https://www.copyright.gov/512/) | Notice → expeditious removal → 10-14 day counter-notice window → restoration if uncontested |
-| `dsa_article_16` | [EU DSA Art. 16](https://www.cms-digitallaws.com/en/dsa/article-16/) | Notice + receipt confirmation "without undue delay" → timely / diligent / non-arbitrary decision → internal complaint mechanism (Art. 20) for restoration disputes |
+| `dmca512` | [US DMCA §512(c)(3)](https://www.copyright.gov/512/) | Notice → expeditious removal → 10-14 day counter-notice window → restoration if uncontested |
+| `dsa_article16` | [EU DSA Art. 16](https://www.cms-digitallaws.com/en/dsa/article-16/) | Notice + receipt confirmation "without undue delay" → timely / diligent / non-arbitrary decision → internal complaint mechanism (Art. 20) for restoration disputes |
 | `tvec_terrorist` | [EU TVEC 2021/784](https://www.europarl.europa.eu/news/en/press-room/20210422IPR02621/new-rules-adopted-for-quick-and-smooth-removal-of-terrorist-content-online) | 1-hour removal from competent-authority order |
 | `ncmec_csam` | [US NCMEC CyberTipline](https://www.missingkids.org/gethelpnow/cybertipline) | Mandatory reporting (US-based providers); emergency takedown, no counter-notice path |
 | `gifct_cip` | [GIFCT Content Incident Protocol](https://gifct.org/2022/06/23/debrief-cip-activation-buffalo/) | Fast-path takedown during active incidents (e.g., Buffalo CIP) |
 | `community_standards` | Per-cohort decency / CW community rules | Cohort-trust admission gate; eviction sweeper handles propagation |
-| `perceptual_hash_csam` | [PhotoDNA](https://technologycoalition.org/resources/update-on-voluntary-detection-of-csam/) / [PDQ](https://github.com/facebook/ThreatExchange/tree/main/pdq) | Substrate-level hash match at federation propagation event |
+| `perceptual_hash_csam` | [PhotoDNA](https://technologycoalition.org/resources/update-on-voluntary-detection-of-csam/) / [PDQ](https://github.com/facebook/ThreatExchange/tree/main/pdq) | Hash match at the scope-widening seam (§5.6) or at an enabled per-group watchlist (CC 4.5.7) |
 | `osa_illegal_content` | [UK OSA 2023](https://uklitigation.cooley.com/uk-online-safety-act-age-assurance-and-childrens-access-statement/) | Illegal content removal per Ofcom timelines |
-| `avmsd_age_inappropriate` | [EU AVMSD](https://digital-strategy.ec.europa.eu/en/policies/audiovisual-and-media-services) | Age-gate enforcement |
+| `avmsd_age_inappropriate` | [EU AVMSD](https://digital-strategy.ec.europa.eu/en/policies/audiovisual-and-media-services) | Composes with the `age_assurance:*` gate; not immediate removal (CC 3.3.2) |
 | `court_order` | Jurisdiction-specific court order | Per-jurisdiction handling |
 
-### 5.3 Substrate-protective vs third-party-claim discipline (NodeCore#24)
+### 5.3 Who may act: the holder's own copy, and the `takedown` duty
 
-Two structurally distinct emit paths. Per the answer to
-[NodeCore#24](https://github.com/CIRISAI/CIRISNodeCore/issues/24)
-(which unblocks CIRISPersist#134's takedown_handler):
+The first draft split this into "owner-side" and "third-party"
+paths, with clearinghouses pre-trusted by operator configuration. CC
+1.0-rc9 draws the line differently, and this section follows it.
 
-**Owner-side enforcement (bypasses the standard trust × capacity
-admission gate):**
+**A holder over its own copy.** A device can always stop holding: it
+ends its own custody report by re-acknowledging `none` or by
+`withdraws`, and only the signer can retract its report (CC 3.1.3.3
+rule 4). That needs no one's leave, but it removes one copy, not the
+content.
 
-* The operator's own substrate emitting a takedown against content
-  in its OWN holds. The operator can always evict their own
-  holdings — this is just a `withdraws` against their own
-  `holds_bytes` and doesn't depend on third-party trust
-* Operator-configured trusted clearinghouses (NCMEC, GIFCT-CIP,
-  regional equivalents: IWF, Project Arachnid, INHOPE national
-  hotlines). These are pre-trusted via operator config, NOT via
-  runtime trust-graph admission. Their takedowns are treated as
-  substrate-trusted by configuration assertion
-* Substrate-emitted auto-detection at `put_blob_signing` (perceptual
-  hash match per §5.6). The substrate signs these with its own
-  operator key; the takedown enters as an owner-side artifact
+**A takedown over a community's content.** A `takedown_notice` acts
+on content only when its `claimant_key_id` holds the `takedown` duty
+over the content's community, as itself or delegated from a
+steward-bound root (CC 4.5.3, CC 4.5.5). This holds for every basis.
+The immediate-removal fast path waives the quorum and the
+counter-notice, never the duty-holder gate: an immediate-removal
+basis asserted by a key with no `takedown` duty over the content is
+refused like any other unauthorised action (CC 4.5.3). A
+clearinghouse (NCMEC, GIFCT-CIP, IWF, Project Arachnid, INHOPE
+hotlines) therefore acts where a community or root has delegated it
+that duty, not because an operator listed it.
 
-**Third-party claims (full trust × capacity gate applies):**
+**Open labeling stays open.** Anyone may file a `scores` row against
+anything they see; it is an observation, and consumers filter on it
+as their own policy (CC 4.5.5). DMCA §512 notices, DSA Article 16
+reports and community-standards reports from arbitrary keys enter
+this way and reach a duty-holder, who acts or does not.
 
-* DMCA §512 claimant notices
-* DSA Article 16 third-party reports
-* Community standards reports
-* Any claim where `claimant_key_id` is an arbitrary federation key
+**Detection at the seam.** A perceptual-hash match at the
+scope-widening seam (§5.6), or at a per-group watchlist the group's
+`moderate`-holder enabled, auto-fires a `takedown_notice` with basis
+`perceptual_hash_csam` (CC 4.5.7, CC 4.5.5). The watchlist splits
+powers: the node runs the matcher, the operator provisions the
+licensed hash database and carries the NCMEC report obligation, and
+the `moderate`-holder opts the group in (CC 4.5.7).
 
-**Why this split:** substrate operators have legal liability for
-content held under their own keys (NCMEC reporting obligation; TVEC
-1-hour deadline; OSA illegal-content duty). The operator's
-authority to police their own holdings doesn't depend on whether
-the federation's trust graph says someone with sufficient trust
-score "told them to." A fresh edge with no trusted-clearinghouse
-keys still has the operator's own key — they can hash-match against
-their own configured databases and emit owner-side takedowns
-immediately. The trust gate remains the chokepoint for
-*third-party claims to ACT on someone else's substrate*.
+**Why this split:** operators still carry legal duties for bytes they
+hold (NCMEC reporting; TVEC 1-hour deadline; OSA illegal-content
+duty), and they can always drop their own copy at once. What CC adds
+is that acting on *the content* — for everyone who holds it — belongs
+to whoever holds the `takedown` duty for that community, so no key
+gains takedown power over other people's communities by being named
+in a configuration file.
 
 ### 5.4 The propagation mechanism
 
-1. **Owner-side enforcement** (§5.3 first category): operator's
-   substrate emits the `takedown_notice` + the `withdraws` against
-   own `holds_bytes` in one transaction. No federation admission
-   gate; this is policing own holdings.
-2. **Third-party claim** (§5.3 second category): claimant signs
-   `takedown_notice` Contribution. Federation admits it via standard
-   trust × capacity gate; recipients (substrate operators holding
-   the content) evaluate per their operator policy.
-3. Recipients (in both cases above) apply per-LegalBasis discipline:
-   * For substrate-mandatory bases (NcmecCsam, PerceptualHashCsam,
-     TvecTerrorist, GifctCip): immediate eviction; emit
-     `withdraws:holds_bytes:sha256:{prefix}` against the content;
-     no counter-notice path
-   * For copyright/DSA/OSA/AVMSD/community bases: expeditious removal
-     pending the configurable hold window (§5.5); emit conditional
-     `withdraws` with scheduled restoration if uncontested
-4. The `withdraws` propagation rides the existing CEG §10.1.2
-   ContentMiss feedback loop. Other operators receive the
-   `withdraws` against the prior `holds_bytes`, drop their copies,
-   emit their own `withdraws` if they had advertised holding.
-5. Federation-wide eviction is structural: per-actor `evict_actor`
-   (persist v3.5.0) enforces the bulk-eviction case (slashed
-   actor's entire content set).
+1. **Notice admission.** The `takedown_notice` is admitted under the
+   duty-holder gate (§5.3; CC 4.5.3 step 1). Immediate-removal bases
+   need no quorum.
+2. **Tombstone.** The substrate tombstones the content on the bytes
+   plane, and the tombstone replicates: it is the only thing that
+   tells a peer holding a replica to descend (CC 4.5.3 step 2).
+   Holders see it, SHOULD cease serving, and re-acknowledge `none`.
+3. **Per-basis discipline** (CC 4.5.3 step 3):
+   * Immediate-removal bases (`ncmec_csam`, `perceptual_hash_csam`,
+     `tvec_terrorist`, `gifct_cip`, `court_order`): a reachable holder
+     MUST destroy the bytes on receipt; the CSAM bases keep only hash
+     and minimal metadata for the legal retention window and the
+     operator files the NCMEC CyberTipline report; no counter-notice
+     path.
+   * Counter-notice bases (`dmca512`, `dsa_article16`,
+     `osa_illegal_content`, `community_standards`): expeditious
+     removal, with the counter-notice routed as
+     `reconsideration:new_evidence` (CC 4.5.3 step 5).
+     <!-- rc9-sync: unverified, see CC ? — the "conditional removal
+     with scheduled restoration if uncontested" mechanism of the
+     first draft has no counterpart in CC 4.5.3; how restored bytes
+     come back after a reversed tombstone is not stated. -->
+4. **Audit.** Every fast-path takedown enters a
+   `hard_case:fast_path_takedown` row; a misclassified basis can be
+   contested by `reconsideration:procedural_error` (CC 4.5.3 step 4).
+5. **Per-actor eviction.** A holder can still drop one actor's whole
+   content set from its own store with `evict_actor`
+   ([CIRISPersist#125](https://github.com/CIRISAI/CIRISPersist/issues/125));
+   that is local storage housekeeping, not a takedown of anyone
+   else's copies.
 
 ### 5.5 Counter-notice / reconsideration + hold-window schedule
 
-The existing CEG `ReconsiderationRequest` structural primitive (1+4
-lockdown member) handles counter-notices. The party whose content
-was taken down can file a `ReconsiderationRequest` against the
-takedown_notice; if WA-quorum adjudicates in their favor, a
-`ReconsiderationAttestation` reverses the takedown and restores
-the content's `holds_bytes` advertisements.
+Counter-notices ride `reconsideration:{grounds}`, a `scores`
+dimension (CC 3.1.9.2), not a structural primitive. Every notice has
+an `attestation_id` a reconsideration can target (CC 3.3.2), and the
+subject of the target holds standing to file it (CC 4.5.5). Filing and
+ruling on an appeal is the `review` duty (CC 4.5.5); outcomes are
+`reversed`, `partial` or `upheld` (CC 3.1.9.2). Holders that again
+hold restored bytes report `custody:ack:v1` `here` as for any blob
+(CC 3.1.3.3).
 
 Per-LegalBasis hold window (configurable; defaults shipped):
 
@@ -808,11 +888,11 @@ Per-LegalBasis hold window (configurable; defaults shipped):
 |---|---|---|---|
 | `NcmecCsam` / `PerceptualHashCsam` | Immediate (no hold) | None (mandatory reporting) | NCMEC CyberTipline |
 | `TvecTerrorist` / `GifctCip` | Immediate (no hold) | None (1-hour regulatory deadline) | TVEC + Christchurch Call |
-| `Dmca512` | 14 calendar days | `ReconsiderationRequest` (§512(g)) | DMCA §512 safe harbor |
-| `DsaArticle16` | 7 calendar days | `ReconsiderationRequest` (Art. 20) | DSA |
-| `OsaIllegalContent` | 14 calendar days | `ReconsiderationRequest` | UK OSA Ofcom guidance |
-| `AvmsdAgeInappropriate` | 7 calendar days | `ReconsiderationRequest` | EU AVMSD |
-| `CommunityStandards` | Per-cohort policy (default immediate) | `ReconsiderationRequest` | Per-cohort discipline |
+| `Dmca512` | 14 calendar days | `reconsideration:new_evidence` (§512(g)) | DMCA §512 safe harbor |
+| `DsaArticle16` | 7 calendar days | `reconsideration:new_evidence` (Art. 20) | DSA |
+| `OsaIllegalContent` | 14 calendar days | `reconsideration:new_evidence` | UK OSA Ofcom guidance |
+| `AvmsdAgeInappropriate` | 7 calendar days | `reconsideration:new_evidence` | EU AVMSD |
+| `CommunityStandards` | Per-cohort policy (default immediate) | `reconsideration:new_evidence` | Per-cohort discipline |
 | `CourtOrder` | Immediate (default) | Jurisdiction-specific appeal | Per-jurisdiction |
 
 **Business-day mapping note:** DMCA §512(g) specifies "10-14 *business*
@@ -831,49 +911,59 @@ protocol but with federation-cryptographic provenance throughout.
 
 ### 5.6 Substrate-level hash-matching
 
-For CSAM specifically, PhotoDNA-class perceptual hash matching
-happens at **every event that emits (or re-emits) a `holds_bytes`
-advertisement to federation scope** — NOT at the user's device.
-That is two classes of event, not one:
+Private content is never scanned. For CSAM, PhotoDNA-class
+perceptual hash matching runs only at the **scope-widening seam** —
+never on the user's device, never inside a private cohort (CC
+1.13.3.4). That seam has two forms:
 
-1. **Initial federation publish** — `put_blob_signing` at
-   `cohort_scope: federation` emits the first `holds_bytes:sha256:X`.
-2. **Scope-widening promotion** — a community→federation
-   `supersedes` Contribution (§8.1.5 promotion example) re-emits
-   `holds_bytes` for content that was previously cohort-scoped. This
-   is the seam where *spreading* happens — content leaving the cohort
-   it was born in and entering the public commons — and it is the
-   harm vector that creates new victims. Matching at this seam
-   recovers the spreading-correlated catches that a publish-only
-   tripwire would miss, **without** scanning content that stays
-   within its cohort.
+1. **Promotion into the Commons** — a scope-widening promotion
+   (a `supersedes` at the wider scope, CC 8.1.5) creates the
+   Contribution that is hash-matched at that seam (CC 1.13.3.4).
+   Promotion is the federation-emit moment (CC 5.3.2.4.2), and a
+   directory promotion runs as one promotion per file, each with its
+   own tripwire, so no collection-level crossing bypasses it (CC
+   3.1.3.4).
+2. **A post into a `public` room** — posting into a `public`
+   community is publication, and the tripwire runs on the post
+   exactly as on a promotion into the Commons, because a room anyone
+   may join would otherwise be the way around the seam (CC 3.2).
 
-In both cases the match fires at the federation handoff, NOT on the
-user's device. This is the architecturally-defensible line that
+This is the seam where *spreading* happens — content leaving the
+cohort it was born in and reaching anyone who asks — and it is the
+harm vector that creates new victims. Matching there recovers the
+spreading-correlated catches **without** scanning content that stays
+within its cohort (CC 1.13.3.4).
+
+In both cases the match fires at the publication seam, NOT on the
+user's device. This is the line that
 [Apple's NeuralHash 2021 proposal](https://arxiv.org/abs/2111.06628)
 failed to draw and that [Signal](https://signal.org/bigbrother/)
-correctly refuses on the user's device.
+refuses on the user's device.
 
 Implementation:
-* Operator-config: which hash databases to consult ([NCMEC's
+* Operator-config: which licensed hash databases to provision ([NCMEC's
   PhotoDNA](https://technologycoalition.org/resources/update-on-voluntary-detection-of-csam/),
   [Project Arachnid](https://protectchildren.ca/en/programs-and-initiatives/project-arachnid/),
-  [Meta's PDQ-open-source](https://github.com/facebook/ThreatExchange/tree/main/pdq))
-* On match at federation-handoff: refuse the `holds_bytes`
-  advertisement; emit a `takedown_notice` with `legal_basis:
-  perceptual_hash_csam`; trigger NCMEC reporting per US
-  jurisdiction; evict any existing copies via the per-actor
-  pathway
+  [Meta's PDQ-open-source](https://github.com/facebook/ThreatExchange/tree/main/pdq);
+  CC 4.5.7, CC 4.5.10.1)
+* On match at the seam: refuse the widening; emit a `takedown_notice`
+  with `legal_basis: perceptual_hash_csam`; the operator files the
+  NCMEC report; existing copies follow the tombstone path of §5.4
 
-Content that stays within its cohort (`self` / `family` /
-`community`) is never federation-propagated and so never
-hash-matched — same Signal-equivalent posture, and the foundation of
-the scope-native anonymity default ([CC 1.13.3.4](#)). The tripwire
-binds the *moment content widens to the public commons*, whether at
-first publish or at a later promotion seam — not the moment it is
-created. The defensible line: at the federation handoff, hash-match
-is substrate-protective; at the user's device, scanning is
-surveillance.
+Content that stays within its `self` or `family` cohort is never
+scanned at all; inside a bounded `community`, matching happens only
+where the group's `moderate`-holder enabled a per-group watchlist,
+which runs at the group's publish/share seam, is audited on every
+enable and match, and is never global (CC 4.5.7). This is what CC
+1.13.3.4 means by anonymity defaulting to the smallest cohort scope:
+content born at `self` / `family` / `community` is never advertised
+to outsiders. It is invisibility toward outsiders, not unobservability
+against a global passive adversary, which is not provided today;
+the planned anonymous tier (FSD/ANONYMOUS_TIER.md) is the opt-in path
+(CC 1.13.3.1, CC 1.13.3.4). CC also does not claim to detect harmful
+content inside private cohorts; the honest line is fails-secure
+governance (every community has a named moderator, CC 4.5.4) plus the
+tripwire at the seam, never private-content detection (CC 1.13.3.4).
 
 ## 6. Content encryption + key distribution
 
@@ -881,95 +971,76 @@ The substrate is intentionally agnostic about content encryption — it
 provides **identity** (federation keys) + **atomic delivery**
 (`put_blob_signing` + Contributions). Content-level encryption is an
 application-layer pattern that rides on top of the substrate's
-identity surface, parameterized by *who's authorized to read*.
+identity surface, parameterized by *who's authorized to read*. Two CC
+rules bound it: the substrate's own at-rest cascade for `self` /
+`family` content is operator policy and MAY be off, but when on it
+MUST wrap with `wrap_algorithm` v2, never v1 (CC 5.2); and every
+`key_grant` row carries v2 only (CC 3.3.2).
 
 ### 6.1 Three encryption postures, by content class
 
 | Content class | Encryption model | Substrate surface used |
 |---|---|---|
-| **Public** (encyclopedia, news, generally-published, PG-13 community/global) | **None at content level.** Bytes are hash-addressed cleartext. Substrate encrypts at rest via persist's AES-GCM (5.45 GiB/s; protects against disk theft). Access control = discovery + admission, not decryption. | put_blob_signing + holds_bytes; persist's at-rest encryption |
-| **Restricted-group** (CW community, family chat, members-only research) | **Group DEK + per-member-wrapped DEK**. Content body encrypted with random DEK; DEK wrapped under each member's federation pubkey. DEK rotates on membership change. | put_blob_signing for ciphertext + `key_grant` Contributions (§6.2) for wrapped DEKs |
+| **Public** (encyclopedia, news, generally-published, PG-13 community/global) | **None at content level.** Bytes are hash-addressed cleartext. Substrate encrypts at rest via persist's AES-GCM (5.45 GiB/s; protects against disk theft). Access control = discovery + admission, not decryption. | put_blob_signing + `custody:ack:v1` at federation scope (CC 3.1.3.3); persist's at-rest encryption. A `public` room is this tier too: plaintext, no DEK (CC 3.2) |
+| **Restricted-group** (CW community, family chat, members-only research) | **Group DEK + per-member-wrapped DEK**. Content body encrypted with random DEK; DEK wrapped under each member's registered encryption keys (X25519 + ML-KEM-768 from its current occurrence, not its signing keys; CC 3.3.2). DEK rotates on membership change. | put_blob_signing for ciphertext + one `key_grant:{axis}:v1` row per recipient (§6.2) for wrapped DEKs |
 | **Subscription / publisher-routed** (AdultHUB, OnlyFans, Netflix, paid community) | **Per-content DEK + per-subscriber-wrapped DEK**. Publisher generates DEK per content; wraps for each subscriber's pubkey when they're authorized; revocation = stop wrapping for revoked subscribers. | Same as restricted-group; usually with `BlobBody::External` for the ciphertext + key_grants for the DEKs |
-| **Person-to-person** (direct messages, self-scope addressed delivery) | **Ephemeral X25519 + AES-GCM** (Signal-class E2E). Single recipient, no DEK distribution needed beyond the sealed-envelope wrap. | Edge's `inline_text_pipeline` (Classify + Scrub + AES-GCM) extended for content carriage |
+| **Person-to-person** (direct messages, self-scope addressed delivery) | **Hybrid KEM (X25519 + ML-KEM-768) + AES-256-GCM.** Single recipient, no DEK distribution needed beyond the sealed-envelope wrap; the link beneath carries the hybrid transit seal (CC 5.3.3.5 E1). | Edge's `inline_text_pipeline` (Classify + Scrub + AES-GCM) extended for content carriage |
 
-### 6.2 The `key_grant` subject_kind (additive — 1+4 stays locked)
+### 6.2 The `key_grant` row (1+4 stays locked)
 
-A new Contribution subject_kind, additive to SCHEMA §3.1 (same shape
-as `takedown_notice` added in §5.1). **No new structural attestation
-primitive** — `key_grant` is a payload variant, not a 6th member of
-the 1+4 wire-format lockdown.
+The payload this section first sketched is now locked at CC 3.3.2.
+**No new structural attestation primitive**: a key wrap is one
+`scores` row **per recipient** on `key_grant:{axis}:v1`, `{axis}` ∈
+`content` | `epoch` | `stream` (closed), `attesting_key_id` the
+sealer and `attested_key_id` the recipient occurrence (CC 3.3.2). The
+rc6 "key-grant set" (N wraps in one row) is retired (CC 2.4).
 
-**Payload schema:**
+**Payload fields** (CC 3.3.2; see there for the normative shape):
 
 ```
 {
   "subject_kind": "key_grant",
-  "recipient_key_id": "<grantee federation pubkey b64>",
-  "content_sha256": "<sha256 of the ciphertext blob>",
-  "wrapped_dek": "<base64 — see §6.3>",
-  "wrap_algorithm": "x25519-aes256-gcm-hkdf-sha256",
+  "recipient_key_id": "<the federation_keys row receiving the DEK>",
+  "content_sha256": "<sha256 of the content this DEK decrypts>",
+  "wrapped_dek": "<base64url — the DEK under the recipient's ENCRYPTION keys>",
+  "wrap_algorithm": "x25519_mlkem768_aes256_gcm_hkdf_sha256",
   "ratchet_version": 1,
   "key_validity_window": {
-    "not_before": "<RFC 3339 datetime>",
-    "not_after":  "<RFC 3339 datetime or null>"
+    "start": "<RFC 3339 datetime>",
+    "end":   "<RFC 3339 datetime or null>"
   },
   "scope": "single_content" | "group_member" | "subscription_tier",
-  "scope_id": "<group_id or subscription_id, optional>",
-  "rotation_chain": ["<prior key_grant content_sha?>"]
+  "rotation_chain": ["<prior key_grant id in the grant-supersession lineage>"],
+  "asserted_at": "<RFC 3339 datetime>"
 }
 ```
 
-The Contribution envelope itself is signed by the grantor (publisher
-/ group admin / sender) with their federation key. The substrate
-admits the grant via the standard trust × capacity gate; the recipient
-fetches it via `ContentFetch` (or it's pushed via `Contribution{Submit}`
-addressed to recipient); the recipient's application unwraps the DEK
-locally and decrypts the referenced content.
+The row is signed by the grantor (publisher / group admin / sender)
+with their hybrid federation key. The recipient's application unwraps
+the DEK locally and decrypts the referenced content. A recipient with
+no registered ML-KEM key is excluded, fail-secure, never sent a
+classical-only wrap (CC 3.3.2, CC 5.2).
 
-### 6.3 The wrap algorithm — `x25519-aes256-gcm-hkdf-sha256`
+### 6.3 The wrap algorithm
 
-The wrap is hybrid (ephemeral DH key agreement + AEAD encryption of
-the DEK). Identical pattern to NaCl `crypto_box_seal` / libsodium
-sealed boxes / [HPKE RFC 9180](https://datatracker.ietf.org/doc/html/rfc9180)
-base mode.
+**Superseded at CC 1.0-rc9.** The first draft used an X25519-only
+wrap (`x25519-aes256-gcm-hkdf-sha256`) as v1 and left hybrid ML-KEM
+for later, arguing that the ciphertext-stealing horizon was further
+out than the signature-forging one. CC does not accept that: the DEK
+protects content that may persist indefinitely, so a classical-only
+KEM is a harvest-now-decrypt-later exposure (CC 5.1), and a
+`key_grant` row carries `wrap_algorithm` v2 only (CC 3.3.2).
 
-```
-For each (recipient_pubkey, DEK):
-  ephemeral_priv = random 32 bytes (curve25519 scalar)
-  ephemeral_pub  = X25519_basepoint × ephemeral_priv
-  shared        = X25519(ephemeral_priv, recipient_pubkey)
-  kek           = HKDF-SHA256(shared, salt = ephemeral_pub || recipient_pubkey, info = "cewp-key-grant/v1")
-  nonce         = random 12 bytes
-  ciphertext    = AES-256-GCM(kek, nonce, DEK)
-  wrapped_dek   = ephemeral_pub || nonce || ciphertext
-```
+The v2 wire string is `x25519_mlkem768_aes256_gcm_hkdf_sha256`:
+hybrid X25519 + ML-KEM-768 (FIPS 203) KEM, HKDF-SHA-256, AES-256-GCM
+(CC 3.3.2). The wire string is byte-compared and an unknown string is
+rejected, so a separator or case variant (including this draft's
+hyphenated form) does not decode (CC 3.3.2). A future v3 (ML-KEM-1024
+anticipated) is an additive row (CC 3.3.2).
 
-**Why this primitive set:**
-
-* X25519 is in [CIRISVerify](https://github.com/CIRISAI/CIRISVerify)
-  already (the Curve25519 ECDH that Reticulum uses at the transport
-  layer); reuses one primitive across substrate + content layers
-* AES-256-GCM is in CIRISVerify's `ring`-backed crypto crate at
-  5.45 GiB/s; wrapping cost is dominated by the X25519 op (~50 µs)
-* HKDF-SHA256 is shipped (548 ns per derivation)
-* No pairing-based or lattice primitives required at the wrap layer;
-  the structural attack surface is exactly the same as Signal sealed
-  sender / HPKE base mode (well-studied, deployed at scale)
-* **Substrate signature stays hybrid PQC (Ed25519 + ML-DSA-65)** —
-  the wrap is for the DEK; the Contribution carrying the wrap is
-  signed by the grantor's full hybrid key; long-term provenance is
-  PQC-secure
-
-**A note on PQC wrap:** v1 uses X25519 for the wrap because adding
-ML-KEM (FIPS 203) at the content-encryption layer is substantial new
-substrate work and the ciphertext-stealing horizon (the time after
-which past wraps could be retroactively decrypted by future quantum
-attackers) is much further out than the signature-forging horizon
-(which is why the substrate already signs hybrid). Wrap algorithm
-identifier in `wrap_algorithm` is versioned (`v1` = X25519; future
-`v2` could be hybrid X25519 + ML-KEM or pure ML-KEM); the
-substrate's existing primitive-rotation discipline (CEG §0.x → 0.(x+1)
-wire-breaks enumerated) handles future migration.
+The construction is the HPKE-style pattern (ephemeral key agreement,
+KDF, AEAD over the DEK) with the KEM made hybrid. The signature on
+the row stays hybrid (Ed25519 + ML-DSA-65).
 
 ### 6.4 Group key rotation for CW communities
 
@@ -997,8 +1068,11 @@ past message keys). For **full forward secrecy** (X cannot decrypt
 ANY past content after leaving), [MLS (RFC 9420)](https://datatracker.ietf.org/doc/html/rfc9420)
 tree-based ratcheting is the application-layer composition —
 implementable on top of the `key_grant` primitive but not required
-at the substrate level. Operators can choose: simple rotation
-(this FSD's v1) or MLS (a community-attestation extension layer).
+at the substrate level for stored community content. Operators can
+choose: simple rotation (this FSD's v1) or MLS (a community-attestation
+extension layer). For streams the choice is already made: the
+epoch-DEK rekey on member change is MLS TreeKEM, member removal forces
+a rotation, and each wrap is v2 (CC 5.1).
 
 ### 6.5 Per-subscriber wrap for publisher routes (AdultHUB / OnlyFans / Netflix)
 
@@ -1013,7 +1087,7 @@ For each content C:
   Publisher emits the content Contribution with content_sha256 = SHA(ciphertext).
 
 For each active subscriber S (at content publish time):
-  Publisher emits a key_grant Contribution to S under DEK_C with
+  Publisher emits a key_grant:content:v1 row to S under DEK_C with
   scope = "subscription_tier", scope_id = "<their subscription tier>".
 
 For each NEW subscriber S' (joining after content publish):
@@ -1041,21 +1115,25 @@ the publisher-side load fits per-server.)
 
 The §9 identity-aware-storage property of CEWP
 ([scaling model §9](FEDERATION_SCALING_MODEL.md))
-makes per-actor revocation of key_grants trivial — the substrate
-knows which key_grants were issued to which grantee key. Persist
-v3.5.0's `evict_actor(key_id)` (CIRISPersist#125) handles the
-case of mass-revocation (e.g., a subscriber's key is compromised
-and the publisher needs to invalidate all outstanding grants to
-that key in one operation).
+makes per-actor revocation of key_grants tractable — the substrate
+knows which key_grants were issued to which grantee key. When a
+publisher mass-retires grants tied to a compromised recipient, CC
+has it emit a fresh `key_grant` whose `rotation_chain` supersedes the
+prior grant, NOT a `withdraws` against it (CC 3.3.2). Persist's
+`evict_actor(key_id)`
+([CIRISPersist#125](https://github.com/CIRISAI/CIRISPersist/issues/125))
+handles the local storage side of the same operation.
 
 This is the cryptographic enforcement complement to the trust-graph
 admission gate. Together:
 * Trust gate refuses new admission of content from / to revoked
   parties
-* `evict_actor` retires existing key_grants to revoked parties
-* `withdraws`-against-`holds_bytes` propagates the content-side
-  eviction
-* `ReconsiderationRequest` reverses if the revocation was wrong
+* superseding grants (CC 3.3.2) retire key_grants to revoked
+  parties, and `evict_actor` drops their local rows
+* a bytes-plane tombstone propagates a content-side takedown (CC
+  4.5.3); a holder ends its own custody report itself (CC 3.1.3.3)
+* `reconsideration:{grounds}` reverses if the revocation was wrong
+  (CC 3.1.9.2)
 
 The substrate provides the complete revocation surface — at the
 discoverability layer, the admission layer, the eviction layer, and
@@ -1071,12 +1149,12 @@ already-shipped + this-FSD-extended primitives:
 | Trust depth (0/1/2/3) | `delegates_to` graph traversal via NodeCore trust-depth oracle | ✅ NodeCore#21 (this session) |
 | Cohort filter (local/community/global) | `cohort_scope` field at admission + UI feed selector | ✅ NodeCore Phase 2B compose surfaces |
 | Quality threshold | `compose_article_quality` aggregation thresholding | ✅ NodeCore #19 Phase 3 sub-1 |
-| Freshness decay | persist EvictionSweeper decay curve config | ✅ Persist v3.4.0 |
+| Freshness decay | persist EvictionSweeper decay curve config | ✅ CIRISPersist |
 | Content_rating filter | `content_rating:*` dimensions admitted at consumer threshold | This FSD |
 | Content_class filter | `content_class:*` dimension at consumer policy | This FSD |
 | CW community subscriptions | `delegates_to:cw_community:*` attestations | This FSD |
 | Trusted publisher subscriptions | `delegates_to:publisher:*` attestations | This FSD |
-| Age gate | `age_assurance:*` attestation + operator gate | This FSD |
+| Age gate | `age_assurance:*` / `age_self_declared:*` rows + the CC 3.4.11 protective gate (operators choose accepted verifiers) | CC 3.4.11, CC 3.4.13 |
 
 The user's algorithm is the tuple of these settings. Default
 presets (PG-13 family / standard adult / news-only / academic-only)
@@ -1106,10 +1184,10 @@ or equivalent metadata indicates AI generation but no
 substrate-level enforcement of the EU AI Act disclosure
 requirement.
 
-### 8.1 The §18 C2PA interop profile
+### 8.1 The C2PA interop profile
 
-CEG §18 ("speak CEG inside, standards at the edge") gives the
-canonical boundary profile for media provenance:
+CC 8.4.1 ("speak CEG inside, standards at the edge") and CC 8.4.2
+give the boundary profile for media provenance:
 **CEG cites [C2PA](https://c2pa.org/) manifests via `evidence_refs[]`
 — it does not re-encode them into the JCS interior.** The C2PA
 manifest stays in its own COSE-signed container; the CEG
@@ -1134,17 +1212,17 @@ CEG-native provenance encoding.
 
 | Regulation | What it requires | CEG-native mechanism |
 |---|---|---|
-| [US DMCA §512(c)(3)](https://www.copyright.gov/512/) | Notice/counter-notice, designated agent, expeditious removal | `takedown_notice` Contribution + `ReconsiderationRequest` |
+| [US DMCA §512(c)(3)](https://www.copyright.gov/512/) | Notice/counter-notice, designated agent, expeditious removal | `takedown_notice` Contribution + `reconsideration:new_evidence` |
 | [EU DSA Art. 16](https://www.cms-digitallaws.com/en/dsa/article-16/) | Notice mechanism, receipt confirmation, timely decision | `takedown_notice` + receipt-attestation timestamp + decision audit log |
-| [EU DSA Art. 20](https://eur-lex.europa.eu/eli/reg/2022/2065/oj/eng) | Internal complaint mechanism | `ReconsiderationRequest` pathway |
+| [EU DSA Art. 20](https://eur-lex.europa.eu/eli/reg/2022/2065/oj/eng) | Internal complaint mechanism | `reconsideration:{grounds}` pathway (CC 4.5.5) |
 | [EU TVEC 2021/784](https://www.europarl.europa.eu/news/en/press-room/20210422IPR02621/new-rules-adopted-for-quick-and-smooth-removal-of-terrorist-content-online) | 1-hour terrorist content removal | `takedown_notice` with `legal_basis: tvec_terrorist`; substrate-mandatory immediate eviction |
-| [UK OSA 2023](https://uklitigation.cooley.com/uk-online-safety-act-age-assurance-and-childrens-access-statement/) | Highly effective age assurance for harmful content | `age_assurance:provider:...:adult` from Ofcom-compliant provider |
+| [UK OSA 2023](https://uklitigation.cooley.com/uk-online-safety-act-age-assurance-and-childrens-access-statement/) | Highly effective age assurance for harmful content | `age_assurance:provider:adult:v1` from an Ofcom-compliant provider (CC 3.4.11) |
 | [France SREN](https://www.twobirds.com/en/insights/2024/france/la-loi-sren-et-la-protection-des-mineurs) | Double-anonymity age verification | `age_assurance:provider:*` pattern; provider attests against federation key, not real identity |
 | [EU AVMSD](https://digital-strategy.ec.europa.eu/en/policies/audiovisual-and-media-services) | Age verification proportionate to risk | Cohort-scope + content_rating + age_assurance composition |
-| [US COPPA](https://www.ftc.gov/legal-library/browse/rules/childrens-online-privacy-protection-rule-coppa) | Children's privacy under 13 | Substrate has no behavioral tracking; CEG locality dividend for under-13 substrates |
+| [US COPPA](https://www.ftc.gov/legal-library/browse/rules/childrens-online-privacy-protection-rule-coppa) | Children's privacy under 13 | Substrate has no behavioral tracking; CEG locality dividend; the CC 3.4.13 floor (treat-as-child-unless-assured, guardian co-sign under 16, no profiling of minors) |
 | [EU GDPR Art. 8](https://gdpr-info.eu/art-8-gdpr/) | Child consent age (13-16 per member state) | Same as COPPA — substrate doesn't process personal data for advertising |
 | [EU AI Act Art. 50](https://artificialintelligenceact.eu/article/50/) | AI-generated content disclosure | `authenticity:ai_generated` mandatory dimension |
-| [US KOSA (pending)](https://www.congress.gov/bill/118th-congress/senate-bill/1409) | Duty of care for minors | Substrate refuses engagement-optimization; user-controlled algorithm; PG-13 default at federation scope |
+| [US KOSA (pending)](https://www.congress.gov/bill/118th-congress/senate-bill/1409) | Duty of care for minors | Substrate refuses engagement-optimization; user-controlled algorithm; PG-13 default at federation scope; CC 3.4.13 under-18 baseline (no engagement-maximizing nudges, no profiling-based targeting) |
 | [Christchurch Call](https://www.christchurchcall.org/) / [GIFCT](https://gifct.org/) | Terrorist content removal coordination | `legal_basis: gifct_cip` substrate-mandatory takedown |
 | [NCMEC CyberTipline](https://www.missingkids.org/gethelpnow/cybertipline) | Mandatory CSAM reporting (US providers) | `legal_basis: ncmec_csam` substrate-mandatory takedown + report emission |
 
@@ -1172,12 +1250,13 @@ wire-format substrate the regulatory regime can plug into.
 
 ### 10.2 Persist
 
-* Substrate-level perceptual-hash check at `put_blob_signing` for
-  CSAM-class content (operator-config which hash databases to
-  consult; PhotoDNA / PDQ / Project Arachnid)
-* `takedown_notice` substrate enforcement on receive
-* `withdraws`-against-`holds_bytes` propagation already exists
-  (CEG §10.1.2); just wired up at the takedown_notice handler
+* Perceptual-hash check at the scope-widening seam (promotion into
+  the Commons, post into a `public` room; §5.6) and at enabled
+  per-group watchlists (operator provisions which hash databases;
+  PhotoDNA / PDQ / Project Arachnid; CC 4.5.7)
+* `takedown_notice` substrate enforcement on receive, under the
+  duty-holder gate (CC 4.5.3)
+* the bytes-plane tombstone at the takedown_notice handler (CC 4.5.3)
 
 ### 10.3 Edge
 
@@ -1194,9 +1273,9 @@ wire-format substrate the regulatory regime can plug into.
 
 ### 10.5 Registry
 
-* CEG §X.Y addition codifying the multimedia sub_kinds + content
-  classification + takedown_notice + age_assurance attestation
-  families
+* Done in CC: `takedown_notice` and `key_grant` (CC 3.3.2), the
+  multimedia dimension families (CC 3.3.12), age assurance (CC
+  3.4.11) and minor protection (CC 3.4.13)
 * 1+4 wire-format lockdown survives — this is all dimension
   additions + new subject_kinds, NOT new structural primitives
 
@@ -1204,8 +1283,8 @@ wire-format substrate the regulatory regime can plug into.
 
 * Default user-algorithm presets (PG-13 family / standard adult /
   news-only / academic-only / horror-CW / art-cinema-CW)
-* "I am not a child" gate UI implementation (operator-config which
-  provider; substrate provides the attestation surface)
+* Age-gate UI implementation (operator-config which providers; the
+  gate's rule is CC 3.4.11 and the minor floor CC 3.4.13)
 * CW community discovery + opt-in UX
 * Trusted publisher discovery + opt-in UX (PornHub / OnlyFans / etc.
   appear as discoverable publishers; user opts in via
@@ -1230,7 +1309,7 @@ This is the **CEG locality dividend** + the **per-consumer admission
 gate** doing the work.
 
 * 65% of typical activity never leaves your device (`cohort_scope`
-  wire field per [CEG §5](https://github.com/CIRISAI/CIRISRegistry/blob/main/FSD/CEG/05_namespace.md))
+  wire field, CC 2.1)
 * Every consumer applies their own admission gate: **trust × capacity
   at intake, popularity × freshness at eviction** (per
   [FEDERATION_SCALING_MODEL §3](FEDERATION_SCALING_MODEL.md))
@@ -1248,7 +1327,7 @@ is what makes CEWP a *moderator-of-record-not-required* substrate.
 `delegates_to` is a moderator from your perspective at the depth
 you've configured.
 
-* `delegates_to:{role}:{key_id}` per CEG §5 — `moderator`, `wa`,
+* `delegates_to:{role}:{key_id}` (CC 2.4.1.2) — `moderator`, `wa`,
   `expert_in:{cell}`, `publisher`, or any role
 * Trust recursion depth (operator-side config — see §4 above and
   [TRUST_HIERARCHY.md](TRUST_HIERARCHY.md)): depth 0 = self only;
@@ -1259,9 +1338,12 @@ you've configured.
   signal admission
 * A WA you trust in a domain is automatically a moderator for that
   domain — same primitive
-* Community moderators are emergent: a community is "people who
-  delegate to the same moderator key(s)" — no platform-level
-  appointment, no admin role, no instance-owner-bottleneck
+* Your personal moderators are emergent: no platform-level
+  appointment, no instance-owner bottleneck. A `community` is
+  different: it federates only while it has a named moderator
+  holding the `moderate` duty, named by its founder at creation and
+  replaced by merit auto-promotion if that moderator lapses; with no
+  eligible member it fails secure (CC 4.5.4)
 
 **This works whether or not you run an agent.** If you trust your
 kid's school's tech-coordinator at depth 1, their reports filter
@@ -1290,11 +1372,15 @@ substrate is moderation-shaped without it.
 When a `moderation_event` warrants formal action against another
 participant beyond what the trust graph already accomplishes:
 
-* P8 ModerationEvent (file with witness diversity per P10)
-* P9 SlashingAttestation (WA quorum adjudicates — PROVEN_ROGUE /
-  NOT_PROVEN)
-* P11 Reconsideration (universal appeal — NEW_EVIDENCE /
-  PROCEDURAL_ERROR / QUORUM_COMPROMISE)
+* P8 ModerationEvent — in CC, a `moderation:{allegation_type}` row
+  (file with witness diversity per P10)
+* P9 SlashingAttestation — `slashing:{outcome}` (`proven_rogue` /
+  `not_proven`), emitted under the `slash` duty
+* P11 Reconsideration — `reconsideration:{grounds}` (universal
+  appeal — `new_evidence` / `procedural_error` /
+  `quorum_compromise`), under the `review` duty
+* (all three are `scores` dimensions, CC 3.1.9.2; the duties are CC
+  4.5.5)
 * Locality-scaled-quorum per [FSD-002 §6.1.5](https://github.com/CIRISAI/CIRISRegistry/blob/main/FSD-002.md)
   — N scales with `cohort_scope`
 * RATCHET provides anti-Sybil advisory flags
@@ -1308,10 +1394,10 @@ notice.
 #### Layer 4 — Substrate-protective fast-path
 
 For TVEC / NCMEC / GIFCT / PerceptualHashCsam / CourtOrder —
-immediate removal, no counter-notice. DMCA / DSA Art 16 / OSA /
-community-standards go through counter-notice via P11. See §5.3
-above + [CEG §11.4](https://github.com/CIRISAI/CIRISRegistry/blob/main/FSD/CEG/11_governance.md)
-for the codified protocol.
+immediate removal, no counter-notice, still under the duty-holder
+gate. DMCA / DSA Art 16 / OSA / community-standards go through
+counter-notice via P11. See §5.3 above + CC 4.5.3 for the codified
+protocol.
 
 ### 11.2 Reporting IS first-class
 
@@ -1330,12 +1416,13 @@ pub async fn report_content<S: BlobStorage, C: ContributionStore>(
     rationale: String,
     evidence_refs: Vec<EvidenceRef>,
     witness_set: Option<Vec<WitnessId>>,    // P10; opt-in at filing time
-    stake_credits: Credits,                  // proportional to alleged harm
 ) -> Result<ContributionId, IngestError> {
     // Builds a Contribution(MODERATION_EVENT) per MISSION §2.8 P8
+    //   (a moderation:{allegation_type} row, CC 3.1.9.2)
     // Witness-diversity gate applies (P10) — high-stakes if
-    //   target_contribution holds Tier-2 dimensional claims or
-    //   non-trivial credits standing
+    //   target_contribution holds Tier-2 dimensional claims
+    // (The first draft's stake_credits parameter is removed: CC
+    //   carries no conserved balance as substrate state, CC 3.3.10.)
     // Returns the filed Contribution ID; WA-quorum adjudication
     //   proceeds via standard P8/P9 flow
 }
@@ -1349,7 +1436,6 @@ pub async fn report_actor<S: BlobStorage, C: ContributionStore>(
     rationale: String,
     evidence_refs: Vec<EvidenceRef>,
     witness_set: Option<Vec<WitnessId>>,
-    stake_credits: Credits,
 ) -> Result<ContributionId, IngestError>;
 ```
 
@@ -1451,24 +1537,25 @@ the agent no longer receives the queue.
 
 | Prior failure mode | What CEWP does instead |
 |---|---|
-| **Mastodon volunteer-admin bottleneck**: per-instance admins overworked, instance-owner is single point of failure ([Stanford 2023](https://stacks.stanford.edu/file/druid:vb515nd6874/20230724-fediverse-csam-report.pdf), [IFTAS 2024](https://about.iftas.org/2024/12/17/the-2024-iftas-needs-assessment-report-is-here/)) | No platform-level admin role. Layer 1 (self) + Layer 2 (trust graph) handle most cases at consumer-scale; Layer 3 (WA quorum) handles federation-scale; no single party is "the moderator." |
+| **Mastodon volunteer-admin bottleneck**: per-instance admins overworked, instance-owner is single point of failure ([Stanford 2023](https://stacks.stanford.edu/file/druid:vb515nd6874/20230724-fediverse-csam-report.pdf), [IFTAS 2024](https://about.iftas.org/2024/12/17/the-2024-iftas-needs-assessment-report-is-here/)) | No platform-level admin role. Layer 1 (self) + Layer 2 (trust graph) handle most cases at consumer-scale; Layer 3 (WA quorum) handles federation-scale. Each community has a named moderator, but the seat is merit-replaced on lapse and every action is gated and appealable, so no instance owner is a single point of failure (CC 4.5.4). |
 | **Bluesky labeler centralization**: a few labelers do most of the work; labeler keys become trust-monopolies | Labelers are just `delegates_to:moderator` participants; users compose multiple sources at any depth; no labeler is structurally privileged. |
 | **Reddit reputational ranking vs moderation conflation**: subreddit moderators are the people with the most time, not the most judgment | The trust graph is depth-bounded and the substrate doesn't reward time-spent; moderators are those the cohort actually delegates to. |
 | **YouTube/TikTok centralized policy + appeal-into-the-void**: Big Tech ToS as the law; appeals decided by the company that runs the platform | No central policy. Per-cohort discipline; P11 Reconsideration with fresh-quorum recusal as the universal appeal path. |
-| **Twitter/X owner-policy-shifts**: every change of ownership rewrites the rules | Substrate has no owner. Rule-layer changes route through CEG §11.2 (Contribution + witness + WA-quorum + 1-of-6 entrenchment for §11.2 itself). |
+| **Twitter/X owner-policy-shifts**: every change of ownership rewrites the rules | Substrate has no owner. Rule-layer changes route through the amendment process (CC 4.5.1: federation Contribution + WA quorum + 1-of-n sign-off), and the process itself is entrenched (CC 4.5.1.2). |
 | **Discord per-server-owner power**: server owners can do anything | No server-owner role exists at the substrate level; an operator hosts substrate but doesn't preside over its content discipline. |
 
 ### 11.7 Cross-references
 
 This section unifies pieces specified elsewhere:
 
-* [CEG §5](https://github.com/CIRISAI/CIRISRegistry/blob/main/FSD/CEG/05_namespace.md) — `cohort_scope` + `delegates_to`
-* [CEG §11.4 + §11.5](https://github.com/CIRISAI/CIRISRegistry/blob/main/FSD/CEG/11_governance.md) — fast-path takedown coordination + hash-database operator policy
+* CC 2.1 / CC 2.4 — `cohort_scope` + `delegates_to`
+* CC 4.5.3 + CC 4.5.10.1 — fast-path takedown coordination + hash-database access
+* CC 4.5.4 / CC 4.5.5 — named-moderator invariant; moderation as a delegable duty
 * [MISSION §2.8 / §2.9 / §2.10 / §2.11](../MISSION.md#primitive-8-moderation-event) — P8/P9/P10/P11 primitives
 * [FSD-002 §6.1.5](https://github.com/CIRISAI/CIRISRegistry/blob/main/FSD-002.md) — locality-scaled-quorum
 * [TRUST_HIERARCHY.md](TRUST_HIERARCHY.md) — recursion depth + transitive trust
 * §5 above — `takedown_notice` envelope
-* §4 above — operator-managed age gate
+* §4 above — the age gate (CC 3.4.11 floor, CC 3.4.13 minors)
 
 The `moderation_event` Contribution kind is the universal moderation
 envelope; `takedown_notice` is the substrate-protective fast-path
@@ -1479,31 +1566,31 @@ through the same API discipline §11.3 establishes.
 
 ### 12.1 Validates / adopts
 
-* [Bluesky / Ozone composable moderation](https://docs.bsky.app/blog/blueskys-moderation-architecture) — labels-as-signed-artifacts pattern → CEWP's takedown_notice + withdraws structure
+* [Bluesky / Ozone composable moderation](https://docs.bsky.app/blog/blueskys-moderation-architecture) — labels-as-signed-artifacts pattern → CEWP's open labeling + takedown_notice + tombstone structure (CC 4.5.5, CC 4.5.3)
 * [Nostr NIP-11 relay policy declaration](https://nips.nostr.com/11) — declare substrate discipline at protocol level → CEWP's per-cohort content discipline
 * [PornHub Dec 2020 verified-uploader purge](https://www.eff.org/deeplinks/2020/12/visa-and-mastercard-are-trying-dictate-what-you-can-watch-pornhub) → identity-aware uploads make per-actor eviction trivial
 * [OnlyFans Ondato-based verification](https://ondato.com/case-studies/onlyfans-case-study/) → provider-attestation pattern works
 * [Signal's defensible E2EE line](https://signal.org/bigbrother/) → self/family scope is the substrate's "we don't see, we don't carry" position
-* [PhotoDNA + PDQ at federation handoff](https://github.com/facebook/ThreatExchange/tree/main/pdq) → substrate-protective hash-matching at propagation event (NOT user device)
+* [PhotoDNA + PDQ at the publication seam](https://github.com/facebook/ThreatExchange/tree/main/pdq) → substrate-protective hash-matching at scope-widening promotion or a `public`-room post (NOT user device; CC 1.13.3.4)
 * [French SREN double-anonymity](https://www.twobirds.com/en/insights/2024/france/la-loi-sren-et-la-protection-des-mineurs) → provider attests against federation key, not real identity
-* [DMCA §512(g) counter-notice](https://www.copyright.gov/512/) → maps to existing CEG `ReconsiderationRequest`
+* [DMCA §512(g) counter-notice](https://www.copyright.gov/512/) → maps to `reconsideration:new_evidence` (CC 4.5.3)
 
 ### 12.2 Rejects / avoids
 
 * [Vidme ad-funded death](https://variety.com/2017/digital/news/vidme-shuts-down-video-app-1202628367/) → no ad-funded UGC substrate model; mission-locked AGPL
 * [DTube / Steem / LBRY token rewards → farming + SEC risk](https://knightcolumbia.org/blog/mapping-social-media-crypto-logic-platforms-and-the-cautionary-tale-of-steemit) → no monetization primitives at substrate layer
 * [BitChute "free speech" → extremist concentration](https://dl.acm.org/doi/10.1145/3710950) → positioning is "we don't centralize," not "we don't have rules"
-* [Stanford Mastodon CSAM finding](https://stacks.stanford.edu/file/druid:vb515nd6874/20230724-fediverse-csam-report.pdf) — volunteer per-instance moderation can't scale → substrate-level structural refusal + perceptual hash match at federation handoff
-* [Apple NeuralHash failure](https://arxiv.org/abs/2111.06628) — adversarial collisions on client-side scanning → hash-match at federation event, not user device
+* [Stanford Mastodon CSAM finding](https://stacks.stanford.edu/file/druid:vb515nd6874/20230724-fediverse-csam-report.pdf) — volunteer per-instance moderation can't scale → substrate-level structural refusal + named-moderator invariant (CC 4.5.4) + perceptual hash match at the publication seam
+* [Apple NeuralHash failure](https://arxiv.org/abs/2111.06628) — adversarial collisions on client-side scanning → hash-match at the publication seam, not user device
 * TikTok/YouTube engagement-optimization → no centralized recommender; user controls the algorithm
 
 ## 13. Open questions
 
-* **Live-streaming wire format details** — RESOLVED: realtime A/V is spec-complete in CEG 1.0 (0.13–0.15: SFrame + MLS RFC 9420; Edge `SealedAvChunk`/`ChunkLayer`, §2.8). The wire is FROZEN; only the N>1 multicast tier has a substrate-impl tail (CIRISPersist#142 / CIRISRegistry#34), deployment deferred to Phase 2.
-* **C2PA integration for image/video provenance** — RESOLVED by CEG §18 (§8.1 above): `authenticity:provenance_chain` cites [C2PA](https://c2pa.org/) manifests via `evidence_refs[]`, no second interior canonicalization; CEG judgment layers atop C2PA provenance (EU AI Act Art. 50 path).
-* **Perceptual hash database access** — PhotoDNA is gated to vetted orgs; PDQ is open-source; CEWP-operator-coordination for shared hash access at federation scale needs a Registry-side governance decision.
+* **Live-streaming wire format details** — RESOLVED: realtime A/V is specified in CC 5.3.3 (SFrame + MLS RFC 9420; Edge `SealedAvChunk`/`ChunkLayer`, §2.8). CC 8.3.3 records the N>1 multicast half as substrate-pending (CIRISPersist#142 / CIRISRegistry#34), deployment deferred to Phase 2.
+* **C2PA integration for image/video provenance** — RESOLVED by CC 8.4.2 (§8.1 above): `authenticity:provenance_chain` cites [C2PA](https://c2pa.org/) manifests via `evidence_refs[]`, no second interior canonicalization; CEG judgment layers atop C2PA provenance (EU AI Act Art. 50 path).
+* **Perceptual hash database access** — PhotoDNA is gated to vetted orgs; PDQ is open-source. CC 4.5.7 makes the licensed hash database operator-provisioned and unshippable, and CC 4.5.10.1 records the access landscape; shared access at federation scale is still open.
 * **CW community vs trusted-publisher tradeoff** — both paths can route adult content; do they coexist (yes per this FSD) or should one be the canonical pattern? Current answer: both coexist; CW communities for community-of-interest; publishers for one-to-many.
-* **Operator coordination for fast-path takedowns** (TVEC 1-hour, GIFCT CIP) — needs Registry-side cross-operator notification protocol; sketched in this FSD but specification belongs in CEG governance §11.
+* **Operator coordination for fast-path takedowns** (TVEC 1-hour, GIFCT CIP) — specified at CC 4.5.3 (notice admission, tombstone, per-basis dispatch, audit).
 
 ## 14. References
 
@@ -1511,9 +1598,9 @@ through the same API discipline §11.3 establishes.
 
 * [CEWP.md](CEWP.md) — platform identity
 * [FEDERATION_SCALING_MODEL.md](FEDERATION_SCALING_MODEL.md) — substrate scaling
-* [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) — v2 deniability path
+* [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) — the planned opt-in anonymous tier (CC 1.13.3.1; not yet shipped)
 * [SCHEMA.md §4.29](../SCHEMA.md) — existing external_content
-* [CEG 1.0-RC29](https://github.com/CIRISAI/CIRISRegistry/tree/main/FSD/CEG) — wire-format authority
+* [CIRIS Constitution 1.0-rc9](https://github.com/CIRISAI/CIRISConstitution/tree/v1.0-rc9/constitution) — wire-format authority (tag `v1.0-rc9`)
 
 ### External — moderation architecture prior art
 

@@ -1,45 +1,63 @@
 # FSD: Anonymous Tier (the opt-in GPA-unobservability path)
 
-**Status:** design — the opt-in tier for the strongest threat model.
-  **Anonymity itself is the default** (CC 1.13.3.4): cohort-scoped
-  confidentiality + structural initiator-anonymity are on by default
-  at every scope below federation. This FSD is *only* the residual
-  opt-in: full unobservability against a global passive adversary at
-  federation (public-commons) scope.
+**Status at CC 1.0-rc9: planned opt-in tier; implementation expected
+soon (steward ruling, 2026-10-21).** CC 1.13.3.1 names it ("the
+CIRISNodeCore Anonymous Tier, Sphinx onion routing") as the separate,
+opt-in mechanism for deployments that need resistance to a global
+passive adversary at federation scope, and CC 1.13.3.3 says such a
+deployment MUST layer it. It is not yet specified normatively in CC
+and not yet shipped. It is opt-in, not a default. This document is the
+plan of record. It must meet the bar CC 5.4.6 sets for multi-hop
+reach: no outsider-observable emission, no outsider-retained path
+state, no epoch-correlated wave, and rotation clocks global, never
+group-event-driven (CC 5.4.6 names the Tor v3 / I2P b33
+blinded-retained-state family as the nearest admissible relaxation).
+Reconciled to the CIRIS Constitution 1.0-rc9 (tag `v1.0-rc9`); where
+this document and CC differ, CC wins.
+
+**What the tier is for.** The CC 1.13.3.1 residual:
+unobservability against a global passive adversary at federation
+(public-commons) scope. As planned (3-hop onion routing, blinded keys,
+AEAD, rendezvous) it hides the publisher's network origin and identity
+from holders, the directory and a subpoena; it does **not** by itself
+defeat a global passive adversary, which §1 and §2.4 below exclude.
+Closing that residual would need the costs CC 1.13.3.4 names for it:
+onion-routing latency, mixing and dedicated cover. Earlier versions of
+this header claimed full GPA-unobservability while §2.4 disclaimed it;
+the header is corrected to match §2.4.
+
+**What CC provides without this tier.** Anonymity toward outsiders
+defaults to the smallest cohort scope; federation scope is the opt-in
+(CC 1.13.3.4). Content born and living at `self` / `family` /
+`community` emits no holding claim outside its cohort (CC 5.2), and
+group destinations are derived, never announced, so a group's
+existence is invisible to non-members (CC 5.4.6). The identity plane
+is public and makes no anonymity claim (CC 5.4.6 *Position*); a
+joining device is "unowned but never anonymous" (CC 3.2, adding a
+device, (e)). See [SCOPE_PRIVACY.md](SCOPE_PRIVACY.md). Earlier
+versions of this header described "structural initiator-anonymity" as
+on by default; CC rc9 binds the initiator's key into every sealed
+link (CC 5.3.3.5 E1), so that phrase is withdrawn here.
+
 **Companion:** [FEDERATION_SCALING_MODEL.md §9.9](FEDERATION_SCALING_MODEL.md)
 **Threat model:** totalitarian government coercing a node operator
   or subpoenaing the federation directory to identify dissident
   publication.
 
-**The default already protects most of humanity.** Per CC 1.13.3.4,
-content born and living at `self` / `family` / `community` is never
-advertised to outsiders (the structural-invisibility primitive), so
-structural anonymity-to-outsiders is the protective default — a
-deliberate correction of opt-in-anonymity, which weakens protection
-precisely for the non-savvy vulnerable. What this FSD adds is the one
-protection the default does **not** buy: federation-scope
-unobservability against an adversary observing every network link.
-That is genuinely costly (onion latency) and only reached by an
-operator already publishing to the public commons.
-
-**Default-promotion cost (the provisional line).** CC 1.13.3.4 marks
-the opt-in boundary as provisional — it MAY move toward default as
-the overhead is measured. The model's first-order read: a 3-hop
-Sphinx default is **bandwidth-free in practice** (3× relay
-amplification + a fixed ~512 B onion header, riding the substrate's
-near-zero bandwidth headroom — ~0% of the 10.8 TB/day per-server
-gate) and **latency-bound** (≈ +`hops × per-hop-RTT` one-way; ~+165 ms
-for a 3-hop regional circuit, up to ~+585 ms global). So the line can
-move to default for **every async class** (publish / fetch /
-governance / messaging); **realtime A/V** is the one class that must
-stay opt-in or use a short curated circuit. Tune it in the
-[interactive toy](../toy/index.html).
+**The provisional line.** CC 1.13.3.4 marks the default/opt-in
+boundary as provisional: as the overhead of GPA-resistance is
+measured, the line MAY move toward making more of it default, for
+example for individual federation-scope publishers. CC rc9 has not
+moved it. An earlier CEWP model estimate of the latency and bandwidth
+cost of a 3-hop default is in the [interactive toy](../toy/index.html);
+it is a model, not a measurement, and CC does not cite it.
 
 The mental model: cohort scopes are the **rooms of your house**
-(private by default); federation scope is the **public square**; this
-tier is the **anonymous remailer** you reach the square through when
-the square itself is watched. The default builds the private house;
-this FSD adds the remailer. Neither breaks the other.
+(private toward outsiders by default); federation scope is the
+**public square**; this tier is the **anonymous
+remailer** you reach the square through when the square itself is
+watched. The default builds the private house; this tier adds the
+remailer, opt-in.
 
 ---
 
@@ -58,7 +76,7 @@ adversary can:
 
 The protected party is the **publisher** (a dissident, journalist,
 whistleblower) and the **operator** (who must be able to truthfully
-claim: "I don't know who's content is on my disk because the
+claim: "I don't know whose content is on my disk because the
 substrate itself prevents me from knowing").
 
 Out of scope for this FSD: traffic analysis attacks beyond the
@@ -71,7 +89,7 @@ publisher's own device.
 
 The anonymous tier is **NOT** intended to:
 
-1. **Replace the identity-aware substrate.** The v1 substrate's
+1. **Replace the identity-aware substrate.** The substrate's
    trust-enforceability, abuse-handling, and per-actor eviction
    properties are load-bearing for federation-scale trust contexts.
    The anonymous tier does not weaken any of those.
@@ -80,36 +98,41 @@ The anonymous tier is **NOT** intended to:
    keys; trust-weighted admission is structurally impossible. The
    only admission gate is capacity (LRU eviction).
 3. **Hide the existence of the substrate itself.** Anonymous-tier
-   participation is publicly observable at the protocol level — what's
+   participation is publicly observable at the protocol level; what's
    hidden is *which records belong to which publication*, not *that
    the operator runs the substrate*. This is the Tor-relay posture:
    you publicly run Tor; you privately have no idea which onion
    services use your relay.
 4. **Defeat global passive adversaries.** Traffic analysis at
-   network-monitor scale is outside the substrate's threat model
-   (it's outside Tor's too).
+   network-monitor scale is outside this design's threat model (it's
+   outside Tor's too). This is why the header above does not claim
+   GPA-unobservability for the tier as currently planned.
 
 ## 3. Wire format additions
 
-The v1 CEG 1+4 wire format (scores attestation + delegates_to /
-supersedes / withdraws / recants structural primitives) **stays
-locked**. The anonymous tier is additive — a parallel record class.
+The original draft made the tier additive: parallel record classes
+beside the existing ones. **At CC 1.0-rc9 that shape is closed.** The row-type
+slot admits exactly the five primitives (`scores`, `delegates_to`,
+`supersedes`, `withdraws`, `recants`), a substrate MUST refuse any
+other row type at admission, and the rc6 "carrier" class is gone
+(CC 2.4). Implementing the records below therefore needs an amendment to
+CC 2.4 (or an expression inside the five), not an additive extension.
 
 ### 3.1 `AnonymousContribution`
 
-Parallel to the v1 `Contribution` envelope, with the identity-
+Parallel to the `Contribution` envelope, with the identity-
 attribution surface replaced by cryptographic blinding:
 
 ```
 AnonymousContribution {
-  // Same as v1 Contribution
+  // Same as Contribution
   contribution_id: ULID,
   contribution_type: ContributionType,
   subject: Cell,
   payload: JSON,
   submitted_at: DateTime,
 
-  // Different from v1
+  // Different from Contribution
   blinded_signing_key: Ed25519PubKey,   // ← per-publication, NOT author_id
   signature: HybridSignature,           // ← signed by blinded key
   rendezvous_token: Bytes,              // ← Signal-style delivery token OR
@@ -127,8 +150,13 @@ keys, unlinkable without the underlying anonymity identity.
 
 ### 3.2 `AnonymousHoldsBytes`
 
-Parallel to the v1 `holds_bytes:sha256:{prefix}` attestation, with
-`attesting_key_id` replaced by a node-blinded key:
+Drafted as a parallel to the `holds_bytes:sha256:{prefix}`
+attestation, with `attesting_key_id` replaced by a node-blinded key.
+**`holds_bytes` is retired** (rc7): the one holding claim at every
+tier is `custody:ack:v1`, placed at the content's own scope, with a
+72-hour freshness window as the row's `expires_at` (CC 3.1.3.3; CC 2.4
+records why the carrier class is not to be reinvented). The
+implementation has to restate it against `custody:ack:v1`.
 
 ```
 AnonymousHoldsBytes {
@@ -137,7 +165,8 @@ AnonymousHoldsBytes {
   node_blinded_key: Ed25519PubKey,   // ← per-blob, NOT operator's identity
   signature: HybridSignature,        // ← signed by node-blinded key
   asserted_at: DateTime,
-  expires_at: DateTime,              // ← same 24h TTL discipline (§10.1.2)
+  expires_at: DateTime,              // ← drafted as a 24h TTL; the rc9
+                                     //   custody:ack:v1 window is 72h
 }
 ```
 
@@ -150,16 +179,14 @@ identity.
 
 ### 3.3 No new structural primitives
 
-The CEG 1+4 wire-format lockdown survives. `withdraws` /
-`supersedes` / `delegates_to` / `recants` do NOT have anonymous
-counterparts — those primitives are intrinsic to the trust graph,
-which the anonymous tier explicitly does not have. Anonymous
+`withdraws` / `supersedes` / `delegates_to` / `recants` do NOT have
+anonymous counterparts; those primitives are intrinsic to the trust
+graph, which the anonymous tier explicitly does not have. Anonymous
 content is evicted by LRU; there is no anonymous-tier governance.
 
 ## 4. Cryptographic primitive set
 
-Four primitives, all standard, all already in CIRIS's crypto stack
-or trivially additable:
+Four primitives, all standard:
 
 ### 4.1 Ed25519 key blinding (Tor v3 model)
 
@@ -168,8 +195,11 @@ a time period or per-publication nonce. Different records from
 the same anonymity identity use unlinkable blinded keys.
 
 * Anchor: [Tor rend-spec-v3 §A.2 Key Derivation](https://spec.torproject.org/rend-spec/deriving-keys.html)
-* Already present: CIRISVerify v2.8.0 ships Ed25519 sign/verify
+* Already present: CIRISVerify ships Ed25519 sign/verify
 * New work: the blinding derivation function + period-rotation policy
+* rc9 constraint: every federation record is signed Ed25519 +
+  ML-DSA-65 (CC 5.3.3.5 E1, citing CC 2.6.1.2). An Ed25519-only
+  blinded key would not meet that; see §9 question 8.
 
 ### 4.2 AEAD payload encryption (Veilid model)
 
@@ -178,9 +208,9 @@ period)` so the storage node never sees the underlying key. The
 storage node holds opaque ciphertext.
 
 * Anchor: [Veilid: Cryptography](https://veilid.com/how-it-works/cryptography/)
-* Already present: CIRISVerify v2.8.0 ships AES-256-GCM via `ring`
-  (5.45 GiB/s). XChaCha20-Poly1305 is a separate cipher; either
-  works (AES-GCM is faster on hardware AES; ChaCha is faster on
+* Already present: CIRISVerify ships AES-256-GCM, and
+  XChaCha20-Poly1305 is the CC 5.4.2 symbol AEAD. Either works
+  (AES-GCM is faster on hardware AES; ChaCha is faster on
   embedded). Decision deferred to §9.
 * New work: the subcredential-derivation KDF
 
@@ -192,70 +222,82 @@ private routes (3-hop onion-encrypted route blobs).
 
 * Anchor: [Sphinx packet format paper (Danezis & Goldberg)](https://www.cypherpunks.ca/~iang/pubs/Sphinx_Oakland09.pdf),
   [Veilid: Private Routing](https://veilid.com/how-it-works/private-routing/)
-* Already present: none — this is the most substantial v2 addition
+* Already present: none; this is the most substantial addition
 * New work: a new transport class alongside Reticulum + HTTPS in
   edge. Sphinx is well-specified and has reference implementations
   (Lightning's onion routing is a direct adaptation). 3-hop default.
+* rc9 constraint: every byte an edge sends over an RNS link is under
+  the hybrid per-link transit seal, all or nothing (CC 5.3.3.5 E1).
+  CC 5.4.6 sets the bar any multi-hop amendment must meet for
+  group-scoped destinations: no outsider-observable emission, no
+  outsider-retained path state, no epoch-correlated wave.
 
 ### 4.4 Discoverability rendezvous
 
 Either model is workable:
 
-* **Signal model** — recipient-derived 96-bit delivery token from
+* **Signal model**: recipient-derived 96-bit delivery token from
   the recipient's profile key. Targeted publication (publisher
   knows who they're sending to).
-* **Tor model** — time-rotated blinded index. Open publication
+* **Tor model**: time-rotated blinded index. Open publication
   (anyone deriving the right blinded key from public material +
   time can find the record).
 
-Both serve different use cases (targeted vs broadcast); we may
-support both in v2.
+Both serve different use cases (targeted vs broadcast); a design
+could support both. CC 5.4.6 adds a rule for any rotation in this
+family: rotation clocks must be global, never group-event-driven.
 
 * Anchors: [Signal: Sealed Sender](https://signal.org/blog/sealed-sender/),
   [Tor rend-spec-v3 §B.2 HSDir indexing](https://spec.torproject.org/rend-spec/deriving-keys.html)
 * New work: the rendezvous protocol + how the substrate routes
-  rendezvous queries (probably a parallel directory namespace —
+  rendezvous queries (probably a parallel directory namespace,
   `federation_anonymous_rendezvous` table or similar)
 
-## 5. Substrate impact
+## 5. Substrate impact (planned)
 
 ### 5.1 Persist
 
 A parallel storage surface for opaque-blinded records:
 
-* **New table:** `federation_anonymous_blobs` — opaque blob storage
+* **New table:** `federation_anonymous_blobs`: opaque blob storage
   indexed by SHA256, no signer attribution. Same `BlobBody` type as
   `federation_blobs`.
 * **New trait method on `BlobStorage`:** `put_anonymous_blob(sha,
-  body, media_type, blinded_signature)` — no trust-score lookup,
+  body, media_type, blinded_signature)`: no trust-score lookup,
   capacity-only admission. Eviction is LRU-only since there's no
   attestation chain to score popularity against.
-* **New table:** `federation_anonymous_attestations` — holds
+* **New table:** `federation_anonymous_attestations`: holds
   `AnonymousHoldsBytes` records. Indexed by `blob_sha256` (so
   `list_holders` works) but with `node_blinded_key` instead of
   `attesting_key_id`. Each entry is independently unlinkable from
   every other.
 * **No `TrustScoring` consultation.** Admission is purely capacity.
-  Eviction is purely LRU + 24h TTL on the holder advertisement.
+  Eviction is purely LRU + the holder advertisement's TTL.
+
+At rc9 this conflicts with the holder-inspectability principle: a
+node never holds bytes it does not know what they are, and "nothing is
+ever an opaque blob held by a stranger" (CC 4.4.3.2.1). Capacity-only
+admission of opaque federation-scope ciphertext is exactly the case
+that principle excludes; the implementation has to answer it (§9 question 9).
 
 ### 5.2 Edge
 
-* **New transport class** — Sphinx-onion-routed delivery alongside
+* **New transport class**: Sphinx-onion-routed delivery alongside
   Reticulum + HTTPS. Likely a separate cargo feature.
-* **New MessageType** — `AnonymousContributionSubmit` carrying the
+* **New MessageType**: `AnonymousContributionSubmit` carrying the
   onion-routed payload + rendezvous token.
-* **New handler** — receives `AnonymousContributionSubmit`,
+* **New handler**: receives `AnonymousContributionSubmit`,
   verifies the blinded-key signature, calls
   `persist::put_anonymous_blob`. No trust-score gate.
 * **Cohort scope:** anonymous content is conceptually `federation`
   scope (publishable to anyone who knows the rendezvous), but the
-  scope field is meaningful only for the v1 substrate's
+  scope field is meaningful only for the substrate's
   discoverability gate. The anonymous tier's discoverability is
   out-of-band.
 
 ### 5.3 NodeCore
 
-* **New `#[pyfunction]`** — `publish_anonymously(content_bytes,
+* **New `#[pyfunction]`**: `publish_anonymously(content_bytes,
   rendezvous_recipient_pubkey | rendezvous_period, signer)`.
   Internally:
   1. Derive blinded signing key from `signer` + nonce
@@ -263,97 +305,85 @@ A parallel storage surface for opaque-blinded records:
   3. Construct `AnonymousContribution` envelope
   4. Sign with blinded key
   5. Hand to edge for onion-routed delivery
-* **No replication policy** — same as v1, node-core produces wire
-  artifacts; substrate decides where they live.
+* **No replication policy**: node-core produces wire artifacts; the
+  substrate decides where they live.
 
-## 6. Deployment posture — MANDATORY infrastructure
+## 6. Deployment posture (planned)
 
-**The anonymous tier must be MANDATORY substrate-level
-infrastructure that every L0/L1 server runs**, indistinguishably
-from operators who happen to be holding more anonymous records vs.
-fewer.
+The plan is that, once specified in CC and shipped, the anonymous
+tier is substrate-level infrastructure that every L0/L1 server runs,
+indistinguishably from operators who happen to be holding more
+anonymous records vs. fewer. Publishing through it stays opt-in per
+publication; running it is what the plan makes universal. CC rc9 does
+not yet require any node to run it.
 
-This is non-negotiable for the threat model. If only some operators
-run the anonymous tier, those operators become identification
+The reasoning: if only some
+operators ran the tier, those operators would become identification
 targets (raid the nodes that run the deniable storage). The
-operator's deniability is **"I'm running the standard substrate; I
-have no way to know which records on my disk belong to which
-publication"** — which only works if running the standard substrate
-necessarily includes the anonymous tier.
+operator's deniability ("I'm running the standard substrate; I have
+no way to know which records on my disk belong to which publication")
+only works if running the standard substrate necessarily includes the
+tier. This is the Tor relay posture: every Tor relay runs the same
+code regardless of which onion services it happens to be holding
+descriptors for.
 
-This is the Tor relay posture: every Tor relay runs the same code
-regardless of which onion services it happens to be holding
-descriptors for. Operators cannot opt out without ceasing to be
-substrate operators.
+**Operator-side capacity budgeting** is part of the plan:
+operators configure how much of their disk goes to
+anonymous-tier storage vs. identity-aware storage, with the protocol
+running both.
 
-**Operator-side capacity budgeting** is allowed and expected:
-operators can configure how much of their disk goes to anonymous-
-tier storage vs. v1 storage. But the *protocol* runs both.
+### 6.1 Interplay with fountain storage and the noise floor
 
-### 6.1 Holonomic interplay — the §19 substrate is BLIND to this tier
-
-CEG 1.0-RC29 absorbed the §19 holonomic substrate (RaptorQ fountain
-storage, WholenessWitness, deterministic ALM, the unified
-retirement → noise-floor model). That substrate is **load-bearing
-for the v1 identity-aware tier and structurally blind to the
-anonymous tier** — by CEG §19.5 fail-secure design, the holonomic
-mechanisms are subordinate to consent/revocation, gated by
-owner-binding, and PQC-mandatory; none of those hooks exist for a
-blinded-key record, so the holonomic layer cannot act on it:
+The substrate's fountain storage (RaptorQ symbols under the CC 5.4.2
+group-keyed AEAD; CC 6.1.5) and the noise floor (CC 6.1.2) operate on
+the identity-aware tier. As planned, the anonymous tier sits outside
+both:
 
 * **Exempt from swarm / fountain retention.** Anonymous-tier blobs
-  are NOT RaptorQ erasure-coded into the holographic swarm. Fountain
-  replication keys on `attesting_key_id` + the witness chain, which
-  the anonymous tier deliberately lacks (`AnonymousHoldsBytes` has a
-  per-blob `node_blinded_key`, not a federation identity). An
-  anonymous blob lives only where its (capacity-only, LRU) holders
-  put it; it does not fan out as fragments across the fountain swarm.
-  This is intentional: holographic any-K reconstruction would
-  manufacture exactly the cross-holder linkage the blinding severs.
-* **Blind to the memory pyramid.** The §19.7 noise-floor descent +
-  O(log T) memory pyramid operate over the identity-aware corpus.
-  Anonymous records retire by LRU + 24h holder-TTL only (§5.1);
-  there is no pyramid aggregation, no collective-gist tier, no
-  monotonic descent the holonomic sweeper drives — because there is
-  no scoreable identity to drive it.
+  are not RaptorQ-coded into the swarm. Fountain addressing is
+  group-keyed (CC 5.4.1, CC 5.4.2) and holding claims are
+  `custody:ack:v1` rows signed by the holding device (CC 3.1.3.3),
+  which the anonymous tier deliberately lacks. An anonymous blob
+  lives only where its (capacity-only, LRU) holders put it. This is
+  intentional: any-K reconstruction across holders would manufacture
+  exactly the cross-holder linkage the blinding severs.
+* **Outside the noise-floor descent.** The CC 6.1.2 retirement model
+  operates over the identity-aware corpus. Anonymous records retire by
+  LRU + holder-TTL only (§5.1), because there is no scoreable identity
+  to drive descent.
 
 ### 6.2 The noise floor and the threat model
 
-The §19.7 **noise floor** is the individual-recoverability boundary:
-content that is revoked or withdrawn descends below it and becomes
-individually unrecoverable while only the collective gist persists.
-That boundary is itself a privacy primitive for the *identity-aware*
-tier — a v1 publisher who `withdraws` content drives it below the
-noise floor, where no holder can reconstruct the individual item.
-For the totalitarian threat model this matters two ways:
+The CC 6.1.2 **noise floor** is the individual-recoverability
+boundary: content that is revoked or withdrawn descends below it and
+becomes individually unrecoverable while only the collective gist
+persists. That boundary is itself a privacy primitive for the
+identity-aware tier. For the totalitarian threat model this matters
+two ways:
 
-* For v1 content, the noise floor means revocation is durable
-  against a later-coercing adversary: once an item has descended,
-  the holographic swarm cannot resurrect the individual bytes from
-  the surviving gist. Revocation is not "tombstone it and hope" — it
-  is descent below recoverability.
+* For identity-aware content, revocation is durable against a
+  later-coercing adversary once an item has descended.
 * For genuinely deniable publication (dissident / journalist /
   whistleblower under §1's state-level adversary), the noise floor
-  is **not** the mechanism — the anonymous tier is, because the
-  noise floor still admits forensic recovery of an item *above* it
-  by a holder who is coerced. The anonymous tier's compelled-
-  disclosure resistance (operator cryptographically cannot decrypt)
-  is the stronger guarantee; the noise floor complements it for v1
-  content but does not substitute for blinding.
+  is **not** the mechanism, because it still admits forensic recovery
+  of an item *above* it by a holder who is coerced. The anonymous
+  tier's compelled-disclosure resistance (operator cryptographically
+  cannot decrypt) would be the stronger guarantee; the noise floor
+  complements it but does not substitute for blinding.
 
-## 7. What the anonymous tier CAN and CANNOT do
+## 7. What the anonymous tier CAN and CANNOT do (planned)
 
-| Property | v1 identity-aware (main path) | v2 anonymous tier |
+| Property | Identity-aware (main path) | Anonymous tier (planned) |
 |---|---|---|
-| Trust-weighted admission | Yes | **No** — no identity to score |
-| Per-actor eviction | Yes | **No** — operator can't selectively evict; LRU only |
-| Operator-side governance | Yes | **No** — operator holds opaque ciphertext |
-| Trust graph observable | Yes (by design) | **No** — blinded keys are unlinkable |
-| Compelled-disclosure resistance | Limited (operator can be compelled to query their index) | **Strong** — operator cryptographically cannot decrypt |
-| Abuse handling | Trust + slashing | LRU + capacity gating only |
+| Trust-weighted admission | Yes | **No**: no identity to score |
+| Per-actor eviction | Yes | **No**: operator can't selectively evict; LRU only |
+| Operator-side governance | Yes | **No**: operator holds opaque ciphertext |
+| Trust graph observable | Yes (by design) | **No**: blinded keys are unlinkable |
+| Compelled-disclosure resistance | Limited (operator can be compelled to query their index) | **Strong**: operator cryptographically cannot decrypt |
+| Abuse handling | Trust + adjudication | LRU + capacity gating only |
 | Discoverability | Federation directory | Out-of-band rendezvous (token or blinded index) |
-| Wire format | `Contribution` + `holds_bytes` | `AnonymousContribution` + `AnonymousHoldsBytes` |
-| CEG 1+4 lockdown | Maintained | Maintained — parallel record classes are additive |
+| Wire format | `Contribution` + `custody:ack:v1` holding claims (CC 3.1.3.3) | `AnonymousContribution` + `AnonymousHoldsBytes` |
+| CC 2.4 row-type slot | The five | Would require amending CC 2.4 (the slot is closed) |
 
 ## 8. Prior art mapping
 
@@ -362,7 +392,7 @@ Each anonymity primitive maps to an existing well-specified design:
 | Primitive | Reference design | Status in CIRIS today |
 |---|---|---|
 | Per-publication blinded keys | [Tor rend-spec-v3](https://spec.torproject.org/rend-spec/deriving-keys.html) | Ed25519 sign/verify present; blinding derivation new |
-| AEAD with subcredential | [Veilid](https://veilid.com/how-it-works/cryptography/), [Tor §B.2](https://spec.torproject.org/rend-spec/hsdesc-encrypt.html) | AES-GCM present; XChaCha20-Poly1305 + KDF new |
+| AEAD with subcredential | [Veilid](https://veilid.com/how-it-works/cryptography/), [Tor §B.2](https://spec.torproject.org/rend-spec/hsdesc-encrypt.html) | AES-GCM and XChaCha20-Poly1305 present; subcredential KDF new |
 | Onion-routed transport | [Sphinx packet format](https://www.cypherpunks.ca/~iang/pubs/Sphinx_Oakland09.pdf), [Veilid private routes](https://veilid.com/how-it-works/private-routing/) | New transport class |
 | Sender deniability | [Signal sealed sender](https://signal.org/blog/sealed-sender/) | New rendezvous protocol |
 | Time-rotated index | [Tor rend-spec-v3 §B.2](https://spec.torproject.org/rend-spec/deriving-keys.html) | New rendezvous protocol |
@@ -371,67 +401,71 @@ Each anonymity primitive maps to an existing well-specified design:
 specified, and has multiple reference implementations.
 
 The composition (parallel paths on a single substrate, opt-in per
-publication) is what's new — but the composition itself has prior
-art (Signal runs sealed-sender + identified delivery on one server;
-Tor runs onion services + identified relays on the same network;
-Veilid records can be both signed-by-known-key AND routed-via-
-private-route on the same node).
+publication) has its own prior art: Signal runs sealed-sender +
+identified delivery on one server; Tor runs onion services +
+identified relays on the same network; Veilid records can be both
+signed-by-known-key and routed-via-private-route on the same node.
+CC 5.4.6 names the Tor v3 / I2P b33 blinded-retained-state family as
+the nearest admissible relaxation for a future multi-hop amendment.
 
 ## 9. Open design questions
 
-These get resolved when v2 enters active design:
+These get resolved as implementation starts:
 
-1. **AEAD cipher choice** — XChaCha20-Poly1305 (Veilid) or
-   AES-256-GCM (CIRIS v1)? Both work; trade-off is hardware-
+1. **AEAD cipher choice**: XChaCha20-Poly1305 (Veilid; the CC 5.4.2
+   symbol AEAD) or AES-256-GCM? Both work; trade-off is hardware-
    acceleration (AES) vs embedded-friendly (ChaCha).
-2. **Onion-routing transport** — Sphinx (Tor + Lightning,
+2. **Onion-routing transport**: Sphinx (Tor + Lightning,
    well-specified) or Veilid private routes (newer, less peer-
    reviewed but explicitly designed for opaque storage)?
-3. **Rendezvous model** — both (Signal model for targeted; Tor
-   model for broadcast) or pick one? Likely both, but rendezvous
-   protocol becomes more complex.
-4. **Onion-route hop count** — 3 (Tor / Sphinx standard) or
+3. **Rendezvous model**: both (Signal model for targeted; Tor
+   model for broadcast) or pick one?
+4. **Onion-route hop count**: 3 (Tor / Sphinx standard) or
    different? Trade-off is latency vs adversary coverage.
-5. **Anonymous-tier disk budget default** — what fraction of an
+5. **Anonymous-tier disk budget default**: what fraction of an
    L0/L1 server's disk goes to anonymous storage by default? Too
-   low and the tier is starved; too high and v1 admission is
-   crowded. Likely operator-config with a meaningful default
-   (e.g., 25% of total disk).
-6. **Rendezvous lookup transport** — does rendezvous query ride
+   low and the tier is starved; too high and identity-aware admission
+   is crowded.
+6. **Rendezvous lookup transport**: does rendezvous query ride
    the same onion-routed transport as anonymous-publish, or a
    parallel discoverability surface? If the latter, what protects
    query patterns from analysis?
-7. **Wire-format integration** — `AnonymousContribution` as a new
-   `MessageType` (parallel to existing types) or as a generic
-   "opaque envelope" class that holds an inner v2 record type?
+7. **Wire-format integration**: at rc9 the row-type slot is closed to
+   the five (CC 2.4). Can the tier be expressed inside the five, or
+   does it need an amendment?
+8. **Post-quantum blinding**: every federation record is signed
+   Ed25519 + ML-DSA-65 (CC 5.3.3.5 E1, citing CC 2.6.1.2). How is a
+   blinded per-publication key made hybrid?
+9. **Holder-inspectability**: how does capacity-only storage of opaque
+   ciphertext square with CC 4.4.3.2.1 ("nothing is ever an opaque
+   blob held by a stranger")?
+10. **The CC 5.4.6 bar**: no outsider-observable emission, no
+    outsider-retained path state, no epoch-correlated wave; rotation
+    clocks global.
 
-## 10. v1 → v2 migration path
+## 10. Migration path (planned)
 
-The anonymous tier is purely additive. v1 deployments are not
-affected by v2 introduction.
+The anonymous tier is planned to be additive to deployed nodes:
 
-* **v1 ships** the identity-aware substrate (cohabitation install,
-  serving install, ingest path — all current). Federation operates
-  under v1 trust+capacity discipline.
-* **v2 introduction** ships the parallel anonymous tier as an
-  additional substrate-level feature. v1 deployments upgrade by
-  running the v2 substrate; v1-only deployments can continue to
-  serve v1 federation traffic while ignoring anonymous records (the
-  anonymous tier's MessageType is unknown to v1 edge handlers and
-  silently dropped).
-* **Mandatory adoption gate** — the anonymous tier requires
-  protocol-level mandatory infrastructure for the deniability
-  property to hold (§6). v2 introduction therefore should align
-  with a federation-wide upgrade window. Operators running v1-only
-  after v2 ships are still legitimate v1 federation participants
-  but cannot claim the v2 deniability posture (their disks contain
-  no anonymous records).
+* **Today's substrate** is the identity-aware substrate (cohabitation
+  install, serving install, ingest path). The federation operates
+  under trust+capacity discipline.
+* **Introduction** ships the tier as an additional
+  substrate-level feature. Nodes that do not upgrade can continue
+  to serve identity-aware traffic while ignoring anonymous records.
+  At rc9 they refuse them at admission, since an unregistered
+  row type is refused with `attestation_type_unregistered` (CC 2.4).
+* **Adoption gate (planned)**: the deniability argument of §6
+  requires every operator to run the tier, so introduction aligns
+  with a federation-wide upgrade window. CC rc9 does not yet state
+  this gate.
 
-## 11. Acceptance criteria for v2
+## 11. Acceptance criteria
 
-The anonymous tier is "shipped" when:
+None of these is met at CC 1.0-rc9.
 
-- [ ] CIRISVerify ships Ed25519 key-blinding derivation primitive
+- [ ] CIRISVerify ships a key-blinding derivation primitive (hybrid,
+  per §9 question 8)
 - [ ] CIRISVerify ships the AEAD-with-subcredential primitive
   (XChaCha20-Poly1305 or AES-256-GCM keyed by `KDF(blinded_pk,
   period)`)
@@ -442,28 +476,30 @@ The anonymous tier is "shipped" when:
   + `AnonymousContributionSubmit` MessageType + handler
 - [ ] CIRISNodeCore ships `publish_anonymously()` pyfunction +
   rendezvous query helpers
-- [ ] CEG spec at CIRISRegistry has §11 (or appropriate section)
-  documenting the `AnonymousContribution` + `AnonymousHoldsBytes`
-  parallel record classes (additive — does not change 1+4)
+- [ ] A CC amendment specifies the tier's records and transport,
+  against CC 2.4 (closed row-type slot), CC 3.1.3.3 (one holding
+  claim), CC 4.4.3.2.1 (holder-inspectability) and the CC 5.4.6 bar
 - [ ] Cross-repo integration test: dissident publishes anonymously
   → operator-side forensic inspection cannot recover the publisher
   identity, the publication content (without the recipient's
   rendezvous key), or the trust relationship (because there is
   no recorded trust relationship)
-- [ ] Mandatory-infrastructure flag in edge — v2-compatible
-  deployments cannot opt out of running the anonymous tier without
-  ceasing to be v2-compatible
+- [ ] Per the §6 plan: a deployment flag such
+  that tier-compatible deployments cannot opt out of running the
+  tier
 
 ## 12. Cross-references
 
-* [CIRISNodeCore FSD/FEDERATION_SCALING_MODEL.md §9.9](FEDERATION_SCALING_MODEL.md) —
+* CIRIS Constitution 1.0-rc9 (tag `v1.0-rc9`): CC 1.13.3.1,
+  CC 1.13.3.4, CC 2.4, CC 3.1.3.3, CC 4.4.3.2.1, CC 5.2,
+  CC 5.3.3.5, CC 5.4.6, CC 6.1.2
+* [SCOPE_PRIVACY.md](SCOPE_PRIVACY.md): the default construction for
+  scopes below federation
+* [CIRISNodeCore FSD/FEDERATION_SCALING_MODEL.md §9.9](FEDERATION_SCALING_MODEL.md):
   scaling-model derivation that motivated this design
-* [CIRISNodeCore MISSION.md](../MISSION.md) — the "serve all of
+* [CIRISNodeCore MISSION.md](../MISSION.md): the "serve all of
   humanity" goal that includes totalitarian-context users
-* [CIRISRegistry CEG spec](https://github.com/CIRISAI/CIRISRegistry)
-  — the wire-format lockdown the anonymous tier extends
-  additively
-* [Veilid](https://veilid.com/) — closest active reference design
+* [Veilid](https://veilid.com/): closest active reference design
 * [Tor v3 onion services rend-spec](https://spec.torproject.org/rend-spec/)
 * [Signal sealed sender](https://signal.org/blog/sealed-sender/)
 * [Sphinx packet format](https://www.cypherpunks.ca/~iang/pubs/Sphinx_Oakland09.pdf)
