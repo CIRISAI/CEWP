@@ -342,8 +342,10 @@ cover budget.
 
 Normative at CC 5.4.3:
 
-- **Fixed envelope size: 1.4 KB**, one MTU. Larger payloads chunk
-  per CC 5.4.3; smaller ones are padded to the fixed size.
+- **Fixed frame size on a shaped link** (CC 5.4.3, rc10, replacing the
+  earlier universal 1.4 KB rule): every frame is the link's MDU;
+  larger payloads fragment, smaller ones are padded. Unshaped links
+  carry no padding requirement.
 - **Uniform XChaCha20-Poly1305 AEAD framing** for both real and
   synthetic envelopes, with a synthetic cover envelope marked
   `type=cover` inside the AEAD-protected header.
@@ -491,7 +493,7 @@ operator-local config, not federated trust state (CC 3.2; §7.14).
 | No directory authority to subpoena for routing | §2.3 deterministic ALM (CC 6.1.6) + §2.4 HMAC'd record_id (CC 5.4.1) + §3.3 cached directory (CC 5.4.6) | The routing "directory" is a pure function; addressing argument is HMAC-opaque; key discovery is cached, not queried per-invitation. |
 | Group existence hidden from outsiders | §3.3 no group-scoped announce; §2.2 derived destinations (CC 5.4.6) | Edge labels this Normative + Shipped; relay holds no group address and non-member cannot fetch are Measured (edge doc §3). This is not link-layer anonymity: link endpoints are attributable identity-plane keys (§2.5), and an on-path forwarder correlating traffic across members can infer that a group exists (CC 5.4.6, #132). |
 | In-group safety + moderation | §2.2 MLS + full substrate inside the encryption boundary | Trust graph, attestation, eviction and the per-community witness chain run inside the encryption that delivers outsider opacity (CC 5.4.5). |
-| Uniform envelopes; proposed sender-side Poisson cover | §2.6 maintenance budget; §3.1 | Fixed 1.4 KB envelopes and uniform AEAD are normative (CC 5.4.3). The Poisson discipline is this FSD's proposal. Neither is a CC claim against traffic analysis or a global passive adversary (CC 1.13.3.1). |
+| Uniform envelopes; proposed sender-side Poisson cover | §2.6 maintenance budget; §3.1 | Per-link shaping (constant MDU frames, Poisson timer, cover dominance, both directions) and uniform AEAD are normative (CC 5.4.3, rc10); off by default. Neither is a CC claim against traffic analysis or a global passive adversary (CC 1.13.3.1). |
 | PQC group secrecy | §2.2 X-Wing (CC 5.4.4); community DEK `wrap_algorithm: v2` (CC 4.4.3.2.1); per-link hybrid seal (CC 5.3.3.5 E1) | PCS posture depends on §3.5; CC 1.13.3.1 states streams have no PCS. |
 | Forwarder-side membership opacity | §2.4 + §3.3 PrivateMessage-only + signed-wrapped Welcome (CC 5.4.4) | Forwarders see uniform envelopes and cannot read handshakes. Welcome-emission timing on freshly-instantiated paths remains observable (§7.13), as does link-traffic correlation (CC 5.4.6). |
 | Past-epoch forward-secrecy (honest-holder) | §3.5 rotate-forward (CC 3.2) | Honest-holder assumption; coerced or modified holders are §7.8. |

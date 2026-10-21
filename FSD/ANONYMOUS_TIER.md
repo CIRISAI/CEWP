@@ -110,9 +110,14 @@ needs ("I shape because many nodes do").
 
 ## 3. Cover: the Poisson emission discipline (option 1)
 
-CC 5.4.3 makes two things normative for substrate emission: a fixed
-1.4 KB envelope, and uniform XChaCha20-Poly1305 framing for real and
-cover envelopes with `type=cover` inside the AEAD-protected header. Its
+CC 5.4.3 (rc10, steward ruling 2026-10-21) makes shaping a per-link
+property: negotiated in the CTKX handshake by budget class, both
+directions or the link is declined, constant frames of the link's MDU
+on a per-link Poisson timer, cover dominance real ≤ ρ over a window W,
+audio and video excluded, off by default (`CLM-link-shaping`, edge
+43.2). It withdrew the earlier rule that all outbound traffic use a
+fixed 1.4 KB envelope. Uniform AEAD framing for real and cover frames,
+with `type=cover` inside the protected header, still holds. Its
 size rule names "the companion Poisson-cover emission discipline",
 with substrate-maintenance throughput as the budget anchor, and does
 not define it. That discipline is this tier's option (1), not a
@@ -403,10 +408,9 @@ None of these is met at CC 1.0-rc9.
 4. **Key record contents**: what `identity_type` and roles does a
    publication key's `key:record:v1` carry, so that it links to
    nothing and trips no steward-binding gate (CC 3.2)?
-5. **Fixed envelopes everywhere?** CC 5.4.3 already says all outbound
-   substrate traffic MUST use the 1.4 KB envelope, while edge does not
-   wire it. Does that MUST stay universal, with only the Poisson timing
-   in option (1), or move with it?
+5. **Fixed envelopes everywhere?** Settled 2026-10-21: uniform frames
+   apply only on shaped links, at the link's MDU (CC 5.4.3, rc10). The
+   defaults for ρ and W per budget class await edge's model.
 6. **Onion packet**: Outfox over ML-KEM-768 or over X-Wing; hop count
    (3 is the Tor and Sphinx convention; the wizard's "3x or more"
    assumes it); per-hop delay parameters.
