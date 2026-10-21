@@ -338,6 +338,8 @@ cover budget.
 
 ### 3.1 Fixed envelopes and sender-side Poisson cover
 
+> **Placement (steward, 2026-10-21):** the Poisson cover discipline is option (1) of the planned anonymous tier, opt-in per node and negotiated per link, not a default at every scope. See [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) §2–§3 and the measured costs in [benchmarks/anonymous-tier-shaping-2026-10-21.md](../benchmarks/anonymous-tier-shaping-2026-10-21.md). Whether CC 5.4.3's fixed-envelope MUST stays universal is an open question there.
+
 Normative at CC 5.4.3:
 
 - **Fixed envelope size: 1.4 KB**, one MTU. Larger payloads chunk
