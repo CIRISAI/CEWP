@@ -495,18 +495,27 @@ CDN topology Netflix / YouTube / Cloudflare maintain via centralized
 control, produced naturally from CEG primitives + trust topology +
 the popularity × freshness eviction sweeper.
 
-**Holonomic refinement (CC 6.1).** Published media is RaptorQ
-fountain-coded `(N,K)` per layer (CC 6.1.5). Degradation is a
-property of the layering, not of the fountain code: each
-`ChunkLayer` decodes all-or-nothing, so shedding high-detail layers
-yields a coarse version of the same item, and below `min_viable` only
-the signed envelope survives (CC 6.1, CC 6.1.2). Items age by the
-noise-floor descent (CC 6.1.2), where a revoked item must fall below
-the individual-recoverability boundary (privacy) while the collective
-contribution persists below it (durability). Fragment fan-out
-replaces whole-blob fan-out; the toy does not yet bench it, and CC
-6.1.5 records that no reconstruction bench exists in CIRISEdge or
-CIRISPersist.
+**Holonomic refinement (CC 6.1).** Durability is a per-item choice
+the owner makes on publish: an item marked durable at family or
+community scope carries a target holder count, and the blob swarm
+replicates its sealed chunks to that count across the cohort's live
+nodes, rarest chunk first; repair runs when the holonomic view shows
+the item's holders falling toward its floor; recovery pulls the chunks
+from any holder and decrypts them with the cohort key; an un-marked or
+withdrawn item descends (CC 6.1.5). Below the minimum-viable floor
+only the signed envelope survives (CC 6.1.5.1). Nodes never encode
+stored content; the rateless codec serves the realtime A/V plane only
+(CC 5.4.2, CC 5.4.3). Where an item is layered, each `ChunkLayer` is
+its own chunk set and can be shed whole, so losing the high-detail
+layers yields a coarse version of the same item; degradation is a
+property of the layering (CC 6.1). Items age by the noise-floor
+descent (CC 6.1.2), where a revoked item must fall below the
+individual-recoverability boundary (privacy) while the collective
+contribution persists below it (durability). The demand-driven
+fan-out above is the cache path; the durable path is the owner's
+per-item target. The toy benches neither. The room at row level and
+the aggregation producer are live; holding claims, rarity, repair and
+descent are built and not yet installed for any item (CC 6.1.5).
 
 **Implication for the toy:** the only new model knob needed is the
 fraction of fetch volume that's external_ref vs inline. External

@@ -57,9 +57,10 @@ CIRISEdge
   announced, so the group's existence is invisible to non-members.
   Members relay for members.
 
-Content is fountain-coded (RaptorQ, per layer), so the witnessed,
-trust-anchored corpus re-establishes from any sufficient set of
-fragments; anonymous-tier content is exempt and may truly disappear
+An item its owner marks durable is held, chunk by chunk, by a chosen
+number of nodes in its own cohort and repaired when that number falls,
+so the witnessed, trust-anchored corpus recovers from any one holder;
+anonymous-tier content is exempt and may truly disappear
 (CC 6.1, CC 6.1.5). Revocation, eviction, expiry and aging are one
 operation at different rates, a descent toward a **noise floor**: a
 revoked item must fall below individual recoverability at every
@@ -164,18 +165,20 @@ lane (CC 5.3.3.5 E1).
 | Shared-inner-seal fan-out (N=50) | **2.07×** vs naive per-recipient seal | MEASURED | 1:N multicast amortizes |
 | Membership-change rekey (tree, N=50) | **0.41 ms** (8.3× vs flat rewrap) | PROJECTED | Churn cost stays sublinear (CIRISEdge#129) |
 | ALM relay per-hop overhead | **~946 ns** (~0.96 µs/tier, `O(log N)` tree) | MEASURED | Mesh transport scales without datacenters |
-| Holographic storage (N=20, K=6, H=30) | **99.6%** reconstruction at 33% fragment loss; 100% at 30% | MODEL | Erasure-coded survival is real, not theoretical |
+| Durable storage (per-item replication, CC 6.1.5) | pending re-run under replication | MODEL | An item is recoverable while one of its holders is live (CC 6.1.5.1) |
 | Hybrid trace ingest | **230.6 µs** (~**4,336** traces/sec/core; dedup 205.8 µs) | MEASURED | Signed-artifact governance throughput |
+
+<!-- rc9-sync: superseded by replication; re-run needed — the durable-storage row's former figure (99.6% reconstruction at 33% fragment loss, N=20/K=6/H=30) modelled coded storage, which CC 6.1.5 no longer uses -->
 
 The scoreboard labels every row `MEASURED` vs. `MODEL` vs. `PROJECTED` vs.
 `FRONTIER`, so it says **what is measured, what is modeled, and
 what is not yet built** (e.g. full symmetric M>2 MDC video is `FRONTIER`;
 membership rekey is `PROJECTED` from the real hybrid-KEM primitive against
 [CIRISEdge#129](https://github.com/CIRISAI/CIRISEdge/issues/129)). The ALM
-and fountain-reconstruction figures come from the same suite
-(`benches/alm_chain.rs` + the `FountainPolicy` reference N=20/K=6/H=30).
-RaptorQ decode is all-or-nothing per layer; degradation comes
-from the layering, not from the fountain code (CC 6.1).
+figure comes from `benches/alm_chain.rs`. Stored content is never
+coded: nodes hold and forward sealed chunks, and the rateless codec
+serves realtime A/V only (CC 5.4.2, CC 6.1.5); a layered item sheds
+whole layers, so degradation is a property of the layering (CC 6.1).
 
 ### Conformance — [CIRISConformance](https://github.com/CIRISAI/CIRISConformance)
 
@@ -287,7 +290,7 @@ Each row names the mechanism and, where CC bounds it, the bound.
 | Misinformation amplification | Each reader composes claims under its own trust policy (CC 4.4.3.8); trust is walked a bounded number of hops, 5 by default (CC 4.1.1) |
 | Platform lock-in | Identity is your key, not an account on a server; leaving a root is one row (CC 3.2, promise 4); content is addressed by hash and verified in full before use (CC 5.3.2.5) |
 | DNS / nameserver capture | No forced root (CC 3.2); members resolve each other without DNS (CC 4.4.3.2.4.1). Bound: that resolution exposes who is reachable where (CC 1.13.3.1) |
-| Single-point data loss | Fountain coding: the witnessed corpus re-establishes from any sufficient set of fragments (CC 6.1, CC 6.1.5) |
+| Single-point data loss | Per-item replication: an item its owner marks durable is held by a chosen number of cohort nodes, repaired when that number falls, and recovers from any one holder (CC 6.1, CC 6.1.5) |
 | The unforgettable internet (no real delete) | One descent operator toward the noise floor: a revoked item must fall below individual recoverability at every retained tier (CC 6.1.2, CC 6.1.5 N5). Bound: below-floor is claimed against the pinned default adversary, not against one holding side information; aggregation is not anonymization (CC 6.1.2) |
 | Identity fragmentation | One key, used across the substrate; standing comes from attestations others make about it (CC 1.13.3.3) |
 | Content moderation conflicts | Every community has a named moderator, with merit auto-promotion if the moderator lapses (CC 4.5.4); no hand bans a community (promise 6) |
@@ -309,8 +312,9 @@ These are outputs of this repo's scaling model, not measurements:
 | Per-user disk owned | ~0 (your data lives on their servers) | Yours, on your hardware |
 | Per-user trust signal | Platform-controlled "verified" checkmark | Signed rows composed under the reader's own trust policy (CC 4.4.3.8) |
 | Switching cost | Network-effects lock-in (Facebook holds your graph) | Leaving a root is one row (CC 3.2) |
-| Storage duration | Platform-decided; deletion is a promise | Long full-fidelity retention on commodity storage (the fountain `1/N` store); the hardest "entire internet *with video* on one home server" run still holds ~1–2 yr at full fidelity, then descends into the memory pyramid rather than being deleted ([scaling model §2.6](FSD/FEDERATION_SCALING_MODEL.md)). The pyramid is Θ(T) if every level is kept, sublinear only under bounded retention per level (CC 6.1.2) |
+| Storage duration | Platform-decided; deletion is a promise | Full-fidelity retention on commodity storage for as long as the owner's per-item target is held (CC 6.1.5), then descent into the memory pyramid rather than deletion ([scaling model §2.6](FSD/FEDERATION_SCALING_MODEL.md), whose retention figures await re-run under replication). The pyramid is Θ(T) if every level is kept, sublinear only under bounded retention per level (CC 6.1.2) |
 
+<!-- rc9-sync: superseded by replication; re-run needed — the storage-duration row's former "~1–2 yr at full fidelity" figure came from the scaling model's fountain `1/N` store -->
 <!-- rc9-sync: unverified, see CC ? — the "Today's Internet" column (hyperscaler count, ~10 K datacenters, "5 labs") is external-world data with no CC source; kept as the scaling model's comparison baseline -->
 
 The simulation engine (FSD/SIMULATION_ENGINE.md) is what produces

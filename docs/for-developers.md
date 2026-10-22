@@ -129,7 +129,7 @@ pinned against at rc9. For anything newer, see each repository.
 - [docs/LIGHTNET_DARKNET.md](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/LIGHTNET_DARKNET.md) — the two planes, with claims and their proofs
 - [docs/BENCHMARKS.md](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/BENCHMARKS.md) — dispatch and content-fetch costs
 - [docs/STANDARDS_COMPARISON.md](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/STANDARDS_COMPARISON.md) — comparison to libp2p, NATS, iroh
-- Realtime A/V chunk wire (SFrame + MLS; CC 5.3.3.2) and the RaptorQ fountain / ALM substrate (CC 6.1.5, CC 6.1.6)
+- Realtime A/V chunk wire (SFrame + MLS, with RaptorQ loss recovery on that plane only; CC 5.3.3.2, CC 5.4.3) and the per-item replication / ALM substrate (CC 6.1.5, CC 6.1.6)
 - [docs/THREAT_MODEL.md](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/THREAT_MODEL.md)
 
 <!-- rc9-sync: unverified, see CC ? — removed implementation names not in CC rc9 (`list_held_by`, `FountainSwarmRuntime`, the ~14 KB trace size, the inline_text_pipeline cost list) and the stale component versions (Verify v6.11.0, Persist v9.10.0, Edge v6.3.0, Server v0.5.30) -->

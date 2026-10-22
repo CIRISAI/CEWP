@@ -161,15 +161,21 @@ above and the per-node accounting:
   tree per (publisher, subscriber-set), so popular content + live
   broadcast don't replicate the same byte R times across the same
   fiber.
-* **RaptorQ fountain storage** (CC 6.1.5) — published blobs are
-  `(N,K)` fountain-coded per layer; holders carry *fragments*.
-  Decode is all-or-nothing per layer: at `N` distinct symbols a
-  layer decodes with high probability (not certainty), below that it
-  yields no decoded block, and below
-  `min_viable` only the signed envelope survives (CC 6.1, CC 6.1.2).
-  Per-node `bytes_held` accounts for fragment shares, not whole
-  blobs; the sim shows survival under node loss down to the decode
-  threshold, not down to one survivor.
+* **Per-item replication** (CC 6.1.5) — an item its owner marks
+  durable on publish carries a target holder count; holders carry its
+  sealed chunks whole, placed rarest chunk first across the live
+  cohort, repaired when the holonomic view shows holders falling
+  toward the minimum-holders floor, and recoverable from any one
+  holder; below the minimum-viable floor only the signed envelope
+  survives (CC 6.1.5, CC 6.1.5.1). Nodes never encode stored content;
+  the rateless codec is the realtime A/V plane's (CC 5.4.2). A layered
+  item is one chunk set per layer and sheds whole layers (CC 6.1).
+  Per-node `bytes_held` accounts for whole copies of held items, with
+  a layered item counted per retained layer; the sim shows survival
+  under node loss down to the last live holder, repair runs as the
+  count falls toward the floor, and un-marked items on the cache path
+  only. The view the sim reads is measurement: holders per item and
+  gap to target, with an unseen holder unknown, never zero (CC 6.1).
 * **Noise-floor aggregation pyramid** (CC 6.1.2) — retirement
   (revocation / eviction / expiry / aging) is one monotonic descent
   toward a noise floor. CC 6.1.2 states the pyramid's storage as Θ(T)

@@ -69,9 +69,10 @@ The substrate's shape is part of the case:
   and choose your trust root, which you can leave in one step
   (CC 3.2). CEWP has no steward, no root and no load-bearing instance
   (CC 8.1.1).
-- **Survival from fragments.** Published content is RaptorQ-coded per
-  layer, so the witnessed corpus re-establishes from any sufficient set
-  of fragments (CC 6.1, CC 6.1.5).
+- **Survival from one holder.** An item its owner marks durable is
+  held, chunk by chunk, by a chosen number of cohort nodes and repaired
+  when that number falls, so the witnessed corpus recovers from any one
+  holder (CC 6.1, CC 6.1.5).
 - **Delete that means something.** Revocation, eviction, expiry, and
   aging are *one* descent toward a noise floor; a revoked item must
   fall below individual recoverability at every retained tier, while

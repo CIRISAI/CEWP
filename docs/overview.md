@@ -54,10 +54,11 @@ infer who talks to whom, roughly how big a group is and when it
 changes. CC claims content confidentiality and cohort-scoped
 visibility, not metadata or traffic-analysis privacy (CC 1.13.3).
 
-Content is fountain-coded, so the witnessed corpus can be rebuilt from
-any sufficient set of fragments (CC 6.1, CC 6.1.5). Big items are
-coded in layers, and losing the detailed layers leaves a coarse
-version of the same item (CC 6.1).
+An item its owner marks durable is held, chunk by chunk, by a chosen
+number of nodes in its own cohort and repaired when that number falls,
+so the witnessed corpus recovers from any one holder (CC 6.1,
+CC 6.1.5). Big items are stored in layers, and losing the detailed
+layers leaves a coarse version of the same item (CC 6.1).
 
 And the soup has a memory that's **forever but still forgets**.
 Revocation, eviction, expiry, and aging aren't four mechanisms;

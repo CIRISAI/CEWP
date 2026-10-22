@@ -52,10 +52,12 @@ don't have CEWP as a tool. The web is **holonomic** (after Bohm's
 implicate order): there is no center, no nameserver, and no
 load-bearing server — you address a peer by its key, reach it over
 the mesh, and trust it through a chain you can re-root at will.
-Content is **holographic**: each layer of an item is RaptorQ-coded
-on its own, so shedding the high-detail layers leaves a coarse
-version of the same item, and the witnessed corpus re-establishes
-from any sufficient fragment (CC 6.1). The substrate eliminates the centralized
+Content is **durable by its owner's choice**: an item marked durable
+is held, chunk by chunk, by a chosen number of nodes in its own cohort
+and repaired when that number falls, so the witnessed corpus recovers
+from any one holder; a layered item is stored per layer, so shedding
+the high-detail layers leaves a coarse version of the same item
+(CC 6.1, CC 6.1.5). The substrate eliminates the centralized
 internet's structural failure modes (surveillance, platform lock-
 in, trust collapse, content-quality regression, identity
 fragmentation) AND removes the dependency on large datacenters at
@@ -719,9 +721,15 @@ The structural commitments every fabric core implements:
   holonomic, held under guardrails that bind it to the trust,
   post-quantum, consent and replication invariants:
   **WholenessWitness**, a divergence-detection witness (CC 6.1.1);
-  **RaptorQ fountain storage**, coded per layer with an all-or-nothing
-  decode threshold per layer, producer-silent defaults `N=20` source,
-  `K=6` repair, `min_viable=5` (CC 6.1.5, CC 6.1.5.1);
+  **per-item replication** — durability is the owner's choice on
+  publish, a target holder count the blob swarm meets with the item's
+  sealed chunks across the live cohort, rarest chunk first, repaired
+  when the holonomic view shows holders falling toward a floor, with
+  two floors under every target, minimum holders and minimum viable
+  (`>= 1`), and no number pinned by CC (CC 6.1.5, CC 6.1.5.1); the
+  **holonomic view**, measurement of the room's size and the shelf's
+  length, unknown never zero, acting only through `mesh_config`,
+  relieve-never-expand (CC 6.1);
   **deterministic ALM** multicast topology (CC 6.1.6); and the
   **unified retirement model** — revocation, eviction, expiry, and
   aging as *one* monotonic descent toward a **noise floor** (CC 6.1.2).
@@ -755,19 +763,22 @@ properties:
   **noise floor** (CC 6.1.2). Hard-delete is the fastest descent;
   aging the slowest. Same single-pool storage; no archive/cache split.
 * **Memory pyramid** — nothing is ever fully forgotten, yet erasure
-  is honored: content degrades through layer-drop + N→1 aggregation
-  into a pyramid of history. Storage is Θ(T) if every level is kept
+  is honored: layered media sheds whole layers (a property of the
+  layering, CC 6.1), and content aggregates N→1, into a pyramid of
+  history. Storage is Θ(T) if every level is kept
   and sublinear only under bounded retention per level, which CC does
   not pin (CC 6.1.2; an earlier O(log T) claim is withdrawn). The
   noise floor is the individual-recoverability boundary — revoked
   items descend below it (privacy); the collective gist persists below
   it (durability). *A million years may be a blur, but it is
   remembered* (CC 6.1.2).
-* **Holographic replication** — published content is RaptorQ
-  fountain-coded per layer; a layer decodes all or nothing, so
-  degradation comes from shedding layers, not from partial decode, and
-  the witnessed corpus re-establishes from any sufficient fragment
-  (CC 6.1, CC 6.1.5).
+* **Per-item replication** — an item its owner marks durable is held
+  whole, chunk by chunk, by its target number of cohort nodes and
+  repaired when holders fall; recovery pulls the chunks from any holder
+  and decrypts them with the cohort key; a layered item is stored per
+  layer, so degradation comes from shedding whole layers; nodes never
+  encode stored content, and the rateless codec serves realtime A/V
+  only (CC 6.1, CC 6.1.5, CC 5.4.2).
 * **L0 (256 GB) + L1 (1 TB) server gradient** — proxies are L0
   servers, full participants in replication.
 * **Trust recursion depth** — operator-side config (default
@@ -925,8 +936,8 @@ this is a real running system, not a paper architecture.
   attribution gate and announce suppression for group-scoped
   destinations (CC 5.4.6; edge doc §1), the per-link hybrid transit
   seal (CC 5.3.3.5 E1), the realtime A/V chunk wire (`SealedAvChunk` /
-  `ChunkLayer`), and the fountain defaults CC 6.1.5.1 restates from
-  edge's source.
+  `ChunkLayer`, with RaptorQ loss recovery on that plane only,
+  CC 5.4.3), and the blob swarm's per-item replication (CC 6.1.5).
 
 ### 11.2 Fabric cores (cohabit via CIRISServer)
 
@@ -1054,7 +1065,7 @@ soup is for everyone; come participate.*
 * [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) — storage
   substrate + holonomic retirement tiers
 * [CIRISEdge](https://github.com/CIRISAI/CIRISEdge) — mesh transport +
-  realtime A/V + the CC 6.1 fountain/ALM substrate
+  realtime A/V + the CC 6.1 replication/ALM substrate
 * [CIRISConstitution](https://github.com/CIRISAI/CIRISConstitution) —
   the CIRIS Constitution (ethics + wire grammar, one versioned
   document)

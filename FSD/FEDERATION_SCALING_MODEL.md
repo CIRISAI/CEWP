@@ -171,7 +171,7 @@ re-benched at those releases. Not benched here at all: the §2.4
 multimedia primitives, the streaming delivery axis (per-`stream_id`
 log + epoch-key cascade, CC 5.1, CC 5.3.3), and the holonomic
 substrate (§2.5 below: noise-floor descent, the aggregation pyramid,
-RaptorQ fountain storage, deterministic ALM multicast). Refresh
+per-item replication, deterministic ALM multicast). Refresh
 cadence is per substrate release per
 [NodeCore#23](https://github.com/CIRISAI/CIRISNodeCore/issues/23)
 living-document audit.
@@ -190,9 +190,9 @@ intake/eviction discipline:
   single-pool storage as §1.2 — no archive/cache split. The §1.2
   `popularity × freshness` sweeper is the eviction *rate* on this
   one descent.
-* **Aggregation pyramid** (CC 6.1.2) — content degrades through
-  scalable-codec layer-drop + N→1 aggregation into a pyramid of
-  history. CC 6.1.2 states the storage honestly: Θ(T) if every level
+* **Aggregation pyramid** (CC 6.1.2) — layered media sheds whole
+  layers (a property of the layering, CC 6.1), and content aggregates
+  N→1, into a pyramid of history. CC 6.1.2 states the storage honestly: Θ(T) if every level
   is kept, sublinear only under bounded retention per level, a
   configuration CC does not pin; the earlier "O(log T)" claim this
   section repeated is withdrawn in CC. The noise floor is the
@@ -202,17 +202,31 @@ intake/eviction discipline:
   scenarios derive — they currently model a flat per-source
   retention, not the pyramid; re-deriving implied retention against
   the pyramid is open bench work.
-* **RaptorQ fountain storage** (CC 6.1.5) — published content is
-  `(N,K)` erasure-coded per layer (producer-silent defaults
-  `N=20, K=6, min_viable=5, target_holders=30`; `min_viable` is a
-  per-holder retention floor, not a decode threshold). Decode is
-  all-or-nothing per layer; degradation comes from the
-  layering, and below `min_viable` only the signed envelope survives
-  (CC 6.1, CC 6.1.2). The witnessed corpus re-establishes from any
-  sufficient set of fragments (CC 6.1; WholenessWitness, CC 6.1.1).
-  The demand-driven holder fan-out becomes fragment fan-out;
-  per-fragment cost is unbenched here, and CC 6.1.5 records that no
-  reconstruction bench exists in CIRISEdge or CIRISPersist.
+* **Per-item replication** (CC 6.1.5) — durability is a per-item
+  choice the owner makes on publish: an item marked durable, at
+  family or community scope, carries a target holder count; the blob
+  swarm replicates its sealed chunks to that count across the
+  cohort's live nodes, rarest chunk first; repair runs when the
+  holonomic view shows holders falling toward a floor; recovery pulls
+  the chunks from any holder and decrypts with the cohort key; an
+  un-marked or withdrawn item descends. Two floors sit under every
+  target, each in holders per item: minimum holders, at which repair
+  runs, and minimum viable (`>= 1`), below which only the signed
+  envelope survives; CC pins no number for the defaults, which are
+  the cohort's through `mesh_config` (CC 6.1.5.1). Nodes never encode
+  stored content; the rateless codec is the realtime A/V plane's
+  (CC 5.4.2, CC 5.4.3). The holonomic view is measurement — the size
+  of the room (count and signed root per scope and plane) and the
+  length of the shelf (holders per item, own share, gap to target);
+  unknown is never zero; it changes behaviour only through
+  `mesh_config`, relieve-never-expand (CC 6.1, CC 6.1.1). A layered
+  item is its own chunk set per layer, shed whole; degradation is a
+  property of the layering (CC 6.1). An item's cost on its cohort is
+  therefore its target holder count times its size, one whole sealed
+  copy per holder, and per-holder cost is unbenched here. The room at
+  row level and the aggregation producer are live; holding claims,
+  rarity, repair and descent are built and not yet installed for any
+  item; witness roots are built and not published (CC 6.1.5).
 * **Deterministic ALM multicast** (CC 6.1.6) — a deterministic
   application-layer-multicast relay topology replaces the
   point-to-point fan-out the §3.7 latency model assumes; multicast
@@ -229,10 +243,13 @@ the §9 identity-aware-storage property — they sit underneath it.
 
 `implied retention` is the full-fidelity dwell time before content
 begins to degrade — `trust_budget_share / daily_admitted_stored`
-(§7), where the fountain `1/N` symbol store (≈5%, `H/N=1.5×` overhead
-vs the old whole-copy 5×) is what stretches it ~3.3×. Run
+(§7). Under per-item replication each holder stores a whole sealed
+copy of what it holds, and an item's cost on its cohort is its target
+holder count times its size (CC 6.1.5). Run
 `cargo run --example scale_model` (toy v0.7, single **1 TB / 1 core**
 v1 server, default cohort, depth 1):
+
+<!-- rc9-sync: superseded by replication; re-run needed — the table below and the ~3.3× stretch it rests on were produced with a fountain `1/N` symbol store per holder (≈5%, `H/N=1.5×` overhead vs whole copies); under per-item replication (CC 6.1.5) each holder stores a whole copy and the figures must be re-run against the scenario's target holder count -->
 
 | Scenario | Full-fidelity retention | |
 |---|---:|---|
@@ -249,6 +266,7 @@ v1 server, default cohort, depth 1):
 | **full_internet_v1** | **747 d** | **~2.0 yr** |
 | **full_internet_global_heavy** | **435 d** | **~1.2 yr** (tightest) |
 
+<!-- rc9-sync: superseded by replication; re-run needed — the retention claims in this paragraph read from the table above -->
 For essentially every realistic workload — messaging, social, news,
 even YouTube/Netflix-class video — full-fidelity retention is
 **centuries to millennia** on one commodity server. The only runs

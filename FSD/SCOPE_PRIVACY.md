@@ -245,10 +245,14 @@ attested, replicated or witness-leafed (CC 6.1.6 D6). There is no
 directory authority: the "directory" is a function whose addressing
 argument is HMAC-opaque to non-members (CC 5.4.1; §2.4).
 
-### 2.4 Group-keyed fountain-coded distribution — CC 5.4.1–5.4.3
+### 2.4 Group-keyed records, sealed chunks and A/V symbols — CC 5.4.1–5.4.3
 
-RaptorQ defaults `(N=20, K=6, target_holders=30)` (CC 5.4.3). Each
-record (CC 5.4.1):
+Stored content moves and rests as sealed chunks, replicated per item
+to its holders and never encoded by any node (CC 5.4.2, CC 6.1.5).
+Only the realtime A/V plane fountain-codes a sealed chunk into
+symbols, so a receiver recovers loss without retransmission, and the
+code's parameters are the stream's, not substrate constants
+(CC 5.4.3). Each record (CC 5.4.1):
 
     record_id_input = CBOR_dCE({
         "v":   1,
@@ -281,7 +285,7 @@ byte-for-byte reproducibility):
 
 Additional record types extend this table via CC 5.4.1.
 
-For each RaptorQ symbol (CC 5.4.2):
+For each A/V symbol (CC 5.4.2):
 
     symbol_key = HKDF-SHA3-256(salt=record_id, ikm=K_symbol,
                                info="ciris-edge/scope-privacy/symbol/v1"
@@ -289,12 +293,16 @@ For each RaptorQ symbol (CC 5.4.2):
     symbol_envelope = (record_id, u16_be(symbol_index), nonce,
                        XChaCha20-Poly1305(symbol_key, nonce, fragment), tag)
 
-Without `K_symbol` and `record_id`, the holder has indistinguishable-
-from-random bytes (Tahoe-LAFS least-authority by reduction to
-XChaCha20-Poly1305 IND-CCA + HKDF-SHA3 extract-then-expand; CC 5.4.2).
-The same suite seals real and cover fragments, with no cover marker
-and no length distinguisher (CC 5.4.2). The fragment set rebinds on
-MLS Add/Remove (CC 5.4.3); archive policy is §3.5.
+Without `K_symbol` and `record_id`, a relay or holder has
+indistinguishable-from-random bytes (Tahoe-LAFS least-authority by
+reduction to XChaCha20-Poly1305 IND-CCA + HKDF-SHA3 extract-then-expand;
+CC 5.4.2). The same suite seals real and cover fragments, with no cover
+marker and no length distinguisher (CC 5.4.2). The fragment set rebinds
+on MLS Add/Remove (CC 5.4.3); archive policy is §3.5. A stored chunk is
+sealed once and is held and forwarded as sealed bytes; a holder lacking
+the cohort key holds ciphertext it cannot open, and recovery pulls the
+chunks from any holder and decrypts them with the cohort key
+(CC 5.4.2, CC 5.4.3, CC 6.1.5).
 
 ### 2.5 Reticulum (RNS) link layer and the per-link seal
 
@@ -326,8 +334,8 @@ Members relay for members on the group plane (edge doc §1).
 
 ### 2.6 Maintenance traffic budget
 
-L1 steady-state maintenance (anti-entropy, RaptorQ lazy repair, ALM
-topology snapshots, witness chains) is the budget anchor for cover,
+L1 steady-state maintenance (anti-entropy, per-item replication
+repair, ALM topology snapshots, witness chains) is the budget anchor for cover,
 ~10–60 KB/s/peer (CC 5.4.3). This traffic is emitted for substrate
 liveness regardless of any anonymity goal. §3.1 shapes it into the
 cover budget.
@@ -489,7 +497,7 @@ operator-local config, not federated trust state (CC 3.2; §7.14).
 
 | Property | Source | Notes |
 |---|---|---|
-| Operator-cryptographic-opacity for stored ciphertext (cold-state) | §2.4 symbol AEAD (CC 5.4.2); proposed §6 at-rest-encrypted openmls StorageProvider with hardware-bound boot key | A holder lacking `K_symbol` and `record_id` holds bytes indistinguishable from random (CC 5.4.3). Warm-state seizure is §7.8. |
+| Operator-cryptographic-opacity for stored ciphertext (cold-state) | §2.4 sealed chunks and A/V symbol AEAD (CC 5.4.2); proposed §6 at-rest-encrypted openmls StorageProvider with hardware-bound boot key | A holder lacking the cohort key holds sealed chunks it cannot open (CC 6.1.5); a relay lacking `K_symbol` and `record_id` holds A/V symbols indistinguishable from random (CC 5.4.3). Warm-state seizure is §7.8. |
 | No directory authority to subpoena for routing | §2.3 deterministic ALM (CC 6.1.6) + §2.4 HMAC'd record_id (CC 5.4.1) + §3.3 cached directory (CC 5.4.6) | The routing "directory" is a pure function; addressing argument is HMAC-opaque; key discovery is cached, not queried per-invitation. |
 | Group existence hidden from outsiders | §3.3 no group-scoped announce; §2.2 derived destinations (CC 5.4.6) | Edge labels this Normative + Shipped; relay holds no group address and non-member cannot fetch are Measured (edge doc §3). This is not link-layer anonymity: link endpoints are attributable identity-plane keys (§2.5), and an on-path forwarder correlating traffic across members can infer that a group exists (CC 5.4.6, #132). |
 | In-group safety + moderation | §2.2 MLS + full substrate inside the encryption boundary | Trust graph, attestation, eviction and the per-community witness chain run inside the encryption that delivers outsider opacity (CC 5.4.5). |
@@ -502,8 +510,8 @@ operator-local config, not federated trust state (CC 3.2; §7.14).
 **Accepted in-scope.** Group members can confirm any record_id
 their group has published: the anonymity target is outsiders, not
 insiders (CC 5.4.6). In-group adversary tolerance is in-group
-governance, not anonymity (§7.1). Cross-fragment timing correlation
-across K=6 holders would be dampened by the proposed independent
+governance, not anonymity (§7.1). Cross-holder timing correlation
+across an item's holders would be dampened by the proposed independent
 Poisson timers but not eliminated below the trilemma (§7.10).
 Federation-scope content is public by design.
 
@@ -514,11 +522,11 @@ Federation-scope content is public by design.
 | Adversary capability | Defense |
 |---|---|
 | Subpoena federation directory | Non-federation records emit no holding claim outside their cohort (CC 5.2); record_id is HMAC-opaque (CC 5.4.1); the federation witness commits to a constant-rate counter (CC 5.4.5). The directory exposes federation-public keys, but no `querier → invitee` edge (CC 5.4.6). |
-| Compel cold-state disk + keys | §2.4 symbol AEAD; proposed: openmls StorageProvider encrypts persisted state at rest under a hardware-bound key (SQLCipher with TPM-sealed boot passphrase). Seized cold-state node yields ciphertext only. |
-| Coerce reveal whose data the operator holds | Opaque fragments under HMAC'd record_ids, held only by members (CC 4.4.3.2.1 holder-inspectability). The operator can truthfully claim cold-state ignorance (CC 5.4.3). |
+| Compel cold-state disk + keys | §2.4 sealed chunks (CC 5.4.2); proposed: openmls StorageProvider encrypts persisted state at rest under a hardware-bound key (SQLCipher with TPM-sealed boot passphrase). Seized cold-state node yields ciphertext only. |
+| Coerce reveal whose data the operator holds | Sealed chunks under HMAC'd record_ids, held only by members (CC 4.4.3.2.1 holder-inspectability). The operator can truthfully claim cold-state ignorance (CC 5.4.3). |
 | Compel active cooperation (cold-state) | Scope-segregated deployment (§6.3): the federation-tier node identity and the community-tier node identity are different processes. A seized community-tier node lacks federation-tier signing authority; a seized federation-tier node lacks community MLS state. |
 | Global passive adversary | **Not defended.** Unobservability against a global passive adversary is a CC 1.13.3.1 non-goal at every scope. The proposed §3.1 cover is not a GPA claim. Not provided today; the planned anonymous tier ([ANONYMOUS_TIER.md](ANONYMOUS_TIER.md)) is the opt-in path. |
-| K=6 of 20 holders compromised | Recovery still requires `K_symbol`; that requires either breaking X-Wing or compromising a member who holds the group key. |
+| Some of an item's holders compromised | A holder's chunks are sealed under the cohort key, so no number of compromised holders opens them (CC 5.4.2, CC 6.1.5); reading them requires either breaking X-Wing or compromising a member who holds the group key. |
 | DS-role adversary (RFC 9750 §5) | Substrate AEAD covers handshake content; deterministic ALM lets any holder verify topology. Residual: drop/reorder extends Remove-propagation latency (§7.1). |
 
 **Acknowledged residual.** TCN-class compulsion (§7.7),
@@ -538,11 +546,11 @@ communication-graph, traffic-analysis, GPA).
 | Repo | What ships | LOC |
 |---|---|---|
 | **CIRISVerify (ciris-crypto)** | HKDF-SHA3 + HMAC-SHA3 + XChaCha20-Poly1305 + HPKE mode_base (RFC 9180 §5.1.1) over X-Wing KEM + ML-DSA-65 sign/verify wrapper for §3.3 Welcome authentication; §2.2 / §2.4 derivation helpers (`scope_privacy::derive_record_id` is the byte-exact source of truth CC 5.4.1 names); the group-destination derivation (edge doc §1). | ~700–1000 |
-| **CIRISPersist** | `BlobStorage::put_scope_blob` for symbol-AEAD admission; schema migration on SQLite + Postgres for `federation_scope_blobs` keyed on `(record_id, symbol_index)` with per-symbol nonce. The 7-value `cohort_scope` lattice + `crypto_tier()` grouping is already in tree and matches CC 4.4.3.2.1 (see [CEWP#4](https://github.com/CIRISAI/CEWP/issues/4)). | ~600 + migration |
+| **CIRISPersist** | `BlobStorage::put_scope_blob` for sealed-chunk admission (stored content is never symbol-coded, CC 5.4.2; the `(record_id, symbol_index)` keying belongs to the A/V plane); schema migration on SQLite + Postgres for `federation_scope_blobs`. The 7-value `cohort_scope` lattice + `crypto_tier()` grouping is already in tree and matches CC 4.4.3.2.1 (see [CEWP#4](https://github.com/CIRISAI/CEWP/issues/4)). | ~600 + migration |
 | **CIRISEdge** | `CohortScope` resolving through persist's `crypto_tier()`; openmls StorageProvider backed by SQLCipher with TPM-sealed boot passphrase; emission layer between every `Edge::send_*` and `Transport::send` running per-scope Poisson + synthetic cover + per-holder CSPRNG jitter; uniform-envelope chunking/reassembly across ReplicationCoordinator, durable outbound, realtime-AV dispatcher, ALM relay fan-out, blob_swarm, MDC sub-streams; §3.2 default + per-publication scope echo; §3.3 Welcome wrap, directory caching, announce suppression, relay-blinded query for phone-class; §3.4 witness chains; §3.5 archive_mode. Already shipped per edge doc §3: derived destinations with announce suppression (`ScopeAddressTable`, arrival-scope admission), MLS cohorts under X-Wing `0x004D` with the CC 5.4.4 Welcome wrap, address retirement on epoch advance. | ~3500–4500 |
-| **CIRIS Constitution (CC 5.4)** | Absorbed at CC 1.0-rc9: deterministic CBOR `record_id` with vectors (CC 5.4.1), symbol AEAD (CC 5.4.2), fixed-envelope fragmentation (CC 5.4.3), Welcome wrap (CC 5.4.4), witness-chain content (CC 5.4.5), announce suppression and cached-directory discovery (CC 5.4.6); `archive_mode` vocabulary (CC 3.2). Not pinned in CC: the Poisson emission discipline, the group-destination derivation bytes. | spec |
+| **CIRIS Constitution (CC 5.4)** | Absorbed at CC 1.0-rc9: deterministic CBOR `record_id` with vectors (CC 5.4.1), A/V symbol AEAD and the sealed-chunk rule for stored content (CC 5.4.2), shaped-link fragmentation (CC 5.4.3), Welcome wrap (CC 5.4.4), witness-chain content (CC 5.4.5), announce suppression and cached-directory discovery (CC 5.4.6); `archive_mode` vocabulary (CC 3.2). Not pinned in CC: the Poisson emission discipline, the group-destination derivation bytes. | spec |
 | **CIRISAgent / CIRISServer** | PyO3 surface audit for default-scope flip + migration helper. | ~200 |
-| **CIRISConformance** | Cross-implementation `record_id` reproducibility on the deterministic CBOR profile; forensic disk-inspection test; Poisson emission KS-test (per-scope λ_real ≤ λ_cover, p > 0.01); 20-holder cross-fragment cluster-detection KS-test. | ~600 |
+| **CIRISConformance** | Cross-implementation `record_id` reproducibility on the deterministic CBOR profile; forensic disk-inspection test; Poisson emission KS-test (per-scope λ_real ≤ λ_cover, p > 0.01); cross-holder cluster-detection KS-test over an item's holder set. | ~600 |
 
 **Total: ~6000–7500 LOC** across the substrate triple plus a
 multi-week cross-cdylib release cascade (estimate from the original
@@ -594,9 +602,9 @@ Without segregation, timing correlation between federation-tier
 and community-tier activity leaks community membership.
 Deployment discipline, not cryptographic property.
 
-### 7.5 Cross-fragment timing correlation
-K=6 holders receive symbols under per-holder Poisson; complete
-elimination requires breaking the trilemma.
+### 7.5 Cross-holder timing correlation
+An item's holders receive its sealed chunks under per-holder Poisson;
+complete elimination requires breaking the trilemma.
 
 ### 7.6 LoRa / cellular L0 peers
 Bytes-per-minute regime cannot afford the §3.1 cover budget.
@@ -620,18 +628,19 @@ at-boot passphrase).
 
 ### 7.9 ALM-Sybil
 Adversary controlling capacity-ads + trust-grants can engineer
-into target holder sets. Decryption threshold (K=6 of 20 + group
-key) ~15–20% global Sybil. **Observation threshold** (holding
-opaque symbols, correlating across many groups) is lower because
-it requires only being a holder. **Targeted in-community Sybil**
-engineering trust-grant + locality-ad adjacency to a single
-community's posture wins K=6 holders below the global threshold;
-defense is community-level holder-admission diversity. Defended
+into target holder sets. Decryption needs the group key however many
+holders are won: a sealed chunk opens to no number of holders without
+it (CC 5.4.2, CC 6.1.5). **Observation threshold** (holding sealed
+chunks, correlating across many groups) is lower because it requires
+only being a holder. **Targeted in-community Sybil** engineering
+trust-grant + locality-ad adjacency to a single community's posture
+wins holder slots below the global threshold; defense is
+community-level holder-admission diversity. Defended
 by hybrid-verified capacity advertisements (CC 6.1.6 N8), trust-grant
 discipline, and the CC 4.1.1 5-hop default cap on `delegates_to`
 traversal. Since only members hold community bytes (CC 4.4.3.2.1),
 a Sybil holder must first be admitted to the community.
-<!-- rc9-sync: unverified, see CC ? (the ~15–20% global-Sybil figure is not stated in CC rc9) -->
+<!-- rc9-sync: superseded by replication; re-run needed (the former ~15–20% global-Sybil decryption threshold was derived from K=6 of 20 coded fragments; under sealed-chunk replication, CC 5.4.2 / CC 6.1.5, holder count alone yields no decryption, and no replacement figure is stated in CC) -->
 
 ### 7.10 Long-term statistical disclosure
 SDA over months of observation recovers persistent patterns even
@@ -754,8 +763,8 @@ Status at CC 1.0-rc9. A box is checked only where CC or the CIRISEdge
       cross-implementation `record_id` reproducibility on the
       deterministic CBOR profile; per-scope Poisson discipline
       lifetime-average inequality verified by KS-test at p > 0.01
-      over ≥24h; 20-holder cross-fragment cluster-detection KS-test
-      at p > 0.01.
+      over ≥24h; cross-holder cluster-detection KS-test over an
+      item's holder set at p > 0.01.
 - [ ] Bench: per-tier steady-state maintenance budget measured
       under realistic federation conditions; ~10–60 KB/s/peer
       prediction validated; per-scope cover ratio reported.
@@ -765,8 +774,9 @@ Status at CC 1.0-rc9. A box is checked only where CC or the CIRISEdge
 ## 10. Prior art and positioning
 
 The construction recombines well-known primitives:
-encrypt-then-erasure-code with operator opacity
-(Tahoe-LAFS, Storj, Hyphanet); MLS group key state with X-Wing
+encrypt-then-distribute with operator opacity
+(Tahoe-LAFS, Storj, Hyphanet; those erasure-code, CEWP replicates
+sealed chunks whole, CC 6.1.5); MLS group key state with X-Wing
 PQC (RFC 9420, openmls, MIMI-MLS draft); group-shaped wire
 addressing (ssb-tribes GroupId, libp2p GossipSub topics, Waku v2
 topics, MIMI `mimi://domain/g/id` URIs); encryption boundary =

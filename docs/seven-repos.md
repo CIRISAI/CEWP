@@ -119,10 +119,11 @@ possible because every byte knows whose key admitted it.
 Reticulum mesh transport (CC 8.1.1). Every byte over a link rides a
 hybrid X25519 + ML-KEM-768 transit seal; there is no classical lane
 (CC 5.3.3.5 E1). Realtime A/V chunk wire (SFrame + MLS; CC 5.3.3.2),
-and the RaptorQ fountain / ALM substrate: content coded per layer into
-`N` source + `K` repair symbols, peers retaining symbols and
-coordinating rarest-first, and durability never overriding a
-withdrawal (CC 6.1.5). The ALM relay tree is a pure function every
+and the replication / ALM substrate: an item its owner marks durable
+is replicated, sealed chunk by sealed chunk, to its target holder
+count across the live cohort, rarest chunk first, repaired when
+holders fall, with durability never overriding a withdrawal
+(CC 6.1.5); RaptorQ serves the realtime A/V plane only (CC 5.4.3). The ALM relay tree is a pure function every
 member computes the same way (CC 6.1.6).
 
 Edge also carries the two planes (CC 5.4.6 *Position*;
@@ -134,7 +135,7 @@ over the cached directory and never announced, so outsiders cannot see
 that a group exists. Members relay for members.
 
 **What it makes true:** content survives churn, and the witnessed
-corpus re-establishes from any sufficient set of fragments (CC 6.1).
+corpus recovers from any one holder (CC 6.1, CC 6.1.5).
 Private groups emit nothing an outsider can observe on the addressing
 plane (CC 5.4.6); traffic analysis by an on-path observer is not
 covered (CC 1.13.3.1).

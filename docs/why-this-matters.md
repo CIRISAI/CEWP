@@ -187,12 +187,14 @@ Centralized storage means a takedown, a seizure, or a bankruptcy can
 erase content for everyone at once. The bytes live in one place that
 one party controls.
 
-**CEWP's mechanism:** content is RaptorQ-coded `(N,K)` per layer, and
-peers keep symbols and coordinate rarest-first so content survives
-churn (CC 6.1.5). The witnessed, trust-anchored corpus re-establishes
-from any sufficient set of fragments (CC 6.1). Decode is
-all-or-nothing per layer; degradation comes from coding an
-item in layers, so losing the detailed layers leaves a coarse version
+**CEWP's mechanism:** durability is a per-item choice the owner makes
+on publish. An item marked durable carries a target holder count, and
+peers replicate its sealed chunks to that count across the live
+cohort, rarest chunk first, repairing when holders fall toward the
+floor, so content survives churn (CC 6.1.5). The witnessed,
+trust-anchored corpus recovers from any one holder (CC 6.1). Nodes
+never encode stored content (CC 5.4.2); a layered item is stored per
+layer, so losing the detailed layers leaves a coarse version
 (CC 6.1). Durability never overrides a withdrawal (CC 6.1.5 N5), and
 anonymous-tier content is exempt so it can truly disappear
 (CC 6.1.5 SR-2/3).
@@ -230,7 +232,7 @@ CEWP changes the structural choice. Once you have:
 - Federation directory + identity-aware storage (Persist)
 - An admission gate at every node (Persist + Edge)
 - One retirement operator → noise floor (Persist; CC 6.1.2)
-- Fountain-coded replication (Edge; CC 6.1.5)
+- Per-item replication (Edge; CC 6.1.5)
 - DNS-free addressing — address by key, no nameserver (CC 4.4.3.2.4.1)
 - One normative text for the grammar and the ethics (the CIRIS
   Constitution; CEG is its Parts 2 to 5)
@@ -248,7 +250,7 @@ you hold and a root is something you leave in one row. You can't have
 a content moderation oligopoly where moderation is a duty each
 community holds for itself. You can't seize a substrate with no
 nameserver and no load-bearing server, and you can't erase content
-that re-establishes from any sufficient set of fragments.
+that recovers from any one of its holders.
 
 The limits above still stand: metadata and traffic analysis are not
 covered (CC 1.13.3.1), and harmful content inside private cohorts is
