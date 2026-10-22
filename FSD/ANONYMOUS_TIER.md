@@ -1,17 +1,19 @@
 # FSD: Anonymous Tier (opt-in shaping, relaying and onion routing)
 
-**Status at CC 1.0-rc9: planned opt-in tier; implementation expected
-soon (steward ruling, 2026-10-21).** CC 1.13.3.1 names it ("the
+**Status: planned opt-in tier, specified in CC (rc10: 1.13.3.1, 3.3.6.2,
+5.4.3, 5.4.6); implementation in progress in edge.** CC 1.13.3.1 names it ("the
 CIRISNodeCore Anonymous Tier, Sphinx onion routing") as the separate,
 opt-in mechanism for deployments that need unobservability against a
 global passive adversary (GPA) at federation scope, and the CC 1.13.3.3
 operator guidance says such a deployment MUST layer it. The shaping
-study was run on 2026-10-21 (§10). The tier is not yet specified
-normatively in CC and not yet shipped; nothing in it is a default or
-mandatory today. CC still needs three things before it ships (§13): a
-CC text change admitting the tier as the 1.13.3.1 mechanism, a ruling
-on the row expression of §5, and the CC 5.4.3 cover reference pointed
-here. Reconciled to the CIRIS Constitution 1.0-rc9 (tag `v1.0-rc9`);
+study was run on 2026-10-21 (§10). CC rc10 now specifies it: using the tier is the
+publisher's opt-in and relaying is mandatory on every serve node
+(1.13.3.1); each serve node carries an X-Wing onion hop key on its
+signed transport binding (3.3.6.2); shaping is a per-link property
+with fleet defaults, off by default (5.4.3); the packet, the three
+layers and the carriage in shaped frames are in 5.4.6. It is not yet
+shipped. Still open (§13): the row expression of §5, deferred until
+after the persist refactor, and the wire shapes edge will propose. Reconciled to the CIRIS Constitution 1.0-rc9 (tag `v1.0-rc9`);
 text marked *rc10* cites later steward rulings on the CC `rc10`
 branch. Where this document and CC differ, CC wins.
 
@@ -82,6 +84,14 @@ setup wizard offers three opt-ins:
 2. "Allow anonymous peers to route through you."
 3. "Turn on onion routing (increases latency 3x or more)."
 
+**Relaying is not optional on serve nodes (CC 1.13.3.1, 5.4.6).** Using
+onion routes is the publisher's opt-in (option 3). Every serve node
+relays onion traffic, because a relay set of volunteers would make its
+operators targets. Relay layers are drawn only from serve seats, so a
+node that holds no serve seat is in no layer; option (2) therefore
+applies to serve operators as a fact, not a choice, and the wizard
+should show it as information on serve nodes rather than as a switch.
+
 Rules that follow from the evidence (§10.5):
 
 * **(3) implies (1).** Without shaping, a user's bursts to known
@@ -140,42 +150,44 @@ regardless (§10.1; CC 5.3.3.2 is the real-time path).
 
 ## 4. Transport: onion routing inside the per-link seal (options 2, 3)
 
-**Every hop is an ordinary link.** Onion routing runs inside the
-per-link hybrid seal: each hop is a sealed, attributed identity-plane
-link between two relays, keyed by an X25519 + ML-KEM-768 exchange
-bound to the link (CC 5.3.3.5 E1). A relay is bound by the transit KEX
-pair on its signed `transport_destination` binding, and a node with no
-valid transit pair cannot relay (CC 5.3.3.5 E1, ruling 2026-10-13). So
-"every link attributed to a key" holds at every hop; what the onion
-layer hides is the end-to-end path, not any link's endpoints. The
-storage node sees the last relay, never the publisher.
+Specified in CC 5.4.6 ("The Anonymous Tier: onion routing") and CC
+3.3.6.2 ("The onion hop key"):
 
-**The packet format MUST be post-quantum.** The per-link seal is all
-or nothing, with no classical lane (CC 5.3.3.5 E1, steward
-2026-10-19). A classical X25519 Sphinx header inside it would make the
-path-hiding layer the one classical layer, open to
-harvest-now-decrypt-later of routes. The onion packet is therefore a
-KEM-based Sphinx variant of the Outfox class ([Rial, Piotrowska,
-Halpin, arXiv:2412.19937](https://arxiv.org/abs/2412.19937)) over
-ML-KEM-768 or X-Wing, not classical Sphinx.
+* **Hop key.** Each serve node publishes a static X-Wing onion hop key
+  on its hybrid-signed `transport_destination` binding, rotatable by
+  `supersedes`, separated in-row from the transit pair and every other
+  key on the row. No valid hop key means the node cannot relay.
+* **Packet.** Fixed length and layered, each hop's layer encapsulated
+  to that hop's X-Wing key: an Outfox-class construction (KEM + KDF +
+  AEAD), post-quantum at every hop. ML-KEM cannot be blinded, so the
+  header carries one KEM ciphertext per hop: about 4.5 KB at three
+  hops (four 1,120-byte X-Wing ciphertexts), one TCP frame, fragmented
+  over the Reticulum base MTU. To be built in `ciris-crypto` on the
+  pinned libcrux KEMs, with nym-sphinx's Outfox types as a reference
+  only.
+* **Route.** Exactly three hops, one per layer (Loopix topology). Serve
+  seats are assigned to layers deterministically over the fold, never
+  by arrival order.
+* **Carriage.** Packets ride as the bodies of shaped frames (CC 5.4.3),
+  so relay links look like any other shaped link. Each hop is an
+  ordinary sealed, attributed link between relays; the storage node
+  sees the last relay, never the publisher.
+* **Rendezvous.** For targeted delivery a receiver publishes its route
+  as a signed row in a family to be registered in CC 3.1, with its
+  scope and retention (Veilid's private-route model, not its packet).
+  A time-rotated blinded index for broadcast stays open.
+* **Rotation.** Hop keys, layer assignments and rendezvous indexes
+  rotate on global clocks.
+* **First scope.** Federation-scope publication only.
 
-**No implementation exists in any CIRIS repository.** Relaying in
-the sense of (2) is ordinary sealed links today; the onion packet
-format is a design and crypto-review task.
-
-**Mixing.** Shaping alone does not resist timing correlation across
-one sealed link. That needs the flow spread over relays with per-hop
-Poisson delay, in the Loopix model ([Piotrowska et al., USENIX
-Security 2017](https://www.usenix.org/conference/usenixsecurity17/technical-sessions/presentation/piotrowska)),
-with enough crowd per relay (§10.3).
-
-**The CC 5.4.6 bar.** Multi-hop reach is an amendment-plane question
-whose bar is no outsider-observable emission, no outsider-retained
-path state and no epoch-correlated wave; the nearest admissible
-relaxation is the Tor v3 / I2P b33 blinded-retained-state family,
-with rotation clocks global (CC 5.4.6). That bar is stated for
-group-scoped destinations; this tier publishes at federation scope,
-but it adopts the rotation rule (§9) and the no-epoch-wave rule.
+**What exists.** Nothing in Rust is production-ready and post-quantum
+(edge survey, 2026-10-22): nym-sphinx carries Outfox types instantiated
+with X25519; Nym's post-quantum Sphinx is unshipped; Katzenpost's hybrid
+NIKE Sphinx is in Go; Veilid's private routes are classical; Tor's
+post-quantum work is at the TLS link layer. Timing correlation is
+resisted only by relays with per-hop Poisson delay and enough crowd
+per relay (§10.3); at today's fleet size the anonymity set is small,
+and user-facing copy says so.
 
 ## 5. Identity and rows: inside the five, no new type
 
@@ -379,14 +391,14 @@ rare), or a dummy-dial budget. None is built.
 
 None of these is met at CC 1.0-rc9.
 
-- [ ] A CC text change admitting the tier as the CC 1.13.3.1
-  mechanism: the three opt-ins, shaping as a CTKX link property, the
-  post-quantum onion packet over the E1 seal.
+- [x] A CC text change admitting the tier as the CC 1.13.3.1
+  mechanism (rc10: 1.13.3.1, 3.3.6.2, 5.4.3, 5.4.6).
+- [ ] The hop-key member and the rendezvous family registered with
+  their wire shapes (edge proposes; CC 2.1 and 3.1).
 - [ ] A ruling on the row expression of §5 (fresh `key:record:v1` by
   proof of possession plus `scores`), deferred by the steward until
   after the persist refactor.
-- [ ] The CC 5.4.3 "companion Poisson-cover emission discipline"
-  pointed at this tier's option (1).
+- [x] Shaping specified in CC 5.4.3 with fleet defaults (rc10).
 - [ ] Edge ships §12 steps 1–3, measured on bench-mesh.
 - [ ] A post-quantum onion packet format is specified, reviewed and
   implemented.
