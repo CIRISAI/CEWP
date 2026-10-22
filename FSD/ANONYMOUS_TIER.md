@@ -165,9 +165,26 @@ Specified in CC 5.4.6 ("The Anonymous Tier: onion routing") and CC
   over the Reticulum base MTU. To be built in `ciris-crypto` on the
   pinned libcrux KEMs, with nym-sphinx's Outfox types as a reference
   only.
-* **Route.** Exactly three hops, one per layer (Loopix topology). Serve
-  seats are assigned to layers deterministically over the fold, never
-  by arrival order.
+* **Route and layers (CC 5.4.6 item 4).** Exactly three hops, one per
+  layer (Loopix topology). A node is a relay for a period when its
+  live, announced `transport_destination` row carries a valid hop key
+  and no opt-out marker and its identity is owner-bound under a bundle
+  root; its layer links must be shaped. Once per rendezvous period the
+  relays are sorted by `H(key_id ‖ period)`, seats first, and dealt
+  round-robin over the three layers. Non-seat relays per layer are
+  capped at ⌈c × seats⌉ (c = 2 by default); a layer under three members
+  makes the tier unavailable for that period. All of it is a pure
+  function of the fold.
+* **Opt-out (CC 3.3.6.2).** `"onion_relay": { "opt_out": true }` on the
+  signed binding, with the hop key withdrawn on the same row. A seat
+  carrying it, or lacking a hop key, is out of conformance
+  (`seat_opted_out`, `seat_without_hop_key`).
+* **Phones.** Relaying costs a phone data (about 29 GB/month on Wi-Fi,
+  7 GB on cellular at the link cap) and a radio that never sleeps. A
+  phone relays by default only on Wi-Fi while charging; the user can
+  override; the client states the cost. Servers and home nodes relay
+  without qualification. Edge's FSD (ONION_ROUTING, in progress)
+  carries the packet format and the model.
 * **Carriage.** Packets ride as the bodies of shaped frames (CC 5.4.3),
   so relay links look like any other shaped link. Each hop is an
   ordinary sealed, attributed link between relays; the storage node
