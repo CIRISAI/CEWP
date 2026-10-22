@@ -81,16 +81,16 @@ setup wizard offers three opt-ins:
 
 1. "Shape your traffic to make the network more private (may increase
    latency)."
-2. "Allow anonymous peers to route through you."
+2. "Allow anonymous peers to route through you" (on by default; turning it off is the opt-out).
 3. "Turn on onion routing (increases latency 3x or more)."
 
-**Relaying is not optional on serve nodes (CC 1.13.3.1, 5.4.6).** Using
-onion routes is the publisher's opt-in (option 3). Every serve node
-relays onion traffic, because a relay set of volunteers would make its
-operators targets. Relay layers are drawn only from serve seats, so a
-node that holds no serve seat is in no layer; option (2) therefore
-applies to serve operators as a fact, not a choice, and the wizard
-should show it as information on serve nodes rather than as a switch.
+**Relaying for others is the default (CC 1.13.3.1, 5.4.6).** Using
+onion routes is the publisher's opt-in (option 3). Every node relays
+onion traffic for others by default, because a relay set made only of
+volunteers would make its operators targets. Option (2) is therefore
+an opt-out, offered only to nodes with no serve seat; a serve node
+always relays. A node that opts out withdraws its hop key and is in no
+layer.
 
 Rules that follow from the evidence (§10.5):
 
