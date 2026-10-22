@@ -1,24 +1,27 @@
 # FSD: Scope-Native Privacy
 
-**Status:** Design proposal. Realization of the CIRIS Constitution
-**CC 1.13.3.4** scope-native anonymity *default* — the construction
-by which cohort-scoped confidentiality and structural
-anonymity-to-outsiders are provided **by default** at every scope
-below federation, via substrate-tier configuration of primitives the
-holonomic substrate already ships. Companion to
-[ANONYMOUS_TIER.md](ANONYMOUS_TIER.md), which realizes the residual
-**opt-in** mechanism — full unobservability against a *global passive
-adversary* at federation scope (Sphinx onion routing) — via a
-different (parallel-tier) construction.
+**Status:** Design proposal, reconciled to the CIRIS Constitution
+1.0-rc9 (tag `v1.0-rc9`). The wire profile of this construction is
+absorbed into CC 5.4 (CC 5.4.1–5.4.6: `record_id`, symbol AEAD,
+fragmentation, Welcome wrap, witness-chain content, announce
+suppression); where this document and CC differ, CC wins. The
+construction realizes CC 1.13.3.4: anonymity toward outsiders
+defaults to the smallest cohort scope, and federation
+(public-commons) scope is the opt-in. It runs on the derived group
+plane; the public identity plane makes no anonymity claim (CC 5.4.6
+*Position*). The companion [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) is the
+planned opt-in tier for GPA resistance at federation scope, named by
+CC 1.13.3.1, not yet specified normatively in CC and not yet shipped.
 
 **Companion docs:**
 [CEWP.md](CEWP.md) (substrate framing),
 [FEDERATION_SCALING_MODEL.md §9](FEDERATION_SCALING_MODEL.md)
 (identity-aware-storage trade),
 [MEDIA_SHARING.md](MEDIA_SHARING.md) (per-stream MLS exporter
-precedent). CIRISRegistry CEG 1.0-RC29 §7 (`cohort_scope`
-lattice), §19 (holonomic substrate). CIRISEdge MISSION.md §13,
-docs/THREAT_MODEL.md AV-49 / AV-50 / AV-52.
+precedent). CC 4.4.3.2.1 (crypto tiers), CC 5.2 (structural
+invisibility), CC 5.4 (scope-privacy wire profile), CC 6.1.6
+(deterministic ALM). CIRISEdge `docs/LIGHTNET_DARKNET.md` (the
+two-plane split as edge ships and measures it).
 
 **Threat model.** State-level adversary with legal coercion
 authority, full forensic access to seized hardware in the
@@ -27,123 +30,162 @@ directory, and ability to compel cooperation under duress.
 Out of scope: live-seizure RAM extraction, endpoint compromise
 of the publisher's device, TCN-class compulsion of future
 architectural cooperation, statistical disclosure over months
-of observation below the anonymity trilemma.
+of observation below the anonymity trilemma. CC 1.13.3.1 bounds
+what may be claimed against this adversary: no communication-graph
+privacy, no traffic-analysis resistance, and no unobservability
+against a global passive adversary.
 
 ---
 
 ## 1. Thesis
 
-CC 1.13.3.4 establishes that **anonymity defaults to the smallest
-cohort scope**: at every scope below federation, structural
-anonymity-to-outsiders is the default, and only *federation
-(public-commons) scope* opts out of it. The single residual non-goal
-— full unobservability against a *global passive adversary* at
-federation scope — routes to a separate opt-in mechanism. This FSD
-specifies the default construction (and that opt-in tier's substrate
-hooks) as a configuration of primitives the holonomic substrate
-already ships.
+In CC, "privacy" means exactly two things: content-holding
+confidentiality and cohort-scoped visibility. It does not mean
+metadata privacy, communication-graph privacy, or unobservability
+(CC 1.13.3). Inside that bound, CC 1.13.3.4 sets the default:
+**anonymity defaults to the smallest cohort scope consistent with a
+publication's intent; federation (public-commons) scope is the
+opt-in.** "Anonymity" here means anonymity toward outsiders. Content
+born and living at `self` / `family` / `community` is never
+advertised to outsiders (CC 1.13.3.4, CC 5.2).
 
-The earlier framing — that base CEG provides *no* anonymity and
-routes all anonymity-seekers to opt-in — overclaimed the limit:
-cohort-scoping **is** structural anonymity-to-outsiders
-("trust-enforceability to insiders, anonymity to outsiders," §1
-below), and it is on by default. Making anonymity opt-in would have
-weakened protection only for the non-savvy vulnerable, never for a
-motivated adversary who clears any toggle trivially.
+The system runs on two planes (CC 5.4.6 *Position*; CIRISEdge
+`docs/LIGHTNET_DARKNET.md` §1):
 
-GPA-unobservability at federation scope stays opt-in for a cost
-reason, not a deserving reason: it is the one protection that is
-genuinely expensive (onion-routing latency + mixing + dedicated
-cover, not free-rider maintenance cover) and is only reached by an
-operator already deliberately publishing to the public commons.
-**This boundary is provisional.** It should be revisited as the
-real overhead of GPA-resistance is measured against the
-free-rider-cover budget (§2.6 / §3.1): if the marginal cost for an
-*individual* federation-scope publisher proves low enough, the line
-MAY move toward making it default for human publishers while leaving
-infrastructure traffic (revocation lists, steward keys) on the
-cheaper path.
+- **Identity plane (lightnet), public.** Key records, announced
+  transport destinations, trust roots. It is attributable and makes
+  no anonymity claim: the federation directory announces normally,
+  and every inbound byte is attributed to a rooted key it owns before
+  any handler sees it (edge doc §1). Even a device joining for the
+  first time is "unowned but never anonymous": the per-link seal
+  binds its self-signed node key (CC 3.2, adding a device, (e);
+  CC 5.3.3.5 E1).
+- **Group plane (darknet), derived.** Group destinations are derived
+  from the cached directory plus a per-group HKDF and are never
+  announced, so a group's existence is invisible to non-members
+  (CC 5.4.6). Members relay for members (edge doc §1).
 
-The wire-format addressing primitive at federation scope is
-identity-typed (`author_id`, `attesting_key_id`). At every smaller
-scope the addressing primitive is **scope-typed**:
+This FSD specifies the group-plane construction as a configuration of
+primitives the substrate already ships.
 
-    cohort_scope ∈ {self, family, community, federation}
+What it does **not** provide, at any scope: unobservability against a
+global passive adversary (CC 1.13.3.1) and multi-hop anonymity (edge
+doc §5), both not provided today; the planned anonymous tier
+([ANONYMOUS_TIER.md](ANONYMOUS_TIER.md)) is the opt-in path, and must
+meet the CC 5.4.6 bar (the Tor v3 / I2P b33 blinded-retained-state
+family as the nearest admissible relaxation, rotation clocks global).
+Nor does it provide ballot secrecy among members (edge doc
+§5); and protection against an on-path forwarder that correlates link
+traffic across a clique of members to infer that a group exists
+(CC 5.4.6, CIRISConstitution#132 ruling).
 
-- `self`: federation of one; journaling-grade, content-confidential
-  per CC 1.13.3. Cross-attestation (CC 1.13.1 #1) is structurally
-  inapplicable; self-scope is not identity-constituting.
-- `family`: federation of 2–5 with shared MLS group state.
-- `community`: federation of 10–1000 with per-community DEK.
+Why the default sits at the smallest scope: CC 1.13.3.4 calls it a
+deliberate correction of the opt-in-anonymity design, under which the
+non-savvy vulnerable fail to obtain a protection that a motivated
+adversary obtains trivially.
+
+Why GPA-unobservability stays outside the default: it is the one
+protection that is genuinely costly (onion-routing latency, mixing,
+dedicated cover) and is only reached by an operator already
+publishing to the public commons (CC 1.13.3.4). **This boundary is
+provisional** (CC 1.13.3.4): as the overhead of GPA-resistance is
+measured, the line MAY move toward making more of it default, for
+example for individual federation-scope publishers.
+
+The addressing primitive at federation scope is identity-typed
+(`author_id`, `attesting_key_id`). Below federation it is
+**scope-typed**. `cohort_scope` takes seven values grouped into three
+crypto tiers (CC 4.4.3.2.1; §2.1 below). The four that matter for the
+reading here:
+
+- `self`: one owner's own devices. For `self`, an outsider is any node
+  not owner-bound to the same owner; the boundary is well-defined
+  because ownership is single-valued (CC 1.13.3.4; CC 3.2
+  single-owner invariant).
+- `family`: an intimate roster, never listed (CC 5.4.2).
+- `community`: a bounded roster that may be larger, listed or open
+  (CC 5.4.2), encrypted under a per-community DEK (CC 4.4.3.2.1).
 - `federation`: Commons plaintext; full identity-aware substrate.
 
 The identity-aware property of FEDERATION_SCALING_MODEL.md §9 is a
 property of the **federation tier**, not the substrate. At every
 smaller tier the full identity-aware substrate runs *inside the
 encryption boundary*; outsiders cannot adjudicate what they cannot
-see. Trust-enforceability and anonymity are the same property
-viewed from opposite sides of that boundary — trust-enforceability
-to insiders, anonymity to outsiders.
+see. "Trust-enforceability to insiders and anonymity to outsiders are
+the same property viewed from opposite sides of the cohort encryption
+boundary" (CC 5.4.6).
 
 ---
 
 ## 2. Substrate primitives the construction composes
 
-### 2.1 Scope-typed addressing — CEG §7 / CC 4.4.3.2.1
+### 2.1 Scope-typed addressing — CC 4.4.3.2.1
 
-`cohort_scope` is wire-format. CC 0.4 §4.4.3.2.1 ratified seven
-values grouped into three crypto tiers (the substrate-level
-privacy lattice), with `cohort_subkind: infrastructure` as the
-Commons opt-out hook:
+`cohort_scope` is wire-format. CC 4.4.3.2.1 groups its seven values
+into three crypto tiers, plus the `public` room subkind. The persist
+enum names (`InvisibleEncrypted`, `CommunityDek`) are the ones CC 5.4.2
+uses:
 
 | Crypto tier | `cohort_scope` values | At-rest | Wire discovery | Reader |
 |---|---|---|---|---|
-| **InvisibleEncrypted** (self/family) | `self`, `family` | encrypted, per-write DEK | none (CC 5.2 structural invisibility) | occurrences / family members |
-| **CommunityDek** | `community`, `affiliations` | encrypted under per-community DEK | `holds_bytes:*` + cleartext provenance | community members (DEK cascade) |
-| **Commons** | `species`, `biosphere`, `federation` | plaintext | `holds_bytes:*` | anyone |
+| **self / family** (`InvisibleEncrypted`) | `self`, `family` | encrypted, per-write DEK | none outside the cohort (CC 5.2 structural invisibility) | occurrences / family members |
+| **Community** (`CommunityDek`) | `community`, `affiliations` | encrypted under the community DEK | none outside the roster: `custody:ack:v1` within the cohort (CC 3.1.3.3) | community members (DEK cascade) |
+| **Commons** | `species`, `biosphere`, `federation` | plaintext | `custody:ack:v1` at federation scope, which is the holder directory | anyone |
+| **Public room** (`cohort_subkind: public`) | `community` | plaintext (Commons tier, no DEK) | `custody:ack:v1` at federation scope; a `community:listing:v1` row | anyone who joins |
 
-The `infrastructure` subkind on `community` / `affiliations` opts
-OUT of the DEK cascade and becomes Commons-tier (for
-`ciris-canonical` and governance/trust root, per CC 4.4.3.2.1).
+No holding claim leaves a bounded cohort (CC 5.2). `custody:ack:v1` is
+the one holding claim at every tier, placed at the content's own scope
+and replicated only to that cohort's members (CC 3.1.3.3, the
+CIRISConstitution#141 ruling). The retired `holds_bytes` carrier and
+the withdrawn rc6 clause under which a non-member host "inspects the
+provenance and chooses to hold opaque ciphertext for a community it
+trusts" no longer exist
+(CC 3.1.3.3; CC 4.4.3.2.1 holder-inspectability principle: members
+hold what they can open, strangers hold nothing). An earlier version
+of this table advertised `holds_bytes:*` with cleartext provenance for
+the Community tier; that is withdrawn.
+
+The community DEK is mandatory, not opt-in: it is the CC 5.1 epoch-DEK
+cascade applied to `cohort_scope: community`, one DEK shared across
+emissions, wrapped to each member on admission, re-wrapped on
+membership change, `wrap_algorithm: v2` (hybrid PQC) mandatory
+(CC 4.4.3.2.1).
+
+Two `cohort_subkind` values opt OUT of the DEK cascade and are
+Commons-tier: `infrastructure` (`ciris-canonical` and any
+governance/trust root) and `public` (a room anyone may join, with no
+confidentiality claim against the public) (CC 4.4.3.2.1).
 
 `affiliations` semantic handling beyond the crypto-tier mapping
-remains deferred per CC 0.4 (§11.2 candidate-round backlog); the
-substrate construction binds on the crypto-tier resolution, which
-is fully ratified.
+remains deferred to a later candidate round (CC 4.5.8.4); the
+construction binds on the crypto-tier resolution.
 
-This FSD's construction applies to **InvisibleEncrypted and
-CommunityDek tiers** (the five values `self`, `family`,
-`community`, `affiliations`, and `community|affiliations` with
-non-`infrastructure` subkind). Commons-tier content (`species`,
-`biosphere`, `federation`, plus the `infrastructure` opt-out) is
-plaintext federation-scope material outside this FSD's scope; the
-CC 1.13.3.1 GPA-unobservability residual for federation-scope
-publication is the [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md)
-opt-in tier.
+This FSD's construction applies to the **self/family and Community
+tiers** (`self`, `family`, `community`, `affiliations` with a subkind
+other than `infrastructure` or `public`). Commons-tier content is
+plaintext federation-scope material outside this FSD's scope.
 
 The 65% locality dividend
 ([FEDERATION_SCALING_MODEL.md §1.3](FEDERATION_SCALING_MODEL.md))
-re-reads as the structural privacy property of the
-InvisibleEncrypted tier: typical activity is self/family-scope
-and structurally undiscoverable to the federation by wire format
-alone.
+re-reads as the structural privacy property of the self/family
+tier: typical activity is self/family-scope and structurally
+undiscoverable to the federation by wire format alone.
+<!-- rc9-sync: unverified, see CC ? (the 65% figure is a CEWP model output, not stated in CC rc9) -->
 
-**Implementation note (persist).** Persist already implements
-this grouping at `federation/types.rs:824` via
-`crypto_tier(cohort_scope, cohort_subkind) -> CryptoTier`, with
-test coverage matching CC 0.4 §4.4.3.2.1 exactly. Edge consumers
-of this FSD MUST resolve through `crypto_tier()` rather than
-matching on `cohort_scope` strings directly, so that future
-`affiliations` semantic changes flow without wire-format churn.
+**Implementation note (persist).** Persist implements this grouping
+as `crypto_tier(cohort_scope, cohort_subkind) -> CryptoTier`, the
+function CC 5.4.2 names. Edge consumers MUST resolve through
+`crypto_tier()` rather than matching on `cohort_scope` strings
+directly (CC 5.4.2), so that future `affiliations` semantic changes
+flow without wire-format churn.
 
 ### 2.2 MLS group state — RFC 9420 ciphersuite 0x004D
 
-Every group has openmls 0.8 MLS group state under X-Wing
-(X25519 + ML-KEM-768 + Ed25519 + ML-DSA-65). Two distinct
-group-scoped subkeys are derived per-epoch via **bare HKDF-Expand**
-on the group's raw `exporter_secret` (as exposed by the MLS key
-schedule per RFC 9420 §8.4 — the value `epoch_secret →
-DeriveSecret("exporter")` produces):
+Every group has openmls MLS group state under ciphersuite `0x004D`:
+the X-Wing KEM (X25519 + ML-KEM-768) and ML-DSA-65 signatures, both
+halves of the suite used (CC 5.4.4). Two group-scoped subkeys are
+derived per epoch by **bare HKDF-Expand** over the group's raw
+`exporter_secret` (CC 5.4.1, CC 5.4.2):
 
     K_record_id = HKDF-SHA256-Expand(
         PRK  = raw group exporter_secret,
@@ -156,38 +198,61 @@ DeriveSecret("exporter")` produces):
         L    = 32
     )
 
-This is **NOT** RFC 9420 `MLS_Exporter()` / `ExpandWithLabel()` —
-there is no HKDF-Extract step, no MLS structured KDF-label
-(`"MLS 1.0 " || …`), and no second `DeriveSecret("exporter")`
-wrap. The reason: ciphersuite 0x004D is a custom X-Wing suite
-whose KDF wrapping conventions are not pinned by RFC 9420; the
-labeled expand is owned by `ciris-crypto`'s
-`scope_privacy::{k_record_id, k_symbol}` helpers so that two
-implementations cannot drift by chasing openmls internals.
-CIRISEdge MUST pass the raw `exporter_secret` to those helpers
-and MUST NOT call openmls's `export_secret()` for these labels.
+This is **NOT** RFC 9420 `MLS_Exporter()` / `ExpandWithLabel()`:
+there is no HKDF-Extract step and no MLS KDF-label framing (CC 5.4.1).
+Implementations MUST pass the raw `exporter_secret` to the
+`ciris-crypto` `scope_privacy::k_record_id` helper and MUST NOT route
+the label through openmls's `export_secret()` (CC 5.4.1). The same
+`symbol/v1` label derives `K_symbol` and prefixes the per-symbol
+`info` (CC 5.4.2).
 
-The MLS exporter_secret is intrinsically group-and-epoch-bound;
-distinct ASCII labels provide domain separation between
-`K_record_id` and `K_symbol`. Per-record / per-symbol
-diversification is downstream via §2.4.
+The exporter secret is group-and-epoch-bound; distinct ASCII labels
+separate `K_record_id` from `K_symbol`. Both rebind on MLS Add/Remove
+(CC 5.4.2). Per-record and per-symbol diversification is downstream
+(§2.4).
 
-The HKDF used here is **SHA-256** (matching openmls cs 0x004D's
-key-schedule hash); §2.4's `symbol_key` derivation uses
-**HKDF-SHA3-256** for HNDL discipline at the per-symbol layer.
+The HKDF here is **SHA-256**, matching the ciphersuite's key-schedule
+hash (CC 5.4.1). §2.4's per-symbol derivation uses **HKDF-SHA3-256**
+for hash-family separation between layers, not for
+harvest-now-decrypt-later: the HNDL exposure of this plane is the
+KEM's, which is why the KEM is hybrid (CC 5.4.3, rationale corrected
+2026-10-18). An earlier version of this section gave HNDL as the
+reason; that is withdrawn.
 
-### 2.3 Deterministic ALM topology — CEG §19.4
+**Group destinations.** A group-scoped destination is resolved
+deterministically from a cached directory entry plus a per-group HKDF;
+every member derives the same destination, and outsiders, lacking the
+group key, cannot (CC 5.4.6). CC states that this derivation reuses
+"the same group-and-epoch-bound key schedule the substrate already
+uses to diversify record-ids and symbols", introducing no new key
+material (CC 5.4.6). CC rc9 does not pin a label, byte layout or test
+vector for the destination derivation, as it does for `K_record_id`
+(CC 5.4.1) and `symbol_key` (CC 5.4.2). Edge states that the
+derivation is owned by `ciris-verify`, "one derivation, no second
+expectation" (edge doc §1). This FSD therefore specifies no
+destination formula of its own.
 
-`compute_alm_topology(snapshot) → AlmTopology` is a pure function
-over `(capacity_ads, trust_grants, reachability, locality,
-snapshot_epoch_id)`. Every observer of the snapshot derives the
-same topology. There is no directory authority; the "directory"
-is a function whose addressing argument is HMAC-opaque to
-non-members (§2.4).
+### 2.3 Deterministic ALM topology — CC 6.1.6
 
-### 2.4 Group-keyed fountain-coded distribution — CEG §19.3
+`compute_alm_topology(snapshot) → topology` is a pure, deterministic,
+integer-only function over `(capacity_ads, trust_grants,
+reachability_observations, locality)`, such that byte-equal inputs
+yield byte-equal output across implementations (CC 6.1.6). Every
+observer of the snapshot derives the same topology. Capacity
+advertisements MUST be hybrid-verified before scoring (CC 6.1.6 N8);
+reachability observations are ephemeral planner inputs, never
+attested, replicated or witness-leafed (CC 6.1.6 D6). There is no
+directory authority: the "directory" is a function whose addressing
+argument is HMAC-opaque to non-members (CC 5.4.1; §2.4).
 
-RaptorQ defaults `(N=20, K=6, target_holders=30)`. Each record:
+### 2.4 Group-keyed records, sealed chunks and A/V symbols — CC 5.4.1–5.4.3
+
+Stored content moves and rests as sealed chunks, replicated per item
+to its holders and never encoded by any node (CC 5.4.2, CC 6.1.5).
+Only the realtime A/V plane fountain-codes a sealed chunk into
+symbols, so a receiver recovers loss without retransmission, and the
+code's parameters are the stream's, not substrate constants
+(CC 5.4.3). Each record (CC 5.4.1):
 
     record_id_input = CBOR_dCE({
         "v":   1,
@@ -202,11 +267,13 @@ RaptorQ defaults `(N=20, K=6, target_holders=30)`. Each record:
 no floating-point unless required), with map keys ordered
 **by encoded-length first, then lexicographically by encoded
 key bytes**. The four-entry map at v=1 therefore serializes
-keys in the canonical order `v, epc, iid, typ`.
+keys in the canonical order `v, epc, iid, typ`. Keys are CBOR text
+strings; `v`, `epc` and `typ` are unsigned integers; `iid` is a CBOR
+**byte string** (major type 2), never a text string (CC 5.4.1). CC
+5.4.1 carries three normative conformance vectors.
 
-`RecordType` integer encoding (pinned for cross-impl
-conformance; CIRISConformance asserts byte-for-byte
-reproducibility):
+`RecordType` integer encoding (CC 5.4.1; CIRISConformance asserts
+byte-for-byte reproducibility):
 
 | Type             | int |
 |------------------|-----|
@@ -216,9 +283,9 @@ reproducibility):
 | CommunityRecord  | 3   |
 | FederationRecord | 4   |
 
-Additional record types extend this table via CEG §11.
+Additional record types extend this table via CC 5.4.1.
 
-For each RaptorQ symbol:
+For each A/V symbol (CC 5.4.2):
 
     symbol_key = HKDF-SHA3-256(salt=record_id, ikm=K_symbol,
                                info="ciris-edge/scope-privacy/symbol/v1"
@@ -226,146 +293,203 @@ For each RaptorQ symbol:
     symbol_envelope = (record_id, u16_be(symbol_index), nonce,
                        XChaCha20-Poly1305(symbol_key, nonce, fragment), tag)
 
-Without `K_symbol` and `record_id`, the holder has indistinguishable-
-from-random bytes (Tahoe-LAFS least-authority by reduction to
-XChaCha20-Poly1305 IND-CCA + HKDF-SHA3 extract-then-expand).
-Fragment-set rebinds on MLS Add/Remove; archive policy is §3.5.
+Without `K_symbol` and `record_id`, a relay or holder has
+indistinguishable-from-random bytes (Tahoe-LAFS least-authority by
+reduction to XChaCha20-Poly1305 IND-CCA + HKDF-SHA3 extract-then-expand;
+CC 5.4.2). The same suite seals real and cover fragments, with no cover
+marker and no length distinguisher (CC 5.4.2). The fragment set rebinds
+on MLS Add/Remove (CC 5.4.3); archive policy is §3.5. A stored chunk is
+sealed once and is held and forwarded as sealed bytes; a holder lacking
+the cohort key holds ciphertext it cannot open, and recovery pulls the
+chunks from any holder and decrypts them with the cohort key
+(CC 5.4.2, CC 5.4.3, CC 6.1.5).
 
-### 2.5 Reticulum (RNS) link layer
+### 2.5 Reticulum (RNS) link layer and the per-link seal
 
-RNS packets carry no source addresses; every destination is
-`SHA256(public_key)[:16]`. Initiator anonymity is structural.
-Transport-node mode means every participating peer is a relay;
-LXMF store-and-forward serves asleep recipients. Group-scoped
-destinations are excluded from RNS announce flooding (§3.3).
+Reticulum carries both planes. On the identity plane, RNS announces
+propagate normally (edge doc §1). The RNS link layer itself is
+classical and is not relied on for post-quantum confidentiality;
+every byte an edge sends over an RNS link MUST be under a hybrid
+transit seal (X25519 + ML-KEM-768) bound to the link, with no
+classical fallback and no public classical lane (CC 5.3.3.5 E1).
+
+This is not an initiator-anonymity property. An earlier version of
+this section stated that "initiator anonymity is structural" because
+RNS packets carry no source address field. CC rc9 does not support
+that reading: the seal binds the initiator's key into the handshake,
+and on the first-contact plane it binds the initiator's self-signed
+node key, "never an anonymous one" (CC 5.3.3.5 E1; CC 3.2, adding a
+device, (e)); every inbound byte is attributed before handling (edge
+doc §1); and Reticulum announce and path request expose who is
+reachable where (CC 1.13.3.1). What the group plane hides is the
+group, not the link endpoints.
+
+Group-scoped destinations are excluded from announces (§3.3). Where
+two members have no direct path, a scoped body MAY ride their
+identity-plane link through a non-member transport node, end-to-end
+encrypted with the room discriminated inside the link encryption; the
+intermediary's only role is reachability, and the link MUST be brought
+direct where it can be (CC 5.4.6, CIRISConstitution#132 ruling).
+Members relay for members on the group plane (edge doc §1).
 
 ### 2.6 Maintenance traffic budget
 
-L1 steady-state maintenance — anti-entropy + RaptorQ lazy repair
-+ ALM topology snapshots + witness chains — is ~10–60 KB/s/peer.
-This traffic is emitted for substrate liveness regardless of any
-anonymity goal. §3.1 shapes it into the cover budget.
+L1 steady-state maintenance (anti-entropy, per-item replication
+repair, ALM topology snapshots, witness chains) is the budget anchor for cover,
+~10–60 KB/s/peer (CC 5.4.3). This traffic is emitted for substrate
+liveness regardless of any anonymity goal. §3.1 shapes it into the
+cover budget.
 
 ---
 
 ## 3. The construction
 
-### 3.1 Poisson emission with substrate-maintenance cover
+### 3.1 Fixed envelopes and sender-side Poisson cover
 
-All outbound substrate traffic conforms:
+> **Placement (steward, 2026-10-21):** the Poisson cover discipline is option (1) of the planned anonymous tier, opt-in per node and negotiated per link, not a default at every scope. See [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) §2–§3 and the measured costs in [benchmarks/anonymous-tier-shaping-2026-10-21.md](../benchmarks/anonymous-tier-shaping-2026-10-21.md). Whether CC 5.4.3's fixed-envelope MUST stays universal is an open question there.
 
-- **Fixed envelope size: 1.4 KB**, one MTU. Larger payloads chunk
-  per CEG §11 fragmentation/reassembly spec.
+Normative at CC 5.4.3:
+
+- **Fixed frame size on a shaped link** (CC 5.4.3, rc10, replacing the
+  earlier universal 1.4 KB rule): every frame is the link's MDU;
+  larger payloads fragment, smaller ones are padded. Unshaped links
+  carry no padding requirement.
 - **Uniform XChaCha20-Poly1305 AEAD framing** for both real and
-  synthetic envelopes.
+  synthetic envelopes, with a synthetic cover envelope marked
+  `type=cover` inside the AEAD-protected header.
+
+Proposed by this FSD, not pinned in CC rc9 (CC 5.4.3 refers to it only
+as "the companion Poisson-cover emission discipline"):
+
 - **Per-scope Poisson inter-emission intervals.** Each peer
   samples `t_next ~ Exp(λ_scope)` from a peer-local CSPRNG. On
   timer fire, emit the next-queued envelope at that scope; if
-  empty, emit a synthetic cover envelope marked `type=cover` in
-  the AEAD-protected header.
+  empty, emit a synthetic cover envelope.
 - **λ_scope tuned so cover emission dominates real publication on
-  a lifetime-average inequality** across the measurement window —
+  a lifetime-average inequality** across the measurement window;
   the budget anchor is §2.6 maintenance throughput.
 
 This is the Loopix Poisson discipline applied at the sender-side
 emission boundary. The substrate's existing maintenance traffic
-(anti-entropy, RaptorQ repair, witness chains — emitted regardless
-of the anonymity goal) **is** the cover budget. RNS forwarders
-do not perform per-hop re-mixing; cover is sender + recipient
-only.
+**is** the cover budget. RNS forwarders do not perform per-hop
+re-mixing; cover is sender + recipient only. It is not a claim
+against traffic analysis: CC treats the record layer's diversified
+record ids and cover framing as the wire-privacy answer for the
+payload, "not a claim against" an on-path observer's inference that a
+group exists (CC 5.4.6), and traffic-analysis resistance remains a
+CC 1.13.3.1 non-goal.
 
 ### 3.2 Default cohort_scope
 
 `cohort_scope` defaults to the smallest scope consistent with the
-publisher's stated audience: community when a group context is
-active, family when in a family context, self when no group
-context exists. Federation scope is opt-in. The operator API
-returns the chosen scope on every publication ("published at
-scope=X to audience=Y") so silent demotions cannot occur.
+publication's intent; federation scope is the opt-in (CC 1.13.3.4).
+Concretely: community when a group context is active, family when in
+a family context, self when no group context exists. Proposed: the
+operator API returns the chosen scope on every publication
+("published at scope=X to audience=Y") so silent demotions cannot
+occur.
+
+Widening is the one seam where content is checked: a
+perceptual-hash tripwire runs at every scope-widening promotion, a
+promotion into the Commons or a post into a `public` room; never on
+the device and never inside a private cohort (CC 1.13.3.4).
 
 ### 3.3 MLS handshake discipline
 
 - **PrivateMessage-only at non-federation scope.** PublicMessage
   framing is banned at community/family/self.
-- **Welcome wrap.** MLS Welcome messages are wrapped by HPKE
-  mode_base (RFC 9180 §5.1.1) under the invitee's static X-Wing
-  public key. X-Wing has no AuthEncap (per
+- **Welcome wrap (CC 5.4.4).** MLS Welcome messages MUST be wrapped by
+  HPKE `mode_base` (RFC 9180 §5.1.1) to the invitee's static X-Wing
+  public key. X-Wing has no `AuthEncap` (per
   draft-connolly-cfrg-xwing-kem; confirmed in draft-ietf-hpke-pq
-  §7.2), so HPKE mode_auth is structurally unavailable; sender
+  §7.2), so HPKE `mode_auth` is structurally unavailable; sender
   authentication is provided out-of-band by an ML-DSA-65 signature
-  from the inviter. Both halves of ciphersuite 0x004D are used.
-  
+  from the inviter.
+
   HPKE parameters (cross-impl pinned; private-use suite-id since
   X-Wing has no IANA KEM-id):
-  
+
         HPKE_SUITE_ID = b"HPKE-xwing-hkdf-sha256-aes256gcm-v1"
         KDF           = HKDF-SHA256
         AEAD          = AES-256-GCM
-  
-  The suite-id string is used consistently in every RFC 9180
-  `LabeledExtract` / `LabeledExpand` call; both sides must use
-  identical bytes. The AEAD is AES-256-GCM at the HPKE layer
-  (distinct from §2.4 / §3.1 XChaCha20-Poly1305, which protects
-  symbols and envelopes at lower layers).
-  
+
+  The suite-id string is used byte-for-byte in every RFC 9180
+  `LabeledExtract` / `LabeledExpand` call; it is a domain-separation
+  byte literal, not a wire-vocabulary identifier (CC 5.4.4). The AEAD
+  is AES-256-GCM at the HPKE layer, distinct from the §2.4 / §3.1
+  XChaCha20-Poly1305 layers.
+
   The inviter signs the encapsulation bytes with ML-DSA-65:
-  
+
         encap_signing_bytes
             = x25519_ephemeral_pub      (32 bytes)
             || u32_be(len(mlkem768_ct))
             || mlkem768_ciphertext
-  
+
   The encoding is length-delimited; no `algorithm` field is
-  included. Verification of the signature is a precondition to
-  unwrapping the Welcome — implementations that omit it forfeit
-  sender authentication, and §4 "Forwarder-side membership
-  opacity" no longer holds.
-- **Invitee key discovery via cached federation directory.**
-  Every participating L1 peer maintains a complete local copy of
-  the federation directory's X-Wing public keys, refreshed via
-  the substrate's existing `federation_keys` anti-entropy. **No
-  per-invitation directory query is emitted.** Phone-class peers
-  query through their L1-relay parent over a relay-blinded path.
-  The directory remains federation-public (per §9.5) but exposes
-  no `querier → invitee` edges under subpoena.
-- **No RNS announce for group-scoped destinations.** Group
-  members resolve each other's destinations from the cached
-  directory + per-group HKDF. Per-destination announce control
-  is a small Leviculum extension.
+  included. Verification is a precondition to unwrapping the Welcome;
+  an implementation that omits it forfeits sender authentication, and
+  the forwarder-side membership-opacity guarantee no longer holds
+  (CC 5.4.4).
+- **Invitee key discovery via cached federation directory
+  (CC 5.4.6).** Every participating L1 peer maintains a complete
+  local copy of the federation directory's X-Wing public keys,
+  refreshed via `federation_keys` anti-entropy. **No per-invitation or
+  per-resolution directory query is emitted.** Phone-class peers
+  resolve through their L1-relay parent over a relay-blinded path. The
+  directory remains federation-public but exposes no
+  `querier → invitee` edge under subpoena.
+- **No announce for group-scoped destinations (CC 5.4.6).** A
+  destination below federation scope MUST NOT emit a Reticulum
+  announce, directed or broadcast; the prohibition binds the emission,
+  not the addressing mode (CIRISConstitution#91 ruling). Members
+  resolve each other's destinations from the cached directory +
+  per-group HKDF (§2.2). A peer with a stale cache reports an honest
+  miss and MUST NOT fall back to an announce or a per-destination
+  query. Per-destination announce control is a small Leviculum
+  extension (informative); its absence fails toward suppression
+  (CC 5.4.6). Multi-hop reach for a group-scoped destination is an
+  amendment-plane question, with the bar: no outsider-observable
+  emission, no outsider-retained path state, no epoch-correlated wave
+  (CC 5.4.6).
 
-### 3.4 Witness chain content discipline
+### 3.4 Witness chain content discipline (CC 5.4.5)
 
-- **Federation witness chain** commits to federation-scope
-  record_ids and a single rate-smoothed counter for
-  non-federation activity. The counter ticks on a federation-
-  wide constant schedule (1 tick / federation epoch). At each
-  tick the witness commits to `count mod target_rate`: real
-  leaves below target are padded by cover leaves to the target;
-  real leaves above target back-pressure into the next tick.
-  Cover leaves commit to
-  `HMAC-SHA3(witness_signing_key, leaf_position || epoch_id)` —
-  cryptographically indistinguishable from real Merkle roots
-  under the IND of HMAC-SHA3. Deviation from the constant tick
-  is a federation-tier slashing condition.
+This is the privacy witness chain. It is distinct from the CC 6.1.1
+WholenessWitness and from the CC 5.3.1 transparency-log witness, and
+the three MUST NOT be cross-verified or substituted (CC 5.4.5).
+
+- **Federation witness chain** commits only to federation-scope
+  record_ids and a single rate-smoothed counter for non-federation
+  activity. The counter ticks on a federation-wide constant schedule
+  (1 tick / federation epoch). At each tick the witness commits to
+  `count mod target_rate`: real leaves below target are padded by
+  cover leaves to the target; real leaves above target back-pressure
+  into the next tick. Cover leaves commit to
+  `HMAC-SHA3(witness_signing_key, leaf_position || epoch_id)`,
+  cryptographically indistinguishable from real Merkle roots under
+  the IND of HMAC-SHA3. Deviation from the constant tick is a
+  federation-tier slashing condition (CC 5.4.5).
 - **Per-community witness chain** commits to the community's
   record_id set with member-only visibility, signed inside the
-  community MLS encryption.
+  community MLS encryption (CC 5.4.5).
 
-### 3.5 Per-community archive policy
+### 3.5 Per-community archive policy (CC 3.2 `archive_mode`)
 
 MLS epoch advance bounds the lifetime of `K_record_id` and
-`K_symbol`. Each community configures one of:
+`K_symbol`. Each community configures one of (CC 3.2):
 
 - **`rotate-forward`** (default, 30-day window): honest holders
   delete past-epoch keys after the window. Forward-secrecy is
-  honest-holder discipline, not cryptographic — a holder under
-  coercion or running modified software can retain keys (§7.8).
+  honest-holder discipline, not cryptographic; a holder under
+  coercion or running modified software can retain keys, and this is
+  structurally undetectable (§7.8).
 - **`retain`**: holders retain past-epoch keys indefinitely for
   archive readability; an adversary compromising a member at
   epoch N+k recovers everything back to their join epoch.
 
-The choice surfaces at group creation. The mode itself is
-operator-local config (§7.14).
+The choice MUST be surfaced at community creation. `archive_mode` is
+operator-local config, not federated trust state (CC 3.2; §7.14).
 
 ---
 
@@ -373,23 +497,23 @@ operator-local config (§7.14).
 
 | Property | Source | Notes |
 |---|---|---|
-| Operator-cryptographic-opacity for stored ciphertext (cold-state) | §2.4 symbol AEAD; §6 at-rest-encrypted openmls StorageProvider with hardware-bound boot key | Operator cryptographically cannot decrypt seized cold-state disk. Tahoe-LAFS least-authority property. Warm-state seizure is §7.8. |
-| No directory authority to subpoena for routing | §2.3 deterministic ALM + §2.4 HMAC'd record_id + §3.3 cached directory | The routing "directory" is a pure function; addressing argument is HMAC-opaque; key discovery is cached, not queried per-invitation. |
-| Sender + recipient anonymity at link layer | §2.5 RNS source-anonymous packets + §3.3 no group-scoped announces | Free from RNS; group destinations resolved from cached directory + HKDF. |
-| In-group safety + moderation | §2.2 MLS + full v1 substrate inside encryption boundary | Trust graph, attestation, eviction, witness chains run inside the encryption — the same encryption that delivers outsider opacity. |
-| Client-side Loopix-class GPA cover | §2.6 maintenance budget + §3.1 sender-side Poisson with lifetime-average λ inequality | Defeats sender-side timing and aggregate-volume analysis. Cover is reused non-anonymity-domain maintenance traffic. No per-hop RNS re-mixing; long-term SDA remains (§7.10). |
-| PQC group secrecy (industry standard 2026) | §2.2 X-Wing | HNDL preserved. PCS posture depends on §3.5. |
-| Forwarder-side membership opacity | §2.4 + §3.3 PrivateMessage-only + signed-wrapped Welcome | Forwarders see uniform envelopes; cannot enumerate members or read handshakes. Welcome-emission timing on freshly-instantiated paths remains observable (§7.13). |
-| Past-epoch forward-secrecy (honest-holder) | §3.5 rotate-forward | Honest-holder assumption; coerced or modified holders are §7.8. |
-| Locality dividend | §2.1 wire format | Self/family content never federates. |
+| Operator-cryptographic-opacity for stored ciphertext (cold-state) | §2.4 sealed chunks and A/V symbol AEAD (CC 5.4.2); proposed §6 at-rest-encrypted openmls StorageProvider with hardware-bound boot key | A holder lacking the cohort key holds sealed chunks it cannot open (CC 6.1.5); a relay lacking `K_symbol` and `record_id` holds A/V symbols indistinguishable from random (CC 5.4.3). Warm-state seizure is §7.8. |
+| No directory authority to subpoena for routing | §2.3 deterministic ALM (CC 6.1.6) + §2.4 HMAC'd record_id (CC 5.4.1) + §3.3 cached directory (CC 5.4.6) | The routing "directory" is a pure function; addressing argument is HMAC-opaque; key discovery is cached, not queried per-invitation. |
+| Group existence hidden from outsiders | §3.3 no group-scoped announce; §2.2 derived destinations (CC 5.4.6) | Edge labels this Normative + Shipped; relay holds no group address and non-member cannot fetch are Measured (edge doc §3). This is not link-layer anonymity: link endpoints are attributable identity-plane keys (§2.5), and an on-path forwarder correlating traffic across members can infer that a group exists (CC 5.4.6, #132). |
+| In-group safety + moderation | §2.2 MLS + full substrate inside the encryption boundary | Trust graph, attestation, eviction and the per-community witness chain run inside the encryption that delivers outsider opacity (CC 5.4.5). |
+| Uniform envelopes; proposed sender-side Poisson cover | §2.6 maintenance budget; §3.1 | Per-link shaping (constant MDU frames, Poisson timer, cover dominance, both directions) and uniform AEAD are normative (CC 5.4.3, rc10); off by default. Neither is a CC claim against traffic analysis or a global passive adversary (CC 1.13.3.1). |
+| PQC group secrecy | §2.2 X-Wing (CC 5.4.4); community DEK `wrap_algorithm: v2` (CC 4.4.3.2.1); per-link hybrid seal (CC 5.3.3.5 E1) | PCS posture depends on §3.5; CC 1.13.3.1 states streams have no PCS. |
+| Forwarder-side membership opacity | §2.4 + §3.3 PrivateMessage-only + signed-wrapped Welcome (CC 5.4.4) | Forwarders see uniform envelopes and cannot read handshakes. Welcome-emission timing on freshly-instantiated paths remains observable (§7.13), as does link-traffic correlation (CC 5.4.6). |
+| Past-epoch forward-secrecy (honest-holder) | §3.5 rotate-forward (CC 3.2) | Honest-holder assumption; coerced or modified holders are §7.8. |
+| Locality dividend | §2.1 wire format | Self/family content never emits a holding claim outside the cohort (CC 5.2). |
 
 **Accepted in-scope.** Group members can confirm any record_id
-their group has published (the anonymity target is outsiders, not
-insiders). In-group adversary tolerance is in-group governance,
-not anonymity (§7.1). Cross-fragment timing correlation across K=6
-holders is dampened by independent Poisson timers but not
-eliminated below the trilemma (§7.10). Federation-scope content
-is public by design.
+their group has published: the anonymity target is outsiders, not
+insiders (CC 5.4.6). In-group adversary tolerance is in-group
+governance, not anonymity (§7.1). Cross-holder timing correlation
+across an item's holders would be dampened by the proposed independent
+Poisson timers but not eliminated below the trilemma (§7.10).
+Federation-scope content is public by design.
 
 ---
 
@@ -397,12 +521,12 @@ is public by design.
 
 | Adversary capability | Defense |
 |---|---|
-| Subpoena federation directory | Non-federation records never enter `federation_attestations`; record_id is HMAC-opaque; federation witness commits to a constant-rate counter (no bucket structure). Directory exposes federation-public X-Wing keys — already public per §9.5 — but no per-invitation `querier → invitee` edges (§3.3 cached, no queries). |
-| Compel cold-state disk + keys | §2.4 symbol AEAD; openmls StorageProvider encrypts persisted state at-rest under a hardware-bound key (SQLCipher with TPM-sealed boot passphrase). Seized cold-state node yields ciphertext only. |
-| Coerce reveal whose data the operator holds | Opaque fragments under HMAC'd record_ids. Operator can truthfully claim cold-state ignorance. |
+| Subpoena federation directory | Non-federation records emit no holding claim outside their cohort (CC 5.2); record_id is HMAC-opaque (CC 5.4.1); the federation witness commits to a constant-rate counter (CC 5.4.5). The directory exposes federation-public keys, but no `querier → invitee` edge (CC 5.4.6). |
+| Compel cold-state disk + keys | §2.4 sealed chunks (CC 5.4.2); proposed: openmls StorageProvider encrypts persisted state at rest under a hardware-bound key (SQLCipher with TPM-sealed boot passphrase). Seized cold-state node yields ciphertext only. |
+| Coerce reveal whose data the operator holds | Sealed chunks under HMAC'd record_ids, held only by members (CC 4.4.3.2.1 holder-inspectability). The operator can truthfully claim cold-state ignorance (CC 5.4.3). |
 | Compel active cooperation (cold-state) | Scope-segregated deployment (§6.3): the federation-tier node identity and the community-tier node identity are different processes. A seized community-tier node lacks federation-tier signing authority; a seized federation-tier node lacks community MLS state. |
-| Global passive adversary at maintenance budget | §3.1 sender-side Poisson emission with lifetime-average λ inequality (Loopix safety, sender-side only). |
-| K=6 of 20 holders compromised | Recovery still requires `K_symbol`; that requires either breaking X-Wing or compromising threshold of group members. |
+| Global passive adversary | **Not defended.** Unobservability against a global passive adversary is a CC 1.13.3.1 non-goal at every scope. The proposed §3.1 cover is not a GPA claim. Not provided today; the planned anonymous tier ([ANONYMOUS_TIER.md](ANONYMOUS_TIER.md)) is the opt-in path. |
+| Some of an item's holders compromised | A holder's chunks are sealed under the cohort key, so no number of compromised holders opens them (CC 5.4.2, CC 6.1.5); reading them requires either breaking X-Wing or compromising a member who holds the group key. |
 | DS-role adversary (RFC 9750 §5) | Substrate AEAD covers handshake content; deterministic ALM lets any holder verify topology. Residual: drop/reorder extends Remove-propagation latency (§7.1). |
 
 **Acknowledged residual.** TCN-class compulsion (§7.7),
@@ -410,7 +534,8 @@ live-seizure RAM extraction (§7.8), long-term SDA (§7.10),
 targeted in-community Sybil (§7.9), Welcome-emission timing on
 freshly-instantiated paths (§7.13), operator-local-config metadata
 including `archive_mode` and same-node detection telemetry
-(§7.14).
+(§7.14), and the CC 1.13.3.1 non-goals (relationship-existence,
+communication-graph, traffic-analysis, GPA).
 
 ---
 
@@ -420,22 +545,24 @@ including `archive_mode` and same-node detection telemetry
 
 | Repo | What ships | LOC |
 |---|---|---|
-| **CIRISVerify (ciris-crypto)** | HKDF-SHA3 + HMAC-SHA3 + XChaCha20-Poly1305 + HPKE mode_base (RFC 9180 §5.1.1) over X-Wing KEM + ML-DSA-65 sign/verify wrapper for §3.3 Welcome authentication; §2.2 / §2.4 derivation helpers. Minor release with cross-cdylib lockstep cascade. | ~700–1000 |
-| **CIRISPersist** | `BlobStorage::put_scope_blob` for symbol-AEAD admission; schema migration on SQLite + Postgres for `federation_scope_blobs` keyed on `(record_id, symbol_index)` with per-symbol nonce. The 7-value `cohort_scope` lattice + `crypto_tier()` grouping is already in tree at `federation/types.rs:824` and matches CC 4.4.3.2.1 — no lattice migration needed (see [CEWP#4](https://github.com/CIRISAI/CEWP/issues/4)). | ~600 + migration |
-| **CIRISEdge** | `CohortScope` reconciled with persist's 7-value closed set via `crypto_tier()` resolution (no edge-side lattice contraction; see [CEWP#4](https://github.com/CIRISAI/CEWP/issues/4)); openmls StorageProvider impl backed by SQLCipher with TPM-sealed boot passphrase (substrate-tier MLS state, distinct from per-AV-stream MLS); new emission layer between every `Edge::send_*` and `Transport::send` running per-scope Poisson + synthetic cover synth + per-holder CSPRNG jitter; uniform-envelope chunking/reassembly across ReplicationCoordinator, durable outbound, realtime-AV dispatcher, ALM relay fan-out, blob_swarm, MDC sub-streams; §3.2 default flip with per-publication scope echo; §3.3 HPKE-base Welcome wrap + ML-DSA-65 signature + full directory caching + Leviculum announce-suppression extension + L1-relay-blinded query for phone-class; §3.4 per-community witness chain + single-counter federation witness; §3.5 archive_mode config. | ~3500–4500 |
-| **CIRISRegistry (CEG §11)** | Normative absorption: deterministic CBOR profile (RFC 8949 §4.2.1) for record_id; symbol AEAD; fragmentation/reassembly spec; HPKE mode_base + ML-DSA-65 Welcome wrap; per-community witness chain; constant-tick federation counter; announce-suppression discovery primitive; archive_mode vocabulary; constitutional cross-reference. | spec |
+| **CIRISVerify (ciris-crypto)** | HKDF-SHA3 + HMAC-SHA3 + XChaCha20-Poly1305 + HPKE mode_base (RFC 9180 §5.1.1) over X-Wing KEM + ML-DSA-65 sign/verify wrapper for §3.3 Welcome authentication; §2.2 / §2.4 derivation helpers (`scope_privacy::derive_record_id` is the byte-exact source of truth CC 5.4.1 names); the group-destination derivation (edge doc §1). | ~700–1000 |
+| **CIRISPersist** | `BlobStorage::put_scope_blob` for sealed-chunk admission (stored content is never symbol-coded, CC 5.4.2; the `(record_id, symbol_index)` keying belongs to the A/V plane); schema migration on SQLite + Postgres for `federation_scope_blobs`. The 7-value `cohort_scope` lattice + `crypto_tier()` grouping is already in tree and matches CC 4.4.3.2.1 (see [CEWP#4](https://github.com/CIRISAI/CEWP/issues/4)). | ~600 + migration |
+| **CIRISEdge** | `CohortScope` resolving through persist's `crypto_tier()`; openmls StorageProvider backed by SQLCipher with TPM-sealed boot passphrase; emission layer between every `Edge::send_*` and `Transport::send` running per-scope Poisson + synthetic cover + per-holder CSPRNG jitter; uniform-envelope chunking/reassembly across ReplicationCoordinator, durable outbound, realtime-AV dispatcher, ALM relay fan-out, blob_swarm, MDC sub-streams; §3.2 default + per-publication scope echo; §3.3 Welcome wrap, directory caching, announce suppression, relay-blinded query for phone-class; §3.4 witness chains; §3.5 archive_mode. Already shipped per edge doc §3: derived destinations with announce suppression (`ScopeAddressTable`, arrival-scope admission), MLS cohorts under X-Wing `0x004D` with the CC 5.4.4 Welcome wrap, address retirement on epoch advance. | ~3500–4500 |
+| **CIRIS Constitution (CC 5.4)** | Absorbed at CC 1.0-rc9: deterministic CBOR `record_id` with vectors (CC 5.4.1), A/V symbol AEAD and the sealed-chunk rule for stored content (CC 5.4.2), shaped-link fragmentation (CC 5.4.3), Welcome wrap (CC 5.4.4), witness-chain content (CC 5.4.5), announce suppression and cached-directory discovery (CC 5.4.6); `archive_mode` vocabulary (CC 3.2). Not pinned in CC: the Poisson emission discipline, the group-destination derivation bytes. | spec |
 | **CIRISAgent / CIRISServer** | PyO3 surface audit for default-scope flip + migration helper. | ~200 |
-| **CIRISConformance** | Cross-implementation `record_id` reproducibility on the deterministic CBOR profile; forensic disk-inspection test; Poisson emission KS-test (per-scope λ_real ≤ λ_cover, p > 0.01); 20-holder cross-fragment cluster-detection KS-test. | ~600 |
+| **CIRISConformance** | Cross-implementation `record_id` reproducibility on the deterministic CBOR profile; forensic disk-inspection test; Poisson emission KS-test (per-scope λ_real ≤ λ_cover, p > 0.01); cross-holder cluster-detection KS-test over an item's holder set. | ~600 |
 
 **Total: ~6000–7500 LOC** across the substrate triple plus a
-multi-week cross-cdylib release cascade.
+multi-week cross-cdylib release cascade (estimate from the original
+proposal; parts have since shipped, see the edge row).
 
 ### 6.2 What this does not require
 
 No `AnonymousContribution` parallel record class. No new
 MessageType. No Sphinx packet format. No new rendezvous protocol.
-No new transport class — wraps existing transport-http /
-transport-reticulum / store-and-forward.
+No new transport class: wraps existing transport-http /
+transport-reticulum / store-and-forward. No new row type: the row-type
+slot is closed to the five (CC 2.4).
 
 ### 6.3 Operator deployment guidance — scope segregation
 
@@ -446,7 +573,9 @@ different operator identity. Same-node multi-tier participation
 leaks community membership via timing correlation. This is
 operator-facing deployment discipline; the substrate emits a
 warning when a community group's holder set includes peers
-running the same node identity at federation scope.
+running the same node identity at federation scope. CC 3.2 gives the
+same advice for `archive_mode`: a community requiring
+high-sensitivity participation segregates deployment accordingly.
 
 ---
 
@@ -456,26 +585,26 @@ running the same node identity at federation scope.
 Encryption boundary IS moderation boundary; a member-adversary
 holds the keys. Defense is MLS Remove + epoch rotation; PCS
 depends on §3.5. Remove-propagation under §3.1 Poisson and
-§2.5 LXMF store-and-forward can be hours; communities requiring
+LXMF store-and-forward can be hours; communities requiring
 fast Remove SHOULD trigger an explicit epoch flush. DS-role
 adversaries can deliberately delay handshake propagation.
 
 ### 7.2 Publisher OPSEC failures
-Device compromise, key theft, biometric coercion — out of
+Device compromise, key theft, biometric coercion: out of
 substrate scope.
 
 ### 7.3 Federation-scope content
 Commons plaintext is intentionally public. Authors who want
-anonymity stay at community scope or below.
+anonymity toward outsiders stay at community scope or below.
 
 ### 7.4 Same-node bleeding without §6.3 scope segregation
 Without segregation, timing correlation between federation-tier
 and community-tier activity leaks community membership.
 Deployment discipline, not cryptographic property.
 
-### 7.5 Cross-fragment timing correlation
-K=6 holders receive symbols under per-holder Poisson; complete
-elimination requires breaking the trilemma.
+### 7.5 Cross-holder timing correlation
+An item's holders receive its sealed chunks under per-holder Poisson;
+complete elimination requires breaking the trilemma.
 
 ### 7.6 LoRa / cellular L0 peers
 Bytes-per-minute regime cannot afford the §3.1 cover budget.
@@ -486,28 +615,32 @@ membership.
 ### 7.7 TCN-class compulsion
 A Technical Capability Notice compelling future architectural
 cooperation is beyond cryptographic mitigation. The construction
-is robust against cold-state subpoena; not against compelled
+holds against cold-state subpoena, not against compelled
 architectural change.
 
 ### 7.8 Warm-state seizure / hot-key extraction / dishonest holder
 RAM acquisition of a running node recovers the openmls in-memory
 state including derived keys. A holder retaining past-epoch keys
-against §3.5 policy is structurally undetectable. Universal across
-systems; mitigation is deployment discipline (hot-key zeroization
-on suspicious-event detection, full-disk encryption with at-boot
-passphrase).
+against §3.5 policy is structurally undetectable (CC 3.2). Universal
+across systems; mitigation is deployment discipline (hot-key
+zeroization on suspicious-event detection, full-disk encryption with
+at-boot passphrase).
 
 ### 7.9 ALM-Sybil
 Adversary controlling capacity-ads + trust-grants can engineer
-into target holder sets. Decryption threshold (K=6 of 20 + group
-key) ~15–20% global Sybil. **Observation threshold** (holding
-opaque symbols, correlating across many groups) is lower because
-it requires only being a holder. **Targeted in-community Sybil**
-engineering trust-grant + locality-ad adjacency to a single
-community's posture wins K=6 holders below the global threshold;
-defense is community-level holder-admission diversity. Defended
-at v1 by trust-grant + capacity-ad discipline (CEG §19.4) and
-CC 13.3 5-hop delegation cap.
+into target holder sets. Decryption needs the group key however many
+holders are won: a sealed chunk opens to no number of holders without
+it (CC 5.4.2, CC 6.1.5). **Observation threshold** (holding sealed
+chunks, correlating across many groups) is lower because it requires
+only being a holder. **Targeted in-community Sybil** engineering
+trust-grant + locality-ad adjacency to a single community's posture
+wins holder slots below the global threshold; defense is
+community-level holder-admission diversity. Defended
+by hybrid-verified capacity advertisements (CC 6.1.6 N8), trust-grant
+discipline, and the CC 4.1.1 5-hop default cap on `delegates_to`
+traversal. Since only members hold community bytes (CC 4.4.3.2.1),
+a Sybil holder must first be admitted to the community.
+<!-- rc9-sync: superseded by replication; re-run needed (the former ~15–20% global-Sybil decryption threshold was derived from K=6 of 20 coded fragments; under sealed-chunk replication, CC 5.4.2 / CC 6.1.5, holder count alone yields no decryption, and no replacement figure is stated in CC) -->
 
 ### 7.10 Long-term statistical disclosure
 SDA over months of observation recovers persistent patterns even
@@ -537,7 +670,7 @@ epoch transitions.
 ### 7.14 Operator-local config metadata
 `archive_mode` per community + same-node-detection telemetry
 (§6.3 warning state) are operator-local config, observable under
-compelled disclosure on the same terms. Operators with
+compelled disclosure on the same terms (CC 3.2). Operators with
 high-sensitivity participation run §6.3 scope-segregated
 deployments per archive_mode class or treat the metadata as
 known-leak.
@@ -547,165 +680,170 @@ Substrate AEAD covers handshake content; deterministic ALM
 prevents misroute. Residual: drop/reorder extends Remove latency
 (§7.1) at adversary choice.
 
+### 7.16 What CC 1.13.3.1 rules out
+Relationship-existence privacy, communication-graph privacy,
+traffic-analysis resistance and GPA-unobservability are not provided
+by this construction, and implementers and operators MUST NOT
+represent them as provided (CC 1.13.3). For GPA-unobservability and
+multi-hop anonymity: not provided today; the planned anonymous tier
+([ANONYMOUS_TIER.md](ANONYMOUS_TIER.md)) is the opt-in path.
+
 ---
 
 ## 8. The harmful-community trade
 
-The construction protects exactly the dissident under a
-totalitarian government that CC 1.13.3 names. **It also protects
-communities whose content the federation would refuse to host.**
-This is structurally true and the Constitution permits it —
-CC 1.13.3.4 ratified the protective-default explicitly knowing
-that anonymity-by-default is what reaches the non-savvy vulnerable
-who would never clear an opt-in toggle, while motivated bad
-actors clear toggles trivially. The trade is the same on both
-sides of the encryption boundary.
+The construction protects the dissident under a hostile government.
+It also protects communities whose content the federation would
+refuse to host. That is structurally true, and CC states it plainly:
+CEG declines client-side scanning, which would be a surveillance
+backdoor, and does not claim to detect harmful content inside private
+cohorts, "the same wall every end-to-end-encrypted system hits"
+(CC 1.13.3.4).
 
-CC 1.13.4 establishes that the substrate cannot moderate content.
-The federation governance mechanisms (CC 13.3) act on
-federation-scope content, operator behavior at federation tier,
-and refusal to host operators whose federation-tier behavior
-signals harm. They do not act on community-scope content
-(cryptographically invisible), community membership lists
-(encrypted MLS state), or in-group adjudication outcomes
-(application-layer, in-group).
+What CC adds is stated in the same section (CC 1.13.3.4):
 
-The substrate's authority does not extend inside the encryption
-boundary. CC 1.13.3.4 ratified anonymity-by-default knowing the
-default-protection reaches dissidents AND those the federation
-would refuse; the Constitutional decision is that the
-alternative (opt-in anonymity) strips protection from the
-non-savvy vulnerable while leaving motivated adversaries
-unaffected, and that substrate visibility into community
-content violates CC 1.13.4 categorically. CC 4.2
-HUMANITY_ACCORD's substrate-protective discipline against
-bad-actor takedown of whistleblowers is the same discipline
-that protects bad actors. The trade is permitted because the
-alternative is categorical CC 1.13.4 violation and a
-discriminatory protection regime against exactly those who need
-it most.
+- **Fails-secure governance.** Every community has a named moderator
+  (the named-moderator existence invariant with merit auto-promotion,
+  CC 4.5.4).
+- **A perceptual-hash tripwire at every scope-widening promotion.** A
+  promotion into the Commons, or a post into a `public` room, creates
+  the Contribution that is hash-matched at that seam; never on the
+  device, never inside a private cohort. This catches the
+  spreading-correlated child-safety cases without scanning content
+  that stays within its cohort.
+
+CC's own summary of the line: "fails-secure governance plus
+accountable, censorship-resistant moderation; never private-content
+detection" (CC 1.13.3.4). The default is set at the smallest scope
+because opt-in anonymity would weaken protection only for those least
+able to navigate it, while motivated adversaries clear any toggle
+(CC 1.13.3.4).
 
 ---
 
 ## 9. Acceptance criteria
 
+Status at CC 1.0-rc9. A box is checked only where CC or the CIRISEdge
+`docs/LIGHTNET_DARKNET.md` states the item as met.
+
 - [ ] CIRISVerify ships HKDF-SHA3 + HMAC-SHA3 + XChaCha20-Poly1305
       + HPKE mode_base over X-Wing + ML-DSA-65 wrap + §2.2 / §2.4
       derivation helpers (with cross-cdylib lockstep cascade).
-- [ ] CIRISPersist ships `BlobStorage::put_scope_blob` + V091
-      schema migration. (Lattice contraction is moot — persist's
+      *Partly evidenced: CC 5.4.1 / 5.4.2 name `ciris-crypto`
+      `scope_privacy::derive_record_id` / `derive_symbol_key` as the
+      byte-exact source of truth.*
+- [ ] CIRISPersist ships `BlobStorage::put_scope_blob` + schema
+      migration. (Lattice contraction is moot: persist's
       `crypto_tier()` already implements CC 4.4.3.2.1's 7-value
       grouping; see [CEWP#4](https://github.com/CIRISAI/CEWP/issues/4).)
 - [ ] CIRISEdge ships `CohortScope` resolving through persist's
-      `crypto_tier()` per CC 4.4.3.2.1; SQLCipher-backed
-      openmls StorageProvider with TPM-sealed boot passphrase;
-      Poisson emission layer on all enumerated emission paths;
-      §3.2 default flip + scope echo; §3.3 HPKE-Base + ML-DSA-65
-      Welcome wrap + cached federation directory + Leviculum
-      announce-suppression; §3.4 per-community witness + single
-      federation counter; §3.5 archive_mode config.
-- [ ] CIRISRegistry CEG §11 normatively absorbs the construction,
-      pins RFC 8949 §4.2.1 deterministic CBOR profile, and
-      cross-references the constitutional alignment: this FSD
-      provides the **CC 1.13.3.4 anonymity-by-default**
-      construction at every scope below federation, with the
-      CC 1.13.3.1 GPA-unobservability residual at federation
-      scope routing to [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) as
-      the opt-in tier; CC 1.13.5 operational-language gate binds
-      substrate-reserved vocabulary at federation tier; in-group
-      governance language is application-layer; self-scope
-      content is journaling-grade (CC 1.13.1 #1 cross-attestation
-      is structurally inapplicable to a federation-of-one).
+      `crypto_tier()`; SQLCipher-backed openmls StorageProvider with
+      TPM-sealed boot passphrase; Poisson emission layer on all
+      enumerated emission paths; §3.2 default + scope echo; §3.3
+      Welcome wrap + cached federation directory + announce
+      suppression; §3.4 per-community witness + single federation
+      counter; §3.5 archive_mode config.
+      *Partly evidenced (edge doc §3): derived destinations and
+      announce suppression Normative + Shipped; MLS cohorts with the
+      CC 5.4.4 Welcome wrap Shipped; non-member cannot fetch, relay
+      holds no group address, zero-loss rotation and address
+      retirement Measured on bench-mesh. Poisson emission,
+      StorageProvider and witness chains are not stated as shipped.*
+- [x] The Constitution normatively absorbs the wire profile: CC 5.4.1
+      (`record_id` on the RFC 8949 §4.2.1 profile, with vectors),
+      CC 5.4.2 (symbol AEAD), CC 5.4.3 (fragmentation), CC 5.4.4
+      (Welcome wrap), CC 5.4.5 (witness-chain content), CC 5.4.6
+      (announce suppression), CC 3.2 (`archive_mode`), with the
+      constitutional alignment at CC 1.13.3.4 and CC 5.4.6
+      *Position*. *Not pinned in CC: the Poisson emission discipline
+      and the group-destination derivation bytes (§2.2).*
 - [ ] CIRISConformance ships cross-artifact integration tests:
       forensic cold-state disk inspection recovers no publisher
       identity / no group identity / no record content;
       cross-implementation `record_id` reproducibility on the
       deterministic CBOR profile; per-scope Poisson discipline
       lifetime-average inequality verified by KS-test at p > 0.01
-      over ≥24h; 20-holder cross-fragment cluster-detection KS-test
-      at p > 0.01.
+      over ≥24h; cross-holder cluster-detection KS-test over an
+      item's holder set at p > 0.01.
 - [ ] Bench: per-tier steady-state maintenance budget measured
       under realistic federation conditions; ~10–60 KB/s/peer
       prediction validated; per-scope cover ratio reported.
 
 ---
 
-## 10. Prior art and the narrow novelty claim
+## 10. Prior art and positioning
 
 The construction recombines well-known primitives:
-encrypt-then-erasure-code with operator opacity
-(Tahoe-LAFS, Storj, Hyphanet); MLS group key state with X-Wing
-PQC (RFC 9420, openmls 0.8, MIMI-MLS draft); group-shaped wire
+encrypt-then-distribute with operator opacity
+(Tahoe-LAFS, Storj, Hyphanet; those erasure-code, CEWP replicates
+sealed chunks whole, CC 6.1.5); MLS group key state with X-Wing
+PQC (RFC 9420, openmls, MIMI-MLS draft); group-shaped wire
 addressing (ssb-tribes GroupId, libp2p GossipSub topics, Waku v2
 topics, MIMI `mimi://domain/g/id` URIs); encryption boundary =
 moderation boundary (Briar, Session closed groups, Cwtch,
 SimpleX); directory-free routing (mainline DHT, Iroh, Briar
 contact graph); Loopix Poisson cover (Loopix, Nym, Katzenpost);
-RNS source-anonymous link layer (Reticulum); AEAD with
-subcredential KDF (Tor v3 §B.2 HSDir).
+the Reticulum link layer; AEAD with subcredential KDF (Tor v3 §B.2
+HSDir).
 
-The substrate-tier integration of (a) a typed scope lattice as a
-**privacy-tier addressing primitive with default-non-federation**
-— distinct from MIMI's URI tier naming taxonomy, which enumerates
-identifier types without a privacy ordering or default flip —
-and (b) **non-anonymity-domain storage-substrate maintenance
-traffic** (anti-entropy + RaptorQ repair + witness chains, emitted
-for storage liveness regardless of any anonymity regime) reused as
-the Loopix cover budget — distinct from Loopix's purpose-built
-monitoring loops, which exist because of the anonymity requirement
-— has no published implementation.
+The positioning CC records (CC 5.4.6 *Position*, the
+CIRISConstitution#91 prior-art record): the design sits in the
+zero-emission, membership-concealment corner of the anonymity
+trilemma, with the relay floor ("whoever relays for you must know how
+to reach you"; Vasserman et al., CCS 2009) satisfied entirely by
+members. Two of that corner's known prices are bought back. First,
+the two-plane split: the group plane is derived from the public
+identity plane, so derivation replaces discovery and no bootstrap
+emission exists. Second, determinism replaces coordination: the
+member-relay ALM tree is a pure function every member computes
+(CC 6.1.6), recovering ⌈log_k N⌉ fan-out without a coordinator that
+would have to learn the group exists. An earlier version of this
+section made its own novelty claim about the scope lattice and reused
+maintenance cover; CC does not state that claim, and it is withdrawn
+in favour of CC's.
 
 ---
 
 ## 11. Relationship to ANONYMOUS_TIER.md
 
-CC 1.13.3 splits anonymity into two complementary protections that
-this FSD and ANONYMOUS_TIER.md realize jointly, not as alternative
-realizations of one mechanism:
+CC 1.13.3.1 names unobservability against a global passive adversary
+at federation scope as the residual non-goal, and refers to a
+"separate, opt-in mechanism (the CIRISNodeCore Anonymous Tier, Sphinx
+onion routing)". CC rc9 specifies no wire, record class or transport
+for that tier, and CC 5.4.6 treats multi-hop reach as an
+amendment-plane question whose nearest admissible relaxation is the
+Tor v3 / I2P b33 blinded-retained-state family, with rotation clocks
+global. GPA-unobservability and multi-hop anonymity are not provided
+today; the planned anonymous tier ([ANONYMOUS_TIER.md](ANONYMOUS_TIER.md))
+is the opt-in path. It is the plan of record for that tier, with
+implementation expected soon (steward ruling, 2026-10-21); it is not
+yet specified normatively in CC and not yet shipped, and it must meet
+the CC 5.4.6 bar.
 
-- **CC 1.13.3.4 — anonymity-by-default at every scope below
-  federation.** This FSD specifies the default construction via
-  substrate-tier configuration of existing primitives:
-  `cohort_scope` wire-format, group-keyed fountain AEAD,
-  deterministic ALM topology, Poisson emission over maintenance
-  cover, MLS HPKE-Base Welcome wrap, per-community witness chains.
-  Every CIRIS deployment runs this construction; opting out means
-  opting *up* to federation (public-commons) scope per-publication.
+This FSD is the construction for scopes below federation, and every
+deployment runs it: content defaults to the smallest scope, and
+widening to federation (public-commons) scope is a per-publication
+opt-in (CC 1.13.3.4). Nothing in this FSD depends on the anonymous
+tier: deployments that need GPA resistance layer it on top
+(CC 1.13.3.3).
 
-- **CC 1.13.3.1 — GPA-unobservability at federation scope (opt-in
-  residual).** Full unobservability against a *global passive
-  adversary* at federation (public-commons) scope is the single
-  residual protection beyond the substrate-maintenance cover budget
-  this FSD anchors. [ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) realizes
-  this residual via the parallel CIRISNodeCore Anonymous Tier
-  (Sphinx onion routing). Operators publishing federation-scope
-  content who additionally require GPA-resistance layer that tier;
-  the substrate-tier construction below it is unchanged.
-
-The two FSDs are complementary, not alternative. This FSD is the
-**default protection floor** at non-federation scopes;
-ANONYMOUS_TIER.md is the **GPA-resistant opt-in tier** layered
-when federation-scope traffic must additionally defeat a global
-passive adversary.
-
-The CC 1.13.3.4 / CC 1.13.3.1 boundary is provisional per §1 — if
-the real overhead of GPA-resistance proves low enough against the
-free-rider maintenance budget, the line may move toward making
-GPA-resistance default for individual federation-scope publishers
-while leaving infrastructure traffic (revocation lists, steward
-keys) on the cheaper substrate-maintenance path.
+The default/opt-in boundary at GPA-unobservability is provisional
+(CC 1.13.3.4; §1).
 
 ---
 
 ## 12. References
 
-- [FSD/ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) (companion
-  realization)
+- CIRIS Constitution 1.0-rc9 (tag `v1.0-rc9`): CC 1.13.3,
+  CC 1.13.3.1, CC 1.13.3.4, CC 3.1.3.3, CC 3.2, CC 4.4.3.2.1,
+  CC 5.2, CC 5.3.3.5, CC 5.4.1–5.4.6, CC 6.1.6
+- CIRISEdge `docs/LIGHTNET_DARKNET.md` (two-plane claims, mechanisms
+  and measurements)
+- [FSD/ANONYMOUS_TIER.md](ANONYMOUS_TIER.md) (planned opt-in tier,
+  not yet specified in CC or shipped)
 - [FSD/FEDERATION_SCALING_MODEL.md §9](FEDERATION_SCALING_MODEL.md)
   (identity-aware-storage trade)
-- [FSD/CEWP.md §7.1, §8](CEWP.md) (CEG + scaling/privacy)
-- CIRISRegistry CEG 1.0-RC29 §7, §19, §19.4, §19.7
-- CIRISEdge MISSION.md §13, docs/THREAT_MODEL.md AV-49/50/52
+- [FSD/CEWP.md §7.1, §8](CEWP.md) (substrate + scaling/privacy)
 - [RFC 9420 MLS](https://datatracker.ietf.org/doc/rfc9420/),
   [RFC 9750 MLS Architecture](https://datatracker.ietf.org/doc/rfc9750/),
   [RFC 9180 HPKE](https://datatracker.ietf.org/doc/rfc9180/),

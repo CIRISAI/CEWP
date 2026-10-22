@@ -1,6 +1,8 @@
 # FSD: CEWP Simulation Engine
 
-**Status:** v0.1 design.
+**Status:** v0.1 design. Wire-format names reconciled with the
+CIRIS Constitution 1.0-rc9 (tag `v1.0-rc9`); the CEG specification is
+now Parts 2–5 of CC. The engine's model mathematics is unchanged.
 **Scope:** A modular, performant Rust simulation engine that models
 the centralized internet AND the CEWP substrate on the same
 real-world topology, at resolutions from one-thousand to
@@ -63,11 +65,11 @@ benchmark suites:
 
 | Op | Cost | Source |
 |---|---|---|
-| `hybrid_sign` (Ed25519 + ML-DSA-65) | 466 µs | [CIRISVerify v2.8.0](https://github.com/CIRISAI/CIRISVerify/blob/main/docs/BENCHMARKS.md) |
+| `hybrid_sign` (Ed25519 + ML-DSA-65) | 466 µs | [CIRISVerify](https://github.com/CIRISAI/CIRISVerify/blob/main/docs/BENCHMARKS.md) (early-release bench; see its repository for current figures) |
 | `hybrid_verify` | 276 µs | same |
 | AES-GCM @ 64 KiB | 5.45 GiB/s encrypt, 5.91 GiB/s decrypt | same |
-| Persist SQLite per-row write | ~1.5 ms | [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) v3.x storage_floor bench |
-| Edge dispatch_inbound (256 B) | < 400 µs | [CIRISEdge v6.3.0](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/BENCHMARKS.md) |
+| Persist SQLite per-row write | ~1.5 ms | [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) early-release storage_floor bench (current release v59.1.0, not re-benched here) |
+| Edge dispatch_inbound (256 B) | < 400 µs | [CIRISEdge](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/BENCHMARKS.md) (current release v43.1.1, not re-benched here) |
 | H3ERE trace per agent decision | ~14 KB | [CIRISPersist INTEGRATION_LENS.md](https://github.com/CIRISAI/CIRISPersist/blob/main/docs/INTEGRATION_LENS.md) |
 | Scrub regex pass | 5–10 ns/byte | Edge inline_text_pipeline |
 
@@ -147,28 +149,41 @@ case — but originate and terminate at consumer endpoints, not
 hyperscale facilities. The animation contrast: same fiber, no
 datacenters in the middle.
 
-**Holonomic substrate properties (CEG §19) the sim should
+**Holonomic substrate properties (CC 6.1) the sim should
 represent.** The CEWP topology is holonomic — no center, no DNS, no
-load-bearing server. Three §19 properties refine the flow model
+load-bearing server. Three CC 6.1 properties refine the flow model
 above and the per-node accounting:
 
-* **Deterministic ALM multicast relay tree** (CEG §19.4) —
+* **Deterministic ALM multicast relay tree** (CC 6.1.6) —
   cross-metro fan-out for `cohort_scope ≥ community` content rides a
   deterministic application-layer-multicast relay tree, not R
   independent unicasts. The sim models multicast edges as one relay
   tree per (publisher, subscriber-set), so popular content + live
   broadcast don't replicate the same byte R times across the same
   fiber.
-* **RaptorQ erasure-coded / holographic storage** (CEG §19.3) —
-  published blobs are `(N,K)` fountain-coded; holders carry
-  *fragments*, and any sufficient subset reconstructs. Per-node
-  `bytes_held` accounts for fragment shares, not whole blobs; the
-  sim shows the substrate surviving node loss down to one survivor.
-* **Noise-floor memory pyramid** (CEG §19.7, O(log T)) — retirement
+* **Per-item replication** (CC 6.1.5) — an item its owner marks
+  durable on publish carries a target holder count; holders carry its
+  sealed chunks whole, placed rarest chunk first across the live
+  cohort, repaired when the holonomic view shows holders falling
+  toward the minimum-holders floor, and recoverable from any one
+  holder; below the minimum-viable floor only the signed envelope
+  survives (CC 6.1.5, CC 6.1.5.1). Nodes never encode stored content;
+  the rateless codec is the realtime A/V plane's (CC 5.4.2). A layered
+  item is one chunk set per layer and sheds whole layers (CC 6.1).
+  Per-node `bytes_held` accounts for whole copies of held items, with
+  a layered item counted per retained layer; the sim shows survival
+  under node loss down to the last live holder, repair runs as the
+  count falls toward the floor, and un-marked items on the cache path
+  only. The view the sim reads is measurement: holders per item and
+  gap to target, with an unseen holder unknown, never zero (CC 6.1).
+* **Noise-floor aggregation pyramid** (CC 6.1.2) — retirement
   (revocation / eviction / expiry / aging) is one monotonic descent
-  toward a noise floor; all of history costs O(log T) steady-state
-  storage. The sim models long-horizon `bytes_held` as the pyramid,
-  not flat per-source retention.
+  toward a noise floor. CC 6.1.2 states the pyramid's storage as Θ(T)
+  if every level is kept and sublinear only under bounded retention
+  per level (an earlier "O(log T)" claim is withdrawn there). The sim
+  models long-horizon `bytes_held` as the pyramid, not flat
+  per-source retention, and must state the retention per level it
+  assumes, since CC does not pin one.
 
 ---
 
