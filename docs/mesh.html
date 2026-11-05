@@ -51,7 +51,7 @@ a{color:var(--green)}
 </section>
 </main>
 <script type="module">
-import { loadTables, Mesh } from "./kernel/kernel.js";
+import { loadTables, Mesh } from "./kernel/kernel.js?v=3";
 const [tr, gp] = await Promise.all([fetch("kernel/tables/transitions.json").then(r=>r.json()), fetch("kernel/tables/governance_policy.json").then(r=>r.json())]);
 const tables = loadTables(tr, gp);
 const C = {alice:"#2f5d50",bob:"#b5542d",carol:"#4a5fa0",dave:"#8a6d1f",erin:"#7a3f8a",frank:"#3f7a8a",nobody:"#8c8a84"};
@@ -110,7 +110,7 @@ function render(){
     else if (n.kind==="laptop"){ g.fillRect(n.x-20,n.y-13,40,26); g.strokeRect(n.x-20,n.y-13,40,26); }
     else { g.beginPath(); g.arc(n.x,n.y,18,0,7); g.fill(); g.stroke(); }
     g.fillStyle=css("--ink"); g.font="12px ui-monospace,monospace"; g.textAlign="center";
-    g.fillText(n.id,n.x,n.y+40); g.fillStyle=css("--mute"); g.fillText(n.held.size+" rows"+(n.sealed.size?" · "+n.sealed.size+" sealed":"")+(r?" · roster "+(r.members.size+r.founders.size):""),n.x,n.y+54);
+    g.fillText(n.id,n.x,n.y+40); g.fillStyle=css("--mute"); g.fillText(n.held.size+" rows"+((n.sealed&&n.sealed.size)?" · "+n.sealed.size+" sealed":"")+(r?" · roster "+(r.members.size+r.founders.size):""),n.x,n.y+54);
     const flag=f.objects.get("flag:post2"); if (flag && (r&&(r.members.has(n.owner)||r.founders.has(n.owner)))){ g.fillStyle=C.bob; g.fillText(flag.outcome==="acting"?"withhold: window open":"withhold: "+flag.outcome, n.x, n.y-30); }
   }
   document.getElementById("clock").textContent="t = "+Math.round(m.now/1000)+" s · rows in flight "+inflight.length;
@@ -125,7 +125,7 @@ cv.addEventListener("click",(e)=>{
 function inspect(){
   const el=document.getElementById("inspect"); el.innerHTML=""; if(!selected) return;
   const n=m.nodes.get(selected); const q=m.queueOf(selected); const f=q.fold;
-  const h=document.createElement("div"); h.innerHTML=`<h2 style="margin-top:10px">${n.id} · owner ${n.owner} · holds ${n.held.size} rows${n.sealed.size?" · carries "+n.sealed.size+" sealed":""}</h2><div class="mono mute">standing on room:1: ${[...(f.rooms.get("room:1")?Array.from(["founder","member","moderate"]).filter(r=>{const rr=f.rooms.get("room:1");return (r==="founder"&&rr.founders.has(n.owner))||(r==="member"&&(rr.members.has(n.owner)||rr.founders.has(n.owner)))||(r==="moderate"&&rr.moderators.has(n.owner))}):["(no room held)"])].join(", ")||"none"}</div>`; el.appendChild(h);
+  const h=document.createElement("div"); h.innerHTML=`<h2 style="margin-top:10px">${n.id} · owner ${n.owner} · holds ${n.held.size} rows${(n.sealed&&n.sealed.size)?" · carries "+n.sealed.size+" sealed":""}</h2><div class="mono mute">standing on room:1: ${[...(f.rooms.get("room:1")?Array.from(["founder","member","moderate"]).filter(r=>{const rr=f.rooms.get("room:1");return (r==="founder"&&rr.founders.has(n.owner))||(r==="member"&&(rr.members.has(n.owner)||rr.founders.has(n.owner)))||(r==="moderate"&&rr.moderators.has(n.owner))}):["(no room held)"])].join(", ")||"none"}</div>`; el.appendChild(h);
   const items=[...q.items, ...q.starts.filter(s=>s.room||["key:record","group:roster","transport:{kind}","consent:{kind}","chat:*"].includes(s.family)).slice(0,8)];
   const qh=document.createElement("div"); qh.innerHTML=`<div class="mono mute" style="margin-top:6px">the queue of ${n.owner} on this node (${q.items.length} on held objects, ${q.starts.length} starts):</div>`; el.appendChild(qh);
   if(!items.length){ const d=document.createElement("div"); d.className="q mute"; d.textContent="nothing: no standing on anything this node holds"; el.appendChild(d); }
