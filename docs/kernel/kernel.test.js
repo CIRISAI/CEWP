@@ -25,7 +25,7 @@ test("the queue is the door run forwards: parity with the constitution's story",
 test("a life of a mesh: rows travel one hop per tick, strangers carry only the consent-free set, folds agree", () => {
   const m = new Mesh(tables);
   m.addNode("alice-phone", "alice"); m.addNode("bob-phone", "bob"); m.addNode("carol-phone", "carol"); m.addNode("seat", "nobody", "server");
-  m.link("alice-phone", "seat"); m.link("bob-phone", "seat"); m.link("carol-phone", "seat"); m.link("alice-phone", "bob-phone");
+  m.link("alice-phone", "seat"); m.link("bob-phone", "seat"); m.link("carol-phone", "seat"); // alice reaches bob only through the seat
   let id = 0; const row = (o) => ({ id: "r" + (++id), scope: { tier: "self" }, ...o });
   for (const p of ["alice", "bob", "carol"]) assert.ok(m.sign(p + "-phone", row({ family: "key:record", verb: "attest", signer: p, object: "key:" + p })).ok);
   // a stranger's row is refused at the door until the key is held: no standing
@@ -38,6 +38,8 @@ test("a life of a mesh: rows travel one hop per tick, strangers carry only the c
   assert.ok(m.sign("bob-phone", row({ family: "group:roster", verb: "attest", signer: "bob", object: "room:1", scope: { tier: "room", room: "room:1" } })).ok);
   m.tick(); m.tick(); m.tick();
   assert.equal(m.nodes.get("carol-phone").held.has("r5"), false, "a stranger is not offered a room row");
+  assert.equal(m.nodes.get("carol-phone").sealed.has("r5"), false, "a phone is not a carrier");
+  assert.ok(m.nodes.get("seat").sealed.has("r5") && !m.nodes.get("seat").held.has("r5"), "a seat carries the room row sealed and never folds it");
   // bob invites alice; the invitation is two-path; alice's yes is the second voice
   assert.ok(m.sign("bob-phone", row({ family: "membership:{stage}", verb: "attest", signer: "bob", object: "invite:alice", subject: "alice", scope: { tier: "room", room: "room:1" } })).ok);
   m.tick(); m.tick();

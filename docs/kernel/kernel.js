@@ -289,7 +289,8 @@ const CONSENT_FREE = new Set(["key:record", "transport:{kind}", "consent:{kind}"
 
 export class Mesh {
   constructor(tables) { this.tables = tables; this.nodes = new Map(); this.links = new Set(); this.now = 0; this.log = []; }
-  addNode(id, owner, kind = "phone") { this.nodes.set(id, { id, owner, kind, held: new Map(), offered: new Set() }); return this.nodes.get(id); }
+  // a serve seat (kind "server") is a carrier that has said yes: it carries scoped rows sealed, never folding them
+  addNode(id, owner, kind = "phone") { this.nodes.set(id, { id, owner, kind, held: new Map(), sealed: new Map(), offered: new Set(), carrier: kind === "server" }); return this.nodes.get(id); }
   link(a, b) { this.links.add([a, b].sort().join("|")); }
   neighbours(id) { const out = []; for (const l of this.links) { const [a, b] = l.split("|"); if (a === id) out.push(b); if (b === id) out.push(a); } return out; }
   audience(node, row) {
@@ -319,11 +320,17 @@ export class Mesh {
     for (const node of this.nodes.values()) {
       for (const nb of this.neighbours(node.id)) {
         const other = this.nodes.get(nb);
-        for (const { row } of node.held.values()) {
+        const carried = [...[...node.held.values()].map((h) => ({ row: h.row, aud: null })), ...[...node.sealed.values()].map((x) => ({ row: x.row, aud: x.aud }))];
+        for (const { row, aud: sealedAud } of carried) {
           const key = row.id + ">" + nb;
-          if (node.offered.has(key) || other.held.has(row.id)) continue;
-          const aud = this.audience(node, row);
-          if (aud && !aud.has(other.owner)) continue; // a stranger is offered nothing it must consent to carry
+          if (node.offered.has(key) || other.held.has(row.id) || other.sealed.has(row.id)) continue;
+          const aud = sealedAud || this.audience(node, row); // a carrier forwards by the audience the sender folded
+          if (aud && !aud.has(other.owner)) {
+            if (!other.carrier) continue; // a stranger is offered nothing it must consent to carry
+            other.sealed.set(row.id, { row, aud }); node.offered.add(key); // a seat carries it sealed
+            moves.push({ from: node.id, to: nb, row: row.id, ok: true, sealed: true });
+            continue;
+          }
           const s = door(other.held, this.tables, row, this.now);
           if (s.ok) node.offered.add(key); // a refusal is retried next tick: what it lacked may arrive
           moves.push({ from: node.id, to: nb, row: row.id, ok: s.ok, refusal: s.refusal });
