@@ -23,3 +23,7 @@ The tables are the constitution's, vendored under [`tables/`](tables/) at the co
 **What it leaves out, on purpose.** Signatures (a held row is already verified), transport below "one hop per tick", other nodes' holdings, projections, text, a clock (`now` is an input), and any reader's weighting of what it reads. That list is the constitution's own: it is what keeps the kernel small enough that every question about it is decidable.
 
 [`../mesh.html`](../mesh.html) runs it in the browser as a mesh of people and their nodes.
+
+## At scale: the door in WebAssembly
+
+[`../globe.html`](../globe.html) puts a few million nodes on a globe, placed by where people live, and signs random acts every tick: 65% family-scope, 30% in a community room, 4% consent-free rows, 1% in a public room. The door runs at the signer's node and at every node of the row's audience. The loop is [`kernel-wasm/src/lib.rs`](../../kernel-wasm/src/lib.rs), compiled to `kernel_scale.wasm` (23 KB, no dependencies, `kernel-wasm/build.sh`), with the same loop in JavaScript on the page so the two engines can be timed on one world. What it shows: the share of rows that never leave the signer's metro (the locality dividend of CC 5.2; about nine in ten with rooms drawn 90% within a metro), the bytes moved against a broadcast network and a datacenter in the middle, and door checks per second (about 15 M/s in WASM against 6 M/s in JavaScript on one core at 1 M nodes). It runs the admission predicate, not the policy folds.

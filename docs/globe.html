@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Millions of nodes, one door</title>
+<meta name="description" content="A few million nodes on a globe, random acts every tick, the kernel's door run at every node of each row's audience in WebAssembly; what stays in the metro, what crosses, and what a broadcast network or a datacenter would have moved.">
+<style>
+:root{--bg:#0b0d12;--panel:#12151c;--line:#242a36;--ink:#dfe3ea;--mute:#8a93a3;--ok:#5ad38f;--warm:#ffb15c;--hot:#ff6a5c;--cool:#6cb6ff;--mono:ui-monospace,Menlo,Consolas,monospace}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--mono);overflow:hidden}
+#c{position:fixed;inset:0;width:100vw;height:100vh;display:block;cursor:grab}
+#hud{position:fixed;left:12px;top:12px;width:min(380px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;backdrop-filter:blur(6px)}
+#hud h1{font:600 16px/1.2 Georgia,serif;margin:0 0 4px;color:#fff}#hud p{margin:0 0 8px;color:var(--mute);font-size:12px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
+button,select{font:12px var(--mono);background:#1a1f2a;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 8px;cursor:pointer}
+button.on{border-color:var(--ok);color:var(--ok)}
+#stats{position:fixed;right:12px;top:12px;width:min(360px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12px;backdrop-filter:blur(6px)}
+#stats h2{font:600 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:8px 0 4px}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px dashed #1e2430}.kv b{color:#fff;font-weight:600}.kv .big{font-size:20px;color:var(--ok)}
+.bar{height:8px;background:#1a1f2a;border-radius:4px;overflow:hidden;margin:4px 0 8px}.bar i{display:block;height:100%;background:var(--ok)}
+#foot{position:fixed;left:12px;bottom:10px;color:var(--mute);font-size:11px;max-width:min(720px,calc(100vw - 24px))}#foot a{color:var(--cool)}
+@media(max-width:800px){#stats{top:auto;bottom:40px;max-height:46vh;overflow:auto}#hud{max-height:40vh;overflow:auto}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <h1>Millions of nodes, one door</h1>
+  <p>Every point is a node someone owns, placed by where people live. Each tick, random acts are signed: 65% family-scope, 30% in a community room, 4% consent-free rows (keys, announces), 1% in a public room. The kernel's door runs at the signer's node and at every node in the row's audience, in WebAssembly. Drag to turn; wheel to zoom.</p>
+  <div class="row">
+    <select id="size"><option value="100000">100 k nodes</option><option value="1000000" selected>1 M nodes</option><option value="2000000">2 M nodes</option><option value="4000000">4 M nodes</option></select>
+    <select id="acts"><option value="2000">2 k acts / tick</option><option value="10000" selected>10 k acts / tick</option><option value="50000">50 k acts / tick</option><option value="200000">200 k acts / tick</option></select>
+    <button id="build">build world</button>
+  </div>
+  <div class="row">
+    <button id="play">▶ run</button><button id="step">one tick</button>
+    <button id="eng" class="on">engine: WASM</button>
+    <button id="arcsb" class="on">arcs</button>
+  </div>
+  <p id="status">building…</p>
+</div>
+<div id="stats">
+  <div class="kv"><span>rows that never leave the signer's metro</span><b class="big" id="local">–</b></div>
+  <div class="bar"><i id="localbar" style="width:0"></i></div>
+  <div class="kv"><span>deliveries within the metro</span><b id="dlocal">–</b></div>
+  <div class="kv"><span>crosses a metro, same region</span><b id="xmetro">–</b></div>
+  <div class="kv"><span>crosses a region</span><b id="xregion">–</b></div>
+  <div class="kv"><span>mean distance of a crossing</span><b id="km">–</b></div>
+  <h2>this tick</h2>
+  <div class="kv"><span>acts signed</span><b id="acts_n">–</b></div>
+  <div class="kv"><span>deliveries (doors run)</span><b id="deliv">–</b></div>
+  <div class="kv"><span>refused at the signer's own door</span><b id="refused">–</b></div>
+  <div class="kv"><span>bytes moved</span><b id="bytes">–</b></div>
+  <div class="kv"><span>a broadcast network would move</span><b id="bcast">–</b></div>
+  <div class="kv"><span>with a datacenter in the middle</span><b id="central">–</b></div>
+  <h2>the kernel</h2>
+  <div class="kv"><span>door checks / second</span><b id="dps">–</b></div>
+  <div class="kv"><span>ms per tick (door only)</span><b id="ms">–</b></div>
+  <div class="kv"><span>bytes of state per node</span><b id="bpn">–</b></div>
+  <div class="kv"><span>cumulative deliveries</span><b id="cum">–</b></div>
+</div>
+<div id="foot">The door here is the kernel's admission predicate (object state and the signer's standing on the roster the audience is drawn from; a stranger is refused at the first door and travels nowhere), not the full policy folds; the same loop runs in <a href="kernel/">Rust→WASM</a> and in JavaScript, switchable above, so the two engines can be timed on the same world. Bytes assume one COSE row of 4 KB (a composite ML-DSA-65 + Ed25519 signature). Rooms are drawn 90% within a metro, 9% within its region, 1% across the world; that is the geography the locality dividend of CC 5.2 names. <a href="mesh.html">The small mesh</a> · <a href="index.html">the model in motion</a></div>
+<script>
+// ------------------------------------------------------------------ the world
+// metros: [name, lat, lon, weight (millions of people, roughly), region]
+const REG = ["N. America","Latin America","Europe","MENA","Sub-Saharan Africa","South Asia","East Asia","SE Asia & Oceania","Russia & C. Asia"];
+const METROS = [
+["New York",40.7,-74.0,20,0],["Los Angeles",34.1,-118.2,13,0],["Chicago",41.9,-87.6,9,0],["Toronto",43.7,-79.4,6,0],["Houston",29.8,-95.4,7,0],["Mexico City",19.4,-99.1,22,0],["Miami",25.8,-80.2,6,0],["San Francisco",37.8,-122.4,7,0],["Seattle",47.6,-122.3,4,0],["Montreal",45.5,-73.6,4,0],["Dallas",32.8,-96.8,7,0],["Atlanta",33.7,-84.4,6,0],
+["São Paulo",-23.5,-46.6,22,1],["Buenos Aires",-34.6,-58.4,15,1],["Rio de Janeiro",-22.9,-43.2,13,1],["Bogotá",4.7,-74.1,11,1],["Lima",-12.0,-77.0,11,1],["Santiago",-33.4,-70.6,7,1],["Caracas",10.5,-66.9,3,1],["Guadalajara",20.7,-103.3,5,1],
+["London",51.5,-0.1,14,2],["Paris",48.9,2.3,12,2],["Berlin",52.5,13.4,5,2],["Madrid",40.4,-3.7,7,2],["Rome",41.9,12.5,4,2],["Milan",45.5,9.2,5,2],["Amsterdam",52.4,4.9,3,2],["Warsaw",52.2,21.0,3,2],["Stockholm",59.3,18.1,2,2],["Barcelona",41.4,2.2,5,2],["Istanbul",41.0,28.9,16,2],["Athens",38.0,23.7,3,2],["Kyiv",50.5,30.5,3,2],["Lisbon",38.7,-9.1,3,2],["Dublin",53.3,-6.3,2,2],
+["Cairo",30.0,31.2,22,3],["Tehran",35.7,51.4,15,3],["Riyadh",24.7,46.7,7,3],["Baghdad",33.3,44.4,8,3],["Casablanca",33.6,-7.6,4,3],["Algiers",36.7,3.1,4,3],["Dubai",25.2,55.3,3,3],["Khartoum",15.6,32.5,6,3],
+["Lagos",6.5,3.4,16,4],["Kinshasa",-4.3,15.3,16,4],["Nairobi",-1.3,36.8,5,4],["Johannesburg",-26.2,28.0,10,4],["Addis Ababa",9.0,38.7,5,4],["Dar es Salaam",-6.8,39.3,7,4],["Accra",5.6,-0.2,4,4],["Abidjan",5.3,-4.0,6,4],["Luanda",-8.8,13.2,9,4],["Kampala",0.3,32.6,4,4],
+["Delhi",28.6,77.2,32,5],["Mumbai",19.1,72.9,21,5],["Kolkata",22.6,88.4,15,5],["Bangalore",13.0,77.6,13,5],["Chennai",13.1,80.3,11,5],["Hyderabad",17.4,78.5,10,5],["Dhaka",23.8,90.4,23,5],["Karachi",24.9,67.0,17,5],["Lahore",31.5,74.3,13,5],["Ahmedabad",23.0,72.6,8,5],["Pune",18.5,73.9,7,5],["Colombo",6.9,79.9,3,5],
+["Tokyo",35.7,139.7,37,6],["Shanghai",31.2,121.5,29,6],["Beijing",39.9,116.4,22,6],["Guangzhou",23.1,113.3,14,6],["Shenzhen",22.5,114.1,13,6],["Seoul",37.6,127.0,10,6],["Osaka",34.7,135.5,19,6],["Chongqing",29.6,106.6,17,6],["Chengdu",30.6,104.1,10,6],["Wuhan",30.6,114.3,9,6],["Taipei",25.0,121.6,7,6],["Hong Kong",22.3,114.2,8,6],["Tianjin",39.1,117.2,14,6],
+["Jakarta",-6.2,106.8,34,7],["Manila",14.6,121.0,25,7],["Bangkok",13.8,100.5,11,7],["Ho Chi Minh City",10.8,106.7,9,7],["Hanoi",21.0,105.8,5,7],["Kuala Lumpur",3.1,101.7,8,7],["Singapore",1.3,103.8,6,7],["Sydney",-33.9,151.2,5,7],["Melbourne",-37.8,145.0,5,7],["Surabaya",-7.3,112.7,3,7],["Yangon",16.9,96.2,6,7],["Auckland",-36.8,174.8,2,7],
+["Moscow",55.8,37.6,13,8],["St Petersburg",59.9,30.3,5,8],["Tashkent",41.3,69.2,3,8],["Almaty",43.2,76.9,2,8],["Novosibirsk",55.0,82.9,2,8],["Yekaterinburg",56.8,60.6,2,8],
+];
+const BYTES_PER_NODE = 4+4+2+1 + 4 + 4*4; // lat, lon, metro, activity, node_off, ~4 memberships
+let W = null; // the world
+function rng(seed){ let s = seed>>>0 || 1; return ()=>{ s ^= s<<13; s>>>=0; s ^= s>>>17; s ^= s<<5; s>>>=0; return s/4294967296; }; }
+function gauss(r){ return Math.sqrt(-2*Math.log(r()+1e-12))*Math.cos(6.283185*r()); }
+function buildWorld(n){
+  const r = rng(20261105);
+  const lat = new Float32Array(n), lon = new Float32Array(n), metro = new Uint16Array(n);
+  const wsum = METROS.reduce((a,m)=>a+m[3],0); const cum = []; let acc=0; for (const m of METROS){ acc+=m[3]/wsum; cum.push(acc); }
+  const regionOfMetro = new Uint8Array(METROS.length); METROS.forEach((m,i)=>regionOfMetro[i]=m[4]);
+  const perMetro = new Uint32Array(METROS.length);
+  for (let i=0;i<n;i++){
+    const u=r(); let k=0; while (k<cum.length-1 && cum[k]<u) k++;
+    const m=METROS[k]; const spread = r()<0.8 ? 0.35 : 2.5; // 80% in the metro, 20% in its hinterland
+    lat[i]=Math.max(-85,Math.min(85,m[1]+gauss(r)*spread)); lon[i]=m[2]+gauss(r)*spread/Math.max(0.3,Math.cos(m[1]*Math.PI/180)); metro[i]=k; perMetro[k]++;
+  }
+  // nodes grouped by metro, for drawing rooms
+  const byMetroOff = new Uint32Array(METROS.length+1); for (let k=0;k<METROS.length;k++) byMetroOff[k+1]=byMetroOff[k]+perMetro[k];
+  const byMetro = new Uint32Array(n); const fill = new Uint32Array(METROS.length);
+  for (let i=0;i<n;i++){ const k=metro[i]; byMetro[byMetroOff[k]+fill[k]++]=i; }
+  const byRegionOff=[], byRegion=[]; for (let g=0;g<REG.length;g++){ const arr=[]; for (let k=0;k<METROS.length;k++) if (regionOfMetro[k]===g) for (let j=byMetroOff[k];j<byMetroOff[k+1];j++) arr.push(byMetro[j]); byRegion.push(Uint32Array.from(arr)); }
+  const pickIn = (k)=>byMetro[byMetroOff[k]+Math.floor(r()*perMetro[k])];
+  const pickRegion = (g)=>{ const a=byRegion[g]; return a[Math.floor(r()*a.length)]; };
+  // rooms: each node's family (2–5 nodes, same metro), then community rooms; memberships as CSR both ways
+  const memberships = []; // [node, room]
+  let rooms = 0; const roomOff=[0]; const roomMem=[];
+  const addRoom = (members)=>{ for (const m of members) { roomMem.push(m); memberships.push(m, rooms); } roomOff.push(roomMem.length); return rooms++; };
+  const familyOf = new Int32Array(n).fill(-1);
+  for (let i=0;i<n;i++){ if (familyOf[i]>=0) continue; const size=2+Math.floor(r()*4); const mem=[i]; for (let j=1;j<size;j++){ const c=pickIn(metro[i]); if (familyOf[c]<0 && c!==i) mem.push(c); } const id=addRoom(mem); for (const m of mem) familyOf[m]=id; }
+  const nFamilies = rooms;
+  // community rooms: about one room per 25 nodes, sizes lognormal 6..400; 90% metro, 9% region, 1% world
+  const nCommunity = Math.max(50, Math.floor(n/25));
+  for (let q=0;q<nCommunity;q++){
+    const size = Math.min(400, Math.max(6, Math.round(Math.exp(2.3+gauss(r)*0.9))));
+    const u=r(); const k=Math.floor(r()*METROS.length); const mem=new Set();
+    if (u<0.90) while (mem.size<size) mem.add(pickIn(k));
+    else if (u<0.99) while (mem.size<size) mem.add(pickRegion(regionOfMetro[k]));
+    else while (mem.size<size) mem.add(Math.floor(r()*n));
+    addRoom([...mem]);
+  }
+  // one public room per region (large), and one global public room
+  const regionRoom=new Uint32Array(REG.length); for (let g=0;g<REG.length;g++){ const mem=new Set(); const size=Math.min(byRegion[g].length, Math.max(200, Math.floor(n/400))); while (mem.size<size) mem.add(pickRegion(g)); regionRoom[g]=addRoom([...mem]); }
+  const gmem=new Set(); const gsize=Math.min(n, Math.max(500, Math.floor(n/200))); while (gmem.size<gsize) gmem.add(Math.floor(r()*n)); const globalRoom = addRoom([...gmem]);
+  // seats: one per ~2000 nodes per metro, at least one
+  const seatsOff=new Uint32Array(METROS.length+1); const seats=[]; for (let k=0;k<METROS.length;k++){ const c=Math.max(1,Math.round(perMetro[k]/2000)); for (let j=0;j<c;j++) seats.push(pickIn(k)); seatsOff[k+1]=seats.length; }
+  const isSeat = new Uint8Array(n); for (const s of seats) isSeat[s]=1;
+  // node → rooms CSR, family first
+  const cnt=new Uint32Array(n+1); for (let i=0;i<memberships.length;i+=2) cnt[memberships[i]+1]++;
+  for (let i=0;i<n;i++) cnt[i+1]+=cnt[i];
+  const nodeRooms=new Uint32Array(memberships.length/2); const pos=new Uint32Array(n);
+  for (let i=0;i<n;i++){ nodeRooms[cnt[i]+pos[i]++]=familyOf[i]; }
+  for (let i=0;i<memberships.length;i+=2){ const nd=memberships[i], rm=memberships[i+1]; if (rm===familyOf[nd]) continue; nodeRooms[cnt[nd]+pos[nd]++]=rm; }
+  return { n, lat, lon, metro, regionOfMetro, roomOff:Uint32Array.from(roomOff), roomMem:Uint32Array.from(roomMem), nodeOff:cnt, nodeRooms, seatsOff, seats:Uint32Array.from(seats), isSeat, regionRoom, globalRoom, rooms, nFamilies, memberships: memberships.length/2 };
+}
+// ------------------------------------------------------------------ the engines
+const OUT = 20; let wasm=null, mem=null, bufs=null;
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=2"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+function uploadWorld(){
+  if (!wasm) return;
+  const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
+  bufs = { lat:A(W_.lat), lon:A(W_.lon), metro:A(W_.metro), reg:A(W_.regionOfMetro), roomOff:A(W_.roomOff), roomMem:A(W_.roomMem), nodeOff:A(W_.nodeOff), nodeRooms:A(W_.nodeRooms), seatsOff:A(W_.seatsOff), seats:A(W_.seats), regionRoom:A(W_.regionRoom),
+           activity: wasm.alloc(W_.n), arcs: wasm.alloc(ARC_CAP*8), out: wasm.alloc(OUT*8) };
+  new Uint8Array(mem.buffer, bufs.activity, W_.n).fill(0);
+}
+const ARC_CAP = 420; let seed = 1;
+function tickWasm(acts){
+  seed = (seed*1103515245+12345)>>>0;
+  const n = wasm.tick(bufs.lat,bufs.lon,bufs.metro,bufs.reg,W.n,bufs.roomOff,bufs.roomMem,bufs.nodeOff,bufs.nodeRooms,bufs.seatsOff,bufs.seats,bufs.regionRoom,W.globalRoom,acts,seed,0x9e37,650,300,40,20,bufs.activity,bufs.arcs,ARC_CAP,bufs.out);
+  return { out: new Float64Array(mem.buffer, bufs.out, OUT), arcs: new Uint32Array(mem.buffer, bufs.arcs, n*2), activity: new Uint8Array(mem.buffer, bufs.activity, W.n) };
+}
+let jsActivity=null, jsArcs=new Uint32Array(ARC_CAP*2);
+function kmf(a1,o1,a2,o2){ const R=Math.PI/180; a1*=R;o1*=R;a2*=R;o2*=R; const d=Math.min(1,Math.sqrt(Math.sin((a2-a1)/2)**2+Math.cos(a1)*Math.cos(a2)*Math.sin((o2-o1)/2)**2)); return 2*6371*Math.asin(d); }
+function tickJs(acts){
+  const {n,lat,lon,metro,regionOfMetro,roomOff,roomMem,nodeOff,nodeRooms,seatsOff,seats,regionRoom,globalRoom}=W; const o=new Float64Array(OUT); let arcsN=0;
+  if (!jsActivity || jsActivity.length!==n) jsActivity=new Uint8Array(n);
+  const act=jsActivity; let s=(seed=(seed*1103515245+12345)>>>0)||1; const rnd=()=>{ s^=s<<13; s>>>=0; s^=s>>>17; s^=s<<5; s>>>=0; return s; };
+  const ROW=4096;
+  for (let a=0;a<acts;a++){
+    o[0]++; const signer=rnd()%n; const roll=rnd()%1000; const r0=nodeOff[signer], r1=nodeOff[signer+1]; if (r1===r0) continue;
+    let room, kind; if (roll<650){ room=nodeRooms[r0]; kind=0; } else if (roll<950){ const k=r1-r0-1; room = k===0? nodeRooms[r0] : nodeRooms[r0+1+rnd()%k]; kind=1; } else if (roll<990){ room=-1; kind=2; } else { room = (rnd()%10)===0 ? globalRoom : regionRoom[regionOfMetro[metro[signer]]]; kind=3; }
+    o[12+kind]++; const stranger = (rnd()%1000)<20; o[2]++; if (stranger){ o[4]++; continue; } o[3]++;
+    const slat=lat[signer], slon=lon[signer], sm=metro[signer], sr=regionOfMetro[sm];
+    let members, a0, a1; if (kind===2){ members=seats; a0=seatsOff[sm]; a1=seatsOff[sm+1]; } else { members=roomMem; a0=roomOff[room]; a1=roomOff[room+1]; }
+    let delivered=0, crossed=0;
+    for (let i=a0;i<a1;i++){ const m=members[i]; if (m===signer) continue; o[2]++; o[3]++; delivered++; const mm=metro[m]; if (mm===sm) o[5]++; else { crossed++; if (regionOfMetro[mm]===sr) o[6]++; else o[7]++; o[8]+=kmf(slat,slon,lat[m],lon[m]); if (arcsN<ARC_CAP && (rnd()%64)===0){ jsArcs[arcsN*2]=signer; jsArcs[arcsN*2+1]=m; arcsN++; } } act[m]=Math.min(255,act[m]+90); }
+    if (kind===2){ for (let j=0;j<16;j++){ const m=rnd()%n; o[2]++; o[3]++; delivered++; crossed++; o[7]++; o[8]+=kmf(slat,slon,lat[m],lon[m]); if (arcsN<ARC_CAP && (rnd()%8)===0){ jsArcs[arcsN*2]=signer; jsArcs[arcsN*2+1]=m; arcsN++; } } }
+    act[signer]=Math.min(255,act[signer]+160);
+    if (delivered>0){ o[17]++; if (crossed===0) o[16]++; }
+    o[1]+=delivered; o[9]+=delivered*ROW; o[10]+=n*ROW; o[11]+=ROW+delivered*ROW;
+  }
+  return { out:o, arcs: jsArcs.subarray(0,arcsN*2), activity: act };
+}
+// ------------------------------------------------------------------ the globe (WebGL)
+const cv=document.getElementById("c"); const gl=cv.getContext("webgl",{antialias:true,alpha:false});
+function sh(t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s); return s; }
+function prog(v,f){ const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,v)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f)); gl.linkProgram(p); return p; }
+const PV=`attribute vec3 p;attribute float a;attribute float k;uniform mat3 R;uniform float S;uniform vec2 asp;varying float va;varying float vk;varying float vz;
+void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);va=a;vk=k;gl_PointSize=k>0.5?4.0:(S>2.2?2.2:1.4);}`;
+const PF=`precision mediump float;varying float va;varying float vk;varying float vz;
+void main(){if(vz<0.02)discard;vec3 base=vk>0.5?vec3(0.42,0.71,1.0):vec3(0.36,0.40,0.52);vec3 hot=vec3(1.0,0.69,0.36);vec3 c=mix(base,hot,va);float al=vk>0.5?0.95:(0.45+0.55*va);gl_FragColor=vec4(c*(0.55+0.45*vz),al);}`;
+const LV=`attribute vec3 p;attribute float t;uniform mat3 R;uniform float S;uniform vec2 asp;varying float vt;varying float vz;void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);vt=t;}`;
+const LF=`precision mediump float;varying float vt;varying float vz;uniform float fade;void main(){if(vz<0.0)discard;gl_FragColor=vec4(1.0,0.42,0.36,fade*(0.12+0.45*sin(vt*3.1416)));}`;
+const DV=`attribute vec2 p;uniform float S;uniform vec2 asp;void main(){gl_Position=vec4(p.x*S*asp.x,p.y*S*asp.y,0.9,1.0);}`;
+const DF=`precision mediump float;void main(){gl_FragColor=vec4(0.055,0.07,0.1,1.0);}`;
+const pP=prog(PV,PF), pL=prog(LV,LF), pD=prog(DV,DF);
+let posBuf=gl.createBuffer(), actBuf=gl.createBuffer(), kindBuf=gl.createBuffer(), lineBuf=gl.createBuffer(), discBuf=gl.createBuffer();
+{ const d=[]; for (let i=0;i<=96;i++){ const t=i/96*6.2832; d.push(0,0, Math.cos(t),Math.sin(t)); } const disc=[]; for (let i=0;i<=96;i++){ const t=i/96*6.2832; disc.push(Math.cos(t),Math.sin(t)); } const tri=[]; for (let i=0;i<96;i++){ tri.push(0,0,disc[i*2],disc[i*2+1],disc[i*2+2],disc[i*2+3]); } gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(tri),gl.STATIC_DRAW); }
+let yaw=0.6, pitch=0.35, zoom=1.0, drag=null, autoRot=true, npts=0, lines=new Float32Array(0), lineT=new Float32Array(0), lineAge=1;
+function xyz(la,lo){ const a=la*Math.PI/180, o=lo*Math.PI/180; return [Math.cos(a)*Math.sin(o), Math.sin(a), Math.cos(a)*Math.cos(o)]; }
+function uploadPoints(){ const n=W.n; const p=new Float32Array(n*3); for (let i=0;i<n;i++){ const v=xyz(W.lat[i],W.lon[i]); p[i*3]=v[0];p[i*3+1]=v[1];p[i*3+2]=v[2]; } gl.bindBuffer(gl.ARRAY_BUFFER,posBuf); gl.bufferData(gl.ARRAY_BUFFER,p,gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER,kindBuf); gl.bufferData(gl.ARRAY_BUFFER,W.isSeat,gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferData(gl.ARRAY_BUFFER,new Uint8Array(n),gl.DYNAMIC_DRAW); npts=n; }
+function setArcs(arcs){ const k=arcs.length/2; const SEG=10; lines=new Float32Array(k*SEG*2*3); lineT=new Float32Array(k*SEG*2); let w=0,wt=0;
+  for (let i=0;i<k;i++){ const a=xyz(W.lat[arcs[i*2]],W.lon[arcs[i*2]]), b=xyz(W.lat[arcs[i*2+1]],W.lon[arcs[i*2+1]]); const dot=Math.max(-1,Math.min(1,a[0]*b[0]+a[1]*b[1]+a[2]*b[2])); const th=Math.acos(dot); const lift=0.02+0.25*th/Math.PI;
+    let prev=null; for (let s=0;s<=SEG;s++){ const t=s/SEG; const w1=th<1e-4?1-t:Math.sin((1-t)*th)/Math.sin(th), w2=th<1e-4?t:Math.sin(t*th)/Math.sin(th); let v=[a[0]*w1+b[0]*w2,a[1]*w1+b[1]*w2,a[2]*w1+b[2]*w2]; const L=Math.hypot(...v)||1; const h=1+lift*Math.sin(t*Math.PI); v=v.map(x=>x/L*h); if (prev){ lines.set(prev,w); lines.set(v,w+3); w+=6; lineT[wt++]=(s-1)/SEG; lineT[wt++]=t; } prev=v; } }
+  gl.bindBuffer(gl.ARRAY_BUFFER,lineBuf); gl.bufferData(gl.ARRAY_BUFFER,lines,gl.DYNAMIC_DRAW); lineAge=1; }
+function rot(){ const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch); // R = Rx(pitch)·Ry(yaw), column-major
+  return new Float32Array([cy,0,-sy,  sy*sp,cp,cy*sp,  sy*cp,-sp,cy*cp]); }
+function draw(){
+  const w=cv.clientWidth, h=cv.clientHeight; if (cv.width!==w*devicePixelRatio|0||cv.height!==h*devicePixelRatio|0){ cv.width=w*devicePixelRatio|0; cv.height=h*devicePixelRatio|0; }
+  gl.viewport(0,0,cv.width,cv.height); gl.clearColor(0.043,0.051,0.07,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  const asp = w>h? [h/w,1]:[1,w/h]; const S=0.86*zoom; const R=rot();
+  gl.useProgram(pD); gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); const dp=gl.getAttribLocation(pD,"p"); gl.enableVertexAttribArray(dp); gl.vertexAttribPointer(dp,2,gl.FLOAT,false,0,0); gl.uniform1f(gl.getUniformLocation(pD,"S"),S); gl.uniform2fv(gl.getUniformLocation(pD,"asp"),asp); gl.drawArrays(gl.TRIANGLES,0,96*3);
+  if (npts){ gl.useProgram(pP); gl.uniformMatrix3fv(gl.getUniformLocation(pP,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pP,"S"),S); gl.uniform2fv(gl.getUniformLocation(pP,"asp"),asp);
+    const ap=gl.getAttribLocation(pP,"p"), aa=gl.getAttribLocation(pP,"a"), ak=gl.getAttribLocation(pP,"k");
+    gl.bindBuffer(gl.ARRAY_BUFFER,posBuf); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.enableVertexAttribArray(aa); gl.vertexAttribPointer(aa,1,gl.UNSIGNED_BYTE,true,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,kindBuf); gl.enableVertexAttribArray(ak); gl.vertexAttribPointer(ak,1,gl.UNSIGNED_BYTE,false,0,0);
+    gl.drawArrays(gl.POINTS,0,npts); }
+  if (lines.length && showArcs){ gl.useProgram(pL); gl.uniformMatrix3fv(gl.getUniformLocation(pL,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pL,"S"),S); gl.uniform2fv(gl.getUniformLocation(pL,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pL,"fade"),lineAge);
+    const lp=gl.getAttribLocation(pL,"p"), lt=gl.getAttribLocation(pL,"t"); gl.bindBuffer(gl.ARRAY_BUFFER,lineBuf); gl.enableVertexAttribArray(lp); gl.vertexAttribPointer(lp,3,gl.FLOAT,false,0,0);
+    const tb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,tb); gl.bufferData(gl.ARRAY_BUFFER,lineT,gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(lt); gl.vertexAttribPointer(lt,1,gl.FLOAT,false,0,0);
+    gl.drawArrays(gl.LINES,0,lines.length/3); gl.deleteBuffer(tb); lineAge=Math.max(0,lineAge-0.02); }
+}
+cv.addEventListener("mousedown",e=>{drag=[e.clientX,e.clientY];autoRot=false;cv.style.cursor="grabbing";}); window.addEventListener("mouseup",()=>{drag=null;cv.style.cursor="grab";});
+window.addEventListener("mousemove",e=>{ if(!drag) return; yaw+=(e.clientX-drag[0])*0.005; pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.clientY-drag[1])*0.005)); drag=[e.clientX,e.clientY]; });
+cv.addEventListener("wheel",e=>{ e.preventDefault(); zoom=Math.max(0.6,Math.min(6,zoom*(e.deltaY<0?1.1:0.91))); },{passive:false});
+cv.addEventListener("touchstart",e=>{ const t=e.touches[0]; drag=[t.clientX,t.clientY]; autoRot=false; },{passive:true}); cv.addEventListener("touchmove",e=>{ if(!drag) return; const t=e.touches[0]; yaw+=(t.clientX-drag[0])*0.005; pitch=Math.max(-1.4,Math.min(1.4,pitch+(t.clientY-drag[1])*0.005)); drag=[t.clientX,t.clientY]; },{passive:true}); cv.addEventListener("touchend",()=>drag=null);
+// ------------------------------------------------------------------ the loop
+let playing=false, useWasm=true, showArcs=true, cum=0, lastActivity=null;
+const $=(id)=>document.getElementById(id); const fmt=(x)=>x>=1e12?(x/1e12).toFixed(2)+" T":x>=1e9?(x/1e9).toFixed(2)+" G":x>=1e6?(x/1e6).toFixed(2)+" M":x>=1e3?(x/1e3).toFixed(1)+" k":String(Math.round(x));
+function tick(){
+  const acts=+$("acts").value; const t0=performance.now(); const res=(useWasm&&wasm)?tickWasm(acts):tickJs(acts); const ms=performance.now()-t0;
+  const o=res.out; cum+=o[1]; const local=o[17]?o[16]/o[17]:0; $("dlocal").textContent=(o[1]?o[5]/o[1]*100:0).toFixed(1)+"%";
+  $("local").textContent=(local*100).toFixed(1)+"%"; $("localbar").style.width=(local*100).toFixed(1)+"%";
+  $("xmetro").textContent=(o[1]?o[6]/o[1]*100:0).toFixed(1)+"%"; $("xregion").textContent=(o[1]?o[7]/o[1]*100:0).toFixed(1)+"%";
+  const crossings=o[6]+o[7]; $("km").textContent=crossings?Math.round(o[8]/crossings)+" km":"–";
+  $("acts_n").textContent=fmt(o[0])+"  (family "+fmt(o[12])+" · room "+fmt(o[13])+" · consent-free "+fmt(o[14])+" · public "+fmt(o[15])+")"; $("deliv").textContent=fmt(o[1]); $("refused").textContent=fmt(o[4]);
+  $("bytes").textContent=fmt(o[9])+"B"; $("bcast").textContent=fmt(o[10])+"B  ("+fmt(o[10]/Math.max(1,o[9]))+"×)"; $("central").textContent=fmt(o[11])+"B  (every byte through one place)";
+  $("dps").textContent=fmt(o[2]/(ms/1000)); $("ms").textContent=ms.toFixed(1)+" ms  ("+(useWasm&&wasm?"WASM":"JS")+")"; $("bpn").textContent=BYTES_PER_NODE+" B  ·  "+fmt(W.n*BYTES_PER_NODE)+"B for "+fmt(W.n)+" nodes"; $("cum").textContent=fmt(cum);
+  lastActivity=res.activity; gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,lastActivity); setArcs(res.arcs);
+}
+function decay(){ if (!lastActivity) return; const a=lastActivity; for (let i=0;i<a.length;i++){ const v=a[i]; if (v) a[i]=v>12?v-12:0; } gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,a); }
+let frame=0; function loop(){ if (autoRot) yaw+=0.0018; if (playing && frame%6===0) tick(); else if (frame%2===0) decay(); draw(); frame++; requestAnimationFrame(loop); }
+async function build(){
+  playing=false; $("play").textContent="▶ run"; const n=+$("size").value; $("status").textContent="placing "+fmt(n)+" nodes…"; await new Promise(r=>setTimeout(r,30));
+  const t0=performance.now(); W=buildWorld(n); const t1=performance.now(); uploadWorld(); uploadPoints(); cum=0; lastActivity=null; lines=new Float32Array(0);
+  $("status").textContent=fmt(W.n)+" nodes in "+METROS.length+" metros of "+REG.length+" regions · "+fmt(W.nFamilies)+" families · "+fmt(W.rooms-W.nFamilies)+" rooms · "+fmt(W.memberships)+" memberships · "+W.seats.length+" seats · built in "+((t1-t0)/1000).toFixed(1)+" s"+(wasm?"":" · WASM unavailable, JS engine");
+}
+$("build").onclick=build; $("step").onclick=()=>{ if(W) tick(); }; $("play").onclick=(e)=>{ if(!W) return; playing=!playing; e.target.textContent=playing?"❚❚ pause":"▶ run"; };
+$("eng").onclick=(e)=>{ useWasm=!useWasm; e.target.textContent="engine: "+(useWasm&&wasm?"WASM":"JS"); e.target.classList.toggle("on",useWasm&&!!wasm); };
+$("arcsb").onclick=(e)=>{ showArcs=!showArcs; e.target.classList.toggle("on",showArcs); };
+(async()=>{ await loadWasm(); if(!wasm){ useWasm=false; $("eng").textContent="engine: JS"; $("eng").classList.remove("on"); } await build(); loop(); })();
+</script>
+</body>
+</html>

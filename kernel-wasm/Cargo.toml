@@ -1,0 +1,16 @@
+[package]
+name = "cewp-kernel-scale"
+version = "0.1.0"
+edition = "2021"
+description = "The door of the CEWP kernel at scale: one tick of random acts over millions of nodes, compiled to WebAssembly for docs/globe.html"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
