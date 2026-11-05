@@ -6,6 +6,7 @@
 <title>An epistemic web, in motion</title>
 <meta name="description" content="A small mesh of people, their views of the same signed rows, and the queues those views generate as they make choices. The queue is the door run forwards.">
 <style>
+.rule a{color:var(--accent)}
 :root{--bg:#f6f4ee;--fg:#1d1d1b;--mute:#6b6a64;--card:#ffffff;--line:#dcd8cc;--accent:#2f5d50;--accent2:#b5542d;--chip:#ece8dc;--ok:#2f5d50;--no:#9a3b2b;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15161a;--fg:#e9e6dc;--mute:#9b9890;--card:#1e2026;--line:#2e3139;--accent:#7fbfae;--accent2:#e2906a;--chip:#2a2d35;--ok:#7fbfae;--no:#e07c66}}
 :root[data-theme="dark"]{--bg:#15161a;--fg:#e9e6dc;--mute:#9b9890;--card:#1e2026;--line:#2e3139;--accent:#7fbfae;--accent2:#e2906a;--chip:#2a2d35;--ok:#7fbfae;--no:#e07c66}
@@ -68,6 +69,7 @@ code{font:13px var(--mono)}
     <div id="queue"></div>
   </section>
 </main>
+<p class="rule"><a href="why-it-works.md">What this solves, and how</a> · <a href="epistemic-web.md">The contract</a> · <a href="https://github.com/CIRISAI/CEWP">The repository</a></p>
 <p class="rule">The rule, from the CIRIS Constitution 4.5.13: for an object, the node holds its family, its lifecycle state and the person's standing toward it; the family's transitions (verb, from, to, roles, policy, widens) come from the family model; the queue is the enabled transitions, one item each, and the door admits by the same predicate. Proved in <code>formal/event_lifecycle</code>; the transitions below are rows of <code>manifests/transitions.json</code>; the story is <code>tools/mesh_story.py</code>. Widening items are confirmed before signing; narrowing ones take one step; a stranger to an object sees no item on it.</p>
 <script>
 // Transitions: a subset of manifests/transitions.json (CIRISConstitution rc17), verbatim in meaning.
