@@ -6,6 +6,10 @@ A decentralized replacement for the internet — and simultaneously
 an AI governance / superalignment platform — built on the bet that
 **big tech is not necessary**.
 
+## See it move
+
+[**An epistemic web, in motion**](https://cirisai.github.io/CEWP/) — six people and an agent share one mesh of signed rows; each sees a view folded through their own standing, and each view generates a queue, exactly the actions the door would admit from them now. Pick a person, act, and watch the other queues shift. The contract behind it: [the epistemic web, as the Constitution states it](docs/epistemic-web.md) (pre-release, CIRISConstitution `rc17`).
+
 ## What CEWP is
 
 CEWP is an *epistemic web*: a **holonomic**, cryptographically-

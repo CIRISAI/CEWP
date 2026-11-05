@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>An epistemic web, in motion</title>
+<meta name="description" content="A small mesh of people, their views of the same signed rows, and the queues those views generate as they make choices. The queue is the door run forwards.">
+<style>
+:root{--bg:#f6f4ee;--fg:#1d1d1b;--mute:#6b6a64;--card:#ffffff;--line:#dcd8cc;--accent:#2f5d50;--accent2:#b5542d;--chip:#ece8dc;--ok:#2f5d50;--no:#9a3b2b;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15161a;--fg:#e9e6dc;--mute:#9b9890;--card:#1e2026;--line:#2e3139;--accent:#7fbfae;--accent2:#e2906a;--chip:#2a2d35;--ok:#7fbfae;--no:#e07c66}}
+:root[data-theme="dark"]{--bg:#15161a;--fg:#e9e6dc;--mute:#9b9890;--card:#1e2026;--line:#2e3139;--accent:#7fbfae;--accent2:#e2906a;--chip:#2a2d35;--ok:#7fbfae;--no:#e07c66}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 Georgia,"Iowan Old Style",serif;padding:0 16px 48px}
+header{max-width:1200px;margin:0 auto;padding:28px 0 12px}
+h1{font-size:28px;margin:0 0 6px;font-weight:600}
+h2{font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);margin:0 0 10px;font-weight:600}
+p.lead{margin:0;color:var(--mute);max-width:70ch}
+main{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:260px 1fr 320px;gap:16px}
+@media (max-width:960px){main{grid-template-columns:1fr}}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.person{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;border:1px solid transparent;cursor:pointer}
+.person:hover{border-color:var(--line)}
+.person.sel{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.person b{font-weight:600}
+.person .n{margin-left:auto;font:12px var(--mono);background:var(--chip);padding:2px 7px;border-radius:999px;min-width:26px;text-align:center}
+.mesh{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.obj{border:1px solid var(--line);border-radius:8px;padding:10px;font-size:14px;transition:border-color .3s, box-shadow .3s}
+.obj.lit{border-color:var(--accent2);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent2) 35%,transparent)}
+.obj .fam{font:12px var(--mono);color:var(--mute)}
+.obj .st{display:inline-block;margin-top:4px;font:12px var(--mono);padding:1px 6px;border-radius:4px;background:var(--chip)}
+.obj .st.admitted{background:color-mix(in srgb,var(--ok) 18%,transparent)}
+.obj .st.withdrawn,.obj .st.recanted,.obj .st.superseded{background:color-mix(in srgb,var(--no) 18%,transparent)}
+.obj .atoms{margin:6px 0 0;padding:0;list-style:none;font-size:12px;color:var(--mute)}
+.obj .who{margin-top:6px;font-size:12px}
+.item{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px}
+.item .v{font:600 14px var(--mono)}
+.item .why{font-size:13px;color:var(--mute);margin:4px 0}
+.item button{font:14px inherit;background:var(--accent);color:#fff;border:0;border-radius:6px;padding:6px 10px;cursor:pointer}
+.item button.narrow{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.empty{color:var(--mute);font-style:italic}
+.log{font:12px/1.5 var(--mono);max-height:220px;overflow:auto;border-top:1px solid var(--line);margin-top:10px;padding-top:8px}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0}
+.ctl button{font:14px inherit;background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
+.rule{max-width:1200px;margin:14px auto 0;font-size:14px;color:var(--mute)}
+code{font:13px var(--mono)}
+</style>
+</head>
+<body>
+<header>
+  <h1>An epistemic web, in motion</h1>
+  <p class="lead">Six people and one agent share one mesh of signed rows. Each sees a <b>view</b> of the same rows, folded through their own standing, and each view generates a <b>queue</b>: exactly the actions the admission door would accept from them now. Pick a person, take an action, and watch every other queue shift. Nothing here is a list of buttons: the queue is the door run forwards.</p>
+</header>
+<main>
+  <section>
+    <h2>People</h2>
+    <div id="people"></div>
+    <div class="ctl"><button id="play">Replay the story</button><button id="reset">Reset</button></div>
+    <p class="why" style="font-size:13px;color:var(--mute);margin-top:10px">The number on each person is the size of their queue over the whole mesh right now.</p>
+  </section>
+  <section>
+    <h2>The mesh: one set of rows, <span id="rowcount">0</span> so far</h2>
+    <div class="mesh" id="mesh"></div>
+    <div class="log" id="log"></div>
+  </section>
+  <section>
+    <h2>Queue for <span id="who">—</span></h2>
+    <div id="queue"></div>
+  </section>
+</main>
+<p class="rule">The rule, from the CIRIS Constitution 4.5.13: for an object, the node holds its family, its lifecycle state and the person's standing toward it; the family's transitions (verb, from, to, roles, policy, widens) come from the family model; the queue is the enabled transitions, one item each, and the door admits by the same predicate. Proved in <code>formal/event_lifecycle</code>; the transitions below are rows of <code>manifests/transitions.json</code>; the story is <code>tools/mesh_story.py</code>. Widening items are confirmed before signing; narrowing ones take one step; a stranger to an object sees no item on it.</p>
+<script>
+// Transitions: a subset of manifests/transitions.json (CIRISConstitution rc17), verbatim in meaning.
+const T = {
+ "trust:{job}:{version}": [["authorize","none","admitted",["self"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false]],
+ "key:record": [["attest","none","admitted",["self"],"selfAct",true],["supersede","admitted","superseded",["author"],"selfAct",false]],
+ "transport:{kind}": [["attest","none","admitted",["self"],"selfAct",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false]],
+ "consent:{kind}": [["attest","none","admitted",["registered"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false]],
+ "group:roster": [["attest","none","admitted",["founder"],"selfAct",true],["supersede","admitted","superseded",["member"],"cosigned",false]],
+ "membership:{stage}": [["attest","none","admitted",["member"],"two_path",true],["withdraw","admitted","withdrawn",["member"],"cosigned",false]],
+ "chat:*": [["attest","none","admitted",["member"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false],["recant","admitted","recanted",["author"],"selfAct",false]],
+ "moderation:{allegation_type}": [["attest","none","admitted",["moderate"],"mirror",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false]],
+ "objection:{state}": [["attest","none","admitted",["member"],"two_path",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false]],
+ "trace:{form}:{version}": [["attest","none","admitted",["self"],"selfAct",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false]],
+};
+const PLAIN = {attest:"write it", authorize:"authorize it", withdraw:"withdraw it", recant:"recant it", supersede:"replace it"};
+const POL = {selfAct:"one voice, no window", two_path:"two-path: enact, cancel or floor at the window", cosigned:"the room's quorum signs", mirror:"one acts, the window decides"};
+const COLORS = ["#2f5d50","#b5542d","#4a5fa0","#8a6d1f","#7a3f8a","#3f7a8a","#555"];
+
+// The world: people, their keys, and the objects they can see.
+const people = [
+  {id:"alice", name:"Alice", note:"a founder of the trust root"},
+  {id:"bob", name:"Bob", note:"founds a room"},
+  {id:"carol", name:"Carol", note:"becomes Bob's contact"},
+  {id:"dave", name:"Dave", note:"invited to the room"},
+  {id:"frank", name:"Frank", note:"the room's moderator"},
+  {id:"erin", name:"Erin", note:"a stranger"},
+  {id:"agent:bob", name:"Bob's agent", note:"signs only its own rows"},
+];
+// Objects: id, family, owner (whose 'self'), room (for membership), subject
+const OBJ0 = [
+  {id:"root", family:"trust:{job}:{version}", label:"the trust root", self:["alice"]},
+  {id:"key:bob", family:"key:record", label:"Bob's key", self:["bob"]},
+  {id:"bind:bob", family:"transport:{kind}", label:"Bob's device, announced", self:["bob"]},
+  {id:"contact:carol-bob", family:"consent:{kind}", label:"Carol → Bob contact", subject:["bob"]},
+  {id:"room:1", family:"group:roster", label:"the room's roster", room:"room:1"},
+  {id:"invite:dave", family:"membership:{stage}", label:"invite Dave", room:"room:1", subject:["dave"]},
+  {id:"post:1", family:"chat:*", label:"Dave's first post", room:"room:1"},
+  {id:"post:2", family:"chat:*", label:"Dave's second post", room:"room:1"},
+  {id:"flag:post2", family:"moderation:{allegation_type}", label:"withhold the second post", room:"room:1", subject:["dave"]},
+  {id:"obj:flag", family:"objection:{state}", label:"object to the withhold", room:"room:1"},
+  {id:"trace:1", family:"trace:{form}:{version}", label:"the agent's trace", self:["agent:bob"]},
+];
+let objs, rows, selected = "bob", roomMembers, founders, moderators;
+function reset(){
+  objs = OBJ0.map(o => ({...o, state:"none", author:null, atoms:{}}));
+  rows = []; roomMembers = {"room:1": new Set(["bob"])}; founders = {"room:1": new Set(["bob"])}; moderators = {"room:1": new Set(["frank"])};
+  render();
+}
+function standing(p, o){
+  const s = new Set(["registered"]);
+  if (p==="erin") s.delete("registered"); // Erin holds no key here: a stranger
+  if (o.self && o.self.includes(p)) s.add("self");
+  if (o.author === p) s.add("author");
+  if (o.subject && o.subject.includes(p)) s.add("subject");
+  if (o.room){ if (roomMembers[o.room].has(p)) s.add("member"); if (founders[o.room].has(p)) s.add("founder"); if (moderators[o.room].has(p)) s.add("moderate"); }
+  if (p==="alice" && o.id==="root") { s.add("holder"); s.add("founder"); }
+  if (p.startsWith("agent:") ) { s.delete("registered"); }  // an agent signs only its own rows
+  return s;
+}
+function enabled(p, o){
+  return (T[o.family]||[]).filter(([v,from,to,roles]) => from===o.state && roles.some(r => standing(p,o).has(r)));
+}
+function queueOf(p){ const q=[]; for (const o of objs) for (const t of enabled(p,o)) q.push({o,t}); return q; }
+function act(p, oid, verb){
+  const o = objs.find(x=>x.id===oid); const t = enabled(p,o).find(t=>t[0]===verb);
+  if(!t){ log(`refused: ${name(p)} may not ${verb} ${o.label} (no standing)`, true); return false; }
+  o.state = t[2]; if (verb==="attest"||verb==="authorize") o.author = p; o.atoms["last "+verb] = name(p);
+  rows.push({n:rows.length+1, p, oid, verb});
+  if (oid==="invite:dave" && verb==="attest") { roomMembers["room:1"].add("dave"); roomMembers["room:1"].add("carol"); o.atoms["accepted"]="Dave (his own yes)"; }
+  if (oid==="room:1" && verb==="attest") { roomMembers["room:1"].add("frank"); }
+  log(`row ${rows.length}: ${name(p)} ${verb} ${o.label}  → ${o.state}  [${t[4]}]`);
+  lit = oid; render(); return true;
+}
+function name(p){ return (people.find(x=>x.id===p)||{name:p}).name; }
+let lit=null;
+function log(s, bad){ const l=document.getElementById("log"); const d=document.createElement("div"); d.textContent=s; if(bad) d.style.color="var(--no)"; l.prepend(d); }
+function render(){
+  const P=document.getElementById("people"); P.innerHTML="";
+  people.forEach((p,i)=>{ const d=document.createElement("div"); d.className="person"+(p.id===selected?" sel":""); d.innerHTML=`<span class="dot" style="background:${COLORS[i]}"></span><div><b>${p.name}</b><div style="font-size:12px;color:var(--mute)">${p.note}</div></div><span class="n">${queueOf(p.id).length}</span>`; d.onclick=()=>{selected=p.id; render();}; P.appendChild(d); });
+  const M=document.getElementById("mesh"); M.innerHTML="";
+  for (const o of objs){ const d=document.createElement("div"); d.className="obj"+(o.id===lit?" lit":""); const st=o.state; d.innerHTML=`<div><b>${o.label}</b></div><div class="fam">${o.family}</div><span class="st ${st}">${st}</span>`+(o.author?`<div class="who">by ${name(o.author)}</div>`:"")+(Object.keys(o.atoms).length?`<ul class="atoms">${Object.entries(o.atoms).map(([k,v])=>`<li>${k}: ${v}</li>`).join("")}</ul>`:""); M.appendChild(d); }
+  document.getElementById("rowcount").textContent=rows.length;
+  document.getElementById("who").textContent=name(selected);
+  const Q=document.getElementById("queue"); Q.innerHTML="";
+  const q=queueOf(selected);
+  if(!q.length){ Q.innerHTML=`<p class="empty">Nothing waits on ${name(selected)}. ${selected==="erin"?"A stranger sees no item on anything.":"Every transition they could sign is already done or closed."}</p>`; }
+  for (const {o,t} of q){ const [v,from,to,roles,pol,wid]=t; const d=document.createElement("div"); d.className="item"; d.innerHTML=`<div class="v">${PLAIN[v]||v} · ${o.label}</div><div class="why">${o.family} · ${from} → ${to} · ${POL[pol]}${wid?" · <b>widens: confirmed before signing</b>":" · narrows: one step"}</div><button class="${wid?"":"narrow"}">${wid?"Confirm and sign":"Sign"}</button>`; d.querySelector("button").onclick=()=>act(selected,o.id,v); Q.appendChild(d); }
+}
+const STORY=[["alice","root","authorize"],["bob","key:bob","attest"],["bob","bind:bob","attest"],["carol","contact:carol-bob","attest"],["bob","room:1","attest"],["bob","invite:dave","attest"],["dave","post:1","attest"],["erin","post:1","withdraw"],["dave","post:2","attest"],["frank","flag:post2","attest"],["carol","obj:flag","attest"],["dave","post:1","recant"],["agent:bob","trace:1","attest"],["carol","contact:carol-bob","withdraw"]];
+document.getElementById("play").onclick=async()=>{ reset(); for(const [p,o,v] of STORY){ selected=p; render(); await new Promise(r=>setTimeout(r,900)); act(p,o,v); await new Promise(r=>setTimeout(r,500)); } };
+document.getElementById("reset").onclick=reset;
+reset();
+</script>
+</body>
+</html>
