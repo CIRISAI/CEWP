@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>An epistemic web, in motion</title>
-<meta name="description" content="A small mesh of people, their views of the same signed rows, and the queues those views generate as they make choices. The queue is the door run forwards.">
+<meta name="description" content="A small mesh of people, their views of the same signed rows, and the queues those views generate as they make choices; what this architecture solves, how it stands beside its peers, and the contract behind it.">
 <style>
 .rule a{color:var(--accent)}
 :root{--bg:#f6f4ee;--fg:#1d1d1b;--mute:#6b6a64;--card:#ffffff;--line:#dcd8cc;--accent:#2f5d50;--accent2:#b5542d;--chip:#ece8dc;--ok:#2f5d50;--no:#9a3b2b;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
@@ -46,13 +46,63 @@ section{background:var(--card);border:1px solid var(--line);border-radius:10px;p
 .rule{max-width:1200px;margin:14px auto 0;font-size:14px;color:var(--mute)}
 code{font:13px var(--mono)}
 </style>
+
+<style>
+nav.tabs{max-width:1200px;margin:8px auto 18px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:0}
+nav.tabs a{font:15px inherit;color:var(--mute);text-decoration:none;padding:10px 12px;border-bottom:2px solid transparent;margin-bottom:-1px}
+nav.tabs a.on{color:var(--fg);border-bottom-color:var(--accent2);font-weight:600}
+.tab{display:none;max-width:1200px;margin:0 auto}
+.tab.on{display:block}
+.sim{display:grid;grid-template-columns:260px 1fr 320px;gap:16px}
+@media (max-width:960px){.sim{grid-template-columns:1fr}}
+.hero{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:18px}
+@media (max-width:860px){.hero{grid-template-columns:1fr}}
+.hero p{margin:0 0 10px;font-size:17px}
+.hero svg{width:100%;height:auto}
+.probs{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.prob{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;grid-template-rows:auto auto 1fr auto}
+.prob h3{margin:0 0 4px;font-size:18px;font-weight:600}
+.prob .k{font:12px var(--mono);color:var(--mute);letter-spacing:.04em;text-transform:uppercase}
+.prob svg{width:100%;height:auto;margin:8px 0 10px;display:block}
+.prob p{margin:0 0 8px;font-size:15px}
+.prob p b{font-weight:600}
+.prob .res{font-size:13px;color:var(--mute);border-top:1px dashed var(--line);padding-top:8px;margin-top:4px}
+.peer{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.peer h3{margin:0 0 4px;font-size:20px;font-weight:600}
+.peer .src{font-size:13px;color:var(--mute);margin:0 0 10px}
+.peer .src a{color:var(--accent)}
+table.cmp{width:100%;border-collapse:collapse;font-size:14px}
+table.cmp th,table.cmp td{text-align:left;vertical-align:top;padding:8px 10px;border-top:1px solid var(--line)}
+table.cmp th{font:600 12px var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-top:0}
+.tag{display:inline-block;font:12px var(--mono);padding:1px 7px;border-radius:999px;margin-right:4px}
+.tag.ahead{background:color-mix(in srgb,var(--ok) 20%,transparent)}
+.tag.par{background:var(--chip)}
+.tag.behind{background:color-mix(in srgb,var(--no) 20%,transparent)}
+.legend{font-size:13px;color:var(--mute);margin:0 0 12px}
+.contract{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.contract h3{margin:0 0 6px;font-size:18px;font-weight:600}
+.contract pre{font:12px/1.45 var(--mono);background:var(--chip);padding:10px;border-radius:8px;overflow:auto;margin:8px 0}
+.wrap{overflow:auto}
+svg text{font:12px var(--mono);fill:currentColor}
+svg .a{fill:var(--accent)} svg .b{fill:var(--accent2)} svg .m{fill:var(--mute)} svg .c{fill:var(--chip)}
+svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--accent);fill:none;stroke-width:2} svg .sb{stroke:var(--accent2);fill:none;stroke-width:2} svg .sd{stroke:var(--mute);fill:none;stroke-width:1.5;stroke-dasharray:4 3}
+</style>
+
+<svg width="0" height="0" style="position:absolute"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent)"/></marker></defs></svg>
 </head>
 <body>
 <header>
   <h1>An epistemic web, in motion</h1>
-  <p class="lead">Six people and one agent share one mesh of signed rows. Each sees a <b>view</b> of the same rows, folded through their own standing, and each view generates a <b>queue</b>: exactly the actions the admission door would accept from them now. Pick a person, take an action, and watch every other queue shift. Nothing here is a list of buttons: the queue is the door run forwards.</p>
+  <p class="lead">Six people and one agent share one mesh of signed rows. Each sees a <b>view</b> of the same rows, folded through their own standing, and each view generates a <b>queue</b>: exactly the actions the admission door would accept from them now. Nothing here is a list of buttons: the queue is the door run forwards. Existing technology, in a new architecture.</p>
 </header>
-<main>
+<nav class="tabs" id="tabs">
+  <a href="#motion" data-tab="motion" class="on">In motion</a>
+  <a href="#solves" data-tab="solves">What it solves</a>
+  <a href="#peers" data-tab="peers">Beside its peers</a>
+  <a href="#contract" data-tab="contract">The contract</a>
+</nav>
+<div class="tab on" id="tab-motion">
+<div class="sim">
   <section>
     <h2>People</h2>
     <div id="people"></div>
@@ -68,9 +118,114 @@ code{font:13px var(--mono)}
     <h2>Queue for <span id="who">—</span></h2>
     <div id="queue"></div>
   </section>
-</main>
-<p class="rule"><a href="why-it-works.md">What this solves, and how</a> · <a href="epistemic-web.md">The contract</a> · <a href="https://github.com/CIRISAI/CEWP">The repository</a></p>
-<p class="rule">The rule, from the CIRIS Constitution 4.5.13: for an object, the node holds its family, its lifecycle state and the person's standing toward it; the family's transitions (verb, from, to, roles, policy, widens) come from the family model; the queue is the enabled transitions, one item each, and the door admits by the same predicate. Proved in <code>formal/event_lifecycle</code>; the transitions below are rows of <code>manifests/transitions.json</code>; the story is <code>tools/mesh_story.py</code>. Widening items are confirmed before signing; narrowing ones take one step; a stranger to an object sees no item on it.</p>
+</div>
+<p class="rule">The rule, from the CIRIS Constitution 4.5.13: for an object, the node holds its family, its lifecycle state and the person's standing toward it; the family's transitions come from the family model; the queue is the enabled transitions, one item each, and the door admits by the same predicate. Proved in <code>formal/event_lifecycle</code>; the transitions are rows of <code>manifests/transitions.json</code>; the story is <code>tools/mesh_story.py</code>.</p>
+</div>
+<div class="tab" id="tab-solves">
+<div class="hero"><div><p><b>Nothing here is a new technology.</b> Signed rows, Merkle trees, hybrid post-quantum keys, cover traffic, deterministic encodings, CBOR and COSE have all existed for years.</p><p>What is new is the arrangement: one table that is both the admission door and the source of every action a person is offered, folds every node computes identically, and a constitution whose rules are tied to the code and proofs that back them. Below, eleven problems decentralized networks have failed on, each with the mechanism, the existing technology it uses, and what remains.</p></div><svg viewBox="0 0 420 230" role="img" aria-hidden="true">
+<circle cx="210" cy="115" r="78" class="sd"/>
+<rect x="150" y="12" width="120" height="34" rx="8" class="c"/><text x="210" y="34" text-anchor="middle">the view</text>
+<rect x="300" y="98" width="110" height="34" rx="8" class="c"/><text x="355" y="120" text-anchor="middle">the queue</text>
+<rect x="150" y="184" width="120" height="34" rx="8" class="c"/><text x="210" y="206" text-anchor="middle">a signed row</text>
+<rect x="10" y="98" width="110" height="34" rx="8" class="c"/><text x="65" y="120" text-anchor="middle">the person</text>
+<path d="M272 36 C320 50 345 70 352 96" class="sa" marker-end="url(#ar)"/>
+<path d="M352 134 C345 160 320 180 272 196" class="sa"/>
+<path d="M148 196 C100 180 75 160 68 134" class="sa"/>
+<path d="M68 96 C75 70 100 50 148 36" class="sa"/>
+<text x="330" y="70" text-anchor="middle" class="m">folded through standing</text>
+<text x="320" y="178" text-anchor="middle" class="m">chosen, signed</text>
+<text x="92" y="178" text-anchor="middle" class="m">admitted by the door</text>
+<text x="92" y="70" text-anchor="middle" class="m">rows, folded</text>
+</svg></div>
+<div class="probs"><article class="prob"><div><div class="k">problem 1</div><h3>Two copies of the rules</h3></div><svg viewBox="0 0 340 120" role="img" aria-hidden="true">
+<rect x="8" y="16" width="100" height="36" rx="6" class="s"/><text x="58" y="38" text-anchor="middle">UI rules</text>
+<rect x="8" y="70" width="100" height="36" rx="6" class="s"/><text x="58" y="92" text-anchor="middle">server rules</text>
+<path d="M112 34 L140 34 M112 88 L140 88" class="sd"/>
+<text x="150" y="66" class="m">drift</text>
+<rect x="200" y="42" width="130" height="36" rx="6" class="a"/><text x="265" y="64" text-anchor="middle" fill="#fff">one table</text>
+<path d="M265 42 C265 20 300 20 330 20" class="s"/><text x="300" y="16" class="m">the door</text>
+<path d="M265 78 C265 100 300 100 330 100" class="s"/><text x="300" y="112" class="m">the queue</text>
+</svg><div><p class="m" style="color:var(--mute)">Every app keeps its rules twice: in the code that draws the buttons and in the code that refuses the request. They drift, and the drift is where authorization bugs live.</p><p><b>One table</b>, the family model, decides both. The queue a person sees is the admission door run forwards: the transitions of the object's family enabled for their standing. Proved sound and complete.</p><p><b>With:</b> A generated manifest, CDDL schemas, Lean, plain JSON.</p></div><div class="res"><b>What remains:</b> The model is small and abstract today; the transitions table is derived, with its gaps marked.</div></article><article class="prob"><div><div class="k">problem 2</div><h3>Moderation without a department</h3></div><svg viewBox="0 0 340 120" role="img" aria-hidden="true">
+<circle cx="40" cy="40" r="14" class="c"/><text x="40" y="44" text-anchor="middle">M</text>
+<text x="62" y="36">acts alone on content</text>
+<text x="62" y="52" class="m">never on membership</text>
+<rect x="20" y="72" width="300" height="30" rx="6" class="s"/>
+<text x="170" y="92" text-anchor="middle">removal: the room, under a floor no single vote reaches</text>
+<path d="M300 20 l12 8 l-12 8" class="sb"/><text x="250" y="30" class="m" text-anchor="end">elect if lost</text>
+</svg><div><p class="m" style="color:var(--mute)">Federated networks centralize moderation in an operator or leave it to whoever runs a server.</p><p><b>A delegable duty</b>, never a platform role. A moderator acts alone on content, never on membership. Anyone may flag; the live majority decides when no moderator acts. A room that loses its moderator locks and elects one by its own signatures.</p><p><b>With:</b> Signed delegation edges, order-free folds, instant runoff over signed ballots.</p></div><div class="res"><b>What remains:</b> What a room does without is a legally reachable person behind the duty when its moderator is anonymous.</div></article><article class="prob"><div><div class="k">problem 3</div><h3>Identity without a registrar</h3></div><svg viewBox="0 0 340 120" role="img" aria-hidden="true">
+<rect x="140" y="30" width="60" height="70" rx="6" class="s"/><text x="170" y="68" text-anchor="middle">door</text>
+<circle cx="60" cy="50" r="12" class="a"/><text x="60" y="54" text-anchor="middle" fill="#fff">A</text>
+<circle cx="60" cy="90" r="12" class="b"/><text x="60" y="94" text-anchor="middle" fill="#fff">B</text>
+<path d="M74 50 L138 58 M74 90 L138 78" class="s"/>
+<text x="210" y="50">two keys,</text><text x="210" y="68">two consents:</text><text x="210" y="86" class="m">no single vote admits</text>
+<text x="20" y="22" class="m">a crowd of minted keys = 0 votes</text>
+</svg><div><p class="m" style="color:var(--mute)">Either a registry decides who exists, or anyone mints unlimited identities and outvotes the real ones.</p><p><b>Nobody is admitted without their own yes</b>, and no single vote admits. Trust is each reader's own set of roots. One person, one vote, however many devices. Relays are bounded per sender by the sender's own contacts.</p><p><b>With:</b> Hybrid signatures, a self roster per person, delegation with scope and term, a founders' ceremony.</p></div><div class="res"><b>What remains:</b> A person whose only relay contact is hostile is exposed; the seat is the guard of last resort.</div></article><article class="prob"><div><div class="k">problem 4</div><h3>Consent in a replicated store</h3></div><svg viewBox="0 0 340 120" role="img" aria-hidden="true">
+<rect x="10" y="40" width="40" height="28" rx="4" class="c"/><rect x="60" y="40" width="40" height="28" rx="4" class="c"/><rect x="110" y="40" width="40" height="28" rx="4" class="c"/>
+<line x1="165" y1="24" x2="165" y2="84" class="sb"/><text x="165" y="100" text-anchor="middle" class="m">withdrawal: a boundary</text>
+<rect x="180" y="40" width="40" height="28" rx="4" class="sd"/><rect x="230" y="40" width="40" height="28" rx="4" class="sd"/>
+<text x="10" y="26" class="m">rows stay provable…</text><text x="180" y="26" class="m">…and stop applying</text>
+<path d="M280 54 l40 0" class="s"/><text x="300" y="46" class="m" text-anchor="middle">forward only</text>
+</svg><div><p class="m" style="color:var(--mute)">Once a statement replicates it cannot be unsaid, and systems pretend it can or give up on consent.</p><p><b>Rows are forward-only.</b> A withdrawal is a boundary, not a deletion. Nothing is written on anyone's behalf. Folds are order-free, so offline disagreement resolves the same way everywhere.</p><p><b>With:</b> Append-only signed rows, permutation-invariant folds, per-item durability.</p></div><div class="res"><b>What remains:</b> Receipts signed by others cannot be re-signed in a migration; legacy forms are accepted only before the cutover.</div></article><article class="prob"><div><div class="k">problem 5</div><h3>Who talks to whom</h3></div><svg viewBox="0 0 340 130" role="img" aria-hidden="true">
+<text x="10" y="18" class="m">public identity plane: announced, rooted</text>
+<circle cx="60" cy="40" r="8" class="a"/><circle cx="130" cy="40" r="8" class="a"/><circle cx="200" cy="40" r="8" class="a"/><circle cx="270" cy="40" r="8" class="a"/>
+<path d="M68 40 L122 40 M138 40 L192 40 M208 40 L262 40" class="s"/>
+<text x="10" y="80" class="m">derived group plane: never announced</text>
+<circle cx="95" cy="104" r="8" class="b"/><circle cx="165" cy="104" r="8" class="b"/><circle cx="235" cy="104" r="8" class="b"/>
+<path d="M103 104 L157 104 M173 104 L227 104" class="sd"/>
+<text x="300" y="108" class="m">shaped: same-size frames, cover</text>
+</svg><div><p class="m" style="color:var(--mute)">Encryption hides content and leaks the graph. Onion routing breaks under a global observer.</p><p><b>Shaped links</b> carry a constant stream of identical frames, with the give and take stated before the choice. Group addresses are derived, never announced. Strangers carry only the consent-free set. Anonymity is a dedicated identity behind a sticky guard from your own contacts.</p><p><b>With:</b> Poisson cover in the mixnet lineage, per-hop post-quantum encapsulation, derived addresses.</p></div><div class="res"><b>What remains:</b> Which links exist is never hidden; relays do not mix at today's load; a sleeping phone is exposed to a room insider.</div></article><article class="prob"><div><div class="k">problem 6</div><h3>Post-quantum from the first key</h3></div><svg viewBox="0 0 340 120" role="img" aria-hidden="true">
+<rect x="40" y="40" width="90" height="50" rx="8" class="s"/><text x="85" y="70" text-anchor="middle">Ed25519</text>
+<rect x="210" y="40" width="90" height="50" rx="8" class="s"/><text x="255" y="70" text-anchor="middle">ML-DSA-65</text>
+<path d="M130 65 L210 65" class="sb"/><circle cx="170" cy="65" r="10" class="b"/>
+<text x="170" y="30" text-anchor="middle" class="m">one composite signature: neither verifies alone</text>
+<text x="170" y="112" text-anchor="middle" class="m">one hybrid KEM, X-Wing, everywhere</text>
+</svg><div><p class="m" style="color:var(--mute)">Retrofitting post-quantum cryptography is a migration no network has finished.</p><p><b>Every signature and key exchange is hybrid</b> from the first key: one composite signature, one hybrid KEM. The next signed object is CBOR with COSE, a statement any transparency log can register.</p><p><b>With:</b> ML-DSA-65 with Ed25519 as the IETF composite, X-Wing, COSE, SCITT, COSE receipts.</p></div><div class="res"><b>What remains:</b> No external audit yet, by Verify's own account.</div></article><article class="prob"><div><div class="k">problem 7</div><h3>Twenty-nine languages, no release cycle</h3></div><svg viewBox="0 0 340 120" role="img" aria-hidden="true">
+<rect x="20" y="40" width="80" height="40" rx="6" class="a"/><text x="60" y="64" text-anchor="middle" fill="#fff">node</text>
+<path d="M100 50 L160 30 M100 60 L160 60 M100 70 L160 90" class="s"/>
+<text x="170" y="34">title.post.benefit → "Gives…"</text><text x="170" y="64">title.post.benefit → "Donne…"</text><text x="170" y="94">title.post.benefit → "与える…"</text>
+<text x="20" y="108" class="m">clients hold no copy; 29 languages, no release</text>
+</svg><div><p class="m" style="color:var(--mute)">Localization lives in each client's binary and ships at app-store speed.</p><p><b>Every string is served by the node</b> for the requested locale by a stable id. Clients hold no copy, so a new language reaches every surface, browser and firmware node included, with no release.</p><p><b>With:</b> Text references in the view and the queue; one id namespace.</p></div><div class="res"><b>What remains:</b> The migration is card by card; a node that lacks a locale serves the source language, marked.</div></article><article class="prob"><div><div class="k">problem 8</div><h3>Governance at ten thousand members</h3></div><svg viewBox="0 0 340 120" role="img" aria-hidden="true">
+<path d="M20 30 L80 30 L80 44 L140 44 L140 56 L200 56 L200 66 L260 66 L260 74 L320 74" class="sa"/>
+<line x1="20" y1="92" x2="320" y2="92" class="sd"/><text x="320" y="106" text-anchor="end" class="m">the floor</text>
+<text x="20" y="20" class="m">expected-active base: falls at most a tenth a period, never below its floor</text>
+<text x="200" y="110" class="m">2/3 of ~300 present, not of 10,000 on the roster</text>
+</svg><div><p class="m" style="color:var(--mute)">Fractional quorums become unreachable as a group grows, or someone picks the electorate.</p><p><b>Votes count against the expected-active base</b>, a member-only count from a secret-shared census under a ratchet that silencing cannot game. Every door runs one decision shape, five numbers published as data.</p><p><b>With:</b> Secret sharing to two drawn members, integer folds, a published policy table, a model-checked machine.</p></div><div class="res"><b>What remains:</b> The base lands with the substrate's next version; small rooms count their whole roster today.</div></article><article class="prob"><div><div class="k">problem 9</div><h3>Transparency without a transparency service</h3></div><svg viewBox="0 0 340 120" role="img" aria-hidden="true">
+<circle cx="170" cy="20" r="7" class="a"/><circle cx="110" cy="50" r="6" class="c"/><circle cx="230" cy="50" r="6" class="c"/>
+<circle cx="80" cy="80" r="5" class="c"/><circle cx="140" cy="80" r="5" class="c"/><circle cx="200" cy="80" r="5" class="c"/><circle cx="260" cy="80" r="5" class="c"/>
+<path d="M170 27 L110 44 M170 27 L230 44 M110 56 L80 75 M110 56 L140 75 M230 56 L200 75 M230 56 L260 75" class="s"/>
+<text x="20" y="108" class="m">a tree per log · witnesses cosign the head · standard receipts · no registrar</text>
+<text x="300" y="22" class="b">✓✓</text>
+</svg><div><p class="m" style="color:var(--mute)">Audit logs are run by someone who can be compelled or captured.</p><p><b>Every build, licence and stream has its own Merkle log</b>, witnessed by cosignatures; receipts are standard; every rule is tied in a public register to its code, test or proof, or says nothing backs it yet.</p><p><b>With:</b> RFC 6962 and 9162 trees, witness cosignatures, COSE receipts.</p></div><div class="res"><b>What remains:</b> Witnesses are few while the network is small.</div></article><article class="prob"><div><div class="k">problem 10</div><h3>Coordination without a coordinator</h3></div><svg viewBox="0 0 340 120" role="img" aria-hidden="true">
+<g><path d="M30 20 L10 50 M30 20 L50 50 M10 50 L0 80 M10 50 L20 80 M50 50 L40 80 M50 50 L60 80" class="s" transform="translate(20 0)"/></g>
+<g><path d="M30 20 L10 50 M30 20 L50 50 M10 50 L0 80 M10 50 L20 80 M50 50 L40 80 M50 50 L60 80" class="s" transform="translate(130 0)"/></g>
+<g><path d="M30 20 L10 50 M30 20 L50 50 M10 50 L0 80 M10 50 L20 80 M50 50 L40 80 M50 50 L60 80" class="s" transform="translate(240 0)"/></g>
+<text x="170" y="108" text-anchor="middle" class="m">every node computes the same tree, deal, count and seat: nothing to capture</text>
+</svg><div><p class="m" style="color:var(--mute)">Fan-out trees, relay choice and leader choice need a coordinator, and the coordinator is the point of capture.</p><p><b>Determinism replaces coordination.</b> Every node computes the same relay tree, layer deal, vote count and moderator seat from the same signed inputs, hardened so one lie cannot become a universal one.</p><p><b>With:</b> Pure integer functions over signed inputs, checked by vectors.</p></div><div class="res"><b>What remains:</b> The live media tree does not yet run the verified function; the register says so.</div></article><article class="prob"><div><div class="k">problem 11</div><h3>The protocol itself</h3></div><svg viewBox="0 0 340 120" role="img" aria-hidden="true">
+<rect x="60" y="30" width="220" height="60" rx="8" class="s"/><text x="170" y="56" text-anchor="middle">the amendment process</text>
+<text x="170" y="76" text-anchor="middle" class="m">entrenched behind the quorum it describes</text>
+<rect x="150" y="12" width="40" height="22" rx="4" class="b"/><text x="170" y="27" text-anchor="middle" fill="#fff">lock</text>
+<text x="170" y="112" text-anchor="middle" class="m">forkable · a named steward until scale · build refuses when text and evidence disagree</text>
+</svg><div><p class="m" style="color:var(--mute)">Whoever controls the specification controls the network.</p><p><b>The constitution is forkable</b>, its amendment process entrenched behind the quorum it describes, authority with a named steward until a measured scale, and tooling that refuses to build when text and evidence disagree.</p><p><b>With:</b> A public register, machine-checked text, formal models in CI.</p></div><div class="res"><b>What remains:</b> The scale gate is a bet, stated as one.</div></article></div></div>
+<div class="tab" id="tab-peers">
+<p class="legend">Taken from the three substrate repositories' own comparisons, which are written to say where each is ahead, at parity and behind. <span class="tag ahead">ahead</span><span class="tag par">parity</span><span class="tag behind">behind</span></p>
+<section class="peer"><h3>CIRISVerify: keys, attestation, logs</h3><p class="src">From <a href="https://github.com/CIRISAI/CIRISVerify#where-it-stands-vs-peers">"Where it stands vs. peers"</a> and <a href="https://github.com/CIRISAI/CIRISVerify/blob/main/docs/STANDARDS_COMPARISON.md">the standards comparison</a>. Its own read: ahead on post-quantum posture and trust-anchor stores, at parity on attestation, behind on ecosystem, scale and external review.</p><div class="wrap"><table class="cmp"><tr><th>Area</th><th>The field</th><th>Here</th></tr><tr><td>Concise trust-anchor stores</td><td>Veraison, Azure CoRIM; CoTS not modelled</td><td><span class="tag ahead">ahead</span>first Rust implementation</td></tr><tr><td>Signature crypto</td><td>mostly classical, PQ migration underway</td><td><span class="tag ahead">ahead</span>hybrid from day one, FIPS 204, the PQ half binds the classical</td></tr><tr><td>Device attestation</td><td>per-platform verifiers, hard-coded roots</td><td><span class="tag par">parity</span>four platforms in one constrained store</td></tr><tr><td>Transparency log</td><td>RFC 6962: Trillian, Sigstore Rekor</td><td><span class="tag par">parity</span>RFC 6962-correct, hybrid-signed heads; not sharded</td></tr><tr><td>Selective disclosure</td><td>SD-JWT, ISO mdoc, BBS+</td><td><span class="tag behind">behind</span>SD-JWT salted digest; no unlinkability yet</td></tr><tr><td>Supply-chain provenance</td><td>Sigstore, in-toto, SLSA</td><td><span class="tag behind">behind</span>signed manifests with presenter binding; far smaller ecosystem</td></tr><tr><td>Boot-state attestation</td><td>Keylime, go-attestation</td><td><span class="tag behind">behind</span>absent: device identity only</td></tr><tr><td>External security audit</td><td>common for peers</td><td><span class="tag behind">behind</span>none to date; internal adversarial audits only</td></tr></table></div></section>
+<section class="peer"><h3>CIRISPersist: the corpus, its doors and folds</h3><p class="src">From <a href="https://github.com/CIRISAI/CIRISPersist#standards-it-builds-on">"Standards it builds on"</a>, "What is different" and "The trade-offs". Its own placement: the union of immudb, a SCITT transparency service whose registration policy decides what may be logged, and SpiceDB.</p><div class="wrap"><table class="cmp"><tr><th>Area</th><th>The field</th><th>Here</th></tr><tr><td>Canonicalisation</td><td>JCS (RFC 8785)</td><td><span class="tag par">parity</span>JCS today; deterministic CBOR in the next edition</td></tr><tr><td>Verifiable append-only state</td><td>immudb, Trillian, Rekor, SCITT</td><td><span class="tag par">parity</span>the same ground, with no logging service in the middle</td></tr><tr><td>Delegation chains</td><td>UCAN, Biscuit, ZCAP-LD, macaroons</td><td><span class="tag ahead">ahead</span>scoped, termed edges whose enforcement point is declared and build-checked</td></tr><tr><td>Authorization walk</td><td>Zanzibar, SpiceDB, OpenFGA</td><td><span class="tag ahead">ahead</span>schema, graph, checks and store in one process; consent as a projection over the graph</td></tr><tr><td>Registration policy</td><td>a service's own rules</td><td><span class="tag ahead">ahead</span>a named, versioned, hash-pinned corpus; a refusal names the rule</td></tr><tr><td>Commons operations</td><td>majority or admin</td><td><span class="tag ahead">ahead</span>reverse quorum: one of N protects, m of n undo, the protective side capped never floored</td></tr><tr><td>Flexibility</td><td>swappable engines</td><td><span class="tag behind">behind</span>the policy engine cannot be swapped; a governance change is a release</td></tr><tr><td>Backend parity</td><td>varies</td><td><span class="tag par">parity</span>SQLite and PostgreSQL run the same test bodies through the real write path</td></tr></table></div></section>
+<section class="peer"><h3>CIRISEdge: the mesh transport</h3><p class="src">From <a href="https://github.com/CIRISAI/CIRISEdge#the-shape-of-the-protocol-one-paragraph-tour">the protocol tour</a>, <a href="https://github.com/CIRISAI/CIRISEdge/blob/main/docs/STANDARDS_COMPARISON.md">the standards comparison</a> and <a href="https://github.com/CIRISAI/CIRISEdge/blob/main/docs/LIGHTNET_DARKNET.md">lightnet/darknet</a>, which carries the measurement status of each claim.</p><div class="wrap"><table class="cmp"><tr><th>Area</th><th>The field</th><th>Here</th></tr><tr><td>Transport</td><td>IP overlays, libp2p, Tor</td><td><span class="tag par">parity</span>Reticulum, with fifteen signed envelope kinds and anti-entropy per peer and kind</td></tr><tr><td>Attribution</td><td>often after decryption</td><td><span class="tag ahead">ahead</span>every inbound frame attributed at ingest to a rooted identity before any serve gate</td></tr><tr><td>Consent on the wire</td><td>app-layer ACLs</td><td><span class="tag ahead">ahead</span>the recipient axis cannot exceed the transmission principle, by construction</td></tr><tr><td>Group existence</td><td>announced topics or servers</td><td><span class="tag ahead">ahead</span>derived group plane: never announced, structurally invisible to outsiders</td></tr><tr><td>Metadata resistance</td><td>Tor, mixnets</td><td><span class="tag par">parity</span>shaped links with stated give and take; residuals against a global observer and a compromised relay stated with numbers</td></tr><tr><td>Live media over peers</td><td>SFUs, CDNs</td><td><span class="tag ahead">ahead</span>decentralized video over member relays, proven on a multi-container bench in CI</td></tr><tr><td>Anonymity tier</td><td>Tor onion services, Nym</td><td><span class="tag behind">behind</span>designed and dormant: private rooms, sticky guard, member-owned mailboxes</td></tr></table></div></section>
+</div>
+<div class="tab" id="tab-contract">
+<section class="contract"><h3>One sentence</h3><p>A client renders two served shapes, the <b>view</b> and the <b>queue</b>, holds the keys of its deployment and no policy, and the queue is the admission door run forwards.</p></section>
+<section class="contract"><h3>The view</h3><p>One object's rows and the atoms the node folded from them through the person's own trust set, each atom with its provenance: the rows it read and the rule it ran. The record and the state are one thing seen twice.</p><pre>view = { object: {family, id, scope}, locale, rows: [* row-ref], atoms: [* atom], ? standing }
+atom = { name, value, label: text-ref, provenance: { rows: [* id], rule: cc-decimal, kind: wire / by_rule / not_sent } }
+text-ref = { id, text, ? params, ? lang }</pre></section>
+<section class="contract"><h3>The queue</h3><p>The items awaiting the person's hand: a context, facts with provenance, a governance policy row, options with a benefit and a downside that are never empty, the rows each would sign, and an impact derived from the family model. Four kinds: choice, act, entry, notice. Consent is not a kind.</p><pre>choice-item = { id, kind, context, ? facts, policy, ? options: [* option], ? default, required, ? answer }
+option = { value, benefit, downside, writes: [* {family, verb, scope}], impact: {moves, to, direction, undo}, available }
+answer = { state: served / held / signed / deferred / changed, ? value, ? ranking, shown_digest, ? rows }</pre></section>
+<section class="contract"><h3>How the view makes the queue</h3><p>For an object, the node holds its family, its lifecycle state and the person's standing. The family's transitions (verb, from, to, roles, policy, widens) come from the family model. The queue is exactly the enabled transitions, one item each; the door admits by the same predicate. A stranger sees nothing; an answered item leaves the next view; a widening item is confirmed before it is signed.</p><pre>queue(view, standing) = [ item(t) | t in transitions(view.family), t.from = view.state, t.roles meets standing ]
+admits(view, standing, t) = (t.from = view.state) and (t.roles meets standing)      -- the same predicate</pre></section>
+<section class="contract"><h3>Localization, and the way there</h3><p>Every string is a node-served text reference for the requested locale; the client holds no copy. While a node lacks a locale it serves the id with source-language text, marked, and a consumer may overlay its own bundle by id; the difference between served ids and held strings is the measured distance, closed card by card.</p></section>
+<section class="contract"><h3>The next signed object</h3><p>CBOR with COSE, aligned with SCITT: one COSE_Sign1 per signer, issuer and subject claims, the composite ML-DSA-65 with Ed25519 construction, composite keys with thumbprint ids, deterministic encoding, content-addressed statement ids, COSE receipts over RFC 9162 trees. Every row signed under the earlier object verifies as itself.</p><p class="src">Pre-release: CIRISConstitution <code>rc17</code>, Part 4 §4.5.13, Part 2 §2.6.1.8, <code>manifests/{view,choice_item,transitions}</code>, <code>formal/event_lifecycle</code>. Where this page and the Constitution disagree, the Constitution wins.</p></section>
+</div>
+<p class="rule" style="margin-top:24px"><a href="https://github.com/CIRISAI/CEWP">CEWP on GitHub</a> · <a href="https://github.com/CIRISAI/CIRISConstitution">the Constitution</a></p>
 <script>
 // Transitions: a subset of manifests/transitions.json (CIRISConstitution rc17), verbatim in meaning.
 const T = {
@@ -163,6 +318,15 @@ const STORY=[["alice","root","authorize"],["bob","key:bob","attest"],["bob","bin
 document.getElementById("play").onclick=async()=>{ reset(); for(const [p,o,v] of STORY){ selected=p; render(); await new Promise(r=>setTimeout(r,900)); act(p,o,v); await new Promise(r=>setTimeout(r,500)); } };
 document.getElementById("reset").onclick=reset;
 reset();
+</script>
+<script>
+(function(){
+  const tabs=document.querySelectorAll('#tabs a'); const panes={}; document.querySelectorAll('.tab').forEach(t=>panes[t.id.slice(4)]=t);
+  function show(k){ if(!panes[k]) k='motion'; tabs.forEach(a=>a.classList.toggle('on',a.dataset.tab===k)); Object.entries(panes).forEach(([id,el])=>el.classList.toggle('on',id===k)); }
+  tabs.forEach(a=>a.addEventListener('click',e=>{ e.preventDefault(); history.replaceState(null,'','#'+a.dataset.tab); show(a.dataset.tab); }));
+  show((location.hash||'#motion').slice(1));
+  window.addEventListener('hashchange',()=>show(location.hash.slice(1)));
+})();
 </script>
 </body>
 </html>

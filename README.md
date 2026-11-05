@@ -8,7 +8,7 @@ an AI governance / superalignment platform — built on the bet that
 
 ## See it move
 
-[**An epistemic web, in motion**](https://cirisai.github.io/CEWP/) — six people and an agent share one mesh of signed rows; each sees a view folded through their own standing, and each view generates a queue, exactly the actions the door would admit from them now. Pick a person, act, and watch the other queues shift. The contract behind it: [the epistemic web, as the Constitution states it](docs/epistemic-web.md), and [what this solves, and how](docs/why-it-works.md): eleven problems of decentralized networks, each answered by existing technology in a new arrangement, with its residual stated (pre-release, CIRISConstitution `rc17`).
+[**An epistemic web, in motion**](https://cirisai.github.io/CEWP/) — six people and an agent share one mesh of signed rows; each sees a view folded through their own standing, and each view generates a queue, exactly the actions the door would admit from them now. Pick a person, act, and watch the other queues shift. The same page carries, as tabs, [what this solves and how](https://cirisai.github.io/CEWP/#solves) (eleven problems of decentralized networks, each answered by existing technology in a new arrangement, with a diagram and its residual), [where it stands beside its peers](https://cirisai.github.io/CEWP/#peers) (from the Verify, Persist and Edge comparisons) and [the contract](https://cirisai.github.io/CEWP/#contract); the plain-text sources are [docs/why-it-works.md](docs/why-it-works.md) and [docs/epistemic-web.md](docs/epistemic-web.md) (pre-release, CIRISConstitution `rc17`).
 
 ## What CEWP is
 
