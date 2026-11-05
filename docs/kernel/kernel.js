@@ -320,14 +320,14 @@ export class Mesh {
     for (const node of this.nodes.values()) {
       for (const nb of this.neighbours(node.id)) {
         const other = this.nodes.get(nb);
-        const carried = [...[...node.held.values()].map((h) => ({ row: h.row, aud: null })), ...[...node.sealed.values()].map((x) => ({ row: x.row, aud: x.aud }))];
-        for (const { row, aud: sealedAud } of carried) {
+        const carried = [...[...node.held.values()].map((h) => ({ row: h.row, origin: node })), ...[...node.sealed.values()].map((x) => ({ row: x.row, origin: x.origin }))];
+        for (const { row, origin } of carried) {
           const key = row.id + ">" + nb;
           if (node.offered.has(key) || other.held.has(row.id) || other.sealed.has(row.id)) continue;
-          const aud = sealedAud || this.audience(node, row); // a carrier forwards by the audience the sender folded
+          const aud = this.audience(origin, row); // the audience is the sender's fold, as it stands now; a carrier folds nothing
           if (aud && !aud.has(other.owner)) {
-            if (!other.carrier) continue; // a stranger is offered nothing it must consent to carry
-            other.sealed.set(row.id, { row, aud }); node.offered.add(key); // a seat carries it sealed
+            if (!other.carrier || other === origin) continue; // a stranger is offered nothing it must consent to carry
+            other.sealed.set(row.id, { row, origin }); node.offered.add(key); // a seat carries it sealed
             moves.push({ from: node.id, to: nb, row: row.id, ok: true, sealed: true });
             continue;
           }
