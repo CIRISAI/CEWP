@@ -14,10 +14,23 @@
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
 button,select{font:12px var(--mono);background:#1a1f2a;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 8px;cursor:pointer}
 button.on{border-color:var(--ok);color:var(--ok)}
+.control-group{margin:8px 0}
+.cg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.control-group label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+.ms-budget{font-size:10px;color:var(--ok);font-feature-settings:"tnum";transition:color .2s ease}
+.seg{display:flex;background:#0d1017;border:1px solid var(--line);border-radius:8px;padding:2px;gap:2px}
+.seg button{flex:1;background:transparent;border:0;border-radius:6px;padding:5px 4px;font:11px/1 var(--mono);color:var(--mute);transition:all .18s ease;cursor:pointer;white-space:nowrap;text-align:center}
+.seg button:hover:not(:disabled){color:var(--ink);background:#181d28}
+.seg button.active{background:color-mix(in srgb,var(--ok) 18%,#161c26);color:#fff;font-weight:600;box-shadow:0 0 0 1px color-mix(in srgb,var(--ok) 45%,transparent)}
+.seg button:disabled{opacity:.25;cursor:not-allowed;text-decoration:line-through var(--mute)}
+.main-actions{margin-top:10px}
+.btn-primary{background:color-mix(in srgb,var(--ok) 20%,#141a24);color:var(--ok);border:1px solid var(--ok);font-weight:600}
+.btn-primary.active{background:var(--ok);color:#080b10;border-color:var(--ok)}
+.btn-subtle{background:#151922;color:var(--ink);border:1px solid var(--line)}
 #stats{position:fixed;right:12px;top:12px;width:min(360px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12px;backdrop-filter:blur(6px)}
 #stats h2{font:600 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:8px 0 4px}
 .kv{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px dashed #1e2430}.kv b{color:#fff;font-weight:600}.kv .big{font-size:20px;color:var(--ok)}
-.bar{height:8px;background:#1a1f2a;border-radius:4px;overflow:hidden;margin:4px 0 8px}.bar i{display:block;height:100%;background:var(--ok)}
+.bar{height:8px;background:#1a1f2a;border-radius:4px;overflow:hidden;margin:4px 0 8px}.bar i{display:block;height:100%;background:var(--ok);transition:width .25s ease}
 #foot{position:fixed;left:12px;bottom:10px;color:var(--mute);font-size:11px;max-width:min(720px,calc(100vw - 24px))}#foot a{color:var(--cool)}
 @media(max-width:800px){#stats{top:auto;bottom:40px;max-height:46vh;overflow:auto}#hud{max-height:40vh;overflow:auto}}
 </style>
@@ -27,13 +40,32 @@ button.on{border-color:var(--ok);color:var(--ok)}
 <div id="hud">
   <h1>Millions of nodes, one door</h1>
   <p>Every point is a node someone owns, placed by where people live. Each tick, random acts are signed: 65% family-scope, 30% in a community room, 4% consent-free rows (keys, announces), 1% in a public room. The kernel's door runs at the signer's node and at every node in the row's audience, in WebAssembly. Drag to turn; wheel to zoom.</p>
-  <div class="row">
-    <select id="size"><option value="100000">100 k nodes</option><option value="1000000" selected>1 M nodes</option><option value="2000000">2 M nodes</option><option value="4000000">4 M nodes</option></select>
-    <select id="acts"><option value="2000">2 k acts / tick</option><option value="10000" selected>10 k acts / tick</option><option value="50000">50 k acts / tick</option><option value="200000">200 k acts / tick</option></select>
-    <button id="build">build world</button>
+  <input type="hidden" id="size" value="1000000">
+  <input type="hidden" id="acts" value="10000">
+  <div class="control-group">
+    <div class="cg-head"><label>World scale</label></div>
+    <div class="seg" id="size-seg">
+      <button data-val="100000">100 k</button>
+      <button data-val="1000000" class="active">1 M</button>
+      <button data-val="2000000">2 M</button>
+      <button data-val="4000000">4 M</button>
+    </div>
   </div>
-  <div class="row">
-    <button id="play">▶ run</button><button id="step">one tick</button>
+  <div class="control-group">
+    <div class="cg-head">
+      <label>Acts / tick</label>
+      <span class="ms-budget" id="ms-budget">measuring…</span>
+    </div>
+    <div class="seg" id="acts-seg">
+      <button data-val="2000">2 k</button>
+      <button data-val="10000" class="active">10 k</button>
+      <button data-val="50000">50 k</button>
+      <button data-val="200000">200 k</button>
+    </div>
+  </div>
+  <div class="row main-actions">
+    <button id="play" class="btn-primary active">❚❚ pause</button>
+    <button id="step" class="btn-subtle">step</button>
     <button id="eng" class="on">engine: WASM</button>
     <button id="arcsb" class="on">arcs</button>
   </div>
@@ -170,51 +202,169 @@ function tickJs(acts){
 const cv=document.getElementById("c"); const gl=cv.getContext("webgl",{antialias:true,alpha:false});
 function sh(t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s); return s; }
 function prog(v,f){ const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,v)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f)); gl.linkProgram(p); return p; }
-const PV=`attribute vec3 p;attribute float a;attribute float k;uniform mat3 R;uniform float S;uniform vec2 asp;varying float va;varying float vk;varying float vz;
-void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);va=a;vk=k;gl_PointSize=k>0.5?4.0:(S>2.2?2.2:1.4);}`;
+const PV=`attribute vec3 p;attribute float a;attribute float k;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float dpr;varying float va;varying float vk;varying float vz;
+void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);va=a;vk=k;float base=(k>0.5)?4.2:(S>2.0?2.4:1.5);gl_PointSize=(base+va*2.6)*dpr;}`;
 const PF=`precision mediump float;varying float va;varying float vk;varying float vz;
-void main(){if(vz<0.02)discard;vec3 base=vk>0.5?vec3(0.42,0.71,1.0):vec3(0.36,0.40,0.52);vec3 hot=vec3(1.0,0.69,0.36);vec3 c=mix(base,hot,va);float al=vk>0.5?0.95:(0.45+0.55*va);gl_FragColor=vec4(c*(0.55+0.45*vz),al);}`;
-const LV=`attribute vec3 p;attribute float t;uniform mat3 R;uniform float S;uniform vec2 asp;varying float vt;varying float vz;void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);vt=t;}`;
-const LF=`precision mediump float;varying float vt;varying float vz;uniform float fade;void main(){if(vz<0.0)discard;gl_FragColor=vec4(1.0,0.42,0.36,fade*(0.12+0.45*sin(vt*3.1416)));}`;
-const DV=`attribute vec2 p;uniform float S;uniform vec2 asp;void main(){gl_Position=vec4(p.x*S*asp.x,p.y*S*asp.y,0.9,1.0);}`;
-const DF=`precision mediump float;void main(){gl_FragColor=vec4(0.055,0.07,0.1,1.0);}`;
+void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;vec2 pc=gl_PointCoord-vec2(0.5);float d2=dot(pc,pc);if(d2>0.25)discard;float circle=smoothstep(0.25,0.08,d2);vec3 base=(vk>0.5)?vec3(0.42,0.71,1.0):vec3(0.35,0.39,0.50);vec3 hot=vec3(1.0,0.69,0.36);vec3 flare=vec3(1.0,0.95,0.85);vec3 c=mix(base,hot,smoothstep(0.0,0.75,va));c=mix(c,flare,smoothstep(0.75,1.0,va));float depth=0.55+0.45*max(0.0,vz);float al=(vk>0.5?0.95:(0.42+0.58*va))*edge*circle;gl_FragColor=vec4(c*depth,al);}`;
+const LV=`attribute vec3 p;attribute vec3 param;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float uTime;varying float vt;varying float vAge;varying float vz;
+void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);vt=param.x;vAge=(uTime-param.y)/param.z;}`;
+const LF=`precision mediump float;varying float vt;varying float vAge;varying float vz;
+void main(){if(vz<-0.06||vAge>=1.0||vAge<=0.0)discard;float env=smoothstep(0.0,0.12,vAge)*(1.0-smoothstep(0.55,1.0,vAge));float pulsePos=vAge*1.62;float dist=vt-pulsePos;float tail=0.0;if(dist<=0.0&&dist>-0.38){tail=pow(1.0+dist/0.38,2.2);}float head=exp(-dist*dist*500.0);float trace=0.15*sin(vt*3.14159);float alpha=env*(trace+tail*0.55+head*1.15)*smoothstep(-0.06,0.08,vz);if(alpha<0.008)discard;vec3 colBase=vec3(1.0,0.42,0.36);vec3 colMid=vec3(1.0,0.76,0.42);vec3 colHead=vec3(1.0,0.96,0.88);vec3 col=mix(colBase,colMid,tail);col=mix(col,colHead,clamp(head*1.3,0.0,1.0));gl_FragColor=vec4(col,alpha);}`;
+const DV=`attribute vec2 p;uniform float S;uniform vec2 asp;varying vec2 vPos;void main(){vPos=p*1.05;gl_Position=vec4(vPos.x*S*asp.x,vPos.y*S*asp.y,0.95,1.0);}`;
+const DF=`precision mediump float;varying vec2 vPos;void main(){float r=length(vPos);if(r>1.05)discard;if(r<=1.0){float z=sqrt(max(0.0,1.0-r*r));vec3 deep=vec3(0.038,0.046,0.064);vec3 rimColor=vec3(0.18,0.36,0.58);float rim=pow(1.0-z,2.6);vec3 col=deep+rimColor*(rim*0.50);gl_FragColor=vec4(col,1.0);}else{float halo=smoothstep(1.05,1.0,r)*0.22;vec3 haloCol=vec3(0.16,0.34,0.56);gl_FragColor=vec4(haloCol*halo,halo);}}`;
 const pP=prog(PV,PF), pL=prog(LV,LF), pD=prog(DV,DF);
-let posBuf=gl.createBuffer(), actBuf=gl.createBuffer(), kindBuf=gl.createBuffer(), lineBuf=gl.createBuffer(), discBuf=gl.createBuffer();
-{ const d=[]; for (let i=0;i<=96;i++){ const t=i/96*6.2832; d.push(0,0, Math.cos(t),Math.sin(t)); } const disc=[]; for (let i=0;i<=96;i++){ const t=i/96*6.2832; disc.push(Math.cos(t),Math.sin(t)); } const tri=[]; for (let i=0;i<96;i++){ tri.push(0,0,disc[i*2],disc[i*2+1],disc[i*2+2],disc[i*2+3]); } gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(tri),gl.STATIC_DRAW); }
-let yaw=0.6, pitch=0.35, zoom=1.0, drag=null, autoRot=true, npts=0, lines=new Float32Array(0), lineT=new Float32Array(0), lineAge=1;
+let posBuf=gl.createBuffer(), actBuf=gl.createBuffer(), kindBuf=gl.createBuffer(), discBuf=gl.createBuffer();
+let linePosBuf=gl.createBuffer(), lineParamBuf=gl.createBuffer();
+{ const disc=[]; for (let i=0;i<=96;i++){ const t=i/96*6.2831853; disc.push(Math.cos(t),Math.sin(t)); } const tri=[]; for (let i=0;i<96;i++){ tri.push(0,0,disc[i*2],disc[i*2+1],disc[i*2+2],disc[i*2+3]); } gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(tri),gl.STATIC_DRAW); }
+const SEG=14, SEG_VERTS=SEG*2, MAX_ARCS=420, MAX_LINE_FLOATS=MAX_ARCS*SEG_VERTS*3;
+const posBuffer=new Float32Array(MAX_LINE_FLOATS), paramBuffer=new Float32Array(MAX_LINE_FLOATS);
+let activeArcs=[], arcCount=0, arcsNeedUpload=false;
+gl.bindBuffer(gl.ARRAY_BUFFER,linePosBuf); gl.bufferData(gl.ARRAY_BUFFER,posBuffer,gl.DYNAMIC_DRAW);
+gl.bindBuffer(gl.ARRAY_BUFFER,lineParamBuf); gl.bufferData(gl.ARRAY_BUFFER,paramBuffer,gl.DYNAMIC_DRAW);
+const startTime=performance.now(); const getTime=()=>(performance.now()-startTime)*0.001;
+let yaw=0.6, pitch=0.35, zoom=1.0, targetZoom=1.0, velYaw=0, velPitch=0, drag=null, lastTouchTime=performance.now(), npts=0;
 function xyz(la,lo){ const a=la*Math.PI/180, o=lo*Math.PI/180; return [Math.cos(a)*Math.sin(o), Math.sin(a), Math.cos(a)*Math.cos(o)]; }
 function uploadPoints(){ const n=W.n; const p=new Float32Array(n*3); for (let i=0;i<n;i++){ const v=xyz(W.lat[i],W.lon[i]); p[i*3]=v[0];p[i*3+1]=v[1];p[i*3+2]=v[2]; } gl.bindBuffer(gl.ARRAY_BUFFER,posBuf); gl.bufferData(gl.ARRAY_BUFFER,p,gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER,kindBuf); gl.bufferData(gl.ARRAY_BUFFER,W.isSeat,gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferData(gl.ARRAY_BUFFER,new Uint8Array(n),gl.DYNAMIC_DRAW); npts=n; }
-function setArcs(arcs){ const k=arcs.length/2; const SEG=10; lines=new Float32Array(k*SEG*2*3); lineT=new Float32Array(k*SEG*2); let w=0,wt=0;
-  for (let i=0;i<k;i++){ const a=xyz(W.lat[arcs[i*2]],W.lon[arcs[i*2]]), b=xyz(W.lat[arcs[i*2+1]],W.lon[arcs[i*2+1]]); const dot=Math.max(-1,Math.min(1,a[0]*b[0]+a[1]*b[1]+a[2]*b[2])); const th=Math.acos(dot); const lift=0.02+0.25*th/Math.PI;
-    let prev=null; for (let s=0;s<=SEG;s++){ const t=s/SEG; const w1=th<1e-4?1-t:Math.sin((1-t)*th)/Math.sin(th), w2=th<1e-4?t:Math.sin(t*th)/Math.sin(th); let v=[a[0]*w1+b[0]*w2,a[1]*w1+b[1]*w2,a[2]*w1+b[2]*w2]; const L=Math.hypot(...v)||1; const h=1+lift*Math.sin(t*Math.PI); v=v.map(x=>x/L*h); if (prev){ lines.set(prev,w); lines.set(v,w+3); w+=6; lineT[wt++]=(s-1)/SEG; lineT[wt++]=t; } prev=v; } }
-  gl.bindBuffer(gl.ARRAY_BUFFER,lineBuf); gl.bufferData(gl.ARRAY_BUFFER,lines,gl.DYNAMIC_DRAW); lineAge=1; }
-function rot(){ const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch); // R = Rx(pitch)·Ry(yaw), column-major
-  return new Float32Array([cy,0,-sy,  sy*sp,cp,cy*sp,  sy*cp,-sp,cy*cp]); }
+function addArc(signer,target,nowSec){
+  if (!W||signer===target) return;
+  const a=xyz(W.lat[signer],W.lon[signer]), b=xyz(W.lat[target],W.lon[target]);
+  const dot=Math.max(-1,Math.min(1,a[0]*b[0]+a[1]*b[1]+a[2]*b[2])); const th=Math.acos(dot);
+  if (th<0.01) return;
+  const lift=0.03+0.22*(th/Math.PI); const duration=1.3+Math.min(1.0,th/Math.PI)*0.9;
+  const verts=new Float32Array(SEG_VERTS*3), params=new Float32Array(SEG_VERTS*3);
+  let prev=null, vw=0, pw=0;
+  for (let s=0;s<=SEG;s++){
+    const t=s/SEG;
+    const w1=th<1e-4?1-t:Math.sin((1-t)*th)/Math.sin(th), w2=th<1e-4?t:Math.sin(t*th)/Math.sin(th);
+    let v=[a[0]*w1+b[0]*w2, a[1]*w1+b[1]*w2, a[2]*w1+b[2]*w2];
+    const L=Math.hypot(...v)||1; const h=1.0+lift*Math.sin(t*Math.PI);
+    v=[v[0]/L*h, v[1]/L*h, v[2]/L*h];
+    if (prev){
+      verts[vw++]=prev[0]; verts[vw++]=prev[1]; verts[vw++]=prev[2];
+      verts[vw++]=v[0];    verts[vw++]=v[1];    verts[vw++]=v[2];
+      const tPrev=(s-1)/SEG;
+      params[pw++]=tPrev; params[pw++]=nowSec; params[pw++]=duration;
+      params[pw++]=t;     params[pw++]=nowSec; params[pw++]=duration;
+    }
+    prev=v;
+  }
+  activeArcs.push({birthTime:nowSec,duration,verts,params});
+}
+function pruneAndPackArcs(nowSec){
+  let changed=false, w=0;
+  for (let i=0;i<activeArcs.length;i++){
+    const arc=activeArcs[i];
+    if (nowSec-arc.birthTime<arc.duration) activeArcs[w++]=arc;
+    else changed=true;
+  }
+  activeArcs.length=w;
+  if (activeArcs.length>MAX_ARCS){ activeArcs.splice(0,activeArcs.length-MAX_ARCS); changed=true; }
+  if (changed||arcsNeedUpload){
+    let off=0; const chunk=SEG_VERTS*3;
+    for (let i=0;i<activeArcs.length;i++){
+      posBuffer.set(activeArcs[i].verts,off);
+      paramBuffer.set(activeArcs[i].params,off);
+      off+=chunk;
+    }
+    arcCount=activeArcs.length;
+    if (off>0){
+      gl.bindBuffer(gl.ARRAY_BUFFER,linePosBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,posBuffer.subarray(0,off));
+      gl.bindBuffer(gl.ARRAY_BUFFER,lineParamBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,paramBuffer.subarray(0,off));
+    }
+    arcsNeedUpload=false;
+  }
+}
+function setArcs(arcs){
+  const k=arcs.length/2, nowSec=getTime();
+  const maxAdd=playing?28:60; const step=Math.max(1,Math.floor(k/maxAdd));
+  for (let i=0;i<k;i+=step) addArc(arcs[i*2],arcs[i*2+1],nowSec);
+  arcsNeedUpload=true; pruneAndPackArcs(nowSec);
+}
+function rot(){ const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+  return new Float32Array([cy,0,-sy, sy*sp,cp,cy*sp, sy*cp,-sp,cy*cp]); }
 function draw(){
-  const w=cv.clientWidth, h=cv.clientHeight; if (cv.width!==w*devicePixelRatio|0||cv.height!==h*devicePixelRatio|0){ cv.width=w*devicePixelRatio|0; cv.height=h*devicePixelRatio|0; }
+  const w=cv.clientWidth, h=cv.clientHeight; const dpr=window.devicePixelRatio||1;
+  if (cv.width!==w*dpr|0||cv.height!==h*dpr|0){ cv.width=w*dpr|0; cv.height=h*dpr|0; }
   gl.viewport(0,0,cv.width,cv.height); gl.clearColor(0.043,0.051,0.07,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
-  const asp = w>h? [h/w,1]:[1,w/h]; const S=0.86*zoom; const R=rot();
+  const asp=w>h? [h/w,1]:[1,w/h]; const S=0.86*zoom; const R=rot();
   gl.useProgram(pD); gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); const dp=gl.getAttribLocation(pD,"p"); gl.enableVertexAttribArray(dp); gl.vertexAttribPointer(dp,2,gl.FLOAT,false,0,0); gl.uniform1f(gl.getUniformLocation(pD,"S"),S); gl.uniform2fv(gl.getUniformLocation(pD,"asp"),asp); gl.drawArrays(gl.TRIANGLES,0,96*3);
-  if (npts){ gl.useProgram(pP); gl.uniformMatrix3fv(gl.getUniformLocation(pP,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pP,"S"),S); gl.uniform2fv(gl.getUniformLocation(pP,"asp"),asp);
+  if (npts){ gl.useProgram(pP); gl.uniformMatrix3fv(gl.getUniformLocation(pP,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pP,"S"),S); gl.uniform2fv(gl.getUniformLocation(pP,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pP,"dpr"),dpr);
     const ap=gl.getAttribLocation(pP,"p"), aa=gl.getAttribLocation(pP,"a"), ak=gl.getAttribLocation(pP,"k");
     gl.bindBuffer(gl.ARRAY_BUFFER,posBuf); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.enableVertexAttribArray(aa); gl.vertexAttribPointer(aa,1,gl.UNSIGNED_BYTE,true,0,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,kindBuf); gl.enableVertexAttribArray(ak); gl.vertexAttribPointer(ak,1,gl.UNSIGNED_BYTE,false,0,0);
     gl.drawArrays(gl.POINTS,0,npts); }
-  if (lines.length && showArcs){ gl.useProgram(pL); gl.uniformMatrix3fv(gl.getUniformLocation(pL,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pL,"S"),S); gl.uniform2fv(gl.getUniformLocation(pL,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pL,"fade"),lineAge);
-    const lp=gl.getAttribLocation(pL,"p"), lt=gl.getAttribLocation(pL,"t"); gl.bindBuffer(gl.ARRAY_BUFFER,lineBuf); gl.enableVertexAttribArray(lp); gl.vertexAttribPointer(lp,3,gl.FLOAT,false,0,0);
-    const tb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,tb); gl.bufferData(gl.ARRAY_BUFFER,lineT,gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(lt); gl.vertexAttribPointer(lt,1,gl.FLOAT,false,0,0);
-    gl.drawArrays(gl.LINES,0,lines.length/3); gl.deleteBuffer(tb); lineAge=Math.max(0,lineAge-0.02); }
+  if (arcCount>0 && showArcs){ gl.useProgram(pL); gl.uniformMatrix3fv(gl.getUniformLocation(pL,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pL,"S"),S); gl.uniform2fv(gl.getUniformLocation(pL,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pL,"uTime"),getTime());
+    const lp=gl.getAttribLocation(pL,"p"), lparam=gl.getAttribLocation(pL,"param");
+    gl.bindBuffer(gl.ARRAY_BUFFER,linePosBuf); gl.enableVertexAttribArray(lp); gl.vertexAttribPointer(lp,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,lineParamBuf); gl.enableVertexAttribArray(lparam); gl.vertexAttribPointer(lparam,3,gl.FLOAT,false,0,0);
+    gl.drawArrays(gl.LINES,0,arcCount*SEG_VERTS); }
 }
-cv.addEventListener("mousedown",e=>{drag=[e.clientX,e.clientY];autoRot=false;cv.style.cursor="grabbing";}); window.addEventListener("mouseup",()=>{drag=null;cv.style.cursor="grab";});
-window.addEventListener("mousemove",e=>{ if(!drag) return; yaw+=(e.clientX-drag[0])*0.005; pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.clientY-drag[1])*0.005)); drag=[e.clientX,e.clientY]; });
-cv.addEventListener("wheel",e=>{ e.preventDefault(); zoom=Math.max(0.6,Math.min(6,zoom*(e.deltaY<0?1.1:0.91))); },{passive:false});
-cv.addEventListener("touchstart",e=>{ const t=e.touches[0]; drag=[t.clientX,t.clientY]; autoRot=false; },{passive:true}); cv.addEventListener("touchmove",e=>{ if(!drag) return; const t=e.touches[0]; yaw+=(t.clientX-drag[0])*0.005; pitch=Math.max(-1.4,Math.min(1.4,pitch+(t.clientY-drag[1])*0.005)); drag=[t.clientX,t.clientY]; },{passive:true}); cv.addEventListener("touchend",()=>drag=null);
+cv.addEventListener("mousedown",e=>{drag=[e.clientX,e.clientY];velYaw=0;velPitch=0;cv.style.cursor="grabbing";lastTouchTime=performance.now();}); window.addEventListener("mouseup",()=>{drag=null;cv.style.cursor="grab";});
+window.addEventListener("mousemove",e=>{ if(!drag) return; const dx=e.clientX-drag[0], dy=e.clientY-drag[1]; velYaw=dx*0.0035; velPitch=dy*0.0035; yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[e.clientX,e.clientY]; lastTouchTime=performance.now(); });
+cv.addEventListener("wheel",e=>{ e.preventDefault(); targetZoom=Math.max(0.6,Math.min(6,targetZoom*(e.deltaY<0?1.15:0.87))); lastTouchTime=performance.now(); },{passive:false});
+cv.addEventListener("touchstart",e=>{ const t=e.touches[0]; drag=[t.clientX,t.clientY]; velYaw=0; velPitch=0; lastTouchTime=performance.now(); },{passive:true});
+cv.addEventListener("touchmove",e=>{ if(!drag) return; const t=e.touches[0]; const dx=t.clientX-drag[0], dy=t.clientY-drag[1]; velYaw=dx*0.0035; velPitch=dy*0.0035; yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[t.clientX,t.clientY]; lastTouchTime=performance.now(); },{passive:true}); cv.addEventListener("touchend",()=>drag=null);
 // ------------------------------------------------------------------ the loop
-let playing=false, useWasm=true, showArcs=true, cum=0, lastActivity=null;
+let playing=false, useWasm=true, showArcs=true, cum=0, lastActivity=null, activeBlocks=[];
+let currentSize=1000000, currentActs=10000, avgMsPerTick=0, avgMsPerAct=0;
 const $=(id)=>document.getElementById(id); const fmt=(x)=>x>=1e12?(x/1e12).toFixed(2)+" T":x>=1e9?(x/1e9).toFixed(2)+" G":x>=1e6?(x/1e6).toFixed(2)+" M":x>=1e3?(x/1e3).toFixed(1)+" k":String(Math.round(x));
+function selectSize(n){
+  if (n===currentSize&&W) return;
+  currentSize=n; if ($("size")) $("size").value=String(n);
+  document.querySelectorAll("#size-seg button").forEach(b=>b.classList.toggle("active",+b.getAttribute("data-val")===n));
+  build();
+}
+function selectActs(a){
+  currentActs=a; if ($("acts")) $("acts").value=String(a);
+  document.querySelectorAll("#acts-seg button").forEach(b=>b.classList.toggle("active",+b.getAttribute("data-val")===a));
+}
+document.querySelectorAll("#size-seg button").forEach(b=>b.onclick=()=>selectSize(+b.getAttribute("data-val")));
+document.querySelectorAll("#acts-seg button").forEach(b=>b.onclick=()=>selectActs(+b.getAttribute("data-val")));
+function updateWorkloadLimits(ms,actsCount){
+  if (ms>0&&actsCount>0){
+    const msPerAct=ms/actsCount;
+    avgMsPerAct=avgMsPerAct?(avgMsPerAct*0.6+msPerAct*0.4):msPerAct;
+    avgMsPerTick=avgMsPerTick?(avgMsPerTick*0.6+ms*0.4):ms;
+  }
+  const MAX_TICK_BUDGET_MS=60;
+  let highestSafe=2000;
+  document.querySelectorAll("#acts-seg button").forEach(btn=>{
+    const val=+btn.getAttribute("data-val");
+    const est=val*(avgMsPerAct||0.0003);
+    if (avgMsPerAct>0&&est>MAX_TICK_BUDGET_MS){
+      btn.disabled=true;
+      btn.title=`Limited by measured time: ~${Math.round(est)} ms/tick exceeds ${MAX_TICK_BUDGET_MS}ms real-time budget`;
+    } else {
+      btn.disabled=false;
+      btn.title=`Estimated ~${est<1?est.toFixed(1):Math.round(est)} ms/tick`;
+      highestSafe=Math.max(highestSafe,val);
+    }
+  });
+  if (currentActs>highestSafe&&avgMsPerAct>0) selectActs(highestSafe);
+  const budgetEl=$("ms-budget");
+  if (budgetEl&&avgMsPerAct>0){
+    const est=(currentActs*avgMsPerAct).toFixed(1);
+    const label=avgMsPerTick<20?"fluid":avgMsPerTick<50?"good":"heavy";
+    budgetEl.textContent=`~${est} ms / tick · ${label}`;
+    budgetEl.style.color=avgMsPerTick<20?"var(--ok)":avgMsPerTick<50?"var(--warm)":"var(--hot)";
+  }
+  document.querySelectorAll("#size-seg button").forEach(btn=>{
+    const val=+btn.getAttribute("data-val");
+    if (!useWasm&&val>2000000){
+      btn.disabled=true; btn.title="4M nodes disabled in JS engine to prevent memory lag (use WASM to unlock)";
+    } else {
+      btn.disabled=false; btn.title="";
+    }
+  });
+}
+function recordActiveBlocks(){
+  if (!lastActivity) return; const a=lastActivity; const u32=new Uint32Array(a.buffer,a.byteOffset,a.byteLength>>>2);
+  activeBlocks.length=0; for (let i=0;i<u32.length;i++) if (u32[i]!==0) activeBlocks.push(i);
+}
 function tick(){
-  const acts=+$("acts").value; const t0=performance.now(); const res=(useWasm&&wasm)?tickWasm(acts):tickJs(acts); const ms=performance.now()-t0;
+  const acts=currentActs; const t0=performance.now(); const res=(useWasm&&wasm)?tickWasm(acts):tickJs(acts); const ms=performance.now()-t0;
+  updateWorkloadLimits(ms,acts);
   const o=res.out; cum+=o[1]; const local=o[17]?o[16]/o[17]:0; $("dlocal").textContent=(o[1]?o[5]/o[1]*100:0).toFixed(1)+"%";
   $("local").textContent=(local*100).toFixed(1)+"%"; $("localbar").style.width=(local*100).toFixed(1)+"%";
   $("xmetro").textContent=(o[1]?o[6]/o[1]*100:0).toFixed(1)+"%"; $("xregion").textContent=(o[1]?o[7]/o[1]*100:0).toFixed(1)+"%";
@@ -222,19 +372,48 @@ function tick(){
   $("acts_n").textContent=fmt(o[0])+"  (family "+fmt(o[12])+" · room "+fmt(o[13])+" · consent-free "+fmt(o[14])+" · public "+fmt(o[15])+")"; $("deliv").textContent=fmt(o[1]); $("refused").textContent=fmt(o[4]);
   $("bytes").textContent=fmt(o[9])+"B"; $("bcast").textContent=fmt(o[10])+"B  ("+fmt(o[10]/Math.max(1,o[9]))+"×)"; $("central").textContent=fmt(o[11])+"B  (every byte through one place)";
   $("dps").textContent=fmt(o[2]/(ms/1000)); $("ms").textContent=ms.toFixed(1)+" ms  ("+(useWasm&&wasm?"WASM":"JS")+")"; $("bpn").textContent=BYTES_PER_NODE+" B  ·  "+fmt(W.n*BYTES_PER_NODE)+"B for "+fmt(W.n)+" nodes"; $("cum").textContent=fmt(cum);
-  lastActivity=res.activity; gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,lastActivity); setArcs(res.arcs);
+  lastActivity=res.activity; recordActiveBlocks(); gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,lastActivity); setArcs(res.arcs);
 }
-function decay(){ if (!lastActivity) return; const a=lastActivity; for (let i=0;i<a.length;i++){ const v=a[i]; if (v) a[i]=v>12?v-12:0; } gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,a); }
-let frame=0; function loop(){ if (autoRot) yaw+=0.0018; if (playing && frame%6===0) tick(); else if (frame%2===0) decay(); draw(); frame++; requestAnimationFrame(loop); }
+function decay(){
+  if (!lastActivity||activeBlocks.length===0) return; const a=lastActivity; const u32=new Uint32Array(a.buffer,a.byteOffset,a.byteLength>>>2);
+  let w=0; for (let idx=0;idx<activeBlocks.length;idx++){
+    const i=activeBlocks[idx]; if (u32[i]===0) continue;
+    const base=i<<2; let remaining=false;
+    for (let j=0;j<4;j++){ const v=a[base+j]; if (v>0){ const nv=v>6?(v*0.93|0):0; a[base+j]=nv; if (nv>0) remaining=true; } }
+    if (remaining) activeBlocks[w++]=i;
+  }
+  activeBlocks.length=w; gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,a);
+}
+let frame=0, lastTickTime=0;
+function loop(){
+  const now=performance.now();
+  if (!drag){
+    velYaw*=0.93; velPitch*=0.93;
+    if (Math.abs(velYaw)>0.00002) yaw+=velYaw;
+    if (Math.abs(velPitch)>0.00002) pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch));
+    const idle=now-lastTouchTime;
+    if (idle>3000){ const blend=Math.min(1.0,(idle-3000)/2000); yaw+=0.0016*blend; }
+  }
+  zoom+=(targetZoom-zoom)*0.12;
+  if (playing && now-lastTickTime>=120){ lastTickTime=now; tick(); }
+  decay();
+  if (frame%4===0) pruneAndPackArcs(getTime());
+  draw(); frame++; requestAnimationFrame(loop);
+}
 async function build(){
-  playing=false; $("play").textContent="▶ run"; const n=+$("size").value; $("status").textContent="placing "+fmt(n)+" nodes…"; await new Promise(r=>setTimeout(r,30));
-  const t0=performance.now(); W=buildWorld(n); const t1=performance.now(); uploadWorld(); uploadPoints(); cum=0; lastActivity=null; lines=new Float32Array(0);
+  const wasPlaying=playing;
+  playing=false; $("play").textContent="▶ run"; $("play").classList.remove("active");
+  const n=currentSize; $("status").textContent="placing "+fmt(n)+" nodes…"; await new Promise(r=>setTimeout(r,30));
+  const t0=performance.now(); W=buildWorld(n); const t1=performance.now(); uploadWorld(); uploadPoints(); cum=0; lastActivity=null; activeBlocks=[]; activeArcs=[]; arcCount=0; arcsNeedUpload=true; pruneAndPackArcs(getTime());
   $("status").textContent=fmt(W.n)+" nodes in "+METROS.length+" metros of "+REG.length+" regions · "+fmt(W.nFamilies)+" families · "+fmt(W.rooms-W.nFamilies)+" rooms · "+fmt(W.memberships)+" memberships · "+W.seats.length+" seats · built in "+((t1-t0)/1000).toFixed(1)+" s"+(wasm?"":" · WASM unavailable, JS engine");
+  if (wasPlaying){ playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); }
 }
-$("build").onclick=build; $("step").onclick=()=>{ if(W) tick(); }; $("play").onclick=(e)=>{ if(!W) return; playing=!playing; e.target.textContent=playing?"❚❚ pause":"▶ run"; };
-$("eng").onclick=(e)=>{ useWasm=!useWasm; e.target.textContent="engine: "+(useWasm&&wasm?"WASM":"JS"); e.target.classList.toggle("on",useWasm&&!!wasm); };
+if ($("build")) $("build").onclick=build;
+$("step").onclick=()=>{ if(W) tick(); };
+$("play").onclick=(e)=>{ if(!W) return; playing=!playing; e.target.textContent=playing?"❚❚ pause":"▶ run"; e.target.classList.toggle("active",playing); };
+$("eng").onclick=(e)=>{ useWasm=!useWasm; e.target.textContent="engine: "+(useWasm&&wasm?"WASM":"JS"); e.target.classList.toggle("on",useWasm&&!!wasm); avgMsPerAct=0; avgMsPerTick=0; if(W) tick(); };
 $("arcsb").onclick=(e)=>{ showArcs=!showArcs; e.target.classList.toggle("on",showArcs); };
-(async()=>{ await loadWasm(); if(!wasm){ useWasm=false; $("eng").textContent="engine: JS"; $("eng").classList.remove("on"); } await build(); loop(); })();
+(async()=>{ await loadWasm(); if(!wasm){ useWasm=false; $("eng").textContent="engine: JS"; $("eng").classList.remove("on"); } await build(); playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); loop(); })();
 </script>
 </body>
 </html>
