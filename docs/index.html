@@ -88,6 +88,42 @@ svg .a{fill:var(--accent)} svg .b{fill:var(--accent2)} svg .m{fill:var(--mute)} 
 svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--accent);fill:none;stroke-width:2} svg .sb{stroke:var(--accent2);fill:none;stroke-width:2} svg .sd{stroke:var(--mute);fill:none;stroke-width:1.5;stroke-dasharray:4 3}
 </style>
 
+<svg width="0" height="0" style="position:absolute"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent)"/></marker></defs></svg>
+</head>
+<body>
+<header>
+  <h1>An epistemic web, in motion</h1>
+  <p class="lead">Six people and one agent share one mesh of signed rows. Each sees a <b>view</b> of the same rows, folded through their own standing, and each view generates a <b>queue</b>: exactly the actions the admission door would accept from them now. Nothing here is a list of buttons: the queue is the door run forwards. Existing technology, in a new architecture.</p>
+  <p class="lead"><a href="mesh.html">A mesh run by its kernel →</a> nodes as cells, rows as signals, every node folding what it holds with the same function; the kernel itself, driven by the constitution's tables, with its parity test.</p>
+</header>
+<nav class="tabs" id="tabs">
+  <a href="#motion" data-tab="motion" class="on">In motion</a>
+  <a href="#solves" data-tab="solves">What it solves</a>
+  <a href="#peers" data-tab="peers">Beside its peers</a>
+  <a href="#contract" data-tab="contract">The contract</a>
+</nav>
+<div class="tab on" id="tab-motion">
+<div class="sim">
+  <section>
+    <h2>People</h2>
+    <div id="people"></div>
+    <div class="ctl"><button id="play">Replay the story</button><button id="reset">Reset</button></div>
+    <p class="why" style="font-size:13px;color:var(--mute);margin-top:10px">The number on each person is the size of their queue over the whole mesh right now.</p>
+  </section>
+  <section>
+    <h2>The mesh: one set of rows, <span id="rowcount">0</span> so far</h2>
+    <div class="mesh" id="mesh"></div>
+    <div class="log" id="log"></div>
+  </section>
+  <section>
+    <h2>Queue for <span id="who">—</span></h2>
+    <div id="queue"></div>
+  </section>
+</div>
+<p class="rule">The rule, from the CIRIS Constitution 4.5.13: for an object, the node holds its family, its lifecycle state and the person's standing toward it; the family's transitions come from the family model; the queue is the enabled transitions, one item each, and the door admits by the same predicate. Proved in <code>formal/event_lifecycle</code>; the transitions are rows of <code>manifests/transitions.json</code>; the story is <code>tools/mesh_story.py</code>.</p>
+</div>
+<div class="tab" id="tab-solves">
+<div class="hero"><div><p><b>Nothing here is a new technology.</b> Signed rows, Merkle trees, hybrid post-quantum keys, cover traffic, deterministic encodings, CBOR and COSE have all existed for years.</p><p>What is new is the arrangement: one table that is both the admission door and the source of every action a person is offered, folds every node computes identically, and a constitution whose rules are tied to the code and proofs that back them. Below, eleven problems decentralized networks have failed on, each with the mechanism, the existing technology it uses, and what remains.</p></div>
 <svg viewBox="0 0 460 250" role="img" aria-hidden="true">
 <circle cx="230" cy="125" r="80" class="sd"/>
 <rect x="165" y="14" width="130" height="34" rx="8" class="c"/><text x="230" y="36" text-anchor="middle">the view</text>

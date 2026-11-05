@@ -8,6 +8,8 @@ an AI governance / superalignment platform — built on the bet that
 
 ## See it move
 
+[**A mesh run by its kernel**](https://cirisai.github.io/CEWP/mesh.html) — people and their nodes as cells, rows as signals travelling one hop per tick, every node folding what it holds with the same function; click a node for its owner's queue and a preview that equals execution. The kernel is [`docs/kernel/kernel.js`](docs/kernel/kernel.js), one file with no dependencies, driven by the constitution's own tables and checked against its story (`node --test docs/kernel/kernel.test.js`).
+
 [**An epistemic web, in motion**](https://cirisai.github.io/CEWP/) — six people and an agent share one mesh of signed rows; each sees a view folded through their own standing, and each view generates a queue, exactly the actions the door would admit from them now. Pick a person, act, and watch the other queues shift. The same page carries, as tabs, [what this solves and how](https://cirisai.github.io/CEWP/#solves) (eleven problems of decentralized networks, each answered by existing technology in a new arrangement, with a diagram and its residual), [where it stands beside its peers](https://cirisai.github.io/CEWP/#peers) (from the Verify, Persist and Edge comparisons) and [the contract](https://cirisai.github.io/CEWP/#contract); the plain-text sources are [docs/why-it-works.md](docs/why-it-works.md) and [docs/epistemic-web.md](docs/epistemic-web.md) (pre-release, CIRISConstitution `rc17`).
 
 ## What CEWP is
