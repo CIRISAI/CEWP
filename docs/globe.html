@@ -9,8 +9,8 @@
 :root{--bg:#0b0d12;--panel:#12151c;--line:#242a36;--ink:#dfe3ea;--mute:#8a93a3;--ok:#5ad38f;--warm:#ffb15c;--hot:#ff6a5c;--cool:#6cb6ff;--violet:#c68aff;--mono:ui-monospace,Menlo,Consolas,monospace}
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--mono);overflow:hidden}
 #c{position:fixed;inset:0;width:100vw;height:100vh;display:block;cursor:grab}
-#hud{position:fixed;left:12px;top:12px;width:min(395px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;backdrop-filter:blur(6px)}
-#hud h1{font:600 16px/1.2 Georgia,serif;margin:0 0 4px;color:#fff}#hud p{margin:0 0 8px;color:var(--mute);font-size:12px}
+#hud{position:fixed;left:12px;top:12px;width:min(410px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 90%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;backdrop-filter:blur(6px);max-height:calc(100vh - 44px);overflow-y:auto}
+#hud h1{font:600 16px/1.2 Georgia,serif;margin:0 0 4px;color:#fff}#hud p{margin:0 0 7px;color:var(--mute);font-size:11.5px}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
 button,select{font:12px var(--mono);background:#1a1f2a;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 8px;cursor:pointer}
 button.on{border-color:var(--ok);color:var(--ok)}
@@ -27,11 +27,36 @@ button.on{border-color:var(--ok);color:var(--ok)}
 .mesh-pills button{font:10.5px/1 var(--mono);padding:4px 6px;border-radius:5px;background:#0d1017;color:var(--mute);border:1px solid var(--line);display:flex;align-items:center;gap:4px}
 .mesh-pills button.active{color:#fff;border-color:var(--ink);background:#1a202c}
 .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
-.main-actions{margin-top:10px}
+.main-actions{margin-top:6px}
 .btn-primary{background:color-mix(in srgb,var(--ok) 20%,#141a24);color:var(--ok);border:1px solid var(--ok);font-weight:600}
 .btn-primary.active{background:var(--ok);color:#080b10;border-color:var(--ok)}
 .btn-subtle{background:#151922;color:var(--ink);border:1px solid var(--line)}
-#stats{position:fixed;right:12px;top:12px;width:min(378px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12px;backdrop-filter:blur(6px);max-height:calc(100vh - 48px);overflow:auto}
+.sust-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:7px 0 4px}
+.sust-pill{background:#0d1017;border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:10px;line-height:1.25}
+.sust-pill span{display:block;color:var(--mute);font-size:9.5px;text-transform:uppercase;letter-spacing:.04em}
+.sust-pill b{color:var(--ok);font-size:11px}
+details#adv{margin-top:7px;border-top:1px solid var(--line);padding-top:6px}
+details#adv summary{cursor:pointer;font-size:11.5px;color:var(--cool);font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center;padding:3px 0}
+details#adv summary::-webkit-details-marker{display:none}
+details#adv summary::before{content:"▸ Advanced: opt-ins (+/-), device tiers, Wi-Fi & NAT"}
+details#adv[open] summary::before{content:"▾ Advanced: opt-ins (+/-), device tiers, Wi-Fi & NAT"}
+.adv-body{margin-top:6px;display:flex;flex-direction:column;gap:8px;padding-right:2px}
+.adv-sec{background:#0d1017;border:1px solid var(--line);border-radius:7px;padding:7px 9px}
+.adv-sec h3{margin:0 0 5px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#fff;display:flex;justify-content:space-between;align-items:center}
+.preset-bar{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.preset-bar button{font-size:10px;padding:3px 6px;border-radius:4px;background:#151a24;color:var(--mute);border:1px solid var(--line)}
+.preset-bar button:hover{color:#fff;border-color:var(--cool)}
+.sl-item{margin:6px 0;padding-bottom:6px;border-bottom:1px dashed #1b202c}
+.sl-item:last-child{margin-bottom:0;padding-bottom:0;border-bottom:0}
+.sl-top{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ink); gap:4px}
+.sl-top b{color:#fff;font-variant-numeric:tabular-nums}
+.dflt{font-size:9.5px;padding:1px 4px;border-radius:3px;background:#18202c;color:var(--cool);border:1px solid #263246}
+.dflt.off{color:var(--mute);background:#141720;border-color:#222734}
+input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:var(--ok);cursor:pointer}
+.pro-con{font-size:10px;line-height:1.32;color:var(--mute)}
+.pro-con .pro{color:#7ee2a8;display:block}
+.pro-con .con{color:#ff9e8e;display:block}
+#stats{position:fixed;right:12px;top:12px;width:min(384px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12px;backdrop-filter:blur(6px);max-height:calc(100vh - 48px);overflow:auto}
 #stats h2{font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:9px 0 4px}
 .kv{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px dashed #1e2430}.kv b{color:#fff;font-weight:600;text-align:right}.kv .big{font-size:19px;color:var(--ok)}
 .bar{height:8px;background:#1a1f2a;border-radius:4px;overflow:hidden;margin:4px 0 8px}.bar i{display:block;height:100%;background:var(--ok);transition:width .25s ease}
@@ -43,47 +68,168 @@ button.on{border-color:var(--ok);color:var(--ok)}
 <canvas id="c"></canvas>
 <div id="hud">
   <h1>Millions of nodes, one door</h1>
-  <p>Nodes placed on a land-bounded world population density grid (2,961 cells, 181 localities, 9 regions). Each tick signs realistic traffic across <b>3 meshes</b> (CC 5.4.3 / Edge v44): low-BW shaped (≤8 links), high-BW seat (33 KB/s), and live / ALM relay trees, plus cover-replaced onion walks (0 extra wire bytes) and Reticulum IPv6/NAT popping vs homed leaves.</p>
+  <p>Land-bounded world population grid (2,961 cells, 181 localities). Signs traffic across <b>3 meshes</b> (CC 5.4.3 / Edge 44): low-BW shaped, seat 33 KB/s, and live/ALM relay trees, plus 0-byte-extra onion walks and Reticulum NAT traversal.</p>
   <input type="hidden" id="size" value="1000000">
   <input type="hidden" id="acts" value="10000">
-  <div class="control-group">
-    <div class="cg-head"><label>World scale</label></div>
-    <div class="seg" id="size-seg">
-      <button data-val="100000">100 k</button>
-      <button data-val="1000000" class="active">1 M</button>
-      <button data-val="2000000">2 M</button>
-      <button data-val="4000000">4 M</button>
-    </div>
-  </div>
-  <div class="control-group">
-    <div class="cg-head">
-      <label>Acts / tick</label>
-      <span class="ms-budget" id="ms-budget">measuring…</span>
-    </div>
-    <div class="seg" id="acts-seg">
-      <button data-val="2000">2 k</button>
-      <button data-val="10000" class="active">10 k</button>
-      <button data-val="50000">50 k</button>
-      <button data-val="200000">200 k</button>
-    </div>
-  </div>
-  <div class="control-group">
-    <div class="cg-head"><label>Mesh layer filter</label></div>
-    <div class="mesh-pills" id="mesh-seg">
-      <button data-tier="-1" class="active">All</button>
-      <button data-tier="0"><span class="dot" style="background:var(--warm)"></span>Low-BW shaped</button>
-      <button data-tier="1"><span class="dot" style="background:var(--cool)"></span>Seat 33 KB/s</button>
-      <button data-tier="2"><span class="dot" style="background:var(--ok)"></span>Live / ALM tree</button>
-      <button data-tier="3"><span class="dot" style="background:var(--violet)"></span>Onion (0B extra)</button>
-    </div>
-  </div>
   <div class="row main-actions">
     <button id="play" class="btn-primary active">❚❚ pause</button>
     <button id="step" class="btn-subtle">step</button>
     <button id="eng" class="on">engine: WASM</button>
     <button id="arcsb" class="on">arcs</button>
   </div>
-  <p id="status">building…</p>
+  <div class="sust-strip">
+    <div class="sust-pill"><span>Hard-NAT peers</span><b id="pill-nat">–</b></div>
+    <div class="sust-pill"><span>Shaped slots</span><b id="pill-shape">–</b></div>
+    <div class="sust-pill"><span>Onion cover</span><b id="pill-onion">–</b></div>
+  </div>
+  <p id="status" style="margin:4px 0 2px">building…</p>
+
+  <details id="adv">
+    <summary></summary>
+    <div class="adv-body">
+      <div class="adv-sec">
+        <h3><span>Presets</span><span style="color:var(--mute);font-weight:400;font-size:9.5px">CC 4.5.13 / 5.4.3 / 5.4.6</span></h3>
+        <div class="preset-bar" id="preset-bar">
+          <button data-preset="fleet">Fleet Defaults</button>
+          <button data-preset="privacy">High Privacy</button>
+          <button data-preset="cgnat">CGNAT Stress (85%)</button>
+          <button data-preset="unowned">Unowned-Only (73rd Peer)</button>
+        </div>
+        <div class="control-group" style="margin:4px 0">
+          <div class="cg-head"><label>World scale</label></div>
+          <div class="seg" id="size-seg">
+            <button data-val="100000">100 k</button>
+            <button data-val="1000000" class="active">1 M</button>
+            <button data-val="2000000">2 M</button>
+            <button data-val="4000000">4 M</button>
+          </div>
+        </div>
+        <div class="control-group" style="margin:4px 0">
+          <div class="cg-head"><label>Acts / tick</label><span class="ms-budget" id="ms-budget">measuring…</span></div>
+          <div class="seg" id="acts-seg">
+            <button data-val="2000">2 k</button>
+            <button data-val="10000" class="active">10 k</button>
+            <button data-val="50000">50 k</button>
+            <button data-val="200000">200 k</button>
+          </div>
+        </div>
+        <div class="control-group" style="margin:4px 0 0">
+          <div class="cg-head"><label>Mesh layer filter</label></div>
+          <div class="mesh-pills" id="mesh-seg">
+            <button data-tier="-1" class="active">All</button>
+            <button data-tier="0"><span class="dot" style="background:var(--warm)"></span>Low-BW shaped</button>
+            <button data-tier="1"><span class="dot" style="background:var(--cool)"></span>Seat 33 KB/s</button>
+            <button data-tier="2"><span class="dot" style="background:var(--ok)"></span>Live / ALM tree</button>
+            <button data-tier="3"><span class="dot" style="background:var(--violet)"></span>Onion (0B extra)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="adv-sec">
+        <h3><span>Device Tiers, Phone Wi-Fi &amp; Hard NAT</span><span id="tier-sum-lbl" style="color:var(--ok);font-size:9.5px">100%</span></h3>
+        <div class="sl-item">
+          <div class="sl-top"><span>Server tier (1 TiB / 1 Gbps always-on)</span><b id="v_srv">5%</b></div>
+          <input type="range" class="adv-range" id="sl_srv" min="1" max="25" step="1" value="5">
+        </div>
+        <div class="sl-item">
+          <div class="sl-top"><span>Home tier (broadband / NAS / desktop)</span><b id="v_home">55%</b></div>
+          <input type="range" class="adv-range" id="sl_home" min="10" max="85" step="1" value="55">
+        </div>
+        <div class="sl-item">
+          <div class="sl-top"><span>Phone tier (mobile — auto-balanced)</span><b id="v_phone">40%</b></div>
+        </div>
+        <div class="sl-item">
+          <div class="sl-top"><span>Phone on Wi-Fi vs Cellular</span><b id="v_wifi">65% Wi-Fi · 35% cell</b></div>
+          <input type="range" class="adv-range" id="sl_wifi" min="5" max="95" step="5" value="65">
+        </div>
+        <div class="sl-item">
+          <div class="sl-top"><span>Phone on Wi-Fi + charging (relay-eligible)</span><b id="v_chg">35% of Wi-Fi</b></div>
+          <input type="range" class="adv-range" id="sl_chg" min="5" max="90" step="5" value="35">
+        </div>
+        <div class="sl-item">
+          <div class="sl-top"><span>Hard NAT on Home &amp; Phone (vs IPv6 / hole-punch)</span><b id="v_nat">60% hard NAT</b></div>
+          <input type="range" class="adv-range" id="sl_nat" min="0" max="95" step="5" value="60">
+          <div class="pro-con">Reticulum popscone NAT / IPv6 directly for the remaining <span id="v_direct_nat" style="color:var(--ok)">40%</span>; hard-NAT leaves home on <i>k</i>=2 reachable parents.</div>
+        </div>
+      </div>
+
+      <div class="adv-sec">
+        <h3><span>Population Opt-In Choices</span><span style="color:var(--mute);font-weight:400;font-size:9.5px">Benefits (+) &amp; Downsides (−)</span></h3>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>1. Link shaping — Server (7 KB/s)</span><span><span class="dflt">Default: ON</span> <b id="v_sh_srv">95%</b></span></div>
+          <input type="range" class="adv-range" id="sl_sh_srv" min="0" max="100" step="5" value="95">
+          <div class="pro-con">
+            <span class="pro">+ Hides row timing/size in 16,272 B frames (ρ=0.5); carries onion walks at +0 B extra wire cost.</span>
+            <span class="con">− Sends ~18.1 GB/mo/link continuous cover even idle; adds ~1.16 s mean (~2.3 s frame) Poisson wait.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>2. Link shaping — Home (2.8 KB/s)</span><span><span class="dflt off">Default: OFF</span> <b id="v_sh_home">25%</b></span></div>
+          <input type="range" class="adv-range" id="sl_sh_home" min="0" max="100" step="5" value="25">
+          <div class="pro-con">
+            <span class="pro">+ Masks home traffic timing/size; expands standing shaped cover pool for onion peers.</span>
+            <span class="con">− Costs ~7.2 GB/mo/link continuous cover bandwidth; adds ~2.9 s mean (~5.8 s frame) wait.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>3. Link shaping — Phone (1.4K Wi-Fi / 350B cell)</span><span><span class="dflt off">Default: OFF</span> <b id="v_sh_phone">10%</b></span></div>
+          <input type="range" class="adv-range" id="sl_sh_phone" min="0" max="100" step="5" value="10">
+          <div class="pro-con">
+            <span class="pro">+ Prevents mobile links from spilling unshaped; contributes mobile shaped cover hops.</span>
+            <span class="con">− 3.6 GB/mo/link Wi-Fi (0.9 GB/mo/link cell, ~7 GB/mo @ 8 links); radio awake; 11.6–47 s frame delay.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>4. Offer relay (server/home/phone-charging)</span><span><span class="dflt">Default: ON</span> <b id="v_relay">90%</b></span></div>
+          <input type="range" class="adv-range" id="sl_relay" min="0" max="100" step="5" value="90">
+          <div class="pro-con">
+            <span class="pro">+ Each seated home/server adds L−1 = 7 shaped slots (Tiers.lean) &amp; homes hard-NAT leaves so mesh doesn't strand at 73rd peer.</span>
+            <span class="con">− Carries strangers' sealed rows up to class cap; discloses signed route &amp; locality to ≤3 referred strangers.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>5. Announce owner-binding on roster</span><span><span class="dflt">Default: ON</span> <b id="v_ann">85%</b></span></div>
+          <input type="range" class="adv-range" id="sl_ann" min="5" max="100" step="5" value="85">
+          <div class="pro-con">
+            <span class="pro">+ Reachable by short ciris:// name; can join public rooms (open:self_admit) &amp; serve as announced relay/seat.</span>
+            <span class="con">− Lists device on public federation roster (lightnet); declining (self darknet) requires manual v3 contact codes.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>6. Anonymous mode / Onion tier (CC 5.4.6)</span><span><span class="dflt off">Default: OFF</span> <b id="v_anon">12%</b></span></div>
+          <input type="range" class="adv-range" id="sl_anon" min="0" max="60" step="2" value="12">
+          <div class="pro-con">
+            <span class="pro">+ Unlinkable federation publishing &amp; private rooms via 3-hop X-Wing onion walks over shaped links from sticky guard.</span>
+            <span class="con">− Row plane only (≤64 KiB, no live A/V); ~1/3 home shaped share cover cost; never relays; uptime-correlation on sleeping phones.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>7. Onion relay participation (3-layer deal)</span><span><span class="dflt">Default: ON</span> <b id="v_orel">88%</b></span></div>
+          <input type="range" class="adv-range" id="sl_orel" min="0" max="100" step="4" value="88">
+          <div class="pro-con">
+            <span class="pro">+ Expands 3-layer relay deal &amp; mixing pool so anonymous walks aren't narrowed by a small volunteer set.</span>
+            <span class="con">− Layer links must run shaped, reserving up to 4 of the node's L=8 shaped link slots at class rate.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>8. Publishable H3ERE agent traces (CC 4.5.13)</span><span><span class="dflt off">Default: OFF</span> <b id="v_trc">15%</b></span></div>
+          <input type="range" class="adv-range" id="sl_trc" min="0" max="100" step="5" value="15">
+          <div class="pro-con">
+            <span class="pro">+ Contributes 14 KiB/decision scrubbed reasoning traces to cohort accountability and RATCHET evaluation.</span>
+            <span class="con">− Widens trace visibility beyond self/family and adds signing, scrubbing, and fountain storage load.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
 </div>
 <div id="stats">
   <div class="kv"><span>rows that never leave the signer's locality</span><b class="big" id="local">–</b></div>
@@ -92,10 +238,18 @@ button.on{border-color:var(--ok);color:var(--ok)}
   <div class="kv"><span>crosses a locality, same region</span><b id="xmetro">–</b></div>
   <div class="kv"><span>crosses a region</span><b id="xregion">–</b></div>
   <div class="kv"><span>mean distance of a crossing</span><b id="km">–</b></div>
+  <h2>sustainability: hard NAT &amp; onion cover</h2>
+  <div class="kv"><span>hard-NAT leaves vs <i>k</i>=2 parent capacity</span><b id="s_nat_cap">–</b></div>
+  <div class="bar"><i id="natbar" style="width:0"></i></div>
+  <div class="kv"><span>max sustainable hard-NAT % (at current mix)</span><b id="s_nat_max">–</b></div>
+  <div class="kv"><span>shaped slots (<i>each_home_adds_seven</i>)</span><b id="s_shape_slots">–</b></div>
+  <div class="kv"><span>nodes shaping traffic (cover pool)</span><b id="s_shapers">–</b></div>
+  <div class="kv"><span>shaping cover : onion peer ratio</span><b id="s_cover_ratio">–</b></div>
+  <div class="kv"><span>answering onion relays / layer (floor ≥3)</span><b id="s_onion_relays">–</b></div>
   <h2>3 meshes &amp; ALM relay tree (CC 5.4.3 / Edge 44)</h2>
   <div class="kv"><span><span class="dot" style="background:var(--warm)"></span> low-BW shaped (≤8 links, ≤64 KiB)</span><b id="m_base">–</b></div>
   <div class="kv"><span><span class="dot" style="background:var(--cool)"></span> high-BW shaped (seat↔seat 33 KB/s)</span><b id="m_seat">–</b></div>
-  <div class="kv"><span><span class="dot" style="background:var(--ok)"></span> live / ALM tree (&gt;64 KiB + fan-out)</span><b id="m_bulk">–</b></div>
+  <div class="kv"><span><span class="dot" style="background:var(--ok)"></span> live / ALM tree (&gt;64 KiB + unshaped spill)</span><b id="m_bulk">–</b></div>
   <div class="kv"><span><span class="dot" style="background:var(--violet)"></span> onion walks (cover-replaced, 0 B extra)</span><b id="m_onion">–</b></div>
   <div class="kv"><span>public-room ALM relay hops vs direct</span><b id="m_alm">–</b></div>
   <h2>this tick</h2>
@@ -203,7 +357,8 @@ function buildWorld(n){
 }
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 24; let wasm=null, mem=null, bufs=null;
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=3"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=4"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -214,7 +369,7 @@ function uploadWorld(){
 const ARC_CAP = 420; let seed = 1;
 function tickWasm(acts){
   seed = (seed*1103515245+12345)>>>0;
-  const n = wasm.tick(bufs.lat,bufs.lon,bufs.metro,bufs.reg,W.n,bufs.roomOff,bufs.roomMem,bufs.nodeOff,bufs.nodeRooms,bufs.seatsOff,bufs.seats,bufs.regionRoom,W.globalRoom,acts,seed,0x9e37,650,300,40,20,bufs.activity,bufs.arcs,ARC_CAP,bufs.out);
+  const n = wasm.tick(bufs.lat,bufs.lon,bufs.metro,bufs.reg,W.n,bufs.roomOff,bufs.roomMem,bufs.nodeOff,bufs.nodeRooms,bufs.seatsOff,bufs.seats,bufs.regionRoom,W.globalRoom,acts,seed,0x9e37,650,300,40,20,simParams.directNatPm,simParams.shapingPm,simParams.onionPm,bufs.activity,bufs.arcs,ARC_CAP,bufs.out);
   return { out: new Float64Array(mem.buffer, bufs.out, OUT), arcs: new Uint32Array(mem.buffer, bufs.arcs, n*2), activity: new Uint8Array(mem.buffer, bufs.activity, W.n) };
 }
 let jsActivity=null, jsArcs=new Uint32Array(ARC_CAP*2);
@@ -228,6 +383,7 @@ function tickJs(acts){
   if (!jsActivity || jsActivity.length!==n) jsActivity=new Uint8Array(n);
   const act=jsActivity; let s=(seed=(seed*1103515245+12345)>>>0)||1; const rnd=()=>{ s^=s<<13; s>>>=0; s^=s>>>17; s^=s<<5; s>>>=0; return s; };
   const ROW=4096;
+  const {directNatPm, shapingPm, onionPm}=simParams;
   for (let a=0;a<acts;a++){
     o[0]++; const signer=rnd()%n; const roll=rnd()%1000; const r0=nodeOff[signer], r1=nodeOff[signer+1]; if (r1===r0) continue;
     let room, kind;
@@ -239,7 +395,7 @@ function tickJs(acts){
     const slat=lat[signer], slon=lon[signer], sm=metro[signer], sr=regionOfMetro[sm];
     const sSeat0=seatsOff[sm], sSeat1=seatsOff[sm+1];
     const localSeat = sSeat1>sSeat0 ? seats[sSeat0+(signer%(sSeat1-sSeat0))] : signer;
-    const isOnion = (kind===1 && (room&7)===0) || (kind===2 && (rnd()%4)===0);
+    const isOnion = (kind===1 || kind===2) && (rnd()%1000)<onionPm;
     if (isOnion) o[22]++;
     const isLiveAlm = kind===1 && !isOnion && (a&7)===0;
     let delivered=0, crossed=0;
@@ -283,20 +439,21 @@ function tickJs(acts){
       for (let i=a0;i<a1;i++){
         const m=members[i]; if (m===signer) continue;
         o[2]++; o[3]++; delivered++;
-        const directNat = ((signer^m)&7)<3;
+        const directNat = (rnd()%1000)<directNatPm;
         if (directNat) o[23]++;
+        const shapedHop = isOnion || (!isLiveAlm && (rnd()%1000)<shapingPm);
         const mm=metro[m];
         if (mm===sm){
           o[5]++; wireHops += directNat?1:2;
-          if (isLiveAlm) o[20]++; else o[18]++;
+          if (!shapedHop) o[20]++; else o[18]++;
         } else {
           crossed++;
           if (regionOfMetro[mm]===sr) o[6]++; else o[7]++;
           o[8]+=kmf(slat,slon,lat[m],lon[m]);
-          if (isLiveAlm){ o[20]++; wireHops++; }
+          if (!shapedHop){ o[20]++; wireHops += directNat?1:2; }
           else if (directNat){ o[18]++; wireHops++; }
           else { o[18]++; o[19]++; wireHops+=2; }
-          const arcTier = isOnion ? 3 : (isLiveAlm ? 2 : (directNat ? 0 : 1));
+          const arcTier = isOnion ? 3 : (!shapedHop ? 2 : (directNat ? 0 : 1));
           if ((rnd()%48)===0) arcsN=pushArcJs(arcsN,signer,m,arcTier);
         }
         act[m]=Math.min(255,act[m]+55);
@@ -480,6 +637,138 @@ document.querySelectorAll("#mesh-seg button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("#mesh-seg button").forEach(x=>x.classList.toggle("active",+x.getAttribute("data-tier")===meshFilter));
   arcsNeedUpload=true; pruneAndPackArcs(getTime());
 });
+
+// ------------------------------------------------------------------ Population Opt-Ins, Device Tiers & Sustainability (CC 4.5.13 / 5.4.3 / 5.4.6 / Tiers.lean)
+const ADV_PRESETS = {
+  fleet:   { srv:5,  home:55, wifi:65, chg:35, nat:60, sh_srv:95, sh_home:25, sh_phone:10, relay:90, ann:85, anon:12, orel:88, trc:15 },
+  privacy: { srv:8,  home:60, wifi:75, chg:45, nat:55, sh_srv:100,sh_home:75, sh_phone:40, relay:95, ann:80, anon:36, orel:96, trc:5  },
+  cgnat:   { srv:4,  home:40, wifi:45, chg:25, nat:85, sh_srv:95, sh_home:30, sh_phone:10, relay:90, ann:85, anon:14, orel:88, trc:15 },
+  unowned: { srv:5,  home:55, wifi:65, chg:35, nat:60, sh_srv:95, sh_home:25, sh_phone:10, relay:0,  ann:85, anon:12, orel:88, trc:15 }
+};
+function computeSustainability(){
+  let srvPct = +$("sl_srv").value;
+  let homePct = +$("sl_home").value;
+  if (srvPct + homePct > 96){ homePct = 96 - srvPct; $("sl_home").value = String(homePct); }
+  const phonePct = Math.max(0, 100 - srvPct - homePct);
+  const wifiPct = +$("sl_wifi").value;
+  const chgPct = +$("sl_chg").value;
+  const natPct = +$("sl_nat").value;
+  const shSrv = +$("sl_sh_srv").value / 100;
+  const shHome = +$("sl_sh_home").value / 100;
+  const shPhone = +$("sl_sh_phone").value / 100;
+  const relayOpt = +$("sl_relay").value / 100;
+  const annOpt = +$("sl_ann").value / 100;
+  const anonOpt = +$("sl_anon").value / 100;
+  const orelOpt = +$("sl_orel").value / 100;
+  const trcOpt = +$("sl_trc").value / 100;
+
+  $("v_srv").textContent = srvPct + "%";
+  $("v_home").textContent = homePct + "%";
+  $("v_phone").textContent = phonePct + "%";
+  $("v_wifi").textContent = wifiPct + "% Wi-Fi · " + (100 - wifiPct) + "% cell";
+  $("v_chg").textContent = chgPct + "% of Wi-Fi";
+  $("v_nat").textContent = natPct + "% hard NAT";
+  $("v_direct_nat").textContent = (100 - natPct) + "%";
+  $("v_sh_srv").textContent = Math.round(shSrv*100) + "%";
+  $("v_sh_home").textContent = Math.round(shHome*100) + "%";
+  $("v_sh_phone").textContent = Math.round(shPhone*100) + "%";
+  $("v_relay").textContent = Math.round(relayOpt*100) + "%";
+  $("v_ann").textContent = Math.round(annOpt*100) + "%";
+  $("v_anon").textContent = Math.round(anonOpt*100) + "%";
+  $("v_orel").textContent = Math.round(orelOpt*100) + "%";
+  $("v_trc").textContent = Math.round(trcOpt*100) + "%";
+
+  const N = W ? W.n : currentSize;
+  const M = W ? W.seats.length : Math.max(9, Math.round(N / 2000));
+  const fSrv = srvPct / 100, fHome = homePct / 100, fPhone = phonePct / 100;
+  const fWifi = wifiPct / 100, fChg = chgPct / 100, fNat = natPct / 100;
+
+  const nSrv = N * fSrv, nHome = N * fHome, nPhone = N * fPhone;
+  const nPhoneWifi = nPhone * fWifi, nPhoneChg = nPhoneWifi * fChg;
+
+  // 1. Hard-NAT leaves (home + phone behind symmetric/CGNAT; servers & canonical seats are public)
+  const nHardNat = (nHome + nPhone) * fNat;
+  // Reachable relay parents (canonical seats + announced relay-offering servers, reachable homes, and reachable charging Wi-Fi phones)
+  const reachSrvRelays = nSrv * annOpt * relayOpt;
+  const reachHomeRelays = nHome * (1 - fNat) * annOpt * relayOpt;
+  const reachPhoneRelays = nPhoneChg * (1 - fNat) * annOpt * relayOpt;
+  // Each canonical seat / server relay can home up to 32 k=2 leaf attachments (64 slots / 2 parents);
+  // each reachable home relay can home up to 8 k=2 leaves (16 slots / 2); each charging phone relay up to 2 k=2 leaves.
+  const maxHardNatLeaves = Math.round(M * 36 + reachSrvRelays * 32 + reachHomeRelays * 8 + reachPhoneRelays * 2);
+  // Solve for max sustainable Hard-NAT % of (home+phone) before leaf demand exceeds k=2 parent supply:
+  // fNat * (nHome + nPhone) <= M*36 + reachSrvRelays*32 + (1 - fNat)*(nHome*annOpt*relayOpt*8 + nPhoneChg*annOpt*relayOpt*2)
+  const nonSrvPop = Math.max(1, nHome + nPhone);
+  const fixedLeafCap = M * 36 + reachSrvRelays * 32;
+  const reachDepCap = (nHome * 8 + nPhoneChg * 2) * annOpt * relayOpt;
+  const maxHardNatFrac = Math.min(0.99, (fixedLeafCap + reachDepCap) / (nonSrvPop + reachDepCap));
+  const natLoadPct = maxHardNatLeaves > 0 ? (nHardNat / maxHardNatLeaves) * 100 : 999;
+
+  // 2. Shaped slot supply vs demand (Tiers.lean: each_home_adds_seven & unowned_only_strands_the_73rd)
+  // Canonical seats supply L=8 shaped slots each; seated relay-offering servers & homes add (L-1)=7 net slots each;
+  // charging Wi-Fi phones offering relay add 3 net shaped slots.
+  const shapedSrvRelays = reachSrvRelays * Math.max(shSrv, orelOpt * 0.5);
+  const shapedHomeRelays = nHome * annOpt * relayOpt * Math.max(shHome, orelOpt * 0.5);
+  const shapedPhoneRelays = nPhoneChg * annOpt * relayOpt * Math.max(shPhone, orelOpt * 0.3);
+  const shapedSlotsSupply = Math.round(M * 8 + shapedSrvRelays * 7 + shapedHomeRelays * 7 + shapedPhoneRelays * 3);
+
+  // Nodes actively shaping traffic (servers + opting-in homes + opting-in phones + anonymous mode + active onion relays)
+  const nShapingNodes = Math.min(N, Math.round(
+    nSrv * Math.max(shSrv, annOpt * relayOpt * orelOpt) +
+    nHome * Math.max(shHome, annOpt * relayOpt * orelOpt * 0.5, anonOpt) +
+    nPhone * (fWifi * Math.max(shPhone, fChg * annOpt * relayOpt * orelOpt * 0.35, anonOpt) + (1 - fWifi) * Math.max(shPhone * 0.4, anonOpt * 0.5))
+  ));
+  // Each shaping peer needs ~2 shaped links on average (k=2 homed or guard + peer)
+  const shapedSlotsDemand = Math.max(1, Math.round(nShapingNodes * 1.8));
+  const shapedSeatedFrac = Math.min(1.0, shapedSlotsSupply / shapedSlotsDemand);
+
+  // 3. Onion cover pool & answering onion relays per layer (CC 5.4.6 floor >= 3 per layer)
+  const nOnionPeers = Math.round(N * anonOpt);
+  const answeringOnionRelays = Math.round(M + (nSrv + nHome * (1 - fNat * 0.5) + nPhoneChg * (1 - fNat * 0.7)) * annOpt * relayOpt * orelOpt);
+  const relaysPerLayer = Math.floor(answeringOnionRelays / 3);
+  const coverToOnionRatio = nOnionPeers > 0 ? (nShapingNodes / nOnionPeers) : nShapingNodes;
+
+  // Update simulation per-mille parameters for WASM & JS engines
+  const effectiveDirectFrac = fSrv + (1 - fSrv) * (1 - fNat);
+  simParams.directNatPm = Math.round(Math.max(20, Math.min(980, effectiveDirectFrac * 1000)));
+  const rawShapeShare = (nShapingNodes / Math.max(1, N)) * shapedSeatedFrac;
+  simParams.shapingPm = Math.round(Math.max(40, Math.min(980, (0.25 + 0.75 * rawShapeShare) * 1000)));
+  simParams.onionPm = relaysPerLayer >= 3 ? Math.round(Math.max(0, Math.min(600, anonOpt * 1000))) : 0;
+
+  // Update UI pills & #stats
+  const natOk = nHardNat <= maxHardNatLeaves;
+  $("pill-nat").textContent = fmt(nHardNat) + " / " + fmt(maxHardNatLeaves) + (natOk ? " ✓" : " ⚠");
+  $("pill-nat").style.color = natOk ? (natLoadPct > 80 ? "var(--warm)" : "var(--ok)") : "var(--hot)";
+
+  const shapePct = Math.round(shapedSeatedFrac * 100);
+  $("pill-shape").textContent = fmt(shapedSlotsSupply) + " slots (" + shapePct + "% seated)";
+  $("pill-shape").style.color = shapePct >= 95 ? "var(--ok)" : shapePct >= 60 ? "var(--warm)" : "var(--hot)";
+
+  $("pill-onion").textContent = (nOnionPeers > 0 ? coverToOnionRatio.toFixed(1) + "× cover" : "0 onion") + " · " + fmt(relaysPerLayer) + "/lyr";
+  $("pill-onion").style.color = relaysPerLayer >= 10 && coverToOnionRatio >= 1.5 ? "var(--ok)" : relaysPerLayer >= 3 ? "var(--warm)" : "var(--hot)";
+
+  $("s_nat_cap").textContent = fmt(nHardNat) + " / " + fmt(maxHardNatLeaves) + " (" + Math.min(999, natLoadPct).toFixed(0) + "% load)";
+  $("s_nat_cap").style.color = natOk ? "#fff" : "var(--hot)";
+  $("natbar").style.width = Math.min(100, natLoadPct).toFixed(1) + "%";
+  $("natbar").style.background = natOk ? (natLoadPct > 80 ? "var(--warm)" : "var(--ok)") : "var(--hot)";
+  $("s_nat_max").textContent = (maxHardNatFrac * 100).toFixed(1) + "% of home/phone  (" + fmt(maxHardNatLeaves) + " leaves)";
+  $("s_shape_slots").textContent = fmt(shapedSlotsSupply) + " supply vs " + fmt(shapedSlotsDemand) + " demand (" + shapePct + "% seated" + (relayOpt === 0 ? " · unowned-only!" : "") + ")";
+  $("s_shapers").textContent = fmt(nShapingNodes) + " nodes (" + (nShapingNodes / N * 100).toFixed(1) + "% of pop)";
+  $("s_cover_ratio").textContent = nOnionPeers > 0 ? coverToOnionRatio.toFixed(2) + " shaping nodes per onion peer (" + fmt(nOnionPeers) + " onion)" : fmt(nShapingNodes) + " shapers / 0 onion peers";
+  $("s_onion_relays").textContent = fmt(relaysPerLayer) + " / layer  (" + (relaysPerLayer >= 10 ? "✓ healthy ≥10" : relaysPerLayer >= 3 ? "⚠ small set <10" : "✗ below CC 5.4.6 floor <3") + ")";
+}
+["sl_srv","sl_home","sl_wifi","sl_chg","sl_nat","sl_sh_srv","sl_sh_home","sl_sh_phone","sl_relay","sl_ann","sl_anon","sl_orel","sl_trc"].forEach(id=>{
+  const el=$(id); if(el) el.addEventListener("input", computeSustainability);
+});
+document.querySelectorAll("#preset-bar button").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const p = ADV_PRESETS[btn.getAttribute("data-preset")];
+    if (!p) return;
+    $("sl_srv").value=p.srv; $("sl_home").value=p.home; $("sl_wifi").value=p.wifi; $("sl_chg").value=p.chg; $("sl_nat").value=p.nat;
+    $("sl_sh_srv").value=p.sh_srv; $("sl_sh_home").value=p.sh_home; $("sl_sh_phone").value=p.sh_phone;
+    $("sl_relay").value=p.relay; $("sl_ann").value=p.ann; $("sl_anon").value=p.anon; $("sl_orel").value=p.orel; $("sl_trc").value=p.trc;
+    computeSustainability();
+  });
+});
 function updateWorkloadLimits(ms,actsCount){
   if (ms>0&&actsCount>0){
     const msPerAct=ms/actsCount;
@@ -568,7 +857,7 @@ async function build(){
   const wasPlaying=playing;
   playing=false; $("play").textContent="▶ run"; $("play").classList.remove("active");
   const n=currentSize; $("status").textContent="placing "+fmt(n)+" nodes on land density grid…"; await new Promise(r=>setTimeout(r,30));
-  const t0=performance.now(); W=buildWorld(n); const t1=performance.now(); uploadWorld(); uploadPoints(); cum=0; lastActivity=null; activeBlocks=[]; activeArcs=[]; arcCount=0; arcsNeedUpload=true; pruneAndPackArcs(getTime());
+  const t0=performance.now(); W=buildWorld(n); const t1=performance.now(); uploadWorld(); uploadPoints(); cum=0; lastActivity=null; activeBlocks=[]; activeArcs=[]; arcCount=0; arcsNeedUpload=true; pruneAndPackArcs(getTime()); computeSustainability();
   $("status").textContent=fmt(W.n)+" nodes across "+W.nCells+" land cells ("+W.nLocs+" localities, "+REG.length+" regions) · "+fmt(W.nFamilies)+" families · "+fmt(W.rooms-W.nFamilies)+" rooms · "+W.seats.length+" serve seats · built in "+((t1-t0)/1000).toFixed(1)+" s"+(wasm?"":" · WASM unavailable, JS engine");
   if (wasPlaying){ playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); }
 }

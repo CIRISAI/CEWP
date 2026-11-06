@@ -107,85 +107,215 @@ details.honesty code{background:var(--panel2);padding:.05rem .3rem;border-radius
 footer{margin-top:2rem;color:var(--faint);font-size:.78rem;border-top:1px solid var(--edge);padding-top:.9rem;line-height:1.6}
 footer code{color:var(--dim)}
 .tier-note{font-size:.74rem;color:var(--faint);margin-top:.6rem;line-height:1.5}
+.sust-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem;margin-top:.75rem}
+.sust-pill{background:var(--panel2);border:1px solid var(--edge);border-radius:7px;padding:.45rem .55rem;font-family:var(--mono);font-size:.74rem}
+.sust-pill .k{display:block;font-size:.66rem;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+.sust-pill .v{font-weight:600;color:var(--ok);font-size:.82rem;margin-top:.1rem;display:block}
+details.adv-panel{margin-top:1.1rem;background:var(--panel);border:1px solid var(--edge);border-radius:9px;padding:.2rem 0}
+details.adv-panel>summary{cursor:pointer;padding:.75rem 1.05rem;font-size:.86rem;color:var(--accent);font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details.adv-panel>summary::-webkit-details-marker{display:none}
+details.adv-panel>summary::before{content:"▸ Advanced — Population Opt-Ins (+/-), Device Tiers, Wi-Fi/NAT & Gates"}
+details.adv-panel[open]>summary::before{content:"▾ Advanced — Population Opt-Ins (+/-), Device Tiers, Wi-Fi/NAT & Gates"}
+.adv-inner{padding:.2rem 1.05rem 1rem;display:flex;flex-direction:column;gap:1rem}
+.adv-box{background:var(--panel2);border:1px solid var(--edge);border-radius:8px;padding:.8rem .9rem}
+.adv-box h3{margin:0 0 .55rem;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
+.opt-item{padding:.45rem 0;border-bottom:1px dashed var(--edge)}
+.opt-item:last-child{border-bottom:0;padding-bottom:0}
+.opt-item label{margin:.15rem 0 .2rem;color:var(--ink);font-weight:500;font-size:.8rem}
+.dflt-tag{display:inline-block;font-family:var(--mono);font-size:.66rem;padding:.05rem .35rem;border-radius:4px;background:#1a2736;color:var(--accent);border:1px solid #2b435e;margin-right:.35rem}
+.dflt-tag.off{background:#1b1f27;color:var(--dim);border-color:var(--edge)}
+.pro-con{font-size:.73rem;line-height:1.38;margin-top:.2rem}
+.pro-con .pro{color:#63d488;display:block}
+.pro-con .con{color:#f48b7e;display:block}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>CEWP — feel the scale <span class="v">· per-server feasibility</span></h1>
-<p class="lead">Pick a workload, tune the substrate gates and knobs, and watch <b>per-server feasibility</b>
-update live. The bet: one commodity server (1 TiB disk / 1 Gbps fiber / 1 core) carries its share of the
-internet — <b>no datacenters required</b>. This ports the core scaling math from
-<code class="mono" style="color:var(--dim)">examples/scale_model.rs</code>.</p>
+<h1>CEWP — feel the scale <span class="v">· per-server feasibility &amp; mesh sustainability</span></h1>
+<p class="lead">Pick a workload, tune trust depth or open <b>Advanced</b> to adjust population opt-ins (with CC 4.5.13 / 5.4.3 / 5.4.6 benefits &amp; downsides), device tiers, phone Wi-Fi vs cellular, and Hard-NAT share. Watch <b>per-server feasibility</b>, <b>Hard-NAT sustainability</b>, and <b>shaped onion cover capacity</b> update live.</p>
 
 <div class="grid">
   <!-- ── CONTROLS ── -->
   <div>
-    <div class="panel">
-      <h2>Workload scenario</h2>
+    <div class="panel headline">
+      <h2>Workload &amp; Headline Knob</h2>
       <select id="scenario"></select>
       <div class="scen-meta" id="scenMeta"></div>
-    </div>
 
-    <div class="panel" style="margin-top:1.1rem">
-      <h2>Substrate gates <span style="text-transform:none;color:var(--faint);font-weight:400">(the v1 design targets)</span></h2>
-      <label>Disk gate <span class="val" id="diskVal"></span></label>
-      <input type="range" id="disk" min="0.25" max="8" step="0.25" value="1">
-      <label>Bandwidth gate <span class="val" id="bwVal"></span></label>
-      <input type="range" id="bw" min="0.25" max="10" step="0.25" value="1">
-      <label>CPU cores <span class="val" id="coreVal"></span></label>
-      <input type="range" id="cores" min="1" max="8" step="1" value="1">
-    </div>
-
-    <div class="panel headline" style="margin-top:1.1rem">
-      <h2>Knobs</h2>
-      <label>Trust-recursion depth <span class="val" id="depthVal"></span></label>
+      <label style="margin-top:.9rem">Trust-recursion depth <span class="val" id="depthVal"></span></label>
       <input type="range" id="depth" min="0" max="4" step="0.5" value="1">
-      <div class="tier-note">The headline knob — operator-side local config. depth 0 = direct trust only;
-        each hop multiplies the effective trust set (1× / 4× / 20× / 100× at depths 0/1/2/3). Deeper = wider
-        reach = shorter per-source retention at the same disk.</div>
+      <div class="tier-note">Operator-side local config: depth 0 = direct trust only; each hop multiplies the effective trust set (1× / 4× / 20× / 100× at depths 0/1/2/3).</div>
 
-      <label style="margin-top:1rem">Cohort preset</label>
-      <div class="chips" id="cohortChips">
-        <div class="chip" data-c="default">default</div>
-        <div class="chip" data-c="local_heavy">local-heavy</div>
-        <div class="chip" data-c="global_heavy">global-heavy</div>
-        <div class="chip" data-c="scenario">scenario default</div>
+      <div class="sust-strip">
+        <div class="sust-pill"><span class="k">Hard-NAT peers</span><span class="v" id="pillNat">–</span></div>
+        <div class="sust-pill"><span class="k">Shaped slots</span><span class="v" id="pillShape">–</span></div>
+        <div class="sust-pill"><span class="k">Onion cover</span><span class="v" id="pillOnion">–</span></div>
       </div>
-      <div class="tier-note" id="cohortNote"></div>
-
-      <label style="margin-top:1rem">Server disk budget <span class="val" id="budgetVal"></span></label>
-      <input type="range" id="budget" min="0.25" max="8" step="0.25" value="1">
-      <div class="tier-note">The L1 server's own disk (what it fills), separate from the feasibility gate above.</div>
     </div>
 
-    <div class="panel" style="margin-top:1.1rem">
-      <h2>Swarm knobs <span style="text-transform:none;color:var(--faint);font-weight:400">(per content-hash)</span></h2>
-      <label>Target holders H <span class="val" id="holdersVal"></span></label>
-      <input type="range" id="holders" min="10" max="40" step="1" value="30">
-      <div class="tier-note">Convergence cap — the swarm trims to ~H holders per content via active rarity,
-        <b style="color:var(--accent2)">decoupled from trust radius</b>. Lower H = less overhead but thinner durability.</div>
-      <label style="margin-top:1rem">Per-peer availability q <span class="val" id="churnVal"></span></label>
-      <input type="range" id="churn" min="0.70" max="0.99" step="0.01" value="0.85">
-      <div class="tier-note">Probability a given holder is reachable when reconstruction is attempted (churn floor).</div>
-    </div>
+    <details id="advControls" class="adv-panel">
+      <summary></summary>
+      <div class="adv-inner">
+        <div class="adv-box">
+          <h3><span>Presets</span><span class="mono" style="color:var(--faint);font-weight:400;font-size:.68rem">CC 4.5.13 / 5.4.3 / 5.4.6</span></h3>
+          <div class="chips" id="optPresets">
+            <div class="chip on" data-p="fleet">Fleet Defaults</div>
+            <div class="chip" data-p="privacy">High Privacy</div>
+            <div class="chip" data-p="cgnat">CGNAT Stress (85%)</div>
+            <div class="chip" data-p="unowned">Unowned-Only (73rd Peer)</div>
+          </div>
+        </div>
 
-    <div class="panel" style="margin-top:1.1rem">
-      <h2>3-Mesh &amp; Shaped Onion <span style="text-transform:none;color:var(--faint);font-weight:400">(CC 5.4.3 / 5.4.6 · Edge v44)</span></h2>
-      <label>Onion walk on shaped links <span class="val" id="sphinxVal"></span></label>
-      <div class="chips" id="sphinxChips">
-        <div class="chip" data-s="on">cover-replaced ON</div>
-        <div class="chip" data-s="off">OFF</div>
+        <div class="adv-box">
+          <h3><span>Device Tiers, Phone Wi-Fi vs Cellular &amp; Hard NAT</span><span class="mono" id="tierModeNote" style="color:var(--accent2);font-size:.68rem">scenario mix</span></h3>
+          <div class="chips" id="tierModeChips" style="margin-bottom:.4rem">
+            <div class="chip on" data-tm="scenario">use scenario tier mix</div>
+            <div class="chip" data-tm="custom">custom tier sliders</div>
+          </div>
+          <div class="opt-item">
+            <label>Server tier (1 TiB / 1 Gbps always-on) <span class="val" id="srvTierVal"></span></label>
+            <input type="range" id="srvTier" min="1" max="25" step="1" value="10">
+          </div>
+          <div class="opt-item">
+            <label>Home tier (broadband / NAS / proxy) <span class="val" id="homeTierVal"></span></label>
+            <input type="range" id="homeTier" min="10" max="85" step="1" value="55">
+          </div>
+          <div class="opt-item">
+            <label>Phone tier (mobile — auto-balanced to 100%) <span class="val" id="phoneTierVal"></span></label>
+          </div>
+          <div class="opt-item">
+            <label>Phone time on Wi-Fi vs Cellular <span class="val" id="wifiShareVal"></span></label>
+            <input type="range" id="wifiShare" min="5" max="95" step="5" value="65">
+          </div>
+          <div class="opt-item">
+            <label>Phone on Wi-Fi while charging (relay-eligible) <span class="val" id="chgShareVal"></span></label>
+            <input type="range" id="chgShare" min="5" max="90" step="5" value="35">
+          </div>
+          <div class="opt-item">
+            <label>Hard NAT on Home &amp; Phone (vs IPv6 / hole-punch) <span class="val" id="hardNatVal"></span></label>
+            <input type="range" id="hardNat" min="0" max="95" step="5" value="60">
+            <div class="tier-note">Reticulum traverses cone NAT / IPv6 directly for the remaining peers; Hard-NAT leaves require <i>k</i>=2 reachable relay parents.</div>
+          </div>
+        </div>
+
+        <div class="adv-box">
+          <h3><span>Population Opt-In Choices</span><span class="mono" style="color:var(--faint);font-weight:400;font-size:.68rem">Benefits (+) &amp; Downsides (−)</span></h3>
+
+          <div class="opt-item">
+            <label>1. Link shaping — Server (7 KB/s) <span class="val"><span class="dflt-tag">Default: ON</span><span id="shSrvVal"></span></span></label>
+            <input type="range" id="shSrv" min="0" max="100" step="5" value="95">
+            <div class="pro-con">
+              <span class="pro">+ Hides row timing &amp; size in 16,272 B frames (ρ=0.5); carries onion walks at +0 B extra wire cost.</span>
+              <span class="con">− Sends ~18.1 GB/mo/link continuous cover even when idle; adds ~1.16 s mean (~2.3 s frame) Poisson wait.</span>
+            </div>
+          </div>
+
+          <div class="opt-item">
+            <label>2. Link shaping — Home (2.8 KB/s) <span class="val"><span class="dflt-tag off">Default: OFF</span><span id="shHomeVal"></span></span></label>
+            <input type="range" id="shHome" min="0" max="100" step="5" value="25">
+            <div class="pro-con">
+              <span class="pro">+ Masks home message timing/size and expands the standing shaped cover pool for onion peers.</span>
+              <span class="con">− Costs ~7.2 GB/mo/link continuous cover bandwidth and adds ~2.9 s mean (~5.8 s frame) wait.</span>
+            </div>
+          </div>
+
+          <div class="opt-item">
+            <label>3. Link shaping — Phone (1.4K Wi-Fi / 350B cell) <span class="val"><span class="dflt-tag off">Default: OFF</span><span id="shPhoneVal"></span></span></label>
+            <input type="range" id="shPhone" min="0" max="100" step="5" value="10">
+            <div class="pro-con">
+              <span class="pro">+ Prevents mobile links from spilling unshaped; adds mobile shaped cover hops.</span>
+              <span class="con">− 3.6 GB/mo/link Wi-Fi (0.9 GB/mo/link cell, ~7 GB/mo @ 8 links); keeps radio awake; 11.6–47 s frame delay.</span>
+            </div>
+          </div>
+
+          <div class="opt-item">
+            <label>4. Offer relay (server/home/phone-charging) <span class="val"><span class="dflt-tag">Default: ON</span><span id="optRelayVal"></span></span></label>
+            <input type="range" id="optRelay" min="0" max="100" step="5" value="90">
+            <div class="pro-con">
+              <span class="pro">+ Each seated home/server adds L−1 = 7 shaped slots (Tiers.lean) &amp; homes hard-NAT leaves so mesh doesn't strand at 73rd peer.</span>
+              <span class="con">− Carries strangers' sealed rows up to class budget; discloses signed route &amp; locality to ≤3 referred strangers.</span>
+            </div>
+          </div>
+
+          <div class="opt-item">
+            <label>5. Announce owner-binding on federation roster <span class="val"><span class="dflt-tag">Default: ON</span><span id="optAnnVal"></span></span></label>
+            <input type="range" id="optAnn" min="5" max="100" step="5" value="85">
+            <div class="pro-con">
+              <span class="pro">+ Reachable by short ciris:// name; can join public rooms (open:self_admit) &amp; serve as announced relay/seat.</span>
+              <span class="con">− Lists device on public federation roster (lightnet); declining (self darknet) requires manual v3 contact codes.</span>
+            </div>
+          </div>
+
+          <div class="opt-item">
+            <label>6. Anonymous mode / Onion tier (CC 5.4.6) <span class="val"><span class="dflt-tag off">Default: OFF</span><span id="optAnonVal"></span></span></label>
+            <input type="range" id="optAnon" min="0" max="60" step="2" value="12">
+            <div class="pro-con">
+              <span class="pro">+ Unlinkable federation publishing &amp; private rooms via 3-hop X-Wing onion walks over shaped links from sticky guard.</span>
+              <span class="con">− Row plane only (≤64 KiB, no live A/V); ~1/3 home shaped share cover cost; never relays; uptime-correlation on sleeping phones.</span>
+            </div>
+          </div>
+
+          <div class="opt-item">
+            <label>7. Onion relay participation (3-layer deal) <span class="val"><span class="dflt-tag">Default: ON</span><span id="optOrelVal"></span></span></label>
+            <input type="range" id="optOrel" min="0" max="100" step="4" value="88">
+            <div class="pro-con">
+              <span class="pro">+ Expands 3-layer relay deal &amp; mixing pool so anonymous walks aren't narrowed by a small volunteer set.</span>
+              <span class="con">− Layer links must run shaped, reserving up to 4 of the node's L=8 shaped link slots at class rate.</span>
+            </div>
+          </div>
+
+          <div class="opt-item">
+            <label>8. Publishable H3ERE agent traces (CC 4.5.13) <span class="val"><span class="dflt-tag off">Default: OFF</span><span id="optTrcVal"></span></span></label>
+            <input type="range" id="optTrc" min="0" max="100" step="5" value="10">
+            <div class="pro-con">
+              <span class="pro">+ Contributes 14 KiB/decision scrubbed reasoning traces to cohort accountability and RATCHET evaluation.</span>
+              <span class="con">− Widens trace visibility beyond self/family and adds signing, scrubbing, and fountain replication load.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="adv-box">
+          <h3><span>Substrate Gates &amp; Server Disk</span><span class="mono" style="color:var(--faint);font-weight:400;font-size:.68rem">v1 targets</span></h3>
+          <label>Disk gate <span class="val" id="diskVal"></span></label>
+          <input type="range" id="disk" min="0.25" max="8" step="0.25" value="1">
+          <label>Bandwidth gate <span class="val" id="bwVal"></span></label>
+          <input type="range" id="bw" min="0.25" max="10" step="0.25" value="1">
+          <label>CPU cores <span class="val" id="coreVal"></span></label>
+          <input type="range" id="cores" min="1" max="8" step="1" value="1">
+          <label style="margin-top:.8rem">Server disk budget <span class="val" id="budgetVal"></span></label>
+          <input type="range" id="budget" min="0.25" max="8" step="0.25" value="1">
+          <label style="margin-top:.8rem">Cohort preset</label>
+          <div class="chips" id="cohortChips">
+            <div class="chip" data-c="default">default</div>
+            <div class="chip" data-c="local_heavy">local-heavy</div>
+            <div class="chip" data-c="global_heavy">global-heavy</div>
+            <div class="chip" data-c="scenario">scenario default</div>
+          </div>
+          <div class="tier-note" id="cohortNote"></div>
+        </div>
+
+        <div class="adv-box">
+          <h3><span>Swarm &amp; Onion Walk Knobs</span></h3>
+          <label>Target holders H <span class="val" id="holdersVal"></span></label>
+          <input type="range" id="holders" min="10" max="40" step="1" value="30">
+          <label style="margin-top:.7rem">Per-peer availability q <span class="val" id="churnVal"></span></label>
+          <input type="range" id="churn" min="0.70" max="0.99" step="0.01" value="0.85">
+          <label style="margin-top:.7rem">Onion walk on shaped links <span class="val" id="sphinxVal"></span></label>
+          <div class="chips" id="sphinxChips">
+            <div class="chip" data-s="on">cover-replaced ON</div>
+            <div class="chip" data-s="off">OFF</div>
+          </div>
+          <label style="margin-top:.7rem">Walk hops (1–6 slots) <span class="val" id="hopsVal"></span></label>
+          <input type="range" id="hops" min="1" max="6" step="1" value="3">
+          <label style="margin-top:.7rem">Shaped link tier along walk</label>
+          <div class="chips" id="relayChips">
+            <div class="chip" data-r="regional">seat 33 KB/s (0.25s)</div>
+            <div class="chip" data-r="mixed">server 7 KB/s (1.16s)</div>
+            <div class="chip" data-r="global">home 2.8 KB/s (2.90s)</div>
+          </div>
+        </div>
       </div>
-      <label style="margin-top:1rem">Walk hops (1–6 slots) <span class="val" id="hopsVal"></span></label>
-      <input type="range" id="hops" min="1" max="6" step="1" value="3">
-      <label style="margin-top:1rem">Shaped link tier along walk</label>
-      <div class="chips" id="relayChips">
-        <div class="chip" data-r="regional">seat 33 KB/s (0.25s)</div>
-        <div class="chip" data-r="mixed">server 7 KB/s (1.16s)</div>
-        <div class="chip" data-r="global">home 2.8 KB/s (2.90s)</div>
-      </div>
-      <div class="tier-note">CC 5.4.6: 15,296 B X-Wing (ML-KEM-768 + X25519) + wide-block AEAD onion packets fit inside one 16,272 B shaped frame (<i>L</i>≤8 standing links, ρ=0.5) and <b>replace cover frames at +0 extra wire bytes</b>. Realtime A/V and &gt;64 KiB public-room fan-out ride the <b>Live / ALM relay tree</b> mesh instead.</div>
-    </div>
+    </details>
   </div>
 
   <!-- ── OUTPUT ── -->
@@ -254,10 +384,22 @@ internet — <b>no datacenters required</b>. This ports the core scaling math fr
     </div>
 
     <div class="panel" id="sphinxPanel" style="margin-top:1.1rem">
-      <h2>3-Mesh &amp; Shaped Onion <span style="text-transform:none;color:var(--faint);font-weight:400">— CC 5.4.3 / 5.4.6 · Edge v44</span></h2>
+      <h2>3-Mesh, Hard-NAT Sustainability &amp; Shaped Onion Cover <span style="text-transform:none;color:var(--faint);font-weight:400">— CC 5.4.3 / 5.4.6 · Edge v44</span></h2>
       <div id="sphinxVerdict" class="verdict"></div>
 
-      <div class="stat"><span class="k">added hop-wait latency (one-way)</span><span class="v" id="onionLat"></span></div>
+      <div class="meter" id="m-hardnat"></div>
+      <div class="meter" id="m-shapeslots"></div>
+
+      <div style="margin-top:.7rem">
+        <div class="stat"><span class="k">hard-NAT peers vs <i>k</i>=2 reachable parent capacity</span><span class="v" id="sustHardNat"></span></div>
+        <div class="stat"><span class="k">max sustainable hard-NAT % (at current tier &amp; relay mix)</span><span class="v" style="color:var(--ok)" id="sustMaxNat"></span></div>
+        <div class="stat"><span class="k">shaped slots (<i>Tiers.lean</i> <code>each_home_adds_seven</code>)</span><span class="v" id="sustShapeSlots"></span></div>
+        <div class="stat"><span class="k">nodes actively shaping traffic (standing cover pool)</span><span class="v" id="sustShapers"></span></div>
+        <div class="stat"><span class="k">shaping cover : anonymous onion peer ratio</span><span class="v" style="color:var(--accent2)" id="sustCoverRatio"></span></div>
+        <div class="stat"><span class="k">answering onion relays / layer (CC 5.4.6 floor ≥ 3)</span><span class="v" id="sustOnionRelays"></span></div>
+      </div>
+
+      <div class="stat" style="margin-top:.8rem"><span class="k">added hop-wait latency (one-way)</span><span class="v" id="onionLat"></span></div>
       <div class="lat-cmp" id="onionCmp"></div>
 
       <div style="margin-top:1rem">
@@ -692,7 +834,17 @@ function fmtCount(c){
 const $ = id => document.getElementById(id);
 const state = { scenIdx:5, cohortKey:"scenario", depth:1.0, disk:1, bw:1, cores:1, budget:1,
                 holders:30, churnQ:0.85,
-                sphinxOn:true, onionHops:3, relayPlacement:"regional" };
+                sphinxOn:true, onionHops:3, relayPlacement:"regional",
+                tierMode:"scenario", srvTier:10, homeTier:55, wifiShare:65, chgShare:35, hardNat:60,
+                shSrv:95, shHome:25, shPhone:10, optRelay:90, optAnn:85, optAnon:12, optOrel:88, optTrc:10,
+                activePreset:"fleet" };
+
+const OPT_PRESETS = {
+  fleet:   { tierMode:"scenario", srvTier:10, homeTier:55, wifiShare:65, chgShare:35, hardNat:60, shSrv:95,  shHome:25, shPhone:10, optRelay:90, optAnn:85, optAnon:12, optOrel:88, optTrc:10 },
+  privacy: { tierMode:"custom",   srvTier:12, homeTier:58, wifiShare:75, chgShare:45, hardNat:55, shSrv:100, shHome:75, shPhone:40, optRelay:95, optAnn:80, optAnon:36, optOrel:96, optTrc:5  },
+  cgnat:   { tierMode:"custom",   srvTier:5,  homeTier:40, wifiShare:45, chgShare:25, hardNat:85, shSrv:95,  shHome:30, shPhone:10, optRelay:90, optAnn:85, optAnon:14, optOrel:88, optTrc:10 },
+  unowned: { tierMode:"scenario", srvTier:10, homeTier:55, wifiShare:65, chgShare:35, hardNat:60, shSrv:95,  shHome:25, shPhone:10, optRelay:0,  optAnn:85, optAnon:12, optOrel:88, optTrc:10 }
+};
 
 // scenario dropdown
 (function(){
@@ -720,6 +872,19 @@ function buildScenario(){
   s.trust_depth_avg = state.depth;
   // server disk budget override (slider in TiB)
   s.disk_budget_server = state.budget * 1024 * GIB;
+  // device tier mix override when custom tier mode is selected
+  if (state.tierMode === "custom"){
+    let srv = state.srvTier / 100;
+    let prx = state.homeTier / 100;
+    if (srv + prx > 0.96){ prx = 0.96 - srv; state.homeTier = Math.round(prx * 100); }
+    const cli = Math.max(0, 1.0 - srv - prx);
+    s.tier_mix = { client:cli, proxy:prx, server:srv };
+  } else {
+    state.srvTier = Math.round(base.tier_mix.server * 100);
+    state.homeTier = Math.round(base.tier_mix.proxy * 100);
+  }
+  // H3ERE publishable trace opt-in (CC 4.5.13)
+  s.trace_publishable_fraction = state.optTrc / 100;
   return s;
 }
 
@@ -991,8 +1156,90 @@ function renderTransport(s, f){
     $("almTreeStat").textContent = `O(log_k N) consumer-latched tree · 5,000-member post = ~68 relay hops (−98.6% vs direct)`;
   }
   if ($("retNatStat")){
-    $("retNatStat").textContent = `~40% direct IPv6 / NAT hole-punched · ~60% hard-NAT leaf homed on k=2 serve seats`;
+    $("retNatStat").textContent = `${100 - state.hardNat}% direct IPv6 / NAT hole-punched · ${state.hardNat}% hard-NAT leaf homed on k=2 serve seats`;
   }
+
+  // ── Population Opt-Ins, Hard-NAT Sustainability & Shaped Onion Cover Capacity ──
+  const N = s.n_users;
+  const M = Math.max(9, Math.round(N / 2000)); // canonical serve seats (~1 per 2,000 nodes)
+  const fSrv = s.tier_mix.server, fHome = s.tier_mix.proxy, fPhone = s.tier_mix.client;
+  const fWifi = state.wifiShare / 100, fChg = state.chgShare / 100, fNat = state.hardNat / 100;
+  const shSrv = state.shSrv / 100, shHome = state.shHome / 100, shPhone = state.shPhone / 100;
+  const relayOpt = state.optRelay / 100, annOpt = state.optAnn / 100, anonOpt = state.optAnon / 100, orelOpt = state.optOrel / 100;
+
+  $("srvTier").value = Math.round(fSrv * 100);
+  $("homeTier").value = Math.round(fHome * 100);
+  $("srvTierVal").textContent = Math.round(fSrv * 100) + "%";
+  $("homeTierVal").textContent = Math.round(fHome * 100) + "%";
+  $("phoneTierVal").textContent = Math.max(0, 100 - Math.round(fSrv * 100) - Math.round(fHome * 100)) + "%";
+  $("wifiShareVal").textContent = state.wifiShare + "% Wi-Fi / " + (100 - state.wifiShare) + "% cell";
+  $("chgShareVal").textContent = state.chgShare + "% of Wi-Fi";
+  $("hardNatVal").textContent = state.hardNat + "% hard NAT / " + (100 - state.hardNat) + "% direct";
+  $("shSrvVal").textContent = state.shSrv + "%";
+  $("shHomeVal").textContent = state.shHome + "%";
+  $("shPhoneVal").textContent = state.shPhone + "%";
+  $("optRelayVal").textContent = state.optRelay + "%";
+  $("optAnnVal").textContent = state.optAnn + "%";
+  $("optAnonVal").textContent = state.optAnon + "%";
+  $("optOrelVal").textContent = state.optOrel + "%";
+  $("optTrcVal").textContent = state.optTrc + "%";
+  $("tierModeNote").textContent = state.tierMode === "custom" ? "custom sliders" : "scenario mix";
+  document.querySelectorAll("#tierModeChips .chip").forEach(c=>c.classList.toggle("on", c.dataset.tm===state.tierMode));
+  document.querySelectorAll("#optPresets .chip").forEach(c=>c.classList.toggle("on", c.dataset.p===state.activePreset));
+
+  const nSrv = N * fSrv, nHome = N * fHome, nPhone = N * fPhone;
+  const nPhoneWifi = nPhone * fWifi, nPhoneChg = nPhoneWifi * fChg;
+
+  // Hard-NAT leaves (home + phone behind symmetric/CGNAT; servers & seats have public reachability)
+  const nHardNat = (nHome + nPhone) * fNat;
+  const reachSrvRelays = nSrv * annOpt * relayOpt;
+  const reachHomeRelays = nHome * (1 - fNat) * annOpt * relayOpt;
+  const reachPhoneRelays = nPhoneChg * (1 - fNat) * annOpt * relayOpt;
+  const maxHardNatLeaves = M * 36 + reachSrvRelays * 32 + reachHomeRelays * 8 + reachPhoneRelays * 2;
+  const nonSrvPop = Math.max(1, nHome + nPhone);
+  const fixedLeafCap = M * 36 + reachSrvRelays * 32;
+  const reachDepCap = (nHome * 8 + nPhoneChg * 2) * annOpt * relayOpt;
+  const maxHardNatFrac = Math.min(0.99, (fixedLeafCap + reachDepCap) / (nonSrvPop + reachDepCap));
+  const natRatio = maxHardNatLeaves > 0 ? nHardNat / maxHardNatLeaves : 9.99;
+
+  // Shaped slots (Tiers.lean: each_home_adds_seven & unowned_only_strands_the_73rd)
+  const shapedSrvRelays = reachSrvRelays * Math.max(shSrv, orelOpt * 0.5);
+  const shapedHomeRelays = nHome * annOpt * relayOpt * Math.max(shHome, orelOpt * 0.5);
+  const shapedPhoneRelays = nPhoneChg * annOpt * relayOpt * Math.max(shPhone, orelOpt * 0.3);
+  const shapedSlotsSupply = M * 8 + shapedSrvRelays * 7 + shapedHomeRelays * 7 + shapedPhoneRelays * 3;
+  const nShapingNodes = Math.min(N, (
+    nSrv * Math.max(shSrv, annOpt * relayOpt * orelOpt) +
+    nHome * Math.max(shHome, annOpt * relayOpt * orelOpt * 0.5, anonOpt) +
+    nPhone * (fWifi * Math.max(shPhone, fChg * annOpt * relayOpt * orelOpt * 0.35, anonOpt) + (1 - fWifi) * Math.max(shPhone * 0.4, anonOpt * 0.5))
+  ));
+  const shapedSlotsDemand = Math.max(1, nShapingNodes * 1.8);
+  const shapeDemandRatio = shapedSlotsDemand / Math.max(1, shapedSlotsSupply);
+  const shapedSeatedPct = Math.min(100, (shapedSlotsSupply / shapedSlotsDemand) * 100);
+
+  // Onion cover pool & answering relays per layer
+  const nOnionPeers = N * anonOpt;
+  const answeringOnionRelays = M + (nSrv + nHome * (1 - fNat * 0.5) + nPhoneChg * (1 - fNat * 0.7)) * annOpt * relayOpt * orelOpt;
+  const relaysPerLayer = Math.floor(answeringOnionRelays / 3);
+  const coverRatio = nOnionPeers > 0 ? nShapingNodes / nOnionPeers : nShapingNodes;
+
+  $("m-hardnat").innerHTML = meterHTML("Hard-NAT leaf load (k=2 parents)", natRatio, fmtCount(maxHardNatLeaves) + " max",
+    `${fmtCount(nHardNat)} hard-NAT peers / ${fmtCount(maxHardNatLeaves)} sustainable capacity`);
+  $("m-shapeslots").innerHTML = meterHTML("Shaped slot demand / supply (each_home_adds_seven)", shapeDemandRatio, fmtCount(shapedSlotsSupply) + " slots",
+    `${fmtCount(shapedSlotsDemand)} needed / ${fmtCount(shapedSlotsSupply)} supplied (${shapedSeatedPct.toFixed(0)}% seated${state.optRelay===0?" · unowned-only strands 73rd peer!":""})`);
+
+  $("sustHardNat").textContent = `${fmtCount(nHardNat)} / ${fmtCount(maxHardNatLeaves)} (${(natRatio*100).toFixed(0)}% load)`;
+  $("sustMaxNat").textContent = `${(maxHardNatFrac*100).toFixed(1)}% of home/phone (${fmtCount(maxHardNatLeaves)} max leaves)`;
+  $("sustShapeSlots").textContent = `${fmtCount(shapedSlotsSupply)} supply vs ${fmtCount(shapedSlotsDemand)} demand (${shapedSeatedPct.toFixed(0)}% seated)`;
+  $("sustShapers").textContent = `${fmtCount(nShapingNodes)} nodes (${(nShapingNodes/N*100).toFixed(1)}% of pop)`;
+  $("sustCoverRatio").textContent = nOnionPeers > 0 ? `${coverRatio.toFixed(2)} shaping nodes per onion peer (${fmtCount(nOnionPeers)} onion)` : `${fmtCount(nShapingNodes)} shapers / 0 onion`;
+  $("sustOnionRelays").textContent = `${fmtCount(relaysPerLayer)} / layer (${relaysPerLayer>=10?"✓ healthy ≥10":relaysPerLayer>=3?"⚠ small set <10":"✗ below floor <3"})`;
+
+  $("pillNat").textContent = `${fmtCount(nHardNat)} / ${fmtCount(maxHardNatLeaves)} ${natRatio<=1?"✓":"⚠"}`;
+  $("pillNat").style.color = natRatio<=1 ? (natRatio>0.8?"var(--warn)":"var(--ok)") : "var(--bad)";
+  $("pillShape").textContent = `${shapedSeatedPct.toFixed(0)}% seated (${fmtCount(shapedSlotsSupply)})`;
+  $("pillShape").style.color = shapedSeatedPct>=95 ? "var(--ok)" : (shapedSeatedPct>=60?"var(--warn)":"var(--bad)");
+  $("pillOnion").textContent = `${nOnionPeers>0?coverRatio.toFixed(1)+"× cover":"0 onion"} · ${fmtCount(relaysPerLayer)}/lyr`;
+  $("pillOnion").style.color = relaysPerLayer>=10 && coverRatio>=1.5 ? "var(--ok)" : (relaysPerLayer>=3?"var(--warn)":"var(--bad)");
 
   // ── per-traffic-class verdict (3-mesh separation) ──
   const rt = $("cvRealtime"), as = $("cvAsync");
@@ -1046,12 +1293,31 @@ document.querySelectorAll("#sphinxChips .chip").forEach(ch=>{
 document.querySelectorAll("#relayChips .chip").forEach(ch=>{
   ch.addEventListener("click", ()=>{ state.relayPlacement = ch.dataset.r; render(); });
 });
+document.querySelectorAll("#tierModeChips .chip").forEach(ch=>{
+  ch.addEventListener("click", ()=>{ state.tierMode = ch.dataset.tm; render(); });
+});
+document.querySelectorAll("#optPresets .chip").forEach(ch=>{
+  ch.addEventListener("click", ()=>{
+    const k = ch.dataset.p; const p = OPT_PRESETS[k]; if (!p) return;
+    state.activePreset = k;
+    Object.assign(state, p);
+    ["wifiShare","chgShare","hardNat","shSrv","shHome","shPhone","optRelay","optAnn","optAnon","optOrel","optTrc"].forEach(id=>{ if($(id)) $(id).value = state[id]; });
+    render();
+  });
+});
+["srvTier","homeTier"].forEach(id=>{
+  $(id).addEventListener("input", e=>{ state.tierMode = "custom"; state.activePreset = ""; state[id] = +e.target.value; render(); });
+});
+["wifiShare","chgShare","hardNat","shSrv","shHome","shPhone","optRelay","optAnn","optAnon","optOrel","optTrc"].forEach(id=>{
+  $(id).addEventListener("input", e=>{ state.activePreset = ""; state[id] = +e.target.value; render(); });
+});
 
 // init slider defaults to match state
 $("depth").value = state.depth; $("disk").value = state.disk;
 $("bw").value = state.bw; $("cores").value = state.cores; $("budget").value = state.budget;
 $("holders").value = state.holders; $("churn").value = state.churnQ;
 $("hops").value = state.onionHops;
+["wifiShare","chgShare","hardNat","shSrv","shHome","shPhone","optRelay","optAnn","optAnon","optOrel","optTrc"].forEach(id=>{ if($(id)) $(id).value = state[id]; });
 render();
 </script>
 </body>

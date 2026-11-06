@@ -75,6 +75,7 @@ pub extern "C" fn tick(
     seats_off: *const u32, seats: *const u32, region_room: *const u32, global_room: u32,
     acts: u32, seed_lo: u32, seed_hi: u32,
     mix_self: u32, mix_room: u32, mix_fed: u32, stranger_pm: u32,
+    direct_nat_pm: u32, shaping_pm: u32, onion_pm: u32,
     activity: *mut u8, arcs: *mut u32, arc_cap: u32, out: *mut f64,
 ) -> u32 {
     const ROW_BYTES: f64 = 4096.0; // one COSE row with a composite ML-DSA-65 + Ed25519 signature
@@ -129,12 +130,12 @@ pub extern "C" fn tick(
             let mut delivered = 0u32;
             let mut crossed = 0u32;
 
-            // Check if this room/act rides the Anonymous Onion Tier (~18% of community rooms + 25% of fed rows)
-            let is_onion = (kind == 1 && (room & 7) == 0) || (kind == 2 && below(&mut s, 4) == 0);
+            // Check if this room/act rides the Anonymous Onion Tier (driven by population opt-in & cover capacity)
+            let is_onion = (kind == 1 || kind == 2) && below(&mut s, 1000) < onion_pm;
             if is_onion {
                 o[22] += 1.0;
             }
-            // Check if this community room act is a live A/V or >64 KiB bulk stream (~12% of community acts)
+            // Check if this community room act is a live A/V or >64 KiB bulk stream (~12% of community acts, or displaced when unshaped)
             let is_live_alm = kind == 1 && !is_onion && (act_i & 7) == 0;
 
             if kind == 3 {
@@ -205,21 +206,22 @@ pub extern "C" fn tick(
                     o[2] += 1.0;
                     o[3] += 1.0;
                     delivered += 1;
-                    // Reticulum NAT model: ~42% direct IPv6 / NAT hole-punched, ~58% homed leaf via seat/relay
-                    let direct_nat = ((signer ^ m) & 7) < 3;
+                    // Reticulum NAT model: direct IPv6 / NAT hole-punched vs homed hard-NAT leaf via seat/relay
+                    let direct_nat = below(&mut s, 1000) < direct_nat_pm;
                     if direct_nat { o[23] += 1.0; }
+                    let shaped_hop = is_onion || (!is_live_alm && below(&mut s, 1000) < shaping_pm);
                     let mm = metro[m] as usize;
                     if mm == smetro {
                         o[5] += 1.0;
                         wire_hops += if direct_nat { 1 } else { 2 };
-                        if is_live_alm { o[20] += 1.0; } else { o[18] += 1.0; }
+                        if !shaped_hop { o[20] += 1.0; } else { o[18] += 1.0; }
                     } else {
                         crossed += 1;
                         if *region_of_metro.add(mm) == sregion { o[6] += 1.0; } else { o[7] += 1.0; }
                         o[8] += km(slat, slon, lat[m], lon[m]);
-                        if is_live_alm {
+                        if !shaped_hop {
                             o[20] += 1.0;
-                            wire_hops += 1;
+                            wire_hops += if direct_nat { 1 } else { 2 };
                         } else if direct_nat {
                             o[18] += 1.0;
                             wire_hops += 1;
@@ -229,7 +231,7 @@ pub extern "C" fn tick(
                             o[19] += 1.0;
                             wire_hops += 2;
                         }
-                        let arc_tier = if is_onion { 3 } else if is_live_alm { 2 } else if direct_nat { 0 } else { 1 };
+                        let arc_tier = if is_onion { 3 } else if !shaped_hop { 2 } else if direct_nat { 0 } else { 1 };
                         if below(&mut s, 48) == 0 {
                             push_arc(arcs, &mut arcs_n, arc_cap, signer as u32, m as u32, arc_tier);
                         }
