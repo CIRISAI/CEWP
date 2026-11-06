@@ -22,19 +22,22 @@ unobservability against an adversary observing every network link.
 That is genuinely costly (onion latency) and only reached by an
 operator already publishing to the public commons.
 
-**Default-promotion cost (the provisional line, updated for CC RC17 §5.4.6 & Edge v44).**
+**Default-promotion cost (the provisional line, updated for CC RC17 §5.4.3 / §5.4.6 & Edge v44).**
 CC 1.13.3.4 marks the opt-in boundary as provisional — it MAY move toward default as
 the overhead is measured. Under the finalized **CC RC17 §5.4.3 / §5.4.6** and **CIRISEdge v44**
-3-mesh design (`base` low-BW shaped at `16 KiB / 2 s = 8 KB/s`, `seat` high-BW shaped at
-`16 KiB / 500 ms = 33 KB/s`, and `live`/`bulk` unshaped), a 3-hop **X-Wing `CONP` onion packet**
+budget classes (`server` `7,000 B/s`, `home` `2,800 B/s`, `phone-wifi` `1,400 B/s`,
+`phone-cellular` `350 B/s`, and `seat` `33,000 B/s`, each at $\rho = 0.5$, 1 direct hop per
+shaped link; channel payload MDU `≈ 400 B` at the Reticulum `500 B` base MTU or `≈ 16 KB` /
+`16,272 B` over TCP), a 3-hop **X-Wing `CONP` onion packet**
 (`15,296 B` fixed frame: `4 B` magic + `3 × 1,264 B` hybrid X25519+ML-KEM-768 headers + `11,488 B`
-payload + `12 B` nonce) rides inside a `16 KiB` shaped slot by **replacing a scheduled chaff packet
-on the tick**. It therefore adds **`+0 B` extra wire bytes** on shaped links and is purely
-**latency-bound** (three shaped tick intervals plus per-hop RTT; ~+165 ms regional to ~+585 ms
-global). Both the [3-mesh globe](../docs/globe.html) and the [interactive toy](../toy/index.html)
-model the live **Shaped Onion Cover Pool** and **Answering Relays per Layer** (CC 5.4.6 floor
-$\ge 3$ independent operators per layer; `each_home_adds_seven` supplies **2.94×** shaping cover
-nodes per onion peer at Fleet Defaults).
+payload + `12 B` nonce) rides inside a `16 KiB` (`16,272 B` TCP) shaped slot by **replacing a
+scheduled chaff packet on the tick**. It therefore adds **`+0 B` extra wire bytes** on shaped
+links and is purely **latency-bound** (three shaped tick intervals plus per-hop RTT). Both the
+[3D globe landing page](../docs/index.html) and the [interactive toy](../toy/index.html)
+model the live **1-Hop Shaped Onion Cover Pool** and **Answering Relays per Layer** (CC 5.4.6 floor
+$\ge 3$ independent operators per layer; when directly reachable via `reach_home_share`,
+`each_home_adds_seven` supplies **2.66×** direct 1-hop shaping cover nodes per onion peer at
+Fleet Defaults).
 
 The mental model: cohort scopes are the **rooms of your house**
 (private by default); federation scope is the **public square**; this
@@ -193,8 +196,8 @@ The publishing node's IP is not the record's network origin. In **CIRISEdge v44*
   * `4 B` magic (`CONP`)
   * `3 × 1,264 B` (`3,792 B`) per-hop hybrid headers (`1,120 B` X-Wing `ML-KEM-768 + X25519` ciphertext + `12 B` nonce + `132 B` encrypted routing/MAC)
   * `11,488 B` encrypted inner payload + `12 B` payload nonce
-* **Cover replacement (`+0 B` extra wire cost)**: When a link is already running traffic shaping (`base` at `16 KiB / 2 s = 8 KB/s` or `seat` at `16 KiB / 500 ms = 33 KB/s`), each onion hop replaces a scheduled chaff packet on the tick (`onion_extra_wire_bytes_on_shaped = 0` in `Tiers.lean`).
-* **Guard & layer diversity (CC 5.4.6)**: 2 entry guards held for 60 days; 3 hops drawn from distinct operator groups (`≥ 3` answering onion relays per layer required before sending; if fewer than 3 answer, the node waits and sends chaff rather than dropping to 2 hops).
+* **Cover replacement (`+0 B` extra wire cost)**: When a direct 1-hop link is already running traffic shaping under its CC §5.4.3 budget class (`server` `7,000 B/s`, `home` `2,800 B/s`, `phone-wifi` `1,400 B/s`, `phone-cellular` `350 B/s`, or `seat` `33,000 B/s`, each at $\rho = 0.5$ over `≈ 16 KB` / `16,272 B` TCP channel payload MDU), each onion hop replaces a scheduled chaff packet on the tick (`onion_extra_wire_bytes_on_shaped = 0` in `formal/transport_tiers/Tiers.lean`).
+* **Guard & layer diversity (CC 5.4.6) and CC §6.1.6 `deterministic-alm`**: 2 entry guards held for 60 days; 3 hops drawn from distinct operator groups (`≥ 3` answering onion relays per layer required before sending; if fewer than 3 answer, the node waits and sends chaff rather than dropping to 2 hops). For large-$N$ room fan-out over sealed chunks, every member computes the same **CC §6.1.6 `deterministic-alm` member relay tree** (distinct from **CC §5.3.3.2**, where the realtime transport profile has no selective-forwarding relay role).
 
 ### 4.4 Discoverability rendezvous
 

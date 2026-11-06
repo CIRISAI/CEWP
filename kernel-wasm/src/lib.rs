@@ -1,25 +1,28 @@
-//! The kernel's door at scale — 3-mesh transport & ALM relay tree edition (CC RC17 / Edge v44).
+//! The kernel's rulebook at scale — CC 5.4.3 budget classes, 1-hop shaped links & CC 6.1.6 `deterministic-alm` edition (CC RC17 / Edge v44).
 //!
 //! One tick = `acts` random signed rows over a world of nodes and rooms placed on a land-bounded
-//! population density grid. For each row the door runs at the signer's own node and at every node
+//! population density grid. For each row the rulebook runs at the signer's own node and at every node
 //! of the row's audience: object state (a new object is in state `none`, so `attest` is enabled;
 //! a withdrawal needs the author), standing (the signer must be in the room's roster), and a
 //! stranger is refused at the first door and travels nowhere.
 //!
-//! Transport follows the three-mesh architecture of CC 5.4.3, CC 5.4.6, and Edge v44:
-//!   1. Low-bandwidth shaped (`base` tier, L <= 8 links at class rate 350..7,000 B/s, F = 16,272 B,
-//!      rho = 0.5): carries family/community rows <= 64 KiB, consent-free roads across strangers,
-//!      and 15,296 B X-Wing onion packets walking standing shaped links from a sticky contact guard
-//!      at zero extra wire bytes (replacing cover frames).
-//!   2. High-bandwidth shaped (`seat` tier, 33,000 B/s = 2 frames/s between serve seats, outside
-//!      the 8-link cap): carries inter-seat replication and public-room backbone fan-out.
-//!   3. Live / unshaped bulk & ALM relay tree (`bulk` / `live` tier): >64 KiB blobs, realtime A/V,
-//!      and O(log_k N) consumer-latched ALM multicast trees.
-//!
-//! Reticulum uses IPv6 direct + NAT hole-punching (~40% direct P2P), while hard-NAT (~60% of
-//! mobile/home links) homes leaf nodes on k = 2 serve seats or contact relays.
-//! Public rooms fan out over the seat / ALM relay tree so a 5,000-member post costs the seat/tree
-//! fan-out rather than 5,000 direct origin-to-member unicasts.
+//! Transport follows CC 5.4.3, CC 5.4.6, CC 6.1.6, and Edge v44:
+//!   1. Device-class shaped links (CC 5.4.3 budget classes: `server` 7,000 B/s, `home` 2,800 B/s,
+//!      `phone-wifi` 1,400 B/s, `phone-cellular` 350 B/s, L <= 8 links, rho = 0.5, W = 600 s or
+//!      3,600 s on cellular; frame = channel payload MDU, ~400 B at Reticulum base MTU or ~16 KB
+//!      over TCP). Per CC 5.4.3 ("A shaped link is one hop"), a shaped link is one direct hop
+//!      between its two ends, never forwarded through a third node; a peer with no direct path
+//!      gets no shaped link. Carries identity, consent, chat, and small attachments (<= 64 KiB),
+//!      consent-free stranger roads, and 15,296 B X-Wing `CONP` onion packets replacing cover
+//!      frames at +0 extra wire bytes.
+//!   2. Serve-seat shaped links (CC 5.4.3 `seat` class, 33,000 B/s at rho = 0.5, W = 600 s,
+//!      outside the 8-link cap): direct 1-hop links between canonical serve seats.
+//!   3. Ordinary & unshaped links + CC 6.1.6 `deterministic-alm` member relay tree: A/V and bulk
+//!      (>64 KiB) are unshaped only; a node not opted into shaping or without a direct path carries
+//!      identity, consent, chat, and small attachments on ordinary links; large-N rooms fan out
+//!      over the CC 6.1.6 `deterministic-alm` member relay tree over sealed chunks (distinct from
+//!      CC 5.3.3.2's realtime profile, which has no selective-forwarding relay role — no seat or
+//!      third party ever decodes or selects).
 
 use std::alloc::{alloc as sys_alloc, Layout};
 
@@ -60,13 +63,15 @@ unsafe fn push_arc(arcs: *mut u32, arcs_n: &mut u32, arc_cap: u32, from: u32, to
 /// out (f64 × 24):
 /// 0 acts, 1 deliveries (doors run), 2 door checks, 3 admitted, 4 refused (strangers),
 /// 5 deliveries within locality, 6 cross-locality within region, 7 cross-region, 8 km summed,
-/// 9 wire bytes moved (after ALM relay tree + onion cover replacement),
+/// 9 wire bytes moved (after CC 6.1.6 `deterministic-alm` member relay tree + onion cover replacement),
 /// 10 bytes a broadcast network would move, 11 bytes with a datacenter in the middle,
 /// 12 self/family acts, 13 community room acts, 14 consent-free acts, 15 public/ALM acts,
 /// 16 acts whose every delivery stayed in the signer's locality, 17 acts that had an audience,
-/// 18 low-bw shaped (`base`) wire link hops, 19 high-bw shaped (`seat`) backbone hops,
-/// 20 live/unshaped ALM (`bulk`) hops, 21 unicast deliveries saved by seat/ALM relay tree,
-/// 22 onion-routed acts (0 extra wire bytes over rho=0.5 cover), 23 direct IPv6/NAT-popped hops.
+/// 18 1-hop device-shaped (`server`/`home`/`phone-wifi`/`phone-cellular`) wire link hops,
+/// 19 1-hop serve-seat shaped (`seat` 33,000 B/s) hops,
+/// 20 ordinary/unshaped + `deterministic-alm` member relay tree hops,
+/// 21 unicast deliveries saved by CC 6.1.6 `deterministic-alm` member relay tree,
+/// 22 onion-routed acts (0 extra wire bytes over rho=0.5 cover), 23 direct IPv6/punched-path hops.
 #[no_mangle]
 pub extern "C" fn tick(
     lat: *const f32, lon: *const f32, metro: *const u16, region_of_metro: *const u8, n: u32,
@@ -139,9 +144,10 @@ pub extern "C" fn tick(
             let is_live_alm = kind == 1 && !is_onion && (act_i & 7) == 0;
 
             if kind == 3 {
-                // Public room / ALM broadcast:
-                // Routes signer -> local_seat -> Seat Mesh (33 KB/s fast shaped) / ALM Relay Tree -> recipient locality seats -> members.
-                // A 5,000-member post costs the seat/ALM relay tree fan-out across distinct localities, NOT 5,000 direct deliveries from the signer!
+                // Public room / CC 6.1.6 `deterministic-alm` member relay tree over sealed chunks:
+                // Every member computes the same deterministic relay tree over end-to-end sealed chunks
+                // (distinct from CC 5.3.3.2's realtime transport profile, which has no selective-forwarding
+                // relay role — no seat or third party ever decodes or selects).
                 let mut touched_metros = [0xFFFFu16; 32];
                 let mut touched_n = 0usize;
                 let mut prev_hub = local_seat;
@@ -149,7 +155,7 @@ pub extern "C" fn tick(
                 for i in 0..count {
                     let m = *members.add(i) as usize;
                     if m == signer { continue; }
-                    // The kernel's door still runs at every receiving member m
+                    // The kernel's rulebook still runs at every receiving member m
                     o[2] += 1.0;
                     o[3] += 1.0;
                     delivered += 1;
@@ -159,7 +165,7 @@ pub extern "C" fn tick(
                     } else {
                         crossed += 1;
                         if *region_of_metro.add(mm) == sregion { o[6] += 1.0; } else { o[7] += 1.0; }
-                        // Deduplicate cross-locality fan-out via the seat / ALM relay tree (capped sample of tree branches)
+                        // Deduplicate cross-locality fan-out via the CC 6.1.6 `deterministic-alm` member relay tree
                         let mm16 = mm as u16;
                         let mut seen = false;
                         for t_i in 0..touched_n {
@@ -172,17 +178,16 @@ pub extern "C" fn tick(
                             let ma1 = *seats_off.add(mm + 1) as usize;
                             let target_seat = if ma1 > ma0 { *seats.add(ma0) as usize } else { m };
                             o[8] += km(lat[prev_hub], lon[prev_hub], lat[target_seat], lon[target_seat]);
-                            // High-BW seat backbone (tier 1) + ALM relay tree (tier 2)
-                            o[19] += 1.0;
+                            // CC 6.1.6 `deterministic-alm` member relay tree hops over sealed chunks
                             o[20] += 1.0;
-                            let tier = if (touched_n & 1) == 0 { 1 } else { 2 };
+                            let tier = 2;
                             if below(&mut s, 3) == 0 {
                                 push_arc(arcs, &mut arcs_n, arc_cap, prev_hub as u32, target_seat as u32, tier);
                             }
                             let a_seat = activity.get_unchecked_mut(target_seat);
                             *a_seat = a_seat.saturating_add(70);
                             if (touched_n & 3) == 0 {
-                                prev_hub = target_seat; // log-depth relay tree chaining
+                                prev_hub = target_seat; // log-depth deterministic-alm member relay tree chaining
                             }
                         }
                     }
@@ -192,7 +197,7 @@ pub extern "C" fn tick(
                         *a = a.saturating_add(36);
                     }
                 }
-                // Wire cost: 1 uplink to local seat + seat/ALM tree branches + local intra-cell fan-out (amortized 1/12 per leaf)
+                // Wire cost: CC 6.1.6 `deterministic-alm` member relay tree branches + local intra-cell fan-out (amortized 1/12 per leaf)
                 let tree_hops = 1 + (touched_n as u32) * 2 + (delivered / 12).max(1);
                 let saved = delivered.saturating_sub(tree_hops);
                 o[21] += saved as f64;
@@ -206,32 +211,38 @@ pub extern "C" fn tick(
                     o[2] += 1.0;
                     o[3] += 1.0;
                     delivered += 1;
-                    // Reticulum NAT model: direct IPv6 / NAT hole-punched vs homed hard-NAT leaf via seat/relay
+                    // Direct IPv6 / punched UDP path vs no direct path (leviculum#100 / leviculum#101)
                     let direct_nat = below(&mut s, 1000) < direct_nat_pm;
                     if direct_nat { o[23] += 1.0; }
-                    let shaped_hop = is_onion || (!is_live_alm && below(&mut s, 1000) < shaping_pm);
+                    // CC 5.4.3 ("A shaped link is one hop"): a shaped link is one direct hop between its
+                    // two ends, never forwarded through a third node; a peer with no direct path gets no
+                    // shaped link; a node not opted in (or with no direct path) carries the same classes
+                    // on ordinary links.
+                    let shaped_hop = direct_nat && (is_onion || (!is_live_alm && below(&mut s, 1000) < shaping_pm));
                     let mm = metro[m] as usize;
                     if mm == smetro {
                         o[5] += 1.0;
-                        wire_hops += if direct_nat { 1 } else { 2 };
-                        if !shaped_hop { o[20] += 1.0; } else { o[18] += 1.0; }
+                        if shaped_hop {
+                            o[18] += 1.0;
+                            wire_hops += 1; // 1 direct shaped hop
+                        } else {
+                            o[20] += 1.0;
+                            wire_hops += if direct_nat { 1 } else { 2 };
+                        }
                     } else {
                         crossed += 1;
                         if *region_of_metro.add(mm) == sregion { o[6] += 1.0; } else { o[7] += 1.0; }
                         o[8] += km(slat, slon, lat[m], lon[m]);
-                        if !shaped_hop {
-                            o[20] += 1.0;
-                            wire_hops += if direct_nat { 1 } else { 2 };
-                        } else if direct_nat {
+                        if shaped_hop {
+                            // 1 direct hop on a CC 5.4.3 device budget class (server/home/phone-wifi/phone-cellular)
                             o[18] += 1.0;
                             wire_hops += 1;
                         } else {
-                            // Homed leaf crosses local_seat -> remote_seat (fast shaped tier 1) -> leaf (slow shaped tier 0)
-                            o[18] += 1.0;
-                            o[19] += 1.0;
-                            wire_hops += 2;
+                            // Ordinary unshaped link (or live A/V & bulk)
+                            o[20] += 1.0;
+                            wire_hops += if direct_nat { 1 } else { 2 };
                         }
-                        let arc_tier = if is_onion { 3 } else if !shaped_hop { 2 } else if direct_nat { 0 } else { 1 };
+                        let arc_tier = if is_onion && shaped_hop { 3 } else if shaped_hop { 0 } else { 2 };
                         if below(&mut s, 48) == 0 {
                             push_arc(arcs, &mut arcs_n, arc_cap, signer as u32, m as u32, arc_tier);
                         }

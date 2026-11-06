@@ -3,336 +3,968 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>An epistemic web, in motion</title>
-<meta name="description" content="A small mesh of people, their views of the same signed rows, and the queues those views generate as they make choices; what this architecture solves, how it stands beside its peers, and the contract behind it.">
+<title>Billions of people and devices, one rulebook — 3-Mesh & ALM Relay Tree</title>
+<meta name="description" content="Billions of people and devices placed on a land-bounded world population density grid, governed by one constitutional rulebook across CC 5.4.3 1-hop shaped budget classes (server, home, phone-wifi, phone-cellular, seat 33 KB/s), ordinary links, and CC 6.1.6 deterministic-alm member relay trees in WebAssembly.">
 <style>
-.rule a{color:var(--accent)}
-:root{--bg:#f6f4ee;--fg:#1d1d1b;--mute:#6b6a64;--card:#ffffff;--line:#dcd8cc;--accent:#2f5d50;--accent2:#b5542d;--chip:#ece8dc;--ok:#2f5d50;--no:#9a3b2b;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15161a;--fg:#e9e6dc;--mute:#9b9890;--card:#1e2026;--line:#2e3139;--accent:#7fbfae;--accent2:#e2906a;--chip:#2a2d35;--ok:#7fbfae;--no:#e07c66}}
-:root[data-theme="dark"]{--bg:#15161a;--fg:#e9e6dc;--mute:#9b9890;--card:#1e2026;--line:#2e3139;--accent:#7fbfae;--accent2:#e2906a;--chip:#2a2d35;--ok:#7fbfae;--no:#e07c66}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 Georgia,"Iowan Old Style",serif;padding:0 16px 48px}
-header{max-width:1200px;margin:0 auto;padding:28px 0 12px}
-h1{font-size:28px;margin:0 0 6px;font-weight:600}
-h2{font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);margin:0 0 10px;font-weight:600}
-p.lead{margin:0;color:var(--mute);max-width:70ch}
-main{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:260px 1fr 320px;gap:16px}
-@media (max-width:960px){main{grid-template-columns:1fr}}
-section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
-.person{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;border:1px solid transparent;cursor:pointer}
-.person:hover{border-color:var(--line)}
-.person.sel{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
-.dot{width:12px;height:12px;border-radius:50%;flex:none}
-.person b{font-weight:600}
-.person .n{margin-left:auto;font:12px var(--mono);background:var(--chip);padding:2px 7px;border-radius:999px;min-width:26px;text-align:center}
-.mesh{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
-.obj{border:1px solid var(--line);border-radius:8px;padding:10px;font-size:14px;transition:border-color .3s, box-shadow .3s}
-.obj.lit{border-color:var(--accent2);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent2) 35%,transparent)}
-.obj .fam{font:12px var(--mono);color:var(--mute)}
-.obj .st{display:inline-block;margin-top:4px;font:12px var(--mono);padding:1px 6px;border-radius:4px;background:var(--chip)}
-.obj .st.admitted{background:color-mix(in srgb,var(--ok) 18%,transparent)}
-.obj .st.withdrawn,.obj .st.recanted,.obj .st.superseded{background:color-mix(in srgb,var(--no) 18%,transparent)}
-.obj .atoms{margin:6px 0 0;padding:0;list-style:none;font-size:12px;color:var(--mute)}
-.obj .who{margin-top:6px;font-size:12px}
-.item{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px}
-.item .v{font:600 14px var(--mono)}
-.item .why{font-size:13px;color:var(--mute);margin:4px 0}
-.item button{font:14px inherit;background:var(--accent);color:#fff;border:0;border-radius:6px;padding:6px 10px;cursor:pointer}
-.item button.narrow{background:transparent;color:var(--accent);border:1px solid var(--accent)}
-.empty{color:var(--mute);font-style:italic}
-.log{font:12px/1.5 var(--mono);max-height:220px;overflow:auto;border-top:1px solid var(--line);margin-top:10px;padding-top:8px}
-.ctl{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0}
-.ctl button{font:14px inherit;background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
-.rule{max-width:1200px;margin:14px auto 0;font-size:14px;color:var(--mute)}
-code{font:13px var(--mono)}
+:root{--bg:#0b0d12;--panel:#12151c;--line:#242a36;--ink:#dfe3ea;--mute:#8a93a3;--ok:#5ad38f;--warm:#ffb15c;--hot:#ff6a5c;--cool:#6cb6ff;--violet:#c68aff;--mono:ui-monospace,Menlo,Consolas,monospace}
+*{box-sizing:border-box}html,body{height:100%;overscroll-behavior:none}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--mono);overflow:hidden;-webkit-text-size-adjust:100%}
+#c{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:block;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}
+.fab{position:fixed;z-index:20;display:inline-flex;align-items:center;gap:7px;background:color-mix(in srgb,var(--panel) 86%,transparent);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:7px 13px;font:600 12px/1 var(--mono);backdrop-filter:blur(8px);cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:border-color .18s,background .18s,color .18s}
+.fab:hover,.fab.open{border-color:var(--ok);color:#fff;background:color-mix(in srgb,var(--panel) 96%,transparent)}
+.fab .badge{color:var(--ok);font-weight:600;font-variant-numeric:tabular-nums}
+#btn-hud{left:12px;top:12px}
+#btn-stats{right:12px;top:12px}
+#btn-foot{left:12px;bottom:max(12px,env(safe-area-inset-bottom));font-weight:500;font-size:11px;padding:6px 11px;color:var(--mute)}
+.nav-strip{position:fixed;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:20;display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.nav-pill{background:color-mix(in srgb,var(--panel) 84%,transparent);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font:500 11px/1 var(--mono);text-decoration:none;backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,.35);transition:border-color .18s,color .18s,background .18s;white-space:nowrap}
+.nav-pill:hover{border-color:var(--cool);color:#fff;background:color-mix(in srgb,var(--panel) 96%,transparent)}
+.panel-hidden{display:none!important}
+.panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.panel-close{background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:6px;padding:2px 7px;font:12px/1.2 var(--mono);cursor:pointer;flex:none}
+.panel-close:hover{color:#fff;border-color:var(--ink)}
+#hud{position:fixed;left:12px;top:50px;width:min(410px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;backdrop-filter:blur(8px);max-height:calc(100dvh - 64px);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:15;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+#hud h1{font:600 16px/1.2 Georgia,serif;margin:0 0 4px;color:#fff}#hud p{margin:0 0 7px;color:var(--mute);font-size:11.5px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
+button,select{font:12px var(--mono);background:#1a1f2a;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 8px;cursor:pointer}
+button.on{border-color:var(--ok);color:var(--ok)}
+.control-group{margin:8px 0}
+.cg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.control-group label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+.ms-budget{font-size:10px;color:var(--ok);font-feature-settings:"tnum";transition:color .2s ease}
+.seg{display:flex;background:#0d1017;border:1px solid var(--line);border-radius:8px;padding:2px;gap:2px}
+.seg button{flex:1;background:transparent;border:0;border-radius:6px;padding:5px 4px;font:11px/1 var(--mono);color:var(--mute);transition:all .18s ease;cursor:pointer;white-space:nowrap;text-align:center}
+.seg button:hover:not(:disabled){color:var(--ink);background:#181d28}
+.seg button.active{background:color-mix(in srgb,var(--ok) 18%,#161c26);color:#fff;font-weight:600;box-shadow:0 0 0 1px color-mix(in srgb,var(--ok) 45%,transparent)}
+.seg button:disabled{opacity:.25;cursor:not-allowed;text-decoration:line-through var(--mute)}
+.mesh-pills{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+.mesh-pills button{font:10.5px/1 var(--mono);padding:4px 6px;border-radius:5px;background:#0d1017;color:var(--mute);border:1px solid var(--line);display:flex;align-items:center;gap:4px}
+.mesh-pills button.active{color:#fff;border-color:var(--ink);background:#1a202c}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.main-actions{margin-top:6px}
+.btn-primary{background:color-mix(in srgb,var(--ok) 20%,#141a24);color:var(--ok);border:1px solid var(--ok);font-weight:600}
+.btn-primary.active{background:var(--ok);color:#080b10;border-color:var(--ok)}
+.btn-subtle{background:#151922;color:var(--ink);border:1px solid var(--line)}
+.sust-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:7px 0 4px}
+.sust-pill{background:#0d1017;border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:10px;line-height:1.25}
+.sust-pill span{display:block;color:var(--mute);font-size:9.5px;text-transform:uppercase;letter-spacing:.04em}
+.sust-pill b{color:var(--ok);font-size:11px}
+details#adv{margin-top:7px;border-top:1px solid var(--line);padding-top:6px}
+details#adv summary{cursor:pointer;font-size:11.5px;color:var(--cool);font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center;padding:3px 0}
+details#adv summary::-webkit-details-marker{display:none}
+details#adv summary::before{content:"▸ Advanced: opt-ins (+/-), device tiers, Wi-Fi & NAT"}
+details#adv[open] summary::before{content:"▾ Advanced: opt-ins (+/-), device tiers, Wi-Fi & NAT"}
+.adv-body{margin-top:6px;display:flex;flex-direction:column;gap:8px;padding-right:2px}
+.adv-sec{background:#0d1017;border:1px solid var(--line);border-radius:7px;padding:7px 9px}
+.adv-sec h3{margin:0 0 5px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#fff;display:flex;justify-content:space-between;align-items:center}
+.preset-bar{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.preset-bar button{font-size:10px;padding:3px 6px;border-radius:4px;background:#151a24;color:var(--mute);border:1px solid var(--line)}
+.preset-bar button:hover{color:#fff;border-color:var(--cool)}
+.sl-item{margin:6px 0;padding-bottom:6px;border-bottom:1px dashed #1b202c}
+.sl-item:last-child{margin-bottom:0;padding-bottom:0;border-bottom:0}
+.sl-top{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ink); gap:4px}
+.sl-top b{color:#fff;font-variant-numeric:tabular-nums}
+.dflt{font-size:9.5px;padding:1px 4px;border-radius:3px;background:#18202c;color:var(--cool);border:1px solid #263246}
+.dflt.off{color:var(--mute);background:#141720;border-color:#222734}
+input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:var(--ok);cursor:pointer}
+.pro-con{font-size:10px;line-height:1.32;color:var(--mute)}
+.pro-con .pro{color:#7ee2a8;display:block}
+.pro-con .con{color:#ff9e8e;display:block}
+#stats{position:fixed;right:12px;top:50px;width:min(384px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12px;backdrop-filter:blur(8px);max-height:calc(100dvh - 64px);overflow:auto;-webkit-overflow-scrolling:touch;z-index:15;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+#stats h2{font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:9px 0 4px}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px dashed #1e2430}.kv b{color:#fff;font-weight:600;text-align:right}.kv .big{font-size:19px;color:var(--ok)}
+.bar{height:8px;background:#1a1f2a;border-radius:4px;overflow:hidden;margin:4px 0 8px}.bar i{display:block;height:100%;background:var(--ok);transition:width .25s ease}
+.mob-links{margin-top:8px;padding-top:6px;border-top:1px solid var(--line);font-size:11px;color:var(--mute);text-align:center}
+.mob-links a{color:var(--cool)}
+#foot{position:fixed;left:12px;bottom:48px;background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:10px;padding:10px 13px;backdrop-filter:blur(8px);color:var(--mute);font-size:11.5px;max-width:min(680px,calc(100vw - 24px));z-index:15;box-shadow:0 8px 28px rgba(0,0,0,.45)}#foot a{color:var(--cool)}
+@media(max-width:800px){
+  #btn-hud{left:8px;top:8px;padding:7px 11px;font-size:11.5px}
+  #btn-stats{right:8px;top:8px;padding:7px 11px;font-size:11.5px}
+  #btn-foot{left:8px;bottom:max(8px,env(safe-area-inset-bottom))}
+  .nav-strip{right:8px;bottom:max(8px,env(safe-area-inset-bottom));gap:4px;max-width:calc(100vw - 88px)}
+  .nav-pill{padding:5px 8px;font-size:10px}
+  #hud{left:8px;top:44px;width:calc(100vw - 16px);padding:10px 12px;max-height:calc(100dvh - 56px)}
+  #hud h1{font-size:15px;margin-bottom:2px}
+  #stats{left:8px;right:8px;width:calc(100vw - 16px);top:44px;padding:10px 12px;max-height:calc(100dvh - 56px)}
+  #foot{left:8px;bottom:44px;width:calc(100vw - 16px)}
+  button,select{padding:7px 10px;font-size:12px}
+  .preset-bar button{padding:6px 8px;font-size:10.5px}
+  input[type=range].adv-range{height:8px;margin:7px 0 5px}
+}
 </style>
-
-<style>
-nav.tabs{max-width:1200px;margin:8px auto 18px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:0}
-nav.tabs a{font:15px inherit;color:var(--mute);text-decoration:none;padding:10px 12px;border-bottom:2px solid transparent;margin-bottom:-1px}
-nav.tabs a.on{color:var(--fg);border-bottom-color:var(--accent2);font-weight:600}
-.tab{display:none;max-width:1200px;margin:0 auto}
-.tab.on{display:block}
-.sim{display:grid;grid-template-columns:260px 1fr 320px;gap:16px}
-@media (max-width:960px){.sim{grid-template-columns:1fr}}
-.hero{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:18px}
-@media (max-width:860px){.hero{grid-template-columns:1fr}}
-.hero p{margin:0 0 10px;font-size:17px}
-.hero svg{width:100%;height:auto}
-.probs{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
-.prob{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;grid-template-rows:auto auto 1fr auto}
-.prob h3{margin:0 0 4px;font-size:18px;font-weight:600}
-.prob .k{font:12px var(--mono);color:var(--mute);letter-spacing:.04em;text-transform:uppercase}
-.prob svg{width:100%;height:auto;margin:8px 0 10px;display:block}
-.prob p{margin:0 0 8px;font-size:15px}
-.prob p b{font-weight:600}
-.prob .res{font-size:13px;color:var(--mute);border-top:1px dashed var(--line);padding-top:8px;margin-top:4px}
-.peer{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
-.peer h3{margin:0 0 4px;font-size:20px;font-weight:600}
-.peer .src{font-size:13px;color:var(--mute);margin:0 0 10px}
-.peer .src a{color:var(--accent)}
-table.cmp{width:100%;border-collapse:collapse;font-size:14px}
-table.cmp th,table.cmp td{text-align:left;vertical-align:top;padding:8px 10px;border-top:1px solid var(--line)}
-table.cmp th{font:600 12px var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-top:0}
-.tag{display:inline-block;font:12px var(--mono);padding:1px 7px;border-radius:999px;margin-right:4px}
-.tag.ahead{background:color-mix(in srgb,var(--ok) 20%,transparent)}
-.tag.par{background:var(--chip)}
-.tag.behind{background:color-mix(in srgb,var(--no) 20%,transparent)}
-.legend{font-size:13px;color:var(--mute);margin:0 0 12px}
-.contract{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
-.contract h3{margin:0 0 6px;font-size:18px;font-weight:600}
-.contract pre{font:12px/1.45 var(--mono);background:var(--chip);padding:10px;border-radius:8px;overflow:auto;margin:8px 0}
-.wrap{overflow:auto}
-svg text{font:11px var(--mono);fill:currentColor}
-svg .a{fill:var(--accent)} svg .b{fill:var(--accent2)} svg .m{fill:var(--mute)} svg .c{fill:var(--chip)}
-svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--accent);fill:none;stroke-width:2} svg .sb{stroke:var(--accent2);fill:none;stroke-width:2} svg .sd{stroke:var(--mute);fill:none;stroke-width:1.5;stroke-dasharray:4 3}
-</style>
-
-<svg width="0" height="0" style="position:absolute"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent)"/></marker></defs></svg>
 </head>
 <body>
-<header>
-  <h1>An epistemic web, in motion</h1>
-  <p class="lead">Six people and one agent share one mesh of signed rows. Each sees a <b>view</b> of the same rows, folded through their own standing, and each view generates a <b>queue</b>: exactly the actions the admission door would accept from them now. Nothing here is a list of buttons: the queue is the door run forwards. Existing technology, in a new architecture.</p>
-  <p class="lead"><a href="globe.html">Billions of people and devices, one rulebook →</a> the constitutional rulebook at scale on a globe across 3 meshes, in WebAssembly. <a href="mesh.html">A mesh run by its kernel →</a> nodes as cells, rows as signals, every node folding what it holds with the same function; the kernel itself, driven by the constitution's tables, with its parity test. <a href="toy/">Scaling &amp; sustainability toy →</a> per-server gates, 8 opt-in trade-offs (+/-), Hard-NAT &amp; shaped onion cover capacity.</p>
-</header>
-<nav class="tabs" id="tabs">
-  <a href="#motion" data-tab="motion" class="on">In motion</a>
-  <a href="#solves" data-tab="solves">What it solves</a>
-  <a href="#peers" data-tab="peers">Beside its peers</a>
-  <a href="#contract" data-tab="contract">The contract</a>
+<canvas id="c"></canvas>
+<button id="btn-hud" class="fab" type="button" title="Toggle controls &amp; population opt-ins">☰ Controls · <span class="badge" id="badge-scale">5.00 B</span></button>
+<button id="btn-stats" class="fab" type="button" title="Toggle live telemetry &amp; sustainability metrics">☰ Metrics · <span class="badge" id="badge-local">– local</span></button>
+<button id="btn-foot" class="fab" type="button" title="Toggle architecture legend &amp; links">? Info</button>
+<nav class="nav-strip" aria-label="Architecture &amp; comparison links">
+  <a class="nav-pill" href="how-it-works.html#solves">How It Works</a>
+  <a class="nav-pill" href="how-it-works.html#peers">vs. Other Meshes</a>
+  <a class="nav-pill" href="how-it-works.html#motion">In Motion</a>
+  <a class="nav-pill" href="mesh.html">6-Peer Kernel</a>
+  <a class="nav-pill" href="toy/">Scaling Toy</a>
+  <a class="nav-pill" href="https://github.com/CIRISAI/CEWP">GitHub</a>
 </nav>
-<div class="tab on" id="tab-motion">
-<div class="sim">
-  <section>
-    <h2>People</h2>
-    <div id="people"></div>
-    <div class="ctl"><button id="play">Replay the story</button><button id="reset">Reset</button></div>
-    <p class="why" style="font-size:13px;color:var(--mute);margin-top:10px">The number on each person is the size of their queue over the whole mesh right now.</p>
-  </section>
-  <section>
-    <h2>The mesh: one set of rows, <span id="rowcount">0</span> so far</h2>
-    <div class="mesh" id="mesh"></div>
-    <div class="log" id="log"></div>
-  </section>
-  <section>
-    <h2>Queue for <span id="who">—</span></h2>
-    <div id="queue"></div>
-  </section>
-</div>
-<p class="rule">The rule, from the CIRIS Constitution 4.5.13: for an object, the node holds its family, its lifecycle state and the person's standing toward it; the family's transitions come from the family model; the queue is the enabled transitions, one item each, and the door admits by the same predicate. Proved in <code>formal/event_lifecycle</code>; the transitions are rows of <code>manifests/transitions.json</code>; the story is <code>tools/mesh_story.py</code>.</p>
-</div>
-<div class="tab" id="tab-solves">
-<div class="hero"><div><p><b>Nothing here is a new technology.</b> Signed rows, Merkle trees, hybrid post-quantum keys, cover traffic, deterministic encodings, CBOR and COSE have all existed for years.</p><p>What is new is the arrangement: one table that is both the admission door and the source of every action a person is offered, folds every node computes identically, and a constitution whose rules are tied to the code and proofs that back them. Below, eleven problems decentralized networks have failed on, each with the mechanism, the existing technology it uses, and what remains.</p></div>
-<svg viewBox="0 0 460 250" role="img" aria-hidden="true">
-<circle cx="230" cy="125" r="80" class="sd"/>
-<rect x="165" y="14" width="130" height="34" rx="8" class="c"/><text x="230" y="36" text-anchor="middle">the view</text>
-<rect x="330" y="108" width="120" height="34" rx="8" class="c"/><text x="390" y="130" text-anchor="middle">the queue</text>
-<rect x="165" y="202" width="130" height="34" rx="8" class="c"/><text x="230" y="224" text-anchor="middle">a signed row</text>
-<rect x="10" y="108" width="120" height="34" rx="8" class="c"/><text x="70" y="130" text-anchor="middle">the person</text>
-<path d="M296 40 C340 55 370 80 384 106" class="sa"/>
-<path d="M384 144 C370 170 340 195 296 210" class="sa"/>
-<path d="M164 210 C120 195 90 170 76 144" class="sa"/>
-<path d="M76 106 C90 80 120 55 164 40" class="sa"/>
-<text x="366" y="72" text-anchor="middle" class="m">folded by standing</text>
-<text x="352" y="190" text-anchor="middle" class="m">chosen, signed</text>
-<text x="96" y="190" text-anchor="middle" class="m">admitted at the door</text>
-<text x="100" y="72" text-anchor="middle" class="m">rows, folded</text>
-</svg></div>
-<div class="probs"><article class="prob"><div><div class="k">problem 1</div><h3>Two copies of the rules</h3></div><svg viewBox="0 0 420 130" role="img" aria-hidden="true">
-<rect x="10" y="20" width="110" height="34" rx="6" class="s"/><text x="65" y="42" text-anchor="middle">UI rules</text>
-<rect x="10" y="76" width="110" height="34" rx="6" class="s"/><text x="65" y="98" text-anchor="middle">server rules</text>
-<path d="M124 37 L156 37 M124 93 L156 93" class="sd"/><text x="140" y="70" text-anchor="middle" class="m">drift</text>
-<rect x="190" y="48" width="120" height="34" rx="6" class="a"/><text x="250" y="70" text-anchor="middle" fill="#fff">one table</text>
-<path d="M310 58 C340 58 340 30 370 30" class="s"/><text x="372" y="34" class="m">door</text>
-<path d="M310 72 C340 72 340 100 370 100" class="s"/><text x="372" y="104" class="m">queue</text>
-</svg><div><p class="m" style="color:var(--mute)">Every app keeps its rules twice: in the code that draws the buttons and in the code that refuses the request. They drift, and the drift is where authorization bugs live.</p><p><b>One table</b>, the family model, decides both. The queue a person sees is the admission door run forwards: the transitions of the object's family enabled for their standing. Proved sound and complete.</p><p><b>With:</b> A generated manifest, CDDL schemas, Lean, plain JSON.</p></div><div class="res"><b>What remains:</b> The model is small and abstract today; the transitions table is derived, with its gaps marked.</div></article><article class="prob"><div><div class="k">problem 2</div><h3>Moderation without a department</h3></div><svg viewBox="0 0 420 130" role="img" aria-hidden="true">
-<circle cx="34" cy="34" r="14" class="c"/><text x="34" y="38" text-anchor="middle">M</text>
-<text x="56" y="30">acts alone on content</text>
-<text x="56" y="48" class="m">never on membership</text>
-<rect x="14" y="70" width="392" height="46" rx="6" class="s"/>
-<text x="210" y="89" text-anchor="middle">removal is the room's act</text>
-<text x="210" y="107" text-anchor="middle" class="m">under a floor no single vote reaches</text>
-<text x="400" y="34" text-anchor="end" class="b">lost → elect</text>
-</svg><div><p class="m" style="color:var(--mute)">Federated networks centralize moderation in an operator or leave it to whoever runs a server.</p><p><b>A delegable duty</b>, never a platform role. A moderator acts alone on content, never on membership. Anyone may flag; the live majority decides when no moderator acts. A room that loses its moderator locks and elects one by its own signatures.</p><p><b>With:</b> Signed delegation edges, order-free folds, instant runoff over signed ballots.</p></div><div class="res"><b>What remains:</b> What a room does without is a legally reachable person behind the duty when its moderator is anonymous.</div></article><article class="prob"><div><div class="k">problem 3</div><h3>Identity without a registrar</h3></div><svg viewBox="0 0 420 130" role="img" aria-hidden="true">
-<text x="14" y="20" class="m">a crowd of minted keys: zero votes</text>
-<circle cx="50" cy="60" r="12" class="a"/><text x="50" y="64" text-anchor="middle" fill="#fff">A</text>
-<circle cx="50" cy="104" r="12" class="b"/><text x="50" y="108" text-anchor="middle" fill="#fff">B</text>
-<rect x="150" y="44" width="64" height="72" rx="6" class="s"/><text x="182" y="84" text-anchor="middle">door</text>
-<path d="M64 60 L148 70 M64 104 L148 92" class="s"/>
-<text x="232" y="66">two keys, two consents</text>
-<text x="232" y="86" class="m">no single vote admits</text>
-<text x="232" y="106" class="m">the invitee's yes is one</text>
-</svg><div><p class="m" style="color:var(--mute)">Either a registry decides who exists, or anyone mints unlimited identities and outvotes the real ones.</p><p><b>Nobody is admitted without their own yes</b>, and no single vote admits. Trust is each reader's own set of roots. One person, one vote, however many devices. Relays are bounded per sender by the sender's own contacts.</p><p><b>With:</b> Hybrid signatures, a self roster per person, delegation with scope and term, a founders' ceremony.</p></div><div class="res"><b>What remains:</b> A person whose only relay contact is hostile is exposed; the seat is the guard of last resort.</div></article><article class="prob"><div><div class="k">problem 4</div><h3>Consent in a replicated store</h3></div><svg viewBox="0 0 420 130" role="img" aria-hidden="true">
-<text x="14" y="22" class="m">rows stay provable</text><text x="232" y="22" class="m">and stop applying</text>
-<rect x="14" y="40" width="48" height="30" rx="4" class="c"/><rect x="70" y="40" width="48" height="30" rx="4" class="c"/><rect x="126" y="40" width="48" height="30" rx="4" class="c"/>
-<line x1="200" y1="30" x2="200" y2="84" class="sb"/>
-<rect x="226" y="40" width="48" height="30" rx="4" class="sd"/><rect x="282" y="40" width="48" height="30" rx="4" class="sd"/>
-<text x="200" y="104" text-anchor="middle" class="m">a withdrawal is a boundary, not a deletion</text>
-<path d="M350 55 l50 0" class="s"/><text x="375" y="47" text-anchor="middle" class="m">forward only</text>
-</svg><div><p class="m" style="color:var(--mute)">Once a statement replicates it cannot be unsaid, and systems pretend it can or give up on consent.</p><p><b>Rows are forward-only.</b> A withdrawal is a boundary, not a deletion. Nothing is written on anyone's behalf. Folds are order-free, so offline disagreement resolves the same way everywhere.</p><p><b>With:</b> Append-only signed rows, permutation-invariant folds, per-item durability.</p></div><div class="res"><b>What remains:</b> Receipts signed by others cannot be re-signed in a migration; legacy forms are accepted only before the cutover.</div></article><article class="prob"><div><div class="k">problem 5</div><h3>Who talks to whom</h3></div><svg viewBox="0 0 420 130" role="img" aria-hidden="true">
-<text x="14" y="18" class="m">public plane: announced, rooted</text>
-<circle cx="70" cy="40" r="8" class="a"/><circle cx="160" cy="40" r="8" class="a"/><circle cx="250" cy="40" r="8" class="a"/><circle cx="340" cy="40" r="8" class="a"/>
-<path d="M78 40 L152 40 M168 40 L242 40 M258 40 L332 40" class="s"/>
-<text x="14" y="78" class="m">group plane: derived, never announced</text>
-<circle cx="115" cy="104" r="8" class="b"/><circle cx="205" cy="104" r="8" class="b"/><circle cx="295" cy="104" r="8" class="b"/>
-<path d="M123 104 L197 104 M213 104 L287 104" class="sd"/>
-<text x="406" y="108" text-anchor="end" class="m">shaped</text>
-</svg><div><p class="m" style="color:var(--mute)">Encryption hides content and leaks the graph. Onion routing breaks under a global observer.</p><p><b>Three transport meshes</b> separate low-BW shaped links (<i>L</i>≤8, ≤64 KiB), 33 KB/s inter-seat shaped links, and unshaped live/ALM streams, with the give and take stated before the choice. Group addresses are derived, never announced. Strangers carry only the consent-free set. Anonymity is a dedicated identity behind a sticky guard from your own contacts, walking 15,296 B X-Wing onion packets across shaped links by replacing cover frames at <b>+0 extra wire bytes</b>.</p><p><b>With:</b> Poisson cover in the mixnet lineage, per-hop X-Wing post-quantum encapsulation, derived addresses, Reticulum IPv6/NAT traversal + <i>k</i>=2 homed leaves.</p></div><div class="res"><b>What remains:</b> Which links exist is never hidden; relays do not mix at today's load; a sleeping phone is exposed to a room insider.</div></article><article class="prob"><div><div class="k">problem 6</div><h3>Post-quantum from the first key</h3></div><svg viewBox="0 0 420 130" role="img" aria-hidden="true">
-<text x="210" y="26" text-anchor="middle" class="m">one composite signature: neither half verifies alone</text>
-<rect x="60" y="44" width="110" height="46" rx="8" class="s"/><text x="115" y="72" text-anchor="middle">Ed25519</text>
-<rect x="250" y="44" width="110" height="46" rx="8" class="s"/><text x="305" y="72" text-anchor="middle">ML-DSA-65</text>
-<path d="M170 67 L250 67" class="sb"/><circle cx="210" cy="67" r="9" class="b"/>
-<text x="210" y="116" text-anchor="middle" class="m">and one hybrid KEM, X-Wing, everywhere</text>
-</svg><div><p class="m" style="color:var(--mute)">Retrofitting post-quantum cryptography is a migration no network has finished.</p><p><b>Every signature and key exchange is hybrid</b> from the first key: one composite signature, one hybrid KEM. The next signed object is CBOR with COSE, a statement any transparency log can register.</p><p><b>With:</b> ML-DSA-65 with Ed25519 as the IETF composite, X-Wing, COSE, SCITT, COSE receipts.</p></div><div class="res"><b>What remains:</b> No external audit yet, by Verify's own account.</div></article><article class="prob"><div><div class="k">problem 7</div><h3>Twenty-nine languages, no release cycle</h3></div><svg viewBox="0 0 420 130" role="img" aria-hidden="true">
-<rect x="14" y="44" width="80" height="40" rx="6" class="a"/><text x="54" y="68" text-anchor="middle" fill="#fff">node</text>
-<path d="M94 56 L140 34 M94 64 L140 64 M94 72 L140 94" class="s"/>
-<text x="148" y="38">id → "Gives everyone…"</text><text x="148" y="68">id → "Donne à tous…"</text><text x="148" y="98">id → "与える…"</text>
-<text x="14" y="120" class="m">clients hold no copy · 29 languages · no release</text>
-</svg><div><p class="m" style="color:var(--mute)">Localization lives in each client's binary and ships at app-store speed.</p><p><b>Every string is served by the node</b> for the requested locale by a stable id. Clients hold no copy, so a new language reaches every surface, browser and firmware node included, with no release.</p><p><b>With:</b> Text references in the view and the queue; one id namespace.</p></div><div class="res"><b>What remains:</b> The migration is card by card; a node that lacks a locale serves the source language, marked.</div></article><article class="prob"><div><div class="k">problem 8</div><h3>Governance at ten thousand members</h3></div><svg viewBox="0 0 420 130" role="img" aria-hidden="true">
-<text x="14" y="18" class="m">expected-active base: falls at most a tenth a period</text>
-<path d="M20 34 L90 34 L90 46 L160 46 L160 57 L230 57 L230 67 L300 67 L300 75 L400 75" class="sa"/>
-<line x1="20" y1="94" x2="400" y2="94" class="sd"/><text x="400" y="108" text-anchor="end" class="m">never below its floor</text>
-<text x="14" y="124" class="m">two thirds of ~300 present, not of 10,000 on the roster</text>
-</svg><div><p class="m" style="color:var(--mute)">Fractional quorums become unreachable as a group grows, or someone picks the electorate.</p><p><b>Votes count against the expected-active base</b>, a member-only count from a secret-shared census under a ratchet that silencing cannot game. Every door runs one decision shape, five numbers published as data.</p><p><b>With:</b> Secret sharing to two drawn members, integer folds, a published policy table, a model-checked machine.</p></div><div class="res"><b>What remains:</b> The base lands with the substrate's next version; small rooms count their whole roster today.</div></article><article class="prob"><div><div class="k">problem 9</div><h3>Transparency without a transparency service</h3></div><svg viewBox="0 0 420 130" role="img" aria-hidden="true">
-<circle cx="210" cy="22" r="7" class="a"/><circle cx="150" cy="52" r="6" class="c"/><circle cx="270" cy="52" r="6" class="c"/>
-<circle cx="120" cy="82" r="5" class="c"/><circle cx="180" cy="82" r="5" class="c"/><circle cx="240" cy="82" r="5" class="c"/><circle cx="300" cy="82" r="5" class="c"/>
-<path d="M210 29 L150 46 M210 29 L270 46 M150 58 L120 77 M150 58 L180 77 M270 58 L240 77 M270 58 L300 77" class="s"/>
-<text x="330" y="26" class="b">✓ ✓ witnesses</text>
-<text x="210" y="116" text-anchor="middle" class="m">a tree per log · standard receipts · no registrar</text>
-</svg><div><p class="m" style="color:var(--mute)">Audit logs are run by someone who can be compelled or captured.</p><p><b>Every build, licence and stream has its own Merkle log</b>, witnessed by cosignatures; receipts are standard; every rule is tied in a public register to its code, test or proof, or says nothing backs it yet.</p><p><b>With:</b> RFC 6962 and 9162 trees, witness cosignatures, COSE receipts.</p></div><div class="res"><b>What remains:</b> Witnesses are few while the network is small.</div></article><article class="prob"><div><div class="k">problem 10</div><h3>Coordination without a coordinator</h3></div><svg viewBox="0 0 420 130" role="img" aria-hidden="true">
-<g transform="translate(40 10)"><path d="M30 10 L10 40 M30 10 L50 40 M10 40 L0 70 M10 40 L20 70 M50 40 L40 70 M50 40 L60 70" class="s"/></g>
-<g transform="translate(180 10)"><path d="M30 10 L10 40 M30 10 L50 40 M10 40 L0 70 M10 40 L20 70 M50 40 L40 70 M50 40 L60 70" class="s"/></g>
-<g transform="translate(320 10)"><path d="M30 10 L10 40 M30 10 L50 40 M10 40 L0 70 M10 40 L20 70 M50 40 L40 70 M50 40 L60 70" class="s"/></g>
-<text x="210" y="108" text-anchor="middle" class="m">every node computes the same tree, deal, count and seat</text>
-<text x="210" y="124" text-anchor="middle" class="m">nothing to capture</text>
-</svg><div><p class="m" style="color:var(--mute)">Fan-out trees, relay choice and leader choice need a coordinator, and the coordinator is the point of capture.</p><p><b>Determinism replaces coordination.</b> Every node computes the same relay tree, layer deal, vote count and moderator seat from the same signed inputs, hardened so one lie cannot become a universal one.</p><p><b>With:</b> Pure integer functions over signed inputs, checked by vectors.</p></div><div class="res"><b>What remains:</b> The live media tree does not yet run the verified function; the register says so.</div></article><article class="prob"><div><div class="k">problem 11</div><h3>The protocol itself</h3></div><svg viewBox="0 0 420 130" role="img" aria-hidden="true">
-<rect x="60" y="34" width="300" height="60" rx="8" class="s"/><text x="210" y="60" text-anchor="middle">the amendment process</text>
-<text x="210" y="80" text-anchor="middle" class="m">entrenched behind the quorum it describes</text>
-<rect x="188" y="14" width="44" height="22" rx="4" class="b"/><text x="210" y="29" text-anchor="middle" fill="#fff">lock</text>
-<text x="210" y="118" text-anchor="middle" class="m">forkable · steward until scale · build refuses on disagreement</text>
-</svg><div><p class="m" style="color:var(--mute)">Whoever controls the specification controls the network.</p><p><b>The constitution is forkable</b>, its amendment process entrenched behind the quorum it describes, authority with a named steward until a measured scale, and tooling that refuses to build when text and evidence disagree.</p><p><b>With:</b> A public register, machine-checked text, formal models in CI.</p></div><div class="res"><b>What remains:</b> The scale gate is a bet, stated as one.</div></article></div></div>
-<div class="tab" id="tab-peers">
-<p class="legend">Taken from the three substrate repositories' own comparisons, which are written to say where each is ahead, at parity and behind. <span class="tag ahead">ahead</span><span class="tag par">parity</span><span class="tag behind">behind</span></p>
-<section class="peer"><h3>CIRISVerify: keys, attestation, logs</h3><p class="src">From <a href="https://github.com/CIRISAI/CIRISVerify#where-it-stands-vs-peers">"Where it stands vs. peers"</a> and <a href="https://github.com/CIRISAI/CIRISVerify/blob/main/docs/STANDARDS_COMPARISON.md">the standards comparison</a>. Its own read: ahead on post-quantum posture and trust-anchor stores, at parity on attestation, behind on ecosystem, scale and external review.</p><div class="wrap"><table class="cmp"><tr><th>Area</th><th>The field</th><th>Here</th></tr><tr><td>Concise trust-anchor stores</td><td>Veraison, Azure CoRIM; CoTS not modelled</td><td><span class="tag ahead">ahead</span>first Rust implementation</td></tr><tr><td>Signature crypto</td><td>mostly classical, PQ migration underway</td><td><span class="tag ahead">ahead</span>hybrid from day one, FIPS 204, the PQ half binds the classical</td></tr><tr><td>Device attestation</td><td>per-platform verifiers, hard-coded roots</td><td><span class="tag par">parity</span>four platforms in one constrained store</td></tr><tr><td>Transparency log</td><td>RFC 6962: Trillian, Sigstore Rekor</td><td><span class="tag par">parity</span>RFC 6962-correct, hybrid-signed heads; not sharded</td></tr><tr><td>Selective disclosure</td><td>SD-JWT, ISO mdoc, BBS+</td><td><span class="tag behind">behind</span>SD-JWT salted digest; no unlinkability yet</td></tr><tr><td>Supply-chain provenance</td><td>Sigstore, in-toto, SLSA</td><td><span class="tag behind">behind</span>signed manifests with presenter binding; far smaller ecosystem</td></tr><tr><td>Boot-state attestation</td><td>Keylime, go-attestation</td><td><span class="tag behind">behind</span>absent: device identity only</td></tr><tr><td>External security audit</td><td>common for peers</td><td><span class="tag behind">behind</span>none to date; internal adversarial audits only</td></tr></table></div></section>
-<section class="peer"><h3>CIRISPersist: the corpus, its doors and folds</h3><p class="src">From <a href="https://github.com/CIRISAI/CIRISPersist#standards-it-builds-on">"Standards it builds on"</a>, "What is different" and "The trade-offs". Its own placement: the union of immudb, a SCITT transparency service whose registration policy decides what may be logged, and SpiceDB.</p><div class="wrap"><table class="cmp"><tr><th>Area</th><th>The field</th><th>Here</th></tr><tr><td>Canonicalisation</td><td>JCS (RFC 8785)</td><td><span class="tag par">parity</span>JCS today; deterministic CBOR in the next edition</td></tr><tr><td>Verifiable append-only state</td><td>immudb, Trillian, Rekor, SCITT</td><td><span class="tag par">parity</span>the same ground, with no logging service in the middle</td></tr><tr><td>Delegation chains</td><td>UCAN, Biscuit, ZCAP-LD, macaroons</td><td><span class="tag ahead">ahead</span>scoped, termed edges whose enforcement point is declared and build-checked</td></tr><tr><td>Authorization walk</td><td>Zanzibar, SpiceDB, OpenFGA</td><td><span class="tag ahead">ahead</span>schema, graph, checks and store in one process; consent as a projection over the graph</td></tr><tr><td>Registration policy</td><td>a service's own rules</td><td><span class="tag ahead">ahead</span>a named, versioned, hash-pinned corpus; a refusal names the rule</td></tr><tr><td>Commons operations</td><td>majority or admin</td><td><span class="tag ahead">ahead</span>reverse quorum: one of N protects, m of n undo, the protective side capped never floored</td></tr><tr><td>Flexibility</td><td>swappable engines</td><td><span class="tag behind">behind</span>the policy engine cannot be swapped; a governance change is a release</td></tr><tr><td>Backend parity</td><td>varies</td><td><span class="tag par">parity</span>SQLite and PostgreSQL run the same test bodies through the real write path</td></tr></table></div></section>
-<section class="peer"><h3>CIRISEdge: the mesh transport</h3><p class="src">From <a href="https://github.com/CIRISAI/CIRISEdge#the-shape-of-the-protocol-one-paragraph-tour">the protocol tour</a>, <a href="https://github.com/CIRISAI/CIRISEdge/blob/main/docs/STANDARDS_COMPARISON.md">the standards comparison</a> and <a href="https://github.com/CIRISAI/CIRISEdge/blob/main/docs/LIGHTNET_DARKNET.md">lightnet/darknet</a>, which carries the measurement status of each claim.</p><div class="wrap"><table class="cmp"><tr><th>Area</th><th>The field</th><th>Here</th></tr><tr><td>Transport</td><td>IP overlays, libp2p, Tor</td><td><span class="tag par">parity</span>Reticulum, with fifteen signed envelope kinds and anti-entropy per peer and kind</td></tr><tr><td>Attribution</td><td>often after decryption</td><td><span class="tag ahead">ahead</span>every inbound frame attributed at ingest to a rooted identity before any serve gate</td></tr><tr><td>Consent on the wire</td><td>app-layer ACLs</td><td><span class="tag ahead">ahead</span>the recipient axis cannot exceed the transmission principle, by construction</td></tr><tr><td>Group existence</td><td>announced topics or servers</td><td><span class="tag ahead">ahead</span>derived group plane: never announced, structurally invisible to outsiders</td></tr><tr><td>Metadata resistance</td><td>Tor, mixnets</td><td><span class="tag par">parity</span>shaped links with stated give and take; residuals against a global observer and a compromised relay stated with numbers</td></tr><tr><td>Live media over peers</td><td>SFUs, CDNs</td><td><span class="tag ahead">ahead</span>decentralized video over member relays, proven on a multi-container bench in CI</td></tr><tr><td>Anonymity tier</td><td>Tor onion services, Nym</td><td><span class="tag behind">behind</span>designed and dormant: private rooms, sticky guard, member-owned mailboxes</td></tr></table></div></section>
-</div>
-<div class="tab" id="tab-contract">
-<section class="contract"><h3>One sentence</h3><p>A client renders two served shapes, the <b>view</b> and the <b>queue</b>, holds the keys of its deployment and no policy, and the queue is the admission door run forwards.</p></section>
-<section class="contract"><h3>The view</h3><p>One object's rows and the atoms the node folded from them through the person's own trust set, each atom with its provenance: the rows it read and the rule it ran. The record and the state are one thing seen twice.</p><pre>view = { object: {family, id, scope}, locale, rows: [* row-ref], atoms: [* atom], ? standing }
-atom = { name, value, label: text-ref, provenance: { rows: [* id], rule: cc-decimal, kind: wire / by_rule / not_sent } }
-text-ref = { id, text, ? params, ? lang }</pre></section>
-<section class="contract"><h3>The queue</h3><p>The items awaiting the person's hand: a context, facts with provenance, a governance policy row, options with a benefit and a downside that are never empty, the rows each would sign, and an impact derived from the family model. Four kinds: choice, act, entry, notice. Consent is not a kind.</p><pre>choice-item = { id, kind, context, ? facts, policy, ? options: [* option], ? default, required, ? answer }
-option = { value, benefit, downside, writes: [* {family, verb, scope}], impact: {moves, to, direction, undo}, available }
-answer = { state: served / held / signed / deferred / changed, ? value, ? ranking, shown_digest, ? rows }</pre></section>
-<section class="contract"><h3>How the view makes the queue</h3><p>For an object, the node holds its family, its lifecycle state and the person's standing. The family's transitions (verb, from, to, roles, policy, widens) come from the family model. The queue is exactly the enabled transitions, one item each; the door admits by the same predicate. A stranger sees nothing; an answered item leaves the next view; a widening item is confirmed before it is signed.</p><pre>queue(view, standing) = [ item(t) | t in transitions(view.family), t.from = view.state, t.roles meets standing ]
-admits(view, standing, t) = (t.from = view.state) and (t.roles meets standing)      -- the same predicate</pre></section>
-<section class="contract"><h3>Localization, and the way there</h3><p>Every string is a node-served text reference for the requested locale; the client holds no copy. While a node lacks a locale it serves the id with source-language text, marked, and a consumer may overlay its own bundle by id; the difference between served ids and held strings is the measured distance, closed card by card.</p></section>
-<section class="contract"><h3>The next signed object</h3><p>CBOR with COSE, aligned with SCITT: one COSE_Sign1 per signer, issuer and subject claims, the composite ML-DSA-65 with Ed25519 construction, composite keys with thumbprint ids, deterministic encoding, content-addressed statement ids, COSE receipts over RFC 9162 trees. Every row signed under the earlier object verifies as itself.</p><p class="src">Pre-release: CIRISConstitution <code>rc17</code>, Part 4 §4.5.13, Part 2 §2.6.1.8, <code>manifests/{view,choice_item,transitions}</code>, <code>formal/event_lifecycle</code>. Where this page and the Constitution disagree, the Constitution wins.</p></section>
-</div>
-<p class="rule" style="margin-top:24px"><a href="https://github.com/CIRISAI/CEWP">CEWP on GitHub</a> · <a href="https://github.com/CIRISAI/CIRISConstitution">the Constitution</a></p>
-<script>
-// Transitions: a subset of manifests/transitions.json (CIRISConstitution rc17), verbatim in meaning.
-const T = {
- "trust:{job}:{version}": [["authorize","none","admitted",["self"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false]],
- "key:record": [["attest","none","admitted",["self"],"selfAct",true],["supersede","admitted","superseded",["author"],"selfAct",false]],
- "transport:{kind}": [["attest","none","admitted",["self"],"selfAct",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false]],
- "consent:{kind}": [["attest","none","admitted",["registered"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false]],
- "group:roster": [["attest","none","admitted",["founder"],"selfAct",true],["supersede","admitted","superseded",["member"],"cosigned",false]],
- "membership:{stage}": [["attest","none","admitted",["member"],"two_path",true],["withdraw","admitted","withdrawn",["member"],"cosigned",false]],
- "chat:*": [["attest","none","admitted",["member"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false],["recant","admitted","recanted",["author"],"selfAct",false]],
- "moderation:{allegation_type}": [["attest","none","admitted",["moderate"],"mirror",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false]],
- "objection:{state}": [["attest","none","admitted",["member"],"two_path",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false]],
- "trace:{form}:{version}": [["attest","none","admitted",["self"],"selfAct",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false]],
-};
-const PLAIN = {attest:"write it", authorize:"authorize it", withdraw:"withdraw it", recant:"recant it", supersede:"replace it"};
-const POL = {selfAct:"one voice, no window", two_path:"two-path: enact, cancel or floor at the window", cosigned:"the room's quorum signs", mirror:"one acts, the window decides"};
-const COLORS = ["#2f5d50","#b5542d","#4a5fa0","#8a6d1f","#7a3f8a","#3f7a8a","#555"];
+<div id="hud" class="panel-hidden">
+  <div class="panel-head">
+    <h1>Billions of people and devices, one rulebook</h1>
+    <button class="panel-close" id="close-hud" type="button" title="Hide controls">✕</button>
+  </div>
+  <p>Land-bounded world population grid (2,961 cells, 181 localities). Every person's devices evaluate the same constitutional rulebook across <b>CC 5.4.3 1-hop shaped budget classes</b> (<code>server</code> 7 KB/s, <code>home</code> 2.8 KB/s, <code>phone-wifi</code> 1.4 KB/s, <code>phone-cellular</code> 350 B/s, <code>seat</code> 33 KB/s), ordinary links, and <b>CC 6.1.6 <code>deterministic-alm</code></b> member relay trees over sealed chunks.</p>
+  <input type="hidden" id="size" value="5000000000">
+  <input type="hidden" id="acts" value="10000">
+  <div class="row main-actions">
+    <button id="play" class="btn-primary active">❚❚ pause</button>
+    <button id="step" class="btn-subtle">step</button>
+    <button id="eng" class="on">engine: WASM</button>
+    <button id="arcsb" class="on">arcs</button>
+  </div>
+  <div class="sust-strip">
+    <div class="sust-pill"><span>Reachable home</span><b id="pill-nat">–</b></div>
+    <div class="sust-pill"><span>1-hop shaped slots</span><b id="pill-shape">–</b></div>
+    <div class="sust-pill"><span>Onion cover</span><b id="pill-onion">–</b></div>
+  </div>
+  <p id="status" style="margin:4px 0 2px">building…</p>
 
-// The world: people, their keys, and the objects they can see.
-const people = [
-  {id:"alice", name:"Alice", note:"a founder of the trust root"},
-  {id:"bob", name:"Bob", note:"founds a room"},
-  {id:"carol", name:"Carol", note:"becomes Bob's contact"},
-  {id:"dave", name:"Dave", note:"invited to the room"},
-  {id:"frank", name:"Frank", note:"the room's moderator"},
-  {id:"erin", name:"Erin", note:"a stranger"},
-  {id:"agent:bob", name:"Bob's agent", note:"signs only its own rows"},
-];
-// Objects: id, family, owner (whose 'self'), room (for membership), subject
-const OBJ0 = [
-  {id:"root", family:"trust:{job}:{version}", label:"the trust root", self:["alice"]},
-  {id:"key:bob", family:"key:record", label:"Bob's key", self:["bob"]},
-  {id:"bind:bob", family:"transport:{kind}", label:"Bob's device, announced", self:["bob"]},
-  {id:"contact:carol-bob", family:"consent:{kind}", label:"Carol → Bob contact", subject:["bob"]},
-  {id:"room:1", family:"group:roster", label:"the room's roster", room:"room:1"},
-  {id:"invite:dave", family:"membership:{stage}", label:"invite Dave", room:"room:1", subject:["dave"]},
-  {id:"post:1", family:"chat:*", label:"Dave's first post", room:"room:1"},
-  {id:"post:2", family:"chat:*", label:"Dave's second post", room:"room:1"},
-  {id:"flag:post2", family:"moderation:{allegation_type}", label:"withhold the second post", room:"room:1", subject:["dave"]},
-  {id:"obj:flag", family:"objection:{state}", label:"object to the withhold", room:"room:1"},
-  {id:"trace:1", family:"trace:{form}:{version}", label:"the agent's trace", self:["agent:bob"]},
-];
-let objs, rows, selected = "bob", roomMembers, founders, moderators;
-function reset(){
-  objs = OBJ0.map(o => ({...o, state:"none", author:null, atoms:{}}));
-  rows = []; roomMembers = {"room:1": new Set(["bob"])}; founders = {"room:1": new Set(["bob"])}; moderators = {"room:1": new Set(["frank"])};
-  render();
-}
-function standing(p, o){
-  const s = new Set(["registered"]);
-  if (p==="erin") s.delete("registered"); // Erin holds no key here: a stranger
-  if (o.self && o.self.includes(p)) s.add("self");
-  if (o.author === p) s.add("author");
-  if (o.subject && o.subject.includes(p)) s.add("subject");
-  if (o.room){ if (roomMembers[o.room].has(p)) s.add("member"); if (founders[o.room].has(p)) s.add("founder"); if (moderators[o.room].has(p)) s.add("moderate"); }
-  if (p==="alice" && o.id==="root") { s.add("holder"); s.add("founder"); }
-  if (p.startsWith("agent:") ) { s.delete("registered"); }  // an agent signs only its own rows
-  return s;
-}
-function enabled(p, o){
-  return (T[o.family]||[]).filter(([v,from,to,roles]) => from===o.state && roles.some(r => standing(p,o).has(r)));
-}
-function queueOf(p){ const q=[]; for (const o of objs) for (const t of enabled(p,o)) q.push({o,t}); return q; }
-function act(p, oid, verb){
-  const o = objs.find(x=>x.id===oid); const t = enabled(p,o).find(t=>t[0]===verb);
-  if(!t){ log(`refused: ${name(p)} may not ${verb} ${o.label} (no standing)`, true); return false; }
-  o.state = t[2]; if (verb==="attest"||verb==="authorize") o.author = p; o.atoms["last "+verb] = name(p);
-  rows.push({n:rows.length+1, p, oid, verb});
-  if (oid==="invite:dave" && verb==="attest") { roomMembers["room:1"].add("dave"); roomMembers["room:1"].add("carol"); o.atoms["accepted"]="Dave (his own yes)"; }
-  if (oid==="room:1" && verb==="attest") { roomMembers["room:1"].add("frank"); }
-  log(`row ${rows.length}: ${name(p)} ${verb} ${o.label}  → ${o.state}  [${t[4]}]`);
-  lit = oid; render(); return true;
-}
-function name(p){ return (people.find(x=>x.id===p)||{name:p}).name; }
-let lit=null;
-function log(s, bad){ const l=document.getElementById("log"); const d=document.createElement("div"); d.textContent=s; if(bad) d.style.color="var(--no)"; l.prepend(d); }
-function render(){
-  const P=document.getElementById("people"); P.innerHTML="";
-  people.forEach((p,i)=>{ const d=document.createElement("div"); d.className="person"+(p.id===selected?" sel":""); d.innerHTML=`<span class="dot" style="background:${COLORS[i]}"></span><div><b>${p.name}</b><div style="font-size:12px;color:var(--mute)">${p.note}</div></div><span class="n">${queueOf(p.id).length}</span>`; d.onclick=()=>{selected=p.id; render();}; P.appendChild(d); });
-  const M=document.getElementById("mesh"); M.innerHTML="";
-  for (const o of objs){ const d=document.createElement("div"); d.className="obj"+(o.id===lit?" lit":""); const st=o.state; d.innerHTML=`<div><b>${o.label}</b></div><div class="fam">${o.family}</div><span class="st ${st}">${st}</span>`+(o.author?`<div class="who">by ${name(o.author)}</div>`:"")+(Object.keys(o.atoms).length?`<ul class="atoms">${Object.entries(o.atoms).map(([k,v])=>`<li>${k}: ${v}</li>`).join("")}</ul>`:""); M.appendChild(d); }
-  document.getElementById("rowcount").textContent=rows.length;
-  document.getElementById("who").textContent=name(selected);
-  const Q=document.getElementById("queue"); Q.innerHTML="";
-  const q=queueOf(selected);
-  if(!q.length){ Q.innerHTML=`<p class="empty">Nothing waits on ${name(selected)}. ${selected==="erin"?"A stranger sees no item on anything.":"Every transition they could sign is already done or closed."}</p>`; }
-  for (const {o,t} of q){ const [v,from,to,roles,pol,wid]=t; const d=document.createElement("div"); d.className="item"; d.innerHTML=`<div class="v">${PLAIN[v]||v} · ${o.label}</div><div class="why">${o.family} · ${from} → ${to} · ${POL[pol]}${wid?" · <b>widens: confirmed before signing</b>":" · narrows: one step"}</div><button class="${wid?"":"narrow"}">${wid?"Confirm and sign":"Sign"}</button>`; d.querySelector("button").onclick=()=>act(selected,o.id,v); Q.appendChild(d); }
-}
-const STORY=[["alice","root","authorize"],["bob","key:bob","attest"],["bob","bind:bob","attest"],["carol","contact:carol-bob","attest"],["bob","room:1","attest"],["bob","invite:dave","attest"],["dave","post:1","attest"],["erin","post:1","withdraw"],["dave","post:2","attest"],["frank","flag:post2","attest"],["carol","obj:flag","attest"],["dave","post:1","recant"],["agent:bob","trace:1","attest"],["carol","contact:carol-bob","withdraw"]];
-document.getElementById("play").onclick=async()=>{ reset(); for(const [p,o,v] of STORY){ selected=p; render(); await new Promise(r=>setTimeout(r,900)); act(p,o,v); await new Promise(r=>setTimeout(r,500)); } };
-document.getElementById("reset").onclick=reset;
-reset();
-</script>
+  <details id="adv">
+    <summary></summary>
+    <div class="adv-body">
+      <div class="adv-sec">
+        <h3><span>Presets</span><span style="color:var(--mute);font-weight:400;font-size:9.5px">CC 4.5.13 / 5.4.3 / 5.4.6 / 6.1.6</span></h3>
+        <div class="preset-bar" id="preset-bar">
+          <button data-preset="fleet">Fleet Defaults</button>
+          <button data-preset="privacy">High Privacy</button>
+          <button data-preset="cgnat">CGNAT Stress (15% reach)</button>
+          <button data-preset="unowned">Unowned-Only (73rd Peer)</button>
+        </div>
+        <div class="control-group" style="margin:4px 0">
+          <div class="cg-head"><label>World population (people · 2.25 devices/person)</label></div>
+          <div class="seg" id="size-seg">
+            <button data-val="100000000">100 M</button>
+            <button data-val="1000000000">1 B</button>
+            <button data-val="5000000000" class="active">5 B</button>
+            <button data-val="8050000000">8.1 B</button>
+          </div>
+        </div>
+        <div class="control-group" style="margin:4px 0">
+          <div class="cg-head"><label>Acts / tick</label><span class="ms-budget" id="ms-budget">measuring…</span></div>
+          <div class="seg" id="acts-seg">
+            <button data-val="2000">2 k</button>
+            <button data-val="10000" class="active">10 k</button>
+            <button data-val="50000">50 k</button>
+            <button data-val="200000">200 k</button>
+          </div>
+        </div>
+        <div class="control-group" style="margin:4px 0 0">
+          <div class="cg-head"><label>Mesh layer filter</label></div>
+          <div class="mesh-pills" id="mesh-seg">
+            <button data-tier="-1" class="active">All</button>
+            <button data-tier="0"><span class="dot" style="background:var(--warm)"></span>1-hop device shaped</button>
+            <button data-tier="1"><span class="dot" style="background:var(--cool)"></span>Seat 33 KB/s</button>
+            <button data-tier="2"><span class="dot" style="background:var(--ok)"></span>Ordinary / <code>deterministic-alm</code></button>
+            <button data-tier="3"><span class="dot" style="background:var(--violet)"></span>Onion (0B extra)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="adv-sec">
+        <h3><span>Device Tiers, Phone Wi-Fi &amp; Reachable-Home Share</span><span id="tier-sum-lbl" style="color:var(--ok);font-size:9.5px">100%</span></h3>
+        <div class="sl-item">
+          <div class="sl-top"><span>Server tier (1 TiB / 1 Gbps always-on)</span><b id="v_srv">5%</b></div>
+          <input type="range" class="adv-range" id="sl_srv" min="1" max="25" step="1" value="5">
+        </div>
+        <div class="sl-item">
+          <div class="sl-top"><span>Home tier (broadband / NAS / desktop)</span><b id="v_home">55%</b></div>
+          <input type="range" class="adv-range" id="sl_home" min="10" max="85" step="1" value="55">
+        </div>
+        <div class="sl-item">
+          <div class="sl-top"><span>Phone tier (mobile — auto-balanced)</span><b id="v_phone">40%</b></div>
+        </div>
+        <div class="sl-item">
+          <div class="sl-top"><span>Phone on Wi-Fi vs Cellular</span><b id="v_wifi">65% Wi-Fi · 35% cell</b></div>
+          <input type="range" class="adv-range" id="sl_wifi" min="5" max="95" step="5" value="65">
+        </div>
+        <div class="sl-item">
+          <div class="sl-top"><span>Phone on Wi-Fi + charging (relay-eligible)</span><b id="v_chg">35% of Wi-Fi</b></div>
+          <input type="range" class="adv-range" id="sl_chg" min="5" max="90" step="5" value="35">
+        </div>
+        <div class="sl-item">
+          <div class="sl-top"><span>No direct path on Home &amp; Phone (vs IPv6 / punched)</span><b id="v_nat">60% NAT · 40% direct</b></div>
+          <input type="range" class="adv-range" id="sl_nat" min="0" max="95" step="5" value="60">
+          <div class="pro-con">Reachable-home share = <span id="v_direct_nat" style="color:var(--ok)">40%</span> direct IPv6 / punched UDP path (<code>leviculum#100</code> NAT-mix, <code>leviculum#101</code> no PCP/NAT-PMP/UPnP). Per CC 5.4.3, a shaped link is 1 direct hop; peers with no direct path carry on ordinary links.</div>
+        </div>
+      </div>
+
+      <div class="adv-sec">
+        <h3><span>Population Opt-In Choices</span><span style="color:var(--mute);font-weight:400;font-size:9.5px">Benefits (+) &amp; Downsides (−)</span></h3>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>1. Link shaping — <code>server</code> (7,000 B/s)</span><span><span class="dflt">Default: ON</span> <b id="v_sh_srv">95%</b></span></div>
+          <input type="range" class="adv-range" id="sl_sh_srv" min="0" max="100" step="5" value="95">
+          <div class="pro-con">
+            <span class="pro">+ Hides row timing/size in channel MDU frames (ρ=0.5, W=600 s); carries onion walks at +0 B extra wire cost.</span>
+            <span class="con">− Sends ~18.1 GB/mo/link continuous cover even idle; adds ~1.16 s mean (~2.3 s @ 16 KB TCP MDU) Poisson wait.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>2. Link shaping — <code>home</code> (2,800 B/s)</span><span><span class="dflt off">Default: OFF</span> <b id="v_sh_home">25%</b></span></div>
+          <input type="range" class="adv-range" id="sl_sh_home" min="0" max="100" step="5" value="25">
+          <div class="pro-con">
+            <span class="pro">+ Masks home traffic timing/size (W=600 s) on direct 1-hop links; expands standing shaped cover pool for onion peers.</span>
+            <span class="con">− Costs ~7.2 GB/mo/link continuous cover bandwidth; adds ~2.9 s mean (~5.8 s @ 16 KB TCP MDU) wait.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>3. Link shaping — <code>phone-wifi</code> (1,400 B/s) / <code>phone-cellular</code> (350 B/s)</span><span><span class="dflt off">Default: OFF</span> <b id="v_sh_phone">10%</b></span></div>
+          <input type="range" class="adv-range" id="sl_sh_phone" min="0" max="100" step="5" value="10">
+          <div class="pro-con">
+            <span class="pro">+ Shapes direct 1-hop mobile links (W=600 s Wi-Fi, W=3,600 s cellular); contributes mobile shaped cover hops.</span>
+            <span class="con">− 3.6 GB/mo/link Wi-Fi (0.9 GB/mo/link cell, ~7 GB/mo @ 8 links); radio awake; 11.6–46.5 s TCP MDU delay.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>4. Offer relay (directly reachable server/home/phone-charging)</span><span><span class="dflt">Default: ON</span> <b id="v_relay">90%</b></span></div>
+          <input type="range" class="adv-range" id="sl_relay" min="0" max="100" step="5" value="90">
+          <div class="pro-con">
+            <span class="pro">+ Each directly reachable home/server adds L−1 = 7 shaped slots (<code>Tiers.lean</code>: <code>each_home_adds_seven</code>, <code>reach ≠ capacity</code>) &amp; avoids stranding at the 73rd peer.</span>
+            <span class="con">− Carries strangers' sealed rows up to class cap; discloses signed route &amp; locality to ≤3 referred strangers.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>5. Announce owner-binding on roster</span><span><span class="dflt">Default: ON</span> <b id="v_ann">85%</b></span></div>
+          <input type="range" class="adv-range" id="sl_ann" min="5" max="100" step="5" value="85">
+          <div class="pro-con">
+            <span class="pro">+ Reachable by short ciris:// name; can join public rooms (open:self_admit) &amp; serve as announced relay/seat.</span>
+            <span class="con">− Lists device on public federation roster (lightnet); declining (self darknet) requires manual v3 contact codes.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>6. Anonymous mode / Onion tier (CC 5.4.6)</span><span><span class="dflt off">Default: OFF</span> <b id="v_anon">12%</b></span></div>
+          <input type="range" class="adv-range" id="sl_anon" min="0" max="60" step="2" value="12">
+          <div class="pro-con">
+            <span class="pro">+ Unlinkable federation publishing &amp; private rooms via 3-hop X-Wing onion walks over shaped links from sticky guard.</span>
+            <span class="con">− Row plane only (≤64 KiB, no live A/V); ~1/3 home shaped share cover cost; never relays; uptime-correlation on sleeping phones.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>7. Onion relay participation (3-layer deal)</span><span><span class="dflt">Default: ON</span> <b id="v_orel">88%</b></span></div>
+          <input type="range" class="adv-range" id="sl_orel" min="0" max="100" step="4" value="88">
+          <div class="pro-con">
+            <span class="pro">+ Expands 3-layer relay deal &amp; mixing pool so anonymous walks aren't narrowed by a small volunteer set.</span>
+            <span class="con">− Layer links must run shaped, reserving up to 4 of the node's L=8 shaped link slots at class rate.</span>
+          </div>
+        </div>
+
+        <div class="sl-item">
+          <div class="sl-top"><span>8. Publishable H3ERE agent traces (CC 4.5.13)</span><span><span class="dflt off">Default: OFF</span> <b id="v_trc">15%</b></span></div>
+          <input type="range" class="adv-range" id="sl_trc" min="0" max="100" step="5" value="15">
+          <div class="pro-con">
+            <span class="pro">+ Contributes 14 KiB/decision scrubbed reasoning traces to cohort accountability and RATCHET evaluation.</span>
+            <span class="con">− Widens trace visibility beyond self/family and adds signing, scrubbing, and fountain storage load.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+</div>
+<div id="stats" class="panel-hidden">
+  <div class="panel-head" style="margin-bottom:4px">
+    <span style="font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--cool)">Live Telemetry &amp; Sustainability</span>
+    <button class="panel-close" id="close-stats" type="button" title="Hide metrics">✕</button>
+  </div>
+  <div class="kv"><span>rows that never leave the signer's locality</span><b class="big" id="local">–</b></div>
+  <div class="bar"><i id="localbar" style="width:0"></i></div>
+  <div id="stats-more">
+    <div class="kv"><span>deliveries within the locality</span><b id="dlocal">–</b></div>
+    <div class="kv"><span>crosses a locality, same region</span><b id="xmetro">–</b></div>
+    <div class="kv"><span>crosses a region</span><b id="xregion">–</b></div>
+    <div class="kv"><span>mean distance of a crossing</span><b id="km">–</b></div>
+    <h2>slot supply &amp; 1-hop shaped links (CC 5.4.3 / <code>Tiers.lean</code>)</h2>
+    <div class="kv"><span>no-direct-path leaves vs <i>k</i>=2 parent capacity</span><b id="s_nat_cap">–</b></div>
+    <div class="bar"><i id="natbar" style="width:0"></i></div>
+    <div class="kv"><span>reachable-home share (IPv6 / punched direct path)</span><b id="s_nat_max">–</b></div>
+    <div class="kv"><span>1-hop shaped slots (<code>each_home_adds_seven</code>)</span><b id="s_shape_slots">–</b></div>
+    <div class="kv"><span>direct 1-hop shaping devices (cover pool)</span><b id="s_shapers">–</b></div>
+    <div class="kv"><span>shaping cover : onion peer ratio</span><b id="s_cover_ratio">–</b></div>
+    <div class="kv"><span>answering onion relays / layer (floor ≥3)</span><b id="s_onion_relays">–</b></div>
+    <h2>CC 5.4.3 budget classes &amp; CC 6.1.6 <code>deterministic-alm</code></h2>
+    <div class="kv"><span><span class="dot" style="background:var(--warm)"></span> 1-hop device shaped (<code>server</code>/<code>home</code>/<code>phone-*</code>)</span><b id="m_base">–</b></div>
+    <div class="kv"><span><span class="dot" style="background:var(--cool)"></span> 1-hop <code>seat</code> shaped (seat↔seat 33,000 B/s)</span><b id="m_seat">–</b></div>
+    <div class="kv"><span><span class="dot" style="background:var(--ok)"></span> ordinary &amp; <code>deterministic-alm</code> (unshaped)</span><b id="m_bulk">–</b></div>
+    <div class="kv"><span><span class="dot" style="background:var(--violet)"></span> onion walks (cover-replaced, 0 B extra)</span><b id="m_onion">–</b></div>
+    <div class="kv"><span>CC 6.1.6 <code>deterministic-alm</code> member tree savings</span><b id="m_alm">–</b></div>
+    <h2>this tick</h2>
+    <div class="kv"><span>acts signed</span><b id="acts_n">–</b></div>
+    <div class="kv"><span>deliveries (rulebook checks run)</span><b id="deliv">–</b></div>
+    <div class="kv"><span>refused by signer's local rulebook</span><b id="refused">–</b></div>
+    <div class="kv"><span>wire bytes moved (excl. 0B onion cover)</span><b id="bytes">–</b></div>
+    <div class="kv"><span>a broadcast network would move</span><b id="bcast">–</b></div>
+    <div class="kv"><span>with a datacenter in the middle</span><b id="central">–</b></div>
+    <h2>the rulebook kernel</h2>
+    <div class="kv"><span>rulebook checks / second</span><b id="dps">–</b></div>
+    <div class="kv"><span>ms per tick (rulebook + relay tree)</span><b id="ms">–</b></div>
+    <div class="kv"><span>world scale (people · devices)</span><b id="bpn">–</b></div>
+    <div class="kv"><span>cumulative deliveries</span><b id="cum">–</b></div>
+    <div class="mob-links"><a href="how-it-works.html#solves">How it works</a> · <a href="how-it-works.html#peers">vs. other meshes</a> · <a href="mesh.html">6-peer kernel</a> · <a href="toy/">scaling toy</a></div>
+  </div>
+</div>
+<div id="foot" class="panel-hidden">
+  <div class="panel-head" style="margin-bottom:4px">
+    <b style="color:#fff;font-size:11.5px">How the Rulebook &amp; Transport Tiers Globe Works</b>
+    <button class="panel-close" id="close-foot" type="button" title="Hide info">✕</button>
+  </div>
+  Every person and device sits on populated land (2,961 density cells stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Per <b>CC 5.4.3</b> ("A shaped link is one hop"), shaped budget classes (<code>server</code> 7,000 B/s, <code>home</code> 2,800 B/s, <code>phone-wifi</code> 1,400 B/s, <code>phone-cellular</code> 350 B/s, <code>seat</code> 33,000 B/s at ρ=0.5) are 1 direct hop and never forwarded; peers without a direct path carry on ordinary links. Large rooms fan out via the <b>CC 6.1.6 <code>deterministic-alm</code> member relay tree</b> over sealed chunks (distinct from CC 5.3.3.2's no-SFU-relay-role; no seat decodes or selects). 15,296 B X-Wing onion packets replace cover frames on shaped links at <b>0 extra wire bytes</b> (CC 5.4.6). <a href="how-it-works.html#solves">How it works</a> · <a href="how-it-works.html#peers">vs. other meshes</a> · <a href="mesh.html">6-peer kernel</a> · <a href="toy/">scaling toy</a>
+</div>
 <script>
-(function(){
-  const tabs=document.querySelectorAll('#tabs a'); const panes={}; document.querySelectorAll('.tab').forEach(t=>panes[t.id.slice(4)]=t);
-  function show(k){ if(!panes[k]) k='motion'; tabs.forEach(a=>a.classList.toggle('on',a.dataset.tab===k)); Object.entries(panes).forEach(([id,el])=>el.classList.toggle('on',id===k)); }
-  tabs.forEach(a=>a.addEventListener('click',e=>{ e.preventDefault(); history.replaceState(null,'','#'+a.dataset.tab); show(a.dataset.tab); }));
-  show((location.hash||'#motion').slice(1));
-  window.addEventListener('hashchange',()=>show(location.hash.slice(1)));
-})();
+// ------------------------------------------------------------------ the world (population density grid)
+const REG = ["N. America","Latin America","Europe","MENA","Sub-Saharan Africa","South Asia","East Asia","SE Asia & Oceania","Russia & C. Asia"];
+const POP_GRID_B64="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";
+let POP_GRID = null;
+function initPopGrid(){
+  if (POP_GRID) return POP_GRID;
+  const bin=atob(POP_GRID_B64); const u8=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  const dv=new DataView(u8.buffer);
+  const nCells=dv.getUint16(0,true), nLocs=dv.getUint16(2,true);
+  const regionOfMetro=new Uint8Array(nLocs);
+  for(let i=0;i<nLocs;i++) regionOfMetro[i]=u8[4+i];
+  let off=4+nLocs; if(off%2===1) off++;
+  const cellLat=new Float32Array(nCells), cellLon=new Float32Array(nCells), cellRad=new Float32Array(nCells);
+  const cellLoc=new Uint16Array(nCells), cumW=new Float64Array(nCells);
+  let wsum=0;
+  for(let c=0;c<nCells;c++){
+    cellLat[c]=dv.getInt16(off,true)*0.01;
+    cellLon[c]=dv.getInt16(off+2,true)*0.01;
+    const w=dv.getUint16(off+4,true);
+    cellLoc[c]=u8[off+6];
+    const meta=u8[off+7];
+    cellRad[c]=(meta&0x0F)/25.0;
+    wsum+=w; cumW[c]=wsum;
+    off+=8;
+  }
+  for(let c=0;c<nCells;c++) cumW[c]/=wsum;
+  POP_GRID={nCells,nLocs,regionOfMetro,cellLat,cellLon,cellRad,cellLoc,cumW};
+  return POP_GRID;
+}
+const BYTES_PER_NODE = 4+4+2+1 + 4 + 4*4; // lat, lon, locality, activity, node_off, ~4 memberships
+let W = null; // the world
+function rng(seed){ let s = seed>>>0 || 1; return ()=>{ s ^= s<<13; s>>>=0; s ^= s>>>17; s ^= s<<5; s>>>=0; return s/4294967296; }; }
+function gauss(r){ return Math.sqrt(-2*Math.log(r()+1e-12))*Math.cos(6.283185*r()); }
+function buildWorld(n){
+  const G = initPopGrid();
+  const r = rng(20261105);
+  const lat = new Float32Array(n), lon = new Float32Array(n), metro = new Uint16Array(n);
+  const {nCells, nLocs, regionOfMetro, cellLat, cellLon, cellRad, cellLoc, cumW} = G;
+  const perMetro = new Uint32Array(nLocs);
+  for (let i=0;i<n;i++){
+    const u=r();
+    let lo=0, hi=nCells-1;
+    while (lo<hi){ const mid=(lo+hi)>>>1; if (cumW[mid]<u) lo=mid+1; else hi=mid; }
+    const rad=cellRad[lo];
+    lat[i]=cellLat[lo]+(r()*2-1)*rad;
+    lon[i]=cellLon[lo]+(r()*2-1)*rad;
+    const k=cellLoc[lo];
+    metro[i]=k; perMetro[k]++;
+  }
+  // nodes grouped by locality, for drawing rooms
+  const byMetroOff = new Uint32Array(nLocs+1); for (let k=0;k<nLocs;k++) byMetroOff[k+1]=byMetroOff[k]+perMetro[k];
+  const byMetro = new Uint32Array(n); const fill = new Uint32Array(nLocs);
+  for (let i=0;i<n;i++){ const k=metro[i]; byMetro[byMetroOff[k]+fill[k]++]=i; }
+  const byRegion=[]; for (let g=0;g<REG.length;g++){ const arr=[]; for (let k=0;k<nLocs;k++) if (regionOfMetro[k]===g) for (let j=byMetroOff[k];j<byMetroOff[k+1];j++) arr.push(byMetro[j]); byRegion.push(Uint32Array.from(arr)); }
+  const pickIn = (k)=>perMetro[k]?byMetro[byMetroOff[k]+Math.floor(r()*perMetro[k])]:Math.floor(r()*n);
+  const pickRegion = (g)=>{ const a=byRegion[g]; return a.length?a[Math.floor(r()*a.length)]:Math.floor(r()*n); };
+  // rooms: each node's family (2–5 nodes, same locality), then community rooms; memberships as CSR both ways
+  const memberships = []; // [node, room]
+  let rooms = 0; const roomOff=[0]; const roomMem=[];
+  const addRoom = (members)=>{ for (const m of members) { roomMem.push(m); memberships.push(m, rooms); } roomOff.push(roomMem.length); return rooms++; };
+  const familyOf = new Int32Array(n).fill(-1);
+  for (let i=0;i<n;i++){ if (familyOf[i]>=0) continue; const size=2+Math.floor(r()*4); const mem=[i]; for (let j=1;j<size;j++){ const c=pickIn(metro[i]); if (familyOf[c]<0 && c!==i) mem.push(c); } const id=addRoom(mem); for (const m of mem) familyOf[m]=id; }
+  const nFamilies = rooms;
+  // community rooms: about one room per 25 nodes, sizes lognormal 6..400; 90% locality, 9% region, 1% world
+  const nCommunity = Math.max(50, Math.floor(n/25));
+  for (let q=0;q<nCommunity;q++){
+    const size = Math.min(400, Math.max(6, Math.round(Math.exp(2.3+gauss(r)*0.9))));
+    const u=r(); const mNode=Math.floor(r()*n); const k=metro[mNode]; const mem=new Set();
+    if (u<0.90 && perMetro[k]>=size) while (mem.size<size) mem.add(pickIn(k));
+    else if (u<0.99) while (mem.size<size) mem.add(pickRegion(regionOfMetro[k]));
+    else while (mem.size<size) mem.add(Math.floor(r()*n));
+    addRoom([...mem]);
+  }
+  // one public room per region (large), and one global public room
+  const regionRoom=new Uint32Array(REG.length); for (let g=0;g<REG.length;g++){ const mem=new Set(); const size=Math.min(byRegion[g].length, Math.max(200, Math.floor(n/400))); while (mem.size<size) mem.add(pickRegion(g)); regionRoom[g]=addRoom([...mem]); }
+  const gmem=new Set(); const gsize=Math.min(n, Math.max(500, Math.floor(n/200))); while (gmem.size<gsize) gmem.add(Math.floor(r()*n)); const globalRoom = addRoom([...gmem]);
+  // seats: one per ~2000 nodes per locality, at least one for populated localities
+  const seatsOff=new Uint32Array(nLocs+1); const seats=[]; for (let k=0;k<nLocs;k++){ const c=perMetro[k]>0?Math.max(1,Math.round(perMetro[k]/2000)):0; for (let j=0;j<c;j++) seats.push(pickIn(k)); seatsOff[k+1]=seats.length; }
+  const isSeat = new Uint8Array(n); for (const s of seats) isSeat[s]=1;
+  // node → rooms CSR, family first
+  const cnt=new Uint32Array(n+1); for (let i=0;i<memberships.length;i+=2) cnt[memberships[i]+1]++;
+  for (let i=0;i<n;i++) cnt[i+1]+=cnt[i];
+  const nodeRooms=new Uint32Array(memberships.length/2); const pos=new Uint32Array(n);
+  for (let i=0;i<n;i++){ nodeRooms[cnt[i]+pos[i]++]=familyOf[i]; }
+  for (let i=0;i<memberships.length;i+=2){ const nd=memberships[i], rm=memberships[i+1]; if (rm===familyOf[nd]) continue; nodeRooms[cnt[nd]+pos[nd]++]=rm; }
+  return { n, nLocs, nCells, lat, lon, metro, regionOfMetro, roomOff:Uint32Array.from(roomOff), roomMem:Uint32Array.from(roomMem), nodeOff:cnt, nodeRooms, seatsOff, seats:Uint32Array.from(seats), isSeat, regionRoom, globalRoom, rooms, nFamilies, memberships: memberships.length/2 };
+}
+// ------------------------------------------------------------------ the engines (WASM + JS parity)
+const OUT = 24; let wasm=null, mem=null, bufs=null;
+let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=4"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+function uploadWorld(){
+  if (!wasm) return;
+  const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
+  bufs = { lat:A(W_.lat), lon:A(W_.lon), metro:A(W_.metro), reg:A(W_.regionOfMetro), roomOff:A(W_.roomOff), roomMem:A(W_.roomMem), nodeOff:A(W_.nodeOff), nodeRooms:A(W_.nodeRooms), seatsOff:A(W_.seatsOff), seats:A(W_.seats), regionRoom:A(W_.regionRoom),
+           activity: wasm.alloc(W_.n), arcs: wasm.alloc(ARC_CAP*8), out: wasm.alloc(OUT*8) };
+  new Uint8Array(mem.buffer, bufs.activity, W_.n).fill(0);
+}
+const ARC_CAP = 420; let seed = 1;
+function tickWasm(acts){
+  seed = (seed*1103515245+12345)>>>0;
+  const n = wasm.tick(bufs.lat,bufs.lon,bufs.metro,bufs.reg,W.n,bufs.roomOff,bufs.roomMem,bufs.nodeOff,bufs.nodeRooms,bufs.seatsOff,bufs.seats,bufs.regionRoom,W.globalRoom,acts,seed,0x9e37,650,300,40,20,simParams.directNatPm,simParams.shapingPm,simParams.onionPm,bufs.activity,bufs.arcs,ARC_CAP,bufs.out);
+  return { out: new Float64Array(mem.buffer, bufs.out, OUT), arcs: new Uint32Array(mem.buffer, bufs.arcs, n*2), activity: new Uint8Array(mem.buffer, bufs.activity, W.n) };
+}
+let jsActivity=null, jsArcs=new Uint32Array(ARC_CAP*2);
+function kmf(a1,o1,a2,o2){ const R=Math.PI/180; a1*=R;o1*=R;a2*=R;o2*=R; const d=Math.min(1,Math.sqrt(Math.sin((a2-a1)/2)**2+Math.cos(a1)*Math.cos(a2)*Math.sin((o2-o1)/2)**2)); return 2*6371*Math.asin(d); }
+function pushArcJs(arcsN, from, to, tier){
+  if (arcsN<ARC_CAP){ jsArcs[arcsN*2]=from>>>0; jsArcs[arcsN*2+1]=((to&0x0FFFFFFF)|((tier&0x7)<<28))>>>0; return arcsN+1; }
+  return arcsN;
+}
+function tickJs(acts){
+  const {n,lat,lon,metro,regionOfMetro,roomOff,roomMem,nodeOff,nodeRooms,seatsOff,seats,regionRoom,globalRoom}=W; const o=new Float64Array(OUT); let arcsN=0;
+  if (!jsActivity || jsActivity.length!==n) jsActivity=new Uint8Array(n);
+  const act=jsActivity; let s=(seed=(seed*1103515245+12345)>>>0)||1; const rnd=()=>{ s^=s<<13; s>>>=0; s^=s>>>17; s^=s<<5; s>>>=0; return s; };
+  const ROW=4096;
+  const {directNatPm, shapingPm, onionPm}=simParams;
+  for (let a=0;a<acts;a++){
+    o[0]++; const signer=rnd()%n; const roll=rnd()%1000; const r0=nodeOff[signer], r1=nodeOff[signer+1]; if (r1===r0) continue;
+    let room, kind;
+    if (roll<650){ room=nodeRooms[r0]; kind=0; }
+    else if (roll<950){ const k=r1-r0-1; room = k===0? nodeRooms[r0] : nodeRooms[r0+1+rnd()%k]; kind=1; }
+    else if (roll<990){ room=-1; kind=2; }
+    else { room = (rnd()%10)===0 ? globalRoom : regionRoom[regionOfMetro[metro[signer]]]; kind=3; }
+    o[12+kind]++; const stranger = (rnd()%1000)<20; o[2]++; if (stranger){ o[4]++; continue; } o[3]++;
+    const slat=lat[signer], slon=lon[signer], sm=metro[signer], sr=regionOfMetro[sm];
+    const sSeat0=seatsOff[sm], sSeat1=seatsOff[sm+1];
+    const localSeat = sSeat1>sSeat0 ? seats[sSeat0+(signer%(sSeat1-sSeat0))] : signer;
+    const isOnion = (kind===1 || kind===2) && (rnd()%1000)<onionPm;
+    if (isOnion) o[22]++;
+    const isLiveAlm = kind===1 && !isOnion && (a&7)===0;
+    let delivered=0, crossed=0;
+    if (kind===3){
+      // Public room / ALM broadcast via Seat + ALM Relay Tree
+      const a0=roomOff[room], a1=roomOff[room+1];
+      const touched=new Uint16Array(32); let touchedN=0, prevHub=localSeat;
+      for (let i=a0;i<a1;i++){
+        const m=roomMem[i]; if (m===signer) continue;
+        o[2]++; o[3]++; delivered++;
+        const mm=metro[m];
+        if (mm===sm){ o[5]++; }
+        else {
+          crossed++;
+          if (regionOfMetro[mm]===sr) o[6]++; else o[7]++;
+          let seen=false;
+          for (let t=0;t<touchedN;t++) if (touched[t]===mm){ seen=true; break; }
+          if (!seen && touchedN<32){
+            touched[touchedN++]=mm;
+            const ms0=seatsOff[mm], ms1=seatsOff[mm+1];
+            const targetSeat = ms1>ms0 ? seats[ms0] : m;
+            o[8]+=kmf(lat[prevHub],lon[prevHub],lat[targetSeat],lon[targetSeat]);
+            o[20]++;
+            const tier = 2;
+            if ((rnd()%3)===0) arcsN=pushArcJs(arcsN,prevHub,targetSeat,tier);
+            act[targetSeat]=Math.min(255,act[targetSeat]+70);
+            if ((touchedN&3)===0) prevHub=targetSeat;
+          }
+        }
+        if (((i-a0+a)&31)===0) act[m]=Math.min(255,act[m]+36);
+      }
+      const treeHops = 1 + touchedN*2 + Math.max(1, Math.floor(delivered/12));
+      const saved = Math.max(0, delivered - treeHops);
+      o[21]+=saved;
+      o[9]+=treeHops*ROW;
+    } else {
+      let a0, a1, members;
+      if (kind===2){ members=seats; a0=sSeat0; a1=sSeat1; }
+      else { members=roomMem; a0=roomOff[room]; a1=roomOff[room+1]; }
+      let wireHops=0;
+      for (let i=a0;i<a1;i++){
+        const m=members[i]; if (m===signer) continue;
+        o[2]++; o[3]++; delivered++;
+        const directNat = (rnd()%1000)<directNatPm;
+        if (directNat) o[23]++;
+        // CC 5.4.3 ("A shaped link is one hop"): direct 1-hop only; no forwarding through a third node
+        const shapedHop = directNat && (isOnion || (!isLiveAlm && (rnd()%1000)<shapingPm));
+        const mm=metro[m];
+        if (mm===sm){
+          o[5]++;
+          if (shapedHop){ o[18]++; wireHops++; }
+          else { o[20]++; wireHops += directNat?1:2; }
+        } else {
+          crossed++;
+          if (regionOfMetro[mm]===sr) o[6]++; else o[7]++;
+          o[8]+=kmf(slat,slon,lat[m],lon[m]);
+          if (shapedHop){ o[18]++; wireHops++; }
+          else { o[20]++; wireHops += directNat?1:2; }
+          const arcTier = (isOnion && shapedHop) ? 3 : (shapedHop ? 0 : 2);
+          if ((rnd()%48)===0) arcsN=pushArcJs(arcsN,signer,m,arcTier);
+        }
+        act[m]=Math.min(255,act[m]+55);
+      }
+      if (kind===2){
+        for (let j=0;j<9;j++){
+          const mRand=rnd()%n; const mm=metro[mRand]; const ms0=seatsOff[mm];
+          const m = seats[ms0] ?? mRand;
+          if (m===signer) continue;
+          o[2]++; o[3]++; delivered++; crossed++;
+          o[7]++; o[19]++; wireHops++;
+          o[8]+=kmf(slat,slon,lat[m],lon[m]);
+          if ((rnd()%6)===0) arcsN=pushArcJs(arcsN,localSeat,m,1);
+        }
+      }
+      if (!isOnion) o[9]+=Math.min(wireHops,delivered)*ROW;
+    }
+    act[signer]=Math.min(255,act[signer]+140);
+    if (delivered>0){ o[17]++; if (crossed===0) o[16]++; }
+    o[1]+=delivered; o[10]+=n*ROW; o[11]+=ROW+delivered*ROW;
+  }
+  return { out:o, arcs: jsArcs.subarray(0,arcsN*2), activity: act };
+}
+// ------------------------------------------------------------------ the globe (WebGL)
+const cv=document.getElementById("c"); const gl=cv.getContext("webgl",{antialias:true,alpha:false});
+function sh(t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s); return s; }
+function prog(v,f){ const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,v)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f)); gl.linkProgram(p); return p; }
+const PV=`attribute vec3 p;attribute float a;attribute float k;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float dpr;uniform float uTime;varying float va;varying float vk;varying float vz;
+void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);float ph=fract(sin(dot(p,vec3(12.9898,78.233,45.164)))*43758.5453);float shimmer=0.82+0.18*sin(uTime*3.1+ph*6.2831853);va=a*shimmer;vk=k;float base=(k>0.5)?3.8:(S>2.0?2.2:1.45);gl_PointSize=(base+va*0.65)*dpr;}`;
+const PF=`precision mediump float;varying float va;varying float vk;varying float vz;
+void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;vec2 pc=gl_PointCoord-vec2(0.5);float d2=dot(pc,pc);if(d2>0.25)discard;float circle=smoothstep(0.25,0.06,d2);vec3 base=(vk>0.5)?vec3(0.42,0.71,1.0):vec3(0.34,0.39,0.50);vec3 hot=vec3(1.0,0.69,0.36);vec3 flare=vec3(1.0,0.94,0.82);vec3 c=mix(base,hot,smoothstep(0.0,0.72,va));c=mix(c,flare,smoothstep(0.72,1.0,va));float depth=0.55+0.45*max(0.0,vz);float al=(vk>0.5?0.92:(0.40+0.55*va))*edge*circle;gl_FragColor=vec4(c*depth,al);}`;
+const LV=`attribute vec3 p;attribute vec4 param;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float uTime;varying float vt;varying float vAge;varying float vz;varying float vTier;
+void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);vt=param.x;vAge=(uTime-param.y)/param.z;vTier=param.w;}`;
+const LF=`precision mediump float;varying float vt;varying float vAge;varying float vz;varying float vTier;
+void main(){if(vz<-0.06||vAge>=1.0||vAge<=0.0)discard;float env=smoothstep(0.0,0.18,vAge)*(1.0-smoothstep(0.55,1.0,vAge));float pulsePos=vAge*1.40;float dist=vt-pulsePos;float tail=0.0;if(dist<=0.0&&dist>-0.45){tail=pow(1.0+dist/0.45,1.8);}float head=exp(-dist*dist*220.0);float trace=0.09*sin(vt*3.14159);float alpha=env*(trace+tail*0.42+head*0.72)*smoothstep(-0.06,0.08,vz);if(alpha<0.005)discard;
+vec3 colBase=vec3(1.0,0.55,0.28);vec3 colMid=vec3(1.0,0.75,0.42);vec3 colHead=vec3(1.0,0.94,0.80);
+if(vTier>2.5){colBase=vec3(0.72,0.42,1.0);colMid=vec3(0.84,0.62,1.0);colHead=vec3(0.96,0.88,1.0);}
+else if(vTier>1.5){colBase=vec3(0.24,0.82,0.54);colMid=vec3(0.45,0.92,0.68);colHead=vec3(0.85,1.0,0.92);}
+else if(vTier>0.5){colBase=vec3(0.32,0.68,1.0);colMid=vec3(0.55,0.82,1.0);colHead=vec3(0.88,0.96,1.0);}
+vec3 col=mix(colBase,colMid,tail);col=mix(col,colHead,clamp(head*1.1,0.0,1.0));gl_FragColor=vec4(col,alpha);}`;
+const DV=`attribute vec2 p;uniform float S;uniform vec2 asp;varying vec2 vPos;void main(){vPos=p*1.05;gl_Position=vec4(vPos.x*S*asp.x,vPos.y*S*asp.y,0.95,1.0);}`;
+const DF=`precision mediump float;varying vec2 vPos;void main(){float r=length(vPos);if(r>1.05)discard;if(r<=1.0){float z=sqrt(max(0.0,1.0-r*r));vec3 deep=vec3(0.038,0.046,0.064);vec3 rimColor=vec3(0.18,0.36,0.58);float rim=pow(1.0-z,2.6);vec3 col=deep+rimColor*(rim*0.50);gl_FragColor=vec4(col,1.0);}else{float halo=smoothstep(1.05,1.0,r)*0.22;vec3 haloCol=vec3(0.16,0.34,0.56);gl_FragColor=vec4(haloCol*halo,halo);}}`;
+const CV=`attribute vec3 p;uniform mat3 R;uniform float S;uniform vec2 asp;varying float vz;void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);}`;
+const CF=`precision mediump float;varying float vz;void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;gl_FragColor=vec4(0.24,0.34,0.48,0.65*edge);}`;
+const pP=prog(PV,PF), pL=prog(LV,LF), pD=prog(DV,DF), pC=prog(CV,CF);
+let posBuf=gl.createBuffer(), actBuf=gl.createBuffer(), kindBuf=gl.createBuffer(), discBuf=gl.createBuffer(), coastBuf=gl.createBuffer();
+let linePosBuf=gl.createBuffer(), lineParamBuf=gl.createBuffer();
+const COAST_B64="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MujxA83nNATo5wUA2AdMw58Hh8NkBy/DsgcJw9gHTMMDABwIEMMtCMnCHAgQwwMARgjEwj4Ii8JGCMTCAwB8CEXCTghlwnwIRcIDAK0Iv8GfCJTBrQi/wQQA2Ql14UgJt+GaCV/h2Ql14QMAdwom4WIKmuF3CibhBACQCp3hYwrs4RwK2+GQCp3hBQBgEv/mJBLH5/URcecfEvLmYBL/5hkAbRE8EiASLhNhEv8TTRK4FK4RuBRtEacT2RAOFLcQghQSEKEUWxCsFHQQ/BT/D2IV+A+sFKMPlRSeD9gUWQ++FDcPDBVxDgcVZw7cE64OOBMqDxYTsg9dE7oPrxPLEI0SbRE8EgMAexPM5i8T2+d7E8zmBABBGKDgSBgJ4RMY4uBBGKDgBABlGDHfkhgE4EgYjd9lGDHfBgBYGp7iNhrt4Wca1OGtGlrikRqp4lganuIFADgbSNr/GqPaHBsE2WYbotk4G0jaGwCMHGTWYxzU1rsbMtdaG47YLhuD2CYb39cAGx/Y2xr91wYbnNbGGr3TVBsq0n0bFtSOG/LRsxu90dsbpdL0G1zRZxz10aMcAdOQHGfTYRw104AcFNRNHJ/UgBwQ1f0bvdUnHO/VjRyo1YwcZNYFAHAc1uDJHG3gxRyC4XMcN+JwHNbgBACpHKI22hx+N5kcGDipHKI2BQBvHeY5VB3hOi0dbjpdHRQ5bx3mOQYAvh07NoQdrTg6HV44JR1INmYdgTW+HTs2BgDrHX7Zyh3S2UwdqNmEHfbX0h3v1+sdftkFAPgeLCi/HikpcB7YJvMejif4HiwoBwCmH6IkvR96JSofIyfQHgonxB4wJmIfniOmH6IkCQB8H37avh/n2/4ee96VHjjdmh6428MeTdsCH53bUB852nwfftoaAP0fOdxJIJreKCCC33kgBeFHINfn1h+S5dcfbOYsHzLk/B714fAef+LeHjrirR6N4ike2OD+HZPhwh2I4N8dC90PHv7cJh633W4eht1KHs7enR6k3f8ew95ZHwvebh8H4HQfyN39HzncRABHILztoyDq8KAgavVRINv3HCCK8+0fYfezH/P2/x/X+cEfO/tSHyv4TR8T+cMeTvhUHlH4Ex7J+O8diPe6HUH4ZR1Y+Fwd7fcGHW/4/hyR99YcBfiyHOT3oxzL9jIcSvdBHFH26xtb95obgfeHG8725xsG9qMbKPZvG7T1ZRtF978aKfWcGpbzDBqk8pIZc/DMGOnvfBhG7y4Ybu96Fw7vxhcm7dsY1es/GuvqtBpO69ka5OtRGyHsEBse6zEbpOqqG8TqkRvt6/0bMepbHKDqgB0d6bodEei2HT7lFR4c5Doe7OV8Hl7jAx9V5igffOZMH27lxB+x5/Efh+f9H0jrNCBR7OYfnO4cIK7tRyC87QQAwBxc1q4cLtdsHNbWwBxc1g==";
+let coastVerts=0;
+function initCoastline(){
+  const bin=atob(COAST_B64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  const i16=new Int16Array(u8.buffer); const verts=[]; let idx=0;
+  while(idx<i16.length){
+    const count=i16[idx++]; let prev=null;
+    for(let j=0;j<count;j++){
+      const lat=i16[idx++]*0.01, lon=i16[idx++]*0.01;
+      const pt=xyz(lat,lon); const v=[pt[0]*1.001,pt[1]*1.001,pt[2]*1.001];
+      if(prev) verts.push(prev[0],prev[1],prev[2],v[0],v[1],v[2]);
+      prev=v;
+    }
+  }
+  const coastData=new Float32Array(verts); gl.bindBuffer(gl.ARRAY_BUFFER,coastBuf); gl.bufferData(gl.ARRAY_BUFFER,coastData,gl.STATIC_DRAW);
+  coastVerts=coastData.length/3;
+}
+{ const disc=[]; for (let i=0;i<=96;i++){ const t=i/96*6.2831853; disc.push(Math.cos(t),Math.sin(t)); } const tri=[]; for (let i=0;i<96;i++){ tri.push(0,0,disc[i*2],disc[i*2+1],disc[i*2+2],disc[i*2+3]); } gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(tri),gl.STATIC_DRAW); }
+const SEG=14, SEG_VERTS=SEG*2, MAX_ARCS=420, MAX_LINE_FLOATS=MAX_ARCS*SEG_VERTS*3, MAX_PARAM_FLOATS=MAX_ARCS*SEG_VERTS*4;
+const posBuffer=new Float32Array(MAX_LINE_FLOATS), paramBuffer=new Float32Array(MAX_PARAM_FLOATS);
+let activeArcs=[], arcCount=0, arcsNeedUpload=false, meshFilter=-1;
+gl.bindBuffer(gl.ARRAY_BUFFER,linePosBuf); gl.bufferData(gl.ARRAY_BUFFER,posBuffer,gl.DYNAMIC_DRAW);
+gl.bindBuffer(gl.ARRAY_BUFFER,lineParamBuf); gl.bufferData(gl.ARRAY_BUFFER,paramBuffer,gl.DYNAMIC_DRAW);
+const startTime=performance.now(); const getTime=()=>(performance.now()-startTime)*0.001;
+let yaw=0.6, pitch=0.35, zoom=1.0, targetZoom=1.0, velYaw=0, velPitch=0, drag=null, lastTouchTime=performance.now(), npts=0;
+function xyz(la,lo){ const a=la*Math.PI/180, o=lo*Math.PI/180; return [Math.cos(a)*Math.sin(o), Math.sin(a), Math.cos(a)*Math.cos(o)]; }
+function uploadPoints(){ const n=W.n; const p=new Float32Array(n*3); for (let i=0;i<n;i++){ const v=xyz(W.lat[i],W.lon[i]); p[i*3]=v[0];p[i*3+1]=v[1];p[i*3+2]=v[2]; } gl.bindBuffer(gl.ARRAY_BUFFER,posBuf); gl.bufferData(gl.ARRAY_BUFFER,p,gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER,kindBuf); gl.bufferData(gl.ARRAY_BUFFER,W.isSeat,gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferData(gl.ARRAY_BUFFER,new Uint8Array(n),gl.DYNAMIC_DRAW); npts=n; }
+function addArc(signer,packedTarget,nowSec){
+  const target = packedTarget & 0x0FFFFFFF;
+  const tier = (packedTarget >>> 28) & 0x7;
+  if (!W||signer===target||signer>=W.n||target>=W.n) return;
+  const a=xyz(W.lat[signer],W.lon[signer]), b=xyz(W.lat[target],W.lon[target]);
+  const dot=Math.max(-1,Math.min(1,a[0]*b[0]+a[1]*b[1]+a[2]*b[2])); const th=Math.acos(dot);
+  if (th<0.01) return;
+  const lift=0.03+0.22*(th/Math.PI); const duration=3.8+Math.min(1.0,th/Math.PI)*2.2;
+  const verts=new Float32Array(SEG_VERTS*3), params=new Float32Array(SEG_VERTS*4);
+  let prev=null, vw=0, pw=0;
+  for (let s=0;s<=SEG;s++){
+    const t=s/SEG;
+    const w1=th<1e-4?1-t:Math.sin((1-t)*th)/Math.sin(th), w2=th<1e-4?t:Math.sin(t*th)/Math.sin(th);
+    let v=[a[0]*w1+b[0]*w2, a[1]*w1+b[1]*w2, a[2]*w1+b[2]*w2];
+    const L=Math.hypot(...v)||1; const h=1.0+lift*Math.sin(t*Math.PI);
+    v=[v[0]/L*h, v[1]/L*h, v[2]/L*h];
+    if (prev){
+      verts[vw++]=prev[0]; verts[vw++]=prev[1]; verts[vw++]=prev[2];
+      verts[vw++]=v[0];    verts[vw++]=v[1];    verts[vw++]=v[2];
+      const tPrev=(s-1)/SEG;
+      params[pw++]=tPrev; params[pw++]=nowSec; params[pw++]=duration; params[pw++]=tier;
+      params[pw++]=t;     params[pw++]=nowSec; params[pw++]=duration; params[pw++]=tier;
+    }
+    prev=v;
+  }
+  activeArcs.push({birthTime:nowSec,duration,tier,verts,params});
+}
+function pruneAndPackArcs(nowSec){
+  let changed=false, w=0;
+  for (let i=0;i<activeArcs.length;i++){
+    const arc=activeArcs[i];
+    if (nowSec-arc.birthTime<arc.duration) activeArcs[w++]=arc;
+    else changed=true;
+  }
+  activeArcs.length=w;
+  if (activeArcs.length>MAX_ARCS){ activeArcs.splice(0,activeArcs.length-MAX_ARCS); changed=true; }
+  if (changed||arcsNeedUpload){
+    let offPos=0, offParam=0, drawn=0;
+    const chunkPos=SEG_VERTS*3, chunkParam=SEG_VERTS*4;
+    for (let i=0;i<activeArcs.length;i++){
+      const arc=activeArcs[i];
+      if (meshFilter>=0 && arc.tier!==meshFilter) continue;
+      posBuffer.set(arc.verts,offPos);
+      paramBuffer.set(arc.params,offParam);
+      offPos+=chunkPos; offParam+=chunkParam; drawn++;
+    }
+    arcCount=drawn;
+    if (offPos>0){
+      gl.bindBuffer(gl.ARRAY_BUFFER,linePosBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,posBuffer.subarray(0,offPos));
+      gl.bindBuffer(gl.ARRAY_BUFFER,lineParamBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,paramBuffer.subarray(0,offParam));
+    }
+    arcsNeedUpload=false;
+  }
+}
+function setArcs(arcs){
+  const k=arcs.length/2, nowSec=getTime();
+  const maxAdd=playing?8:24; const step=Math.max(1,Math.floor(k/maxAdd));
+  for (let i=0;i<k;i+=step) addArc(arcs[i*2],arcs[i*2+1],nowSec);
+  arcsNeedUpload=true; pruneAndPackArcs(nowSec);
+}
+function rot(){ const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+  return new Float32Array([cy,0,-sy, sy*sp,cp,cy*sp, sy*cp,-sp,cy*cp]); }
+function draw(){
+  const w=cv.clientWidth, h=cv.clientHeight; const dpr=window.devicePixelRatio||1;
+  if (cv.width!==w*dpr|0||cv.height!==h*dpr|0){ cv.width=w*dpr|0; cv.height=h*dpr|0; }
+  gl.viewport(0,0,cv.width,cv.height); gl.clearColor(0.043,0.051,0.07,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  const asp=w>h? [h/w,1]:[1,w/h]; const S=0.86*zoom; const R=rot(); const nowSec=getTime();
+  gl.useProgram(pD); gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); const dp=gl.getAttribLocation(pD,"p"); gl.enableVertexAttribArray(dp); gl.vertexAttribPointer(dp,2,gl.FLOAT,false,0,0); gl.uniform1f(gl.getUniformLocation(pD,"S"),S); gl.uniform2fv(gl.getUniformLocation(pD,"asp"),asp); gl.drawArrays(gl.TRIANGLES,0,96*3);
+  if (coastVerts){ gl.useProgram(pC); gl.uniformMatrix3fv(gl.getUniformLocation(pC,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pC,"S"),S); gl.uniform2fv(gl.getUniformLocation(pC,"asp"),asp);
+    const cp=gl.getAttribLocation(pC,"p"); gl.bindBuffer(gl.ARRAY_BUFFER,coastBuf); gl.enableVertexAttribArray(cp); gl.vertexAttribPointer(cp,3,gl.FLOAT,false,0,0);
+    gl.drawArrays(gl.LINES,0,coastVerts); }
+  if (npts){ gl.useProgram(pP); gl.uniformMatrix3fv(gl.getUniformLocation(pP,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pP,"S"),S); gl.uniform2fv(gl.getUniformLocation(pP,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pP,"dpr"),dpr); gl.uniform1f(gl.getUniformLocation(pP,"uTime"),nowSec);
+    const ap=gl.getAttribLocation(pP,"p"), aa=gl.getAttribLocation(pP,"a"), ak=gl.getAttribLocation(pP,"k");
+    gl.bindBuffer(gl.ARRAY_BUFFER,posBuf); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.enableVertexAttribArray(aa); gl.vertexAttribPointer(aa,1,gl.UNSIGNED_BYTE,true,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,kindBuf); gl.enableVertexAttribArray(ak); gl.vertexAttribPointer(ak,1,gl.UNSIGNED_BYTE,false,0,0);
+    gl.drawArrays(gl.POINTS,0,npts); }
+  if (arcCount>0 && showArcs){ gl.useProgram(pL); gl.uniformMatrix3fv(gl.getUniformLocation(pL,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pL,"S"),S); gl.uniform2fv(gl.getUniformLocation(pL,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pL,"uTime"),nowSec);
+    const lp=gl.getAttribLocation(pL,"p"), lparam=gl.getAttribLocation(pL,"param");
+    gl.bindBuffer(gl.ARRAY_BUFFER,linePosBuf); gl.enableVertexAttribArray(lp); gl.vertexAttribPointer(lp,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,lineParamBuf); gl.enableVertexAttribArray(lparam); gl.vertexAttribPointer(lparam,4,gl.FLOAT,false,0,0);
+    gl.drawArrays(gl.LINES,0,arcCount*SEG_VERTS); }
+}
+cv.addEventListener("mousedown",e=>{drag=[e.clientX,e.clientY];velYaw=0;velPitch=0;cv.style.cursor="grabbing";lastTouchTime=performance.now();}); window.addEventListener("mouseup",()=>{drag=null;cv.style.cursor="grab";});
+window.addEventListener("mousemove",e=>{ if(!drag) return; const dx=e.clientX-drag[0], dy=e.clientY-drag[1]; velYaw=dx*0.0035; velPitch=dy*0.0035; yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[e.clientX,e.clientY]; lastTouchTime=performance.now(); });
+cv.addEventListener("wheel",e=>{ e.preventDefault(); targetZoom=Math.max(0.6,Math.min(6,targetZoom*(e.deltaY<0?1.15:0.87))); lastTouchTime=performance.now(); },{passive:false});
+let pinchDist=0;
+cv.addEventListener("touchstart",e=>{
+  if(e.touches.length===2){
+    drag=null;
+    pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+  }else if(e.touches.length===1){
+    const t=e.touches[0]; drag=[t.clientX,t.clientY]; velYaw=0; velPitch=0;
+  }
+  lastTouchTime=performance.now();
+},{passive:true});
+cv.addEventListener("touchmove",e=>{
+  if(e.touches.length===2&&pinchDist>0){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    if(d>4){ targetZoom=Math.max(0.6,Math.min(6,targetZoom*(d/pinchDist))); pinchDist=d; }
+    lastTouchTime=performance.now(); return;
+  }
+  if(!drag||e.touches.length!==1) return;
+  const t=e.touches[0]; const dx=t.clientX-drag[0], dy=t.clientY-drag[1]; velYaw=dx*0.0035; velPitch=dy*0.0035; yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[t.clientX,t.clientY]; lastTouchTime=performance.now();
+},{passive:true});
+cv.addEventListener("touchend",e=>{ if(e.touches.length<2) pinchDist=0; if(e.touches.length===0) drag=null; });
+// ------------------------------------------------------------------ the loop
+const isMobileViewport = window.innerWidth <= 800;
+const DEVICES_PER_PERSON = 2.25; // CC 4.5.13 self roster: ~1 phone + ~1 home/laptop/tablet + ~0.25 shared/personal server
+let playing=false, useWasm=true, showArcs=true, cum=0, lastActivity=null, activeBlocks=[];
+let currentPop=5000000000, currentSize=isMobileViewport?100000:1000000, currentActs=isMobileViewport?2000:10000, avgMsPerTick=0, avgMsPerAct=0;
+const $=(id)=>document.getElementById(id);
+const fmt=(x)=>x>=1e12?(x/1e12).toFixed(2)+" T":x>=1e9?(x/1e9).toFixed(2)+" B":x>=1e6?(x/1e6).toFixed(2)+" M":x>=1e3?(x/1e3).toFixed(1)+" k":String(Math.round(x));
+const fmtBytes=(x)=>x>=1e18?(x/1e18).toFixed(2)+" EB":x>=1e15?(x/1e15).toFixed(2)+" PB":x>=1e12?(x/1e12).toFixed(2)+" TB":x>=1e9?(x/1e9).toFixed(2)+" GB":x>=1e6?(x/1e6).toFixed(2)+" MB":x>=1e3?(x/1e3).toFixed(1)+" KB":Math.round(x)+" B";
+if (isMobileViewport){
+  $("acts").value=String(currentActs);
+  document.querySelectorAll("#acts-seg button").forEach(b=>b.classList.toggle("active",+b.getAttribute("data-val")===currentActs));
+}
+function togglePanel(panelId, btnId){
+  const p = $(panelId), b = $(btnId);
+  if (!p) return;
+  const hidden = p.classList.toggle("panel-hidden");
+  if (b) b.classList.toggle("open", !hidden);
+  if (!hidden && window.innerWidth <= 800){
+    ["hud","stats","foot"].forEach(other=>{
+      if (other !== panelId && $(other)){
+        $(other).classList.add("panel-hidden");
+        const ob = $("btn-"+other); if (ob) ob.classList.remove("open");
+      }
+    });
+  }
+}
+if ($("btn-hud")) $("btn-hud").onclick=()=>togglePanel("hud","btn-hud");
+if ($("btn-stats")) $("btn-stats").onclick=()=>togglePanel("stats","btn-stats");
+if ($("btn-foot")) $("btn-foot").onclick=()=>togglePanel("foot","btn-foot");
+if ($("close-hud")) $("close-hud").onclick=()=>togglePanel("hud","btn-hud");
+if ($("close-stats")) $("close-stats").onclick=()=>togglePanel("stats","btn-stats");
+if ($("close-foot")) $("close-foot").onclick=()=>togglePanel("foot","btn-foot");
+function updateStatusLine(buildSec){
+  if (!W) return;
+  const P = currentPop, D = Math.round(P * DEVICES_PER_PERSON);
+  const M = Math.max(500, Math.round(P / 100000));
+  const timing = buildSec != null ? " · built in "+buildSec.toFixed(1)+" s" : "";
+  $("status").textContent=fmt(P)+" people · "+fmt(D)+" devices ("+fmt(W.n)+" cohorts on "+W.nCells+" land cells, "+W.nLocs+" localities, "+REG.length+" regions) · "+fmt(M)+" serve seats"+timing+(wasm?"":" · JS engine");
+  if ($("badge-scale")) $("badge-scale").textContent=fmt(P);
+}
+function selectSize(pop){
+  currentPop=pop; if ($("size")) $("size").value=String(pop);
+  document.querySelectorAll("#size-seg button").forEach(b=>b.classList.toggle("active",+b.getAttribute("data-val")===pop));
+  computeSustainability();
+  updateStatusLine(null);
+}
+function selectActs(a){
+  currentActs=a; if ($("acts")) $("acts").value=String(a);
+  document.querySelectorAll("#acts-seg button").forEach(b=>b.classList.toggle("active",+b.getAttribute("data-val")===a));
+}
+document.querySelectorAll("#size-seg button").forEach(b=>b.onclick=()=>selectSize(+b.getAttribute("data-val")));
+document.querySelectorAll("#acts-seg button").forEach(b=>b.onclick=()=>selectActs(+b.getAttribute("data-val")));
+document.querySelectorAll("#mesh-seg button").forEach(b=>b.onclick=()=>{
+  meshFilter=+b.getAttribute("data-tier");
+  document.querySelectorAll("#mesh-seg button").forEach(x=>x.classList.toggle("active",+x.getAttribute("data-tier")===meshFilter));
+  arcsNeedUpload=true; pruneAndPackArcs(getTime());
+});
+
+// ------------------------------------------------------------------ Population Opt-Ins, Device Tiers & Sustainability (CC 4.5.13 / 5.4.3 / 5.4.6 / Tiers.lean)
+const ADV_PRESETS = {
+  fleet:   { srv:5,  home:55, wifi:65, chg:35, nat:60, sh_srv:95, sh_home:25, sh_phone:10, relay:90, ann:85, anon:12, orel:88, trc:15 },
+  privacy: { srv:8,  home:60, wifi:75, chg:45, nat:55, sh_srv:100,sh_home:75, sh_phone:40, relay:95, ann:80, anon:36, orel:96, trc:5  },
+  cgnat:   { srv:4,  home:40, wifi:45, chg:25, nat:85, sh_srv:95, sh_home:30, sh_phone:10, relay:90, ann:85, anon:14, orel:88, trc:15 },
+  unowned: { srv:5,  home:55, wifi:65, chg:35, nat:60, sh_srv:95, sh_home:25, sh_phone:10, relay:0,  ann:85, anon:12, orel:88, trc:15 }
+};
+function computeSustainability(){
+  let srvPct = +$("sl_srv").value;
+  let homePct = +$("sl_home").value;
+  if (srvPct + homePct > 96){ homePct = 96 - srvPct; $("sl_home").value = String(homePct); }
+  const phonePct = Math.max(0, 100 - srvPct - homePct);
+  const wifiPct = +$("sl_wifi").value;
+  const chgPct = +$("sl_chg").value;
+  const natPct = +$("sl_nat").value;
+  const shSrv = +$("sl_sh_srv").value / 100;
+  const shHome = +$("sl_sh_home").value / 100;
+  const shPhone = +$("sl_sh_phone").value / 100;
+  const relayOpt = +$("sl_relay").value / 100;
+  const annOpt = +$("sl_ann").value / 100;
+  const anonOpt = +$("sl_anon").value / 100;
+  const orelOpt = +$("sl_orel").value / 100;
+  const trcOpt = +$("sl_trc").value / 100;
+
+  $("v_srv").textContent = srvPct + "%";
+  $("v_home").textContent = homePct + "%";
+  $("v_phone").textContent = phonePct + "%";
+  $("v_wifi").textContent = wifiPct + "% Wi-Fi · " + (100 - wifiPct) + "% cell";
+  $("v_chg").textContent = chgPct + "% of Wi-Fi";
+  $("v_nat").textContent = natPct + "% NAT · " + (100 - natPct) + "% direct";
+  $("v_direct_nat").textContent = (100 - natPct) + "%";
+  $("v_sh_srv").textContent = Math.round(shSrv*100) + "%";
+  $("v_sh_home").textContent = Math.round(shHome*100) + "%";
+  $("v_sh_phone").textContent = Math.round(shPhone*100) + "%";
+  $("v_relay").textContent = Math.round(relayOpt*100) + "%";
+  $("v_ann").textContent = Math.round(annOpt*100) + "%";
+  $("v_anon").textContent = Math.round(anonOpt*100) + "%";
+  $("v_orel").textContent = Math.round(orelOpt*100) + "%";
+  $("v_trc").textContent = Math.round(trcOpt*100) + "%";
+
+  const P = currentPop;
+  const N = Math.round(P * DEVICES_PER_PERSON); // total devices across all people's self rosters
+  const M = Math.max(500, Math.round(P / 100000)); // canonical serve seats (50,000 at 5B people)
+  const fSrv = srvPct / 100, fHome = homePct / 100, fPhone = phonePct / 100;
+  const fWifi = wifiPct / 100, fChg = chgPct / 100, fNat = natPct / 100;
+  const reachHomeShare = Math.max(0, 1 - fNat); // Direct IPv6 or punched UDP path share (leviculum#100 / leviculum#101)
+
+  const nSrv = N * fSrv, nHome = N * fHome, nPhone = N * fPhone;
+  const nPhoneWifi = nPhone * fWifi, nPhoneChg = nPhoneWifi * fChg;
+
+  // 1. Peers without a direct path (home + phone behind NAT without IPv6/punched path; servers & canonical seats are directly reachable)
+  const nHardNat = (nHome + nPhone) * fNat;
+  // Directly reachable relay parents (canonical seats + announced relay-offering servers, reachable homes, and reachable charging Wi-Fi phones)
+  const reachSrvRelays = nSrv * annOpt * relayOpt;
+  const reachHomeRelays = nHome * reachHomeShare * annOpt * relayOpt;
+  const reachPhoneRelays = nPhoneChg * reachHomeShare * annOpt * relayOpt;
+  const maxHardNatLeaves = Math.round(M * 36 + reachSrvRelays * 32 + reachHomeRelays * 8 + reachPhoneRelays * 2);
+  const natLoadPct = maxHardNatLeaves > 0 ? (nHardNat / maxHardNatLeaves) * 100 : 999;
+
+  // 2. 1-Hop Shaped slot supply vs demand (CC 5.4.3 "A shaped link is one hop" + Tiers.lean: each_home_adds_seven & reach ≠ capacity)
+  // Only directly reachable nodes (`reachSrvRelays`, `reachHomeRelays`, `reachPhoneRelays`) can supply shaped parent slots.
+  const shapedSrvRelays = reachSrvRelays * Math.max(shSrv, orelOpt * 0.5);
+  const shapedHomeRelays = reachHomeRelays * Math.max(shHome, orelOpt * 0.5);
+  const shapedPhoneRelays = reachPhoneRelays * Math.max(shPhone, orelOpt * 0.3);
+  const shapedSlotsSupply = Math.round(M * 8 + shapedSrvRelays * 7 + shapedHomeRelays * 7 + shapedPhoneRelays * 3);
+
+  // CC 5.4.3: a peer with no direct path gets no shaped link and carries the same classes on ordinary links.
+  const nShapingNodes = Math.min(N, Math.round(
+    nSrv * Math.max(shSrv, annOpt * relayOpt * orelOpt) +
+    (nHome * reachHomeShare) * Math.max(shHome, annOpt * relayOpt * orelOpt * 0.5, anonOpt) +
+    (nPhone * reachHomeShare) * (fWifi * Math.max(shPhone, fChg * annOpt * relayOpt * orelOpt * 0.35, anonOpt) + (1 - fWifi) * Math.max(shPhone * 0.4, anonOpt * 0.5))
+  ));
+  const shapedSlotsDemand = Math.max(1, Math.round(nShapingNodes * 1.8));
+  const shapedSeatedFrac = Math.min(1.0, shapedSlotsSupply / shapedSlotsDemand);
+
+  // 3. Onion cover pool & answering onion relays per layer (CC 5.4.6 floor >= 3 per layer)
+  const nOnionPeers = Math.round((nSrv + (nHome + nPhone) * reachHomeShare) * anonOpt);
+  const answeringOnionRelays = Math.round(M + (reachSrvRelays + reachHomeRelays + reachPhoneRelays) * orelOpt);
+  const relaysPerLayer = Math.floor(answeringOnionRelays / 3);
+  const coverToOnionRatio = nOnionPeers > 0 ? (nShapingNodes / nOnionPeers) : nShapingNodes;
+
+  // Update simulation per-mille parameters for WASM & JS engines
+  const effectiveDirectFrac = fSrv + (1 - fSrv) * reachHomeShare;
+  simParams.directNatPm = Math.round(Math.max(20, Math.min(980, effectiveDirectFrac * 1000)));
+  const rawShapeShare = (nShapingNodes / Math.max(1, N * effectiveDirectFrac)) * shapedSeatedFrac;
+  simParams.shapingPm = Math.round(Math.max(40, Math.min(980, (0.25 + 0.75 * rawShapeShare) * 1000)));
+  simParams.onionPm = relaysPerLayer >= 3 ? Math.round(Math.max(0, Math.min(600, anonOpt * 1000))) : 0;
+
+  // Update UI pills & #stats
+  const natOk = nHardNat <= maxHardNatLeaves;
+  $("pill-nat").textContent = Math.round(reachHomeShare * 100) + "% reach · " + fmt(nHardNat) + "/" + fmt(maxHardNatLeaves) + (natOk ? " ✓" : " ⚠");
+  $("pill-nat").style.color = natOk ? (natLoadPct > 80 ? "var(--warm)" : "var(--ok)") : "var(--hot)";
+
+  const shapePct = Math.round(shapedSeatedFrac * 100);
+  $("pill-shape").textContent = fmt(shapedSlotsSupply) + " slots (" + shapePct + "% seated)";
+  $("pill-shape").style.color = shapePct >= 95 ? "var(--ok)" : shapePct >= 60 ? "var(--warm)" : "var(--hot)";
+
+  $("pill-onion").textContent = (nOnionPeers > 0 ? coverToOnionRatio.toFixed(1) + "× cover" : "0 onion") + " · " + fmt(relaysPerLayer) + "/lyr";
+  $("pill-onion").style.color = relaysPerLayer >= 10 && coverToOnionRatio >= 1.5 ? "var(--ok)" : relaysPerLayer >= 3 ? "var(--warm)" : "var(--hot)";
+
+  $("s_nat_cap").textContent = fmt(nHardNat) + " / " + fmt(maxHardNatLeaves) + " (" + Math.min(999, natLoadPct).toFixed(0) + "% load)";
+  $("s_nat_cap").style.color = natOk ? "#fff" : "var(--hot)";
+  $("natbar").style.width = Math.min(100, natLoadPct).toFixed(1) + "%";
+  $("natbar").style.background = natOk ? (natLoadPct > 80 ? "var(--warm)" : "var(--ok)") : "var(--hot)";
+  $("s_nat_max").textContent = (reachHomeShare * 100).toFixed(0) + "% direct IPv6 / punched  (" + fmt(reachHomeRelays) + " home parents)";
+  $("s_shape_slots").textContent = fmt(shapedSlotsSupply) + " supply vs " + fmt(shapedSlotsDemand) + " demand (" + shapePct + "% seated" + (relayOpt === 0 ? " · unowned-only!" : "") + ")";
+  $("s_shapers").textContent = fmt(nShapingNodes) + " direct 1-hop devices (" + (nShapingNodes / N * 100).toFixed(1) + "% of fleet)";
+  $("s_cover_ratio").textContent = nOnionPeers > 0 ? coverToOnionRatio.toFixed(2) + " shaping devices per onion peer (" + fmt(nOnionPeers) + " onion)" : fmt(nShapingNodes) + " shapers / 0 onion peers";
+  $("s_onion_relays").textContent = fmt(relaysPerLayer) + " / layer  (" + (relaysPerLayer >= 10 ? "✓ healthy ≥10" : relaysPerLayer >= 3 ? "⚠ small set <10" : "✗ below CC 5.4.6 floor <3") + ")";
+}
+["sl_srv","sl_home","sl_wifi","sl_chg","sl_nat","sl_sh_srv","sl_sh_home","sl_sh_phone","sl_relay","sl_ann","sl_anon","sl_orel","sl_trc"].forEach(id=>{
+  const el=$(id); if(el) el.addEventListener("input", computeSustainability);
+});
+document.querySelectorAll("#preset-bar button").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const p = ADV_PRESETS[btn.getAttribute("data-preset")];
+    if (!p) return;
+    $("sl_srv").value=p.srv; $("sl_home").value=p.home; $("sl_wifi").value=p.wifi; $("sl_chg").value=p.chg; $("sl_nat").value=p.nat;
+    $("sl_sh_srv").value=p.sh_srv; $("sl_sh_home").value=p.sh_home; $("sl_sh_phone").value=p.sh_phone;
+    $("sl_relay").value=p.relay; $("sl_ann").value=p.ann; $("sl_anon").value=p.anon; $("sl_orel").value=p.orel; $("sl_trc").value=p.trc;
+    computeSustainability();
+  });
+});
+function updateWorkloadLimits(ms,actsCount){
+  if (ms>0&&actsCount>0){
+    const msPerAct=ms/actsCount;
+    avgMsPerAct=avgMsPerAct?(avgMsPerAct*0.6+msPerAct*0.4):msPerAct;
+    avgMsPerTick=avgMsPerTick?(avgMsPerTick*0.6+ms*0.4):ms;
+  }
+  const MAX_TICK_BUDGET_MS=60;
+  let highestSafe=2000;
+  document.querySelectorAll("#acts-seg button").forEach(btn=>{
+    const val=+btn.getAttribute("data-val");
+    const est=val*(avgMsPerAct||0.0003);
+    if (avgMsPerAct>0&&est>MAX_TICK_BUDGET_MS){
+      btn.disabled=true;
+      btn.title=`Limited by measured time: ~${Math.round(est)} ms/tick exceeds ${MAX_TICK_BUDGET_MS}ms real-time budget`;
+    } else {
+      btn.disabled=false;
+      btn.title=`Estimated ~${est<1?est.toFixed(1):Math.round(est)} ms/tick`;
+      highestSafe=Math.max(highestSafe,val);
+    }
+  });
+  if (currentActs>highestSafe&&avgMsPerAct>0) selectActs(highestSafe);
+  const budgetEl=$("ms-budget");
+  if (budgetEl&&avgMsPerAct>0){
+    const est=(currentActs*avgMsPerAct).toFixed(1);
+    const label=avgMsPerTick<20?"fluid":avgMsPerTick<50?"good":"heavy";
+    budgetEl.textContent=`~${est} ms / tick · ${label}`;
+    budgetEl.style.color=avgMsPerTick<20?"var(--ok)":avgMsPerTick<50?"var(--warm)":"var(--hot)";
+  }
+}
+function recordActiveBlocks(){
+  if (!lastActivity) return; const a=lastActivity; const u32=new Uint32Array(a.buffer,a.byteOffset,a.byteLength>>>2);
+  activeBlocks.length=0; for (let i=0;i<u32.length;i++) if (u32[i]!==0) activeBlocks.push(i);
+}
+function tick(){
+  const acts=currentActs; const t0=performance.now(); const res=(useWasm&&wasm)?tickWasm(acts):tickJs(acts); const ms=performance.now()-t0;
+  updateWorkloadLimits(ms,acts);
+  const o=res.out; cum+=o[1]; const local=o[17]?o[16]/o[17]:0; $("dlocal").textContent=(o[1]?o[5]/o[1]*100:0).toFixed(1)+"%";
+  const localStr=(local*100).toFixed(1)+"%";
+  $("local").textContent=localStr; $("localbar").style.width=localStr;
+  if ($("badge-local")) $("badge-local").textContent=localStr+" local";
+  $("xmetro").textContent=(o[1]?o[6]/o[1]*100:0).toFixed(1)+"%"; $("xregion").textContent=(o[1]?o[7]/o[1]*100:0).toFixed(1)+"%";
+  const crossings=o[6]+o[7]; $("km").textContent=crossings?Math.round(o[8]/crossings)+" km":"–";
+  $("m_base").textContent=fmt(o[18])+" hops · "+fmtBytes(o[18]*4096);
+  $("m_seat").textContent=fmt(o[19])+" hops · "+fmtBytes(o[19]*4096);
+  $("m_bulk").textContent=fmt(o[20])+" hops · "+fmtBytes(o[20]*4096);
+  $("m_onion").textContent=fmt(o[22])+" acts  (+0 B extra wire)";
+  $("m_alm").textContent=fmt(o[21])+" direct deliveries saved · "+fmt(o[23])+" direct 1-hop";
+  $("acts_n").textContent=fmt(o[0])+"  (family "+fmt(o[12])+" · room "+fmt(o[13])+" · c-free "+fmt(o[14])+" · public "+fmt(o[15])+")"; $("deliv").textContent=fmt(o[1]); $("refused").textContent=fmt(o[4]);
+  const totalDevs = Math.round(currentPop * DEVICES_PER_PERSON);
+  const bcastWorld = o[17] * totalDevs * 4096;
+  $("bytes").textContent=fmtBytes(o[9]); $("bcast").textContent=fmtBytes(bcastWorld)+"  ("+fmt(bcastWorld/Math.max(1,o[9]))+"×)"; $("central").textContent=fmtBytes(o[11])+"  ("+fmt(o[11]/Math.max(1,o[9]))+"× vs relay tree)";
+  $("dps").textContent=fmt(o[2]/(ms/1000)); $("ms").textContent=ms.toFixed(1)+" ms  ("+(useWasm&&wasm?"WASM":"JS")+")"; $("bpn").textContent=fmt(currentPop)+" people · "+fmt(totalDevs)+" devices"; $("cum").textContent=fmt(cum);
+  lastActivity=res.activity; recordActiveBlocks(); gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,lastActivity); setArcs(res.arcs);
+}
+function decay(){
+  if (!lastActivity||activeBlocks.length===0) return; const a=lastActivity; const u32=new Uint32Array(a.buffer,a.byteOffset,a.byteLength>>>2);
+  let w=0; for (let idx=0;idx<activeBlocks.length;idx++){
+    const i=activeBlocks[idx]; if (u32[i]===0) continue;
+    const base=i<<2; let remaining=false;
+    for (let j=0;j<4;j++){ const v=a[base+j]; if (v>0){ const nv=v>3?(v*0.92|0):0; a[base+j]=nv; if (nv>0) remaining=true; } }
+    if (remaining) activeBlocks[w++]=i;
+  }
+  activeBlocks.length=w; gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,a);
+}
+let frame=0, lastTickTime=0;
+function loop(){
+  const now=performance.now();
+  if (!drag){
+    velYaw*=0.93; velPitch*=0.93;
+    if (Math.abs(velYaw)>0.00002) yaw+=velYaw;
+    if (Math.abs(velPitch)>0.00002) pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch));
+    const idle=now-lastTouchTime;
+    if (idle>3000){ const blend=Math.min(1.0,(idle-3000)/2000); yaw+=0.0016*blend; }
+  }
+  zoom+=(targetZoom-zoom)*0.12;
+  if (playing && now-lastTickTime>=120){ lastTickTime=now; tick(); }
+  decay();
+  if (frame%4===0) pruneAndPackArcs(getTime());
+  draw(); frame++; requestAnimationFrame(loop);
+}
+async function build(){
+  const wasPlaying=playing;
+  playing=false; $("play").textContent="▶ run"; $("play").classList.remove("active");
+  const n=currentSize; $("status").textContent="placing "+fmt(currentPop)+" people ("+fmt(currentPop*DEVICES_PER_PERSON)+" devices) on land density grid…"; await new Promise(r=>setTimeout(r,30));
+  const t0=performance.now(); W=buildWorld(n); const t1=performance.now(); uploadWorld(); uploadPoints(); cum=0; lastActivity=null; activeBlocks=[]; activeArcs=[]; arcCount=0; arcsNeedUpload=true; pruneAndPackArcs(getTime()); computeSustainability();
+  updateStatusLine((t1-t0)/1000);
+  if (wasPlaying){ playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); }
+}
+if ($("build")) $("build").onclick=build;
+$("step").onclick=()=>{ if(W) tick(); };
+$("play").onclick=(e)=>{ if(!W) return; playing=!playing; e.target.textContent=playing?"❚❚ pause":"▶ run"; e.target.classList.toggle("active",playing); };
+$("eng").onclick=(e)=>{ useWasm=!useWasm; e.target.textContent="engine: "+(useWasm&&wasm?"WASM":"JS"); e.target.classList.toggle("on",useWasm&&!!wasm); avgMsPerAct=0; avgMsPerTick=0; if(W) tick(); };
+$("arcsb").onclick=(e)=>{ showArcs=!showArcs; e.target.classList.toggle("on",showArcs); };
+(async()=>{ initCoastline(); await loadWasm(); if(!wasm){ useWasm=false; $("eng").textContent="engine: JS"; $("eng").classList.remove("on"); } await build(); playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); loop(); })();
 </script>
 </body>
 </html>

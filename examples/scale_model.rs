@@ -2938,34 +2938,51 @@ fn print_fountain_model(s: &Scenario) {
     println!("    §19.3 N5: Revoked ⇒ EjectHardDelete (irreversible; NEVER tier-shed/refetchable)");
 }
 
-// ─── 3-Mesh Transport, Shaped Onion & ALM Relay Tree (v0.8 — CC RC17 / Edge v44) ───
+// ─── CC 5.4.3 Budget Classes, 1-Hop Shaped Links & CC 6.1.6 `deterministic-alm` (v0.8 — CC RC17 / Edge v44) ───
 //
 // Pinned to CIRISConstitution RC17 (`formal/transport_tiers/Tiers.lean`,
-// `formal/anonymous/Anonymous.lean`, CC §5.4.3 + §5.4.6) and CIRISEdge v44
-// (`docs/AV_ALM_DESIGN.md`):
+// `formal/anonymous/Anonymous.lean`, CC §5.3.3.2, §5.4.3, §5.4.6, §6.1.6) and
+// CIRISEdge v44 (`docs/AV_ALM_DESIGN.md`):
 //
-//   1. Low-bandwidth shaped mesh (`Tier.base`, L ≤ 8 shaped links/node,
-//      F = 16,272 B frame, ρ = 0.5 real share, W = 600s or 3600s on cellular):
-//      class rates `server` 7,000 B/s, `home` 2,800 B/s, `phone-wifi` 1,400 B/s,
-//      `phone-cellular` 350 B/s. Higher class displaces lowest held class
-//      (`home_displaces_a_phone`) which re-homes below (`displaced_keeps_shaping`);
-//      peers past 8 links receive 3 referrals (`each_home_adds_seven`).
-//      Carries rows ≤ 64 KiB, consent-free stranger roads (`every_road_runs_on_strangers`),
-//      and cover-replaced onion walks.
-//   2. High-bandwidth shaped mesh (`Tier.seat`, 33,000 B/s ≈ 2 frames/s,
-//      85.5 GB/mo each way): between two serve seats only, outside the 8-link cap.
-//   3. Live / unshaped bulk & ALM mesh (`Tier.bulk`): >64 KiB blobs, realtime
-//      A/V (`SealedAvChunk`), and O(log_k N) consumer-latched ALM relay trees
-//      for public rooms and streams (a 5,000-member post costs seat + ALM relay
-//      tree fan-out, not 5,000 direct deliveries).
+//   1. CC §5.4.3 Shaped Budget Classes (L ≤ 8 shaped links/node for device classes,
+//      ρ = 0.5 real-traffic share, W = 600 s window or 3,600 s on cellular; frame is
+//      the link's channel payload MDU — ~400 B at Reticulum base MTU, ~16 KB / 16,272 B
+//      over TCP):
+//        • `seat`           33,000 B/s  (W = 600 s, between serve seats, outside L ≤ 8 cap)
+//        • `server`          7,000 B/s  (W = 600 s, L ≤ 8 shaped links)
+//        • `home`            2,800 B/s  (W = 600 s, L ≤ 8 shaped links)
+//        • `phone-wifi`      1,400 B/s  (W = 600 s, L ≤ 8 shaped links)
+//        • `phone-cellular`    350 B/s  (W = 3,600 s, L ≤ 8 shaped links)
+//       Note: CC §5.4.3 defines these five budget classes; there is no wire class named
+//      `base` and no 8 KB/s rate. In the aggregate simulation counters below, the four
+//      L ≤ 8 device classes (`server`, `home`, `phone-wifi`, `phone-cellular`) are tallied
+//      together as `device-shaped` alongside `seat` (33,000 B/s).
+//   2. CC §5.4.3 ("A shaped link is one hop"):
+//        • A shaped link is one direct hop between its two ends, never forwarded through
+//          a third node; a peer with no direct path gets no shaped link.
+//        • The shaped tier carries identity, consent, chat, and small attachments (≤ 64 KiB);
+//          A/V and bulk (> 64 KiB) ride unshaped only; a node not opted in (or with no
+//          direct path) carries the same classes on ordinary links.
+//        • `formal/transport_tiers/Tiers.lean` models the eight-link bound (L ≤ 8),
+//          displacement (`home_displaces_a_phone`, `displaced_keeps_shaping`), carriage
+//          and referral reach (`each_home_adds_seven`, `unowned_only_strands_the_73rd`),
+//          and proves `reach ≠ capacity` as a theorem. It has no reachability term.
+//        • Because `leviculum` implements no PCP, NAT-PMP, or UPnP (`leviculum#101`), a
+//          home behind a NAT is a shaped parent ONLY with IPv6 or a punched direct path
+//          (`reach_home_share`, anchored to APNIC global IPv6 capability ~40–45% and
+//          `leviculum#100` as the first empirical NAT-mix data).
+//   3. CC §6.1.6 `deterministic-alm` Member Relay Tree (distinct from CC §5.3.3.2):
+//        • CC §5.3.3.2's transport-profile table states that the realtime profile has
+//          NO selective-forwarding relay role (no seat or third party that decodes or selects).
+//        • CC §6.1.6 `deterministic-alm` is the member relay tree for large-N fan-out,
+//          where every member computes the same deterministic tree over end-to-end sealed
+//          chunks (`O(log_k N)` fan-out), which the Anonymous Tier names.
 //   4. Onion over shaped (`CONP`, CC §5.4.6): 15,296 B packet (6 × 1,184 B
 //      X-Wing KEM slots + 8,160 B wide-block AEAD body) fits inside one
-//      16,272 B shaped frame and walks standing shaped links from a sticky
-//      contact guard, replacing cover frames at +0 extra wire bytes.
-//   5. Reticulum NAT traversal: IPv6 direct + NAT hole-punching (~40% direct P2P),
-//      while hard NAT (~60%) homes leaves on k = 2 of M serve seats.
+//      16,272 B TCP MDU shaped frame and walks standing 1-hop shaped links from a
+//      sticky contact guard, replacing cover frames at +0 extra wire bytes.
 
-const SHAPED_FRAME_BYTES: f64 = 16_272.0;
+const SHAPED_FRAME_BYTES: f64 = 16_272.0; // TCP channel payload MDU (~400 B at Reticulum base MTU)
 const ONION_PACKET_BYTES: f64 = 15_296.0;
 const SHAPED_LINK_CAP: f64 = 8.0;
 const SEAT_SHAPED_BPS: f64 = 33_000.0;
@@ -2977,39 +2994,39 @@ const CELL_SHAPED_BPS: f64 = 350.0;
 fn print_transport_tiers_model(s: &Scenario) {
     println!();
     println!(
-        "══ 3-Mesh Transport, Shaped Onion & ALM Relay Tree (CC RC17 / Edge v44) — {} ══",
+        "══ CC §5.4.3 Budget Classes, 1-Hop Shaped Links & CC §6.1.6 `deterministic-alm` (CC RC17 / Edge v44) — {} ══",
         s.name
     );
-    println!("  Formal anchor: CIRISConstitution rc17 `formal/transport_tiers/Tiers.lean` + `Anonymous.lean` + Edge v44");
+    println!("  Formal anchor: CIRISConstitution rc17 `formal/transport_tiers/Tiers.lean` (`reach ≠ capacity`) + `Anonymous.lean` + CC §5.4.3 / §5.4.6 / §6.1.6");
     println!();
-    println!("  1. Three Transport Meshes (CC §5.4.3):");
+    println!("  1. CC §5.4.3 Shaped Budget Classes (ρ = 0.5, W = 600 s / 3,600 s cellular; MDU ~400 B Reticulum MTU / 16,272 B TCP):");
     println!(
-        "    {:<20} {:>12} {:>14} {:>14}  role",
-        "tier / class", "rate (B/s)", "frame gap", "monthly / link"
+        "    {:<20} {:>12} {:>14} {:>14}  role (1 direct hop only; no forwarding — CC §5.4.3)",
+        "CC §5.4.3 class", "rate (B/s)", "16 KB TCP gap", "monthly / link"
     );
     for (name, rate, role) in [
         (
-            "seat (high-BW)",
+            "seat",
             SEAT_SHAPED_BPS,
-            "seat↔seat backbone (outside L≤8 cap)",
+            "W=600s, seat↔seat direct 1-hop (outside L≤8 cap)",
         ),
         (
-            "base: server",
+            "server",
             SERVER_SHAPED_BPS,
-            "L≤8 shaped links (≤64 KiB, c-free, onion)",
+            "W=600s, L≤8 direct 1-hop (identity/consent/chat/≤64KiB/CONP)",
         ),
         (
-            "base: home",
+            "home",
             HOME_SHAPED_BPS,
-            "displaces phone (`home_displaces_a_phone`)",
+            "W=600s, L≤8 direct 1-hop (`home_displaces_a_phone`)",
         ),
         (
-            "base: phone-wifi",
+            "phone-wifi",
             WIFI_SHAPED_BPS,
-            "re-homes on referral (`displaced_keeps_shaping`)",
+            "W=600s, L≤8 direct 1-hop (`displaced_keeps_shaping`)",
         ),
         (
-            "base: phone-cell",
+            "phone-cellular",
             CELL_SHAPED_BPS,
             "W=3600s cellular window, ρ=0.5 real share",
         ),
@@ -3026,14 +3043,14 @@ fn print_transport_tiers_model(s: &Scenario) {
         );
     }
     println!(
-        "    {:<20} {:>12} {:>14} {:>14}  >64 KiB blobs, realtime A/V, O(log_k N) ALM relay tree",
-        "bulk / live (ALM)", "unshaped", "on-demand", "demand-driven"
+        "    {:<20} {:>12} {:>14} {:>14}  A/V & >64 KiB bulk unshaped only; non-opted / no-direct-path peers; CC §6.1.6 `deterministic-alm`",
+        "ordinary / unshaped", "unshaped", "on-demand", "demand-driven"
     );
     println!();
     let srv_shaped_day = SHAPED_LINK_CAP * SERVER_SHAPED_BPS * 2.0 * 86_400.0;
     println!("  2. Onion over Shaped Tier (`CONP`, CC §5.4.6):");
     println!(
-        "    Packet geometry        {:.0} B inside {:.0} B shaped frame (6 × 1,184 B X-Wing slots + 8,160 B body)",
+        "    Packet geometry        {:.0} B inside {:.0} B TCP MDU frame (6 × 1,184 B X-Wing slots + 8,160 B body)",
         ONION_PACKET_BYTES, SHAPED_FRAME_BYTES
     );
     println!(
@@ -3045,92 +3062,97 @@ fn print_transport_tiers_model(s: &Scenario) {
         "    Extra wire bytes       +0 B/day (onion frames replace `CSHP` cover frames at ρ=0.5)"
     );
     println!(
-        "    3-hop one-way wait     +{:.2} s on seat links  |  +{:.2} s on server links  |  +{:.2} s on home links",
+        "    3-hop one-way wait     +{:.2} s on `seat`  |  +{:.2} s on `server`  |  +{:.2} s on `home`",
         3.0 * (0.5 * SHAPED_FRAME_BYTES / SEAT_SHAPED_BPS),
         3.0 * (0.5 * SHAPED_FRAME_BYTES / SERVER_SHAPED_BPS),
         3.0 * (0.5 * SHAPED_FRAME_BYTES / HOME_SHAPED_BPS),
     );
     println!();
     let pub_members = 5_000.0_f64;
-    let regional_seats = 9.0_f64;
+    let regional_branches = 9.0_f64;
     let alm_fanout_k = 16.0_f64;
     let alm_tree_parents = (pub_members / alm_fanout_k).ceil();
-    let relay_hops = 1.0 + regional_seats + alm_tree_parents;
-    println!("  3. Public-Room Seat + ALM Relay Tree (Edge v44 `AV_ALM_DESIGN.md`):");
+    let relay_hops = 1.0 + regional_branches + alm_tree_parents;
+    println!("  3. Large-N Member Relay Tree (CC §6.1.6 `deterministic-alm`, distinct from CC §5.3.3.2 no-SFU-relay-role):");
     println!(
-        "    5,000-member post      {:.0} signer+seat+ALM parent hops vs {:.0} direct deliveries ({:.1}% fan-out reduction)",
+        "    5,000-member post      {:.0} `deterministic-alm` member tree hops over sealed chunks vs {:.0} direct unicasts ({:.1}% reduction; no seat decodes or selects)",
         relay_hops,
         pub_members,
         (1.0 - relay_hops / pub_members) * 100.0
     );
-    println!("    Reticulum NAT mix      ~40% direct IPv6 / NAT hole-punched P2P · ~60% hard-NAT leaf homed on k=2 seats");
+    println!("    Direct-path reach      `reach_home_share` input (~40% IPv6 / punched UDP path; `leviculum#100` NAT-mix data, `leviculum#101` no PCP/NAT-PMP/UPnP)");
 
-    // 4. Billions of People & Devices — One Rulebook & Sustainability Simulation
+    // 4. Billions of People & Devices — One Rulebook & Slot-Supply Sustainability Simulation
     let people = s.n_users; // 5.00 B people for full_internet_v1
     let devices_per_person = 2.25_f64; // self roster: ~1 phone + ~1 home/laptop/tablet + ~0.25 shared/personal node
     let total_devices = people * devices_per_person; // 11.25 B devices
     let canonical_seats = (people / 100_000.0).max(500.0); // 50,000 canonical serve seats globally
     println!();
     println!(
-        "  4. Billions of People & Devices, One Rulebook — Sustainability ({} people · {} devices · {:.0} seats):",
+        "  4. Billions of People & Devices, One Rulebook — 1-Hop Shaped Slot Supply ({} people · {} devices · {:.0} seats):",
         fmt_count(people),
         fmt_count(total_devices),
         canonical_seats
     );
     println!(
-        "    {:<24} {:>22} {:>10} {:>24} {:>18} {:>14}",
-        "regime", "hard-NAT leaves / cap", "max NAT%", "shaped slots (sup / dem)", "shaping cover pool", "onion rly/lyr"
+        "     (`Tiers.lean` proves L≤8 bound, displacement, referral reach & `reach ≠ capacity`; `reach_home_share` is an explicit model input)"
+    );
+    println!(
+        "    {:<24} {:>12} {:>22} {:>24} {:>18} {:>14}",
+        "regime", "reach-home %", "no-direct-path / cap", "1-hop shaped (sup / dem)", "direct shapers", "onion rly/lyr"
     );
     let regimes: [(&str, f64, f64, f64, f64, f64, f64, f64, f64, f64, f64, f64, f64); 4] = [
-        ("Fleet Defaults",       0.05, 0.55, 0.65, 0.35, 0.60, 0.95, 0.25, 0.10, 0.90, 0.85, 0.12, 0.88),
-        ("High Privacy",         0.08, 0.60, 0.75, 0.45, 0.55, 1.00, 0.75, 0.40, 0.95, 0.80, 0.36, 0.96),
-        ("CGNAT Stress (85%)",   0.04, 0.40, 0.45, 0.25, 0.85, 0.95, 0.30, 0.10, 0.90, 0.85, 0.14, 0.88),
-        ("Unowned-Only (0% rly)",0.05, 0.55, 0.65, 0.35, 0.60, 0.95, 0.25, 0.10, 0.00, 0.85, 0.12, 0.88),
+        ("Fleet Defaults",       0.05, 0.55, 0.65, 0.35, 0.40, 0.95, 0.25, 0.10, 0.90, 0.85, 0.12, 0.88),
+        ("High Privacy",         0.08, 0.60, 0.75, 0.45, 0.45, 1.00, 0.75, 0.40, 0.95, 0.80, 0.36, 0.96),
+        ("CGNAT Stress (15% rch)",0.04, 0.40, 0.45, 0.25, 0.15, 0.95, 0.30, 0.10, 0.90, 0.85, 0.14, 0.88),
+        ("Unowned-Only (0% rly)",0.05, 0.55, 0.65, 0.35, 0.40, 0.95, 0.25, 0.10, 0.00, 0.85, 0.12, 0.88),
     ];
-    for (label, f_srv, f_home, f_wifi, f_chg, f_nat, sh_srv, sh_home, sh_phone, relay_opt, ann_opt, anon_opt, orel_opt) in regimes {
+    for (label, f_srv, f_home, f_wifi, f_chg, reach_home_share, sh_srv, sh_home, sh_phone, relay_opt, ann_opt, anon_opt, orel_opt) in regimes {
         let f_phone = (1.0_f64 - f_srv - f_home).max(0.0);
+        let f_nat = (1.0_f64 - reach_home_share).max(0.0);
         let n_srv = total_devices * f_srv;
         let n_home = total_devices * f_home;
         let n_phone = total_devices * f_phone;
         let n_phone_wifi = n_phone * f_wifi;
         let n_phone_chg = n_phone_wifi * f_chg;
 
+        // Peers without a direct IPv6/punched path (ordinary unshaped carriage via k=2 parents)
         let n_hard_nat = (n_home + n_phone) * f_nat;
+        // Directly reachable parents: canonical seats + servers + directly reachable homes/phones (`reach_home_share`)
         let reach_srv = n_srv * ann_opt * relay_opt;
-        let reach_home = n_home * (1.0 - f_nat) * ann_opt * relay_opt;
-        let reach_phone = n_phone_chg * (1.0 - f_nat) * ann_opt * relay_opt;
+        let reach_home = n_home * reach_home_share * ann_opt * relay_opt;
+        let reach_phone = n_phone_chg * reach_home_share * ann_opt * relay_opt;
         let max_leaves = canonical_seats * 36.0 + reach_srv * 32.0 + reach_home * 8.0 + reach_phone * 2.0;
-        let non_srv = (n_home + n_phone).max(1.0);
-        let fixed_cap = canonical_seats * 36.0 + reach_srv * 32.0;
-        let reach_dep = (n_home * 8.0 + n_phone_chg * 2.0) * ann_opt * relay_opt;
-        let max_nat_frac = ((fixed_cap + reach_dep) / (non_srv + reach_dep)).min(0.99);
         let nat_load_pct = (n_hard_nat / max_leaves.max(1.0)) * 100.0;
 
+        // CC §5.4.3 ("A shaped link is one hop"): ONLY directly reachable nodes (`reach_srv`, `reach_home`, `reach_phone`)
+        // can supply shaped parent slots (never NAT'd homes without a direct path).
         let shaped_srv = reach_srv * sh_srv.max(orel_opt * 0.5);
-        let shaped_home = n_home * ann_opt * relay_opt * sh_home.max(orel_opt * 0.5);
-        let shaped_phone = n_phone_chg * ann_opt * relay_opt * sh_phone.max(orel_opt * 0.3);
+        let shaped_home = reach_home * sh_home.max(orel_opt * 0.5);
+        let shaped_phone = reach_phone * sh_phone.max(orel_opt * 0.3);
         let shaped_supply = canonical_seats * 8.0 + shaped_srv * 7.0 + shaped_home * 7.0 + shaped_phone * 3.0;
 
+        // CC §5.4.3: a peer with no direct path gets no shaped link (carries the same classes on ordinary links).
+        // Therefore direct 1-hop shapers require both opt-in and direct reachability (`reach_home_share` for home/phone).
         let n_shapers = (n_srv * sh_srv.max(ann_opt * relay_opt * orel_opt)
-            + n_home * sh_home.max(ann_opt * relay_opt * orel_opt * 0.5).max(anon_opt)
-            + n_phone * (f_wifi * sh_phone.max(f_chg * ann_opt * relay_opt * orel_opt * 0.35).max(anon_opt)
+            + (n_home * reach_home_share) * sh_home.max(ann_opt * relay_opt * orel_opt * 0.5).max(anon_opt)
+            + (n_phone * reach_home_share) * (f_wifi * sh_phone.max(f_chg * ann_opt * relay_opt * orel_opt * 0.35).max(anon_opt)
                 + (1.0 - f_wifi) * (sh_phone * 0.4).max(anon_opt * 0.5)))
             .min(total_devices);
         let shaped_demand = (n_shapers * 1.8).max(1.0);
         let seated_pct = (shaped_supply / shaped_demand).min(1.0) * 100.0;
-        let n_onion = total_devices * anon_opt;
+        let n_onion = (n_srv + (n_home + n_phone) * reach_home_share) * anon_opt;
         let cover_ratio = if n_onion > 0.0 { n_shapers / n_onion } else { 0.0 };
-        let answering_relays = canonical_seats
-            + (n_srv + n_home * (1.0 - f_nat * 0.5) + n_phone_chg * (1.0 - f_nat * 0.7)) * ann_opt * relay_opt * orel_opt;
+        let answering_relays = canonical_seats + (reach_srv + reach_home + reach_phone) * orel_opt;
         let relays_per_layer = (answering_relays / 3.0).floor();
 
         println!(
-            "    {:<24} {:>7}/{:<7} ({:>3.0}%) {:>9.1}% {:>8}/{:<8} ({:>3.0}%) {:>7} ({:>4.2}×) {:>14}",
+            "    {:<24} {:>10.1}% {:>7}/{:<7} ({:>3.0}%) {:>8}/{:<8} ({:>3.0}%) {:>7} ({:>4.2}×) {:>14}",
             label,
+            reach_home_share * 100.0,
             fmt_count(n_hard_nat),
             fmt_count(max_leaves),
             nat_load_pct.min(999.0),
-            max_nat_frac * 100.0,
             fmt_count(shaped_supply),
             fmt_count(shaped_demand),
             seated_pct,
@@ -3158,9 +3180,9 @@ fn print_transport_tiers_model(s: &Scenario) {
     let mut deliv_local: u64 = 0;
     let mut deliv_xloc: u64 = 0;
     let mut deliv_xreg: u64 = 0;
-    let mut hops_base: u64 = 0;
-    let mut hops_seat: u64 = 0;
-    let mut hops_bulk: u64 = 0;
+    let mut hops_device_shaped: u64 = 0; // CC §5.4.3 1-hop `server`/`home`/`phone-wifi`/`phone-cellular`
+    let mut hops_seat: u64 = 0;          // CC §5.4.3 1-hop `seat` (33,000 B/s)
+    let mut hops_ordinary_alm: u64 = 0;  // ordinary unshaped links + CC §6.1.6 `deterministic-alm` member relay tree
     let mut hops_saved_alm: u64 = 0;
     let mut onion_acts: u64 = 0;
     for _ in 0..sample_acts {
@@ -3173,7 +3195,9 @@ fn print_transport_tiers_model(s: &Scenario) {
             continue;
         }
         acts_with_aud += 1;
-        let is_onion = ((next_u64() >> 33) % 1000) < 120;
+        // Direct 1-hop path required for shaped links & onion walks (CC §5.4.3 "A shaped link is one hop")
+        let has_direct_path = ((next_u64() >> 33) % 1000) < 430; // 5% server + 95% * 40% reachable-home share
+        let is_onion = has_direct_path && (((next_u64() >> 33) % 1000) < 120);
         if is_onion {
             onion_acts += 1;
         }
@@ -3185,7 +3209,11 @@ fn print_transport_tiers_model(s: &Scenario) {
                 deliveries += 1;
                 deliv_local += 1;
                 if !is_onion {
-                    hops_base += 1;
+                    if has_direct_path && (((next_u64() >> 33) % 100) < 60) {
+                        hops_device_shaped += 1;
+                    } else {
+                        hops_ordinary_alm += 1;
+                    }
                 }
             }
             acts_all_local += 1;
@@ -3207,10 +3235,10 @@ fn print_transport_tiers_model(s: &Scenario) {
                     deliv_xreg += 1;
                 }
                 if !is_onion {
-                    if ((next_u64() >> 33) % 100) < 75 {
-                        hops_base += 1;
+                    if has_direct_path && (((next_u64() >> 33) % 100) < 60) {
+                        hops_device_shaped += 1;
                     } else {
-                        hops_bulk += 1;
+                        hops_ordinary_alm += 1;
                     }
                 }
             }
@@ -3218,32 +3246,36 @@ fn print_transport_tiers_model(s: &Scenario) {
                 acts_all_local += 1;
             }
         } else if roll < 990 {
-            // Consent-free road: 2 stranger relay hops on shaped mesh
+            // Consent-free road: 1-hop `seat` replication across serve seats + direct/ordinary leaf
             rulebook_checks += 2;
             deliveries += 2;
             deliv_xloc += 1;
             deliv_xreg += 1;
             if !is_onion {
-                hops_base += 2;
+                hops_seat += 1;
+                if has_direct_path {
+                    hops_device_shaped += 1;
+                } else {
+                    hops_ordinary_alm += 1;
+                }
             }
         } else {
-            // Public room (5,000 members = ~11,250 devices): O(log_k N) Seat + ALM relay tree
+            // Public room (5,000 members = ~11,250 devices): CC §6.1.6 `deterministic-alm` member relay tree over sealed chunks
+            // (distinct from CC §5.3.3.2 realtime profile which has no selective-forwarding relay role)
             let pub_devs: u64 = 11_250;
             rulebook_checks += pub_devs;
             deliveries += pub_devs;
             deliv_local += pub_devs / 18;
             deliv_xloc += (pub_devs * 5) / 18;
             deliv_xreg += (pub_devs * 12) / 18;
-            let seat_hops: u64 = 18;
-            let alm_tree_hops: u64 = (pub_devs + 15) / 16; // k=16 fan-out per ALM parent
-            hops_seat += seat_hops;
-            hops_bulk += alm_tree_hops;
-            hops_saved_alm += pub_devs.saturating_sub(seat_hops + alm_tree_hops);
+            let alm_tree_hops: u64 = 18 + (pub_devs + 15) / 16; // O(log_k N) member relay tree over sealed chunks
+            hops_ordinary_alm += alm_tree_hops;
+            hops_saved_alm += pub_devs.saturating_sub(alm_tree_hops);
         }
     }
     let elapsed_s = t0.elapsed().as_secs_f64().max(1e-9);
     let checks_per_sec = (rulebook_checks as f64) / elapsed_s;
-    let wire_bytes = ((hops_base + hops_seat + hops_bulk) as f64) * 4096.0;
+    let wire_bytes = ((hops_device_shaped + hops_seat + hops_ordinary_alm) as f64) * 4096.0;
     let bcast_bytes = (acts_with_aud as f64) * total_devices * 4096.0;
     let dc_bytes = ((acts_with_aud + deliveries) as f64) * 4096.0;
     println!();
@@ -3268,15 +3300,15 @@ fn print_transport_tiers_model(s: &Scenario) {
         fmt_count(refused_strangers as f64)
     );
     println!(
-        "    3-Mesh wire bytes moved        {}  (base {} · seat {} · live/ALM {} · onion {} acts @ +0 B)",
+        "    Wire bytes moved (3 tiers)     {}  (1-hop device-shaped {} · `seat` {} · ordinary/`deterministic-alm` {} · onion {} acts @ +0 B)",
         fmt_bytes(wire_bytes),
-        fmt_count(hops_base as f64),
+        fmt_count(hops_device_shaped as f64),
         fmt_count(hops_seat as f64),
-        fmt_count(hops_bulk as f64),
+        fmt_count(hops_ordinary_alm as f64),
         fmt_count(onion_acts as f64)
     );
     println!(
-        "    Public-room ALM tree savings   {} unicast deliveries saved  ({:.1}× less wire traffic than central datacenter {})",
+        "    CC §6.1.6 `deterministic-alm`  {} unicast deliveries saved  ({:.1}× less wire traffic than central datacenter {})",
         fmt_count(hops_saved_alm as f64),
         dc_bytes / wire_bytes.max(1.0),
         fmt_bytes(dc_bytes)

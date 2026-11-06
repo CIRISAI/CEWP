@@ -127,7 +127,7 @@ deployments already deliver today.
 
 No datacenters required.
 
-See the [live 3-mesh globe](../docs/globe.html) and the [interactive scaling & sustainability toy](../toy/index.html) to explore the numbers, the 3 transport meshes (low-BW shaped, 33 KB/s seat, and live/ALM relay tree), cover-replaced X-Wing onion routing (`+0 B` extra wire cost), and the 8 Constitutional opt-in choices (`+` benefit / `−` downside).
+See the [live 3D globe landing page](../docs/index.html) and the [interactive scaling & sustainability toy](../toy/index.html) to explore the numbers, the **CC §5.4.3 budget classes** (`server` `7,000 B/s`, `home` `2,800 B/s`, `phone-wifi` `1,400 B/s`, `phone-cellular` `350 B/s`, `seat` `33,000 B/s`, each at $\rho = 0.5$, 1 direct hop per shaped link), the **CC §6.1.6 `deterministic-alm` member relay tree** over sealed chunks (distinct from the CC §5.3.3.2 realtime profile's no-relay-role), cover-replaced X-Wing onion routing (`+0 B` extra wire cost), and the 8 Constitutional opt-in choices (`+` benefit / `−` downside).
 
 ## What's NOT in scope
 

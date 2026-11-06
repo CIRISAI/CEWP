@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Billions of people and devices, one rulebook — 3-Mesh & ALM Relay Tree</title>
-<meta name="description" content="Billions of people and devices placed on a land-bounded world population density grid, governed by one constitutional rulebook across 3 transport meshes (low-BW shaped, high-BW 33 KB/s seat, live/ALM relay tree) + cover-replaced onion walks and Reticulum NAT traversal in WebAssembly.">
+<meta name="description" content="Billions of people and devices placed on a land-bounded world population density grid, governed by one constitutional rulebook across CC 5.4.3 1-hop shaped budget classes (server, home, phone-wifi, phone-cellular, seat 33 KB/s), ordinary links, and CC 6.1.6 deterministic-alm member relay trees in WebAssembly.">
 <style>
 :root{--bg:#0b0d12;--panel:#12151c;--line:#242a36;--ink:#dfe3ea;--mute:#8a93a3;--ok:#5ad38f;--warm:#ffb15c;--hot:#ff6a5c;--cool:#6cb6ff;--violet:#c68aff;--mono:ui-monospace,Menlo,Consolas,monospace}
 *{box-sizing:border-box}html,body{height:100%;overscroll-behavior:none}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--mono);overflow:hidden;-webkit-text-size-adjust:100%}
@@ -15,6 +15,9 @@
 #btn-hud{left:12px;top:12px}
 #btn-stats{right:12px;top:12px}
 #btn-foot{left:12px;bottom:max(12px,env(safe-area-inset-bottom));font-weight:500;font-size:11px;padding:6px 11px;color:var(--mute)}
+.nav-strip{position:fixed;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:20;display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.nav-pill{background:color-mix(in srgb,var(--panel) 84%,transparent);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font:500 11px/1 var(--mono);text-decoration:none;backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,.35);transition:border-color .18s,color .18s,background .18s;white-space:nowrap}
+.nav-pill:hover{border-color:var(--cool);color:#fff;background:color-mix(in srgb,var(--panel) 96%,transparent)}
 .panel-hidden{display:none!important}
 .panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .panel-close{background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:6px;padding:2px 7px;font:12px/1.2 var(--mono);cursor:pointer;flex:none}
@@ -77,6 +80,8 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
   #btn-hud{left:8px;top:8px;padding:7px 11px;font-size:11.5px}
   #btn-stats{right:8px;top:8px;padding:7px 11px;font-size:11.5px}
   #btn-foot{left:8px;bottom:max(8px,env(safe-area-inset-bottom))}
+  .nav-strip{right:8px;bottom:max(8px,env(safe-area-inset-bottom));gap:4px;max-width:calc(100vw - 88px)}
+  .nav-pill{padding:5px 8px;font-size:10px}
   #hud{left:8px;top:44px;width:calc(100vw - 16px);padding:10px 12px;max-height:calc(100dvh - 56px)}
   #hud h1{font-size:15px;margin-bottom:2px}
   #stats{left:8px;right:8px;width:calc(100vw - 16px);top:44px;padding:10px 12px;max-height:calc(100dvh - 56px)}
@@ -92,12 +97,20 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
 <button id="btn-hud" class="fab" type="button" title="Toggle controls &amp; population opt-ins">☰ Controls · <span class="badge" id="badge-scale">5.00 B</span></button>
 <button id="btn-stats" class="fab" type="button" title="Toggle live telemetry &amp; sustainability metrics">☰ Metrics · <span class="badge" id="badge-local">– local</span></button>
 <button id="btn-foot" class="fab" type="button" title="Toggle architecture legend &amp; links">? Info</button>
+<nav class="nav-strip" aria-label="Architecture &amp; comparison links">
+  <a class="nav-pill" href="how-it-works.html#solves">How It Works</a>
+  <a class="nav-pill" href="how-it-works.html#peers">vs. Other Meshes</a>
+  <a class="nav-pill" href="how-it-works.html#motion">In Motion</a>
+  <a class="nav-pill" href="mesh.html">6-Peer Kernel</a>
+  <a class="nav-pill" href="toy/">Scaling Toy</a>
+  <a class="nav-pill" href="https://github.com/CIRISAI/CEWP">GitHub</a>
+</nav>
 <div id="hud" class="panel-hidden">
   <div class="panel-head">
     <h1>Billions of people and devices, one rulebook</h1>
     <button class="panel-close" id="close-hud" type="button" title="Hide controls">✕</button>
   </div>
-  <p>Land-bounded world population grid (2,961 cells, 181 localities). Every person's devices evaluate the same constitutional rulebook across <b>3 meshes</b> (CC 5.4.3 / Edge 44): low-BW shaped, seat 33 KB/s, and live/ALM relay trees, plus 0-byte-extra onion walks and Reticulum NAT traversal.</p>
+  <p>Land-bounded world population grid (2,961 cells, 181 localities). Every person's devices evaluate the same constitutional rulebook across <b>CC 5.4.3 1-hop shaped budget classes</b> (<code>server</code> 7 KB/s, <code>home</code> 2.8 KB/s, <code>phone-wifi</code> 1.4 KB/s, <code>phone-cellular</code> 350 B/s, <code>seat</code> 33 KB/s), ordinary links, and <b>CC 6.1.6 <code>deterministic-alm</code></b> member relay trees over sealed chunks.</p>
   <input type="hidden" id="size" value="5000000000">
   <input type="hidden" id="acts" value="10000">
   <div class="row main-actions">
@@ -107,8 +120,8 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     <button id="arcsb" class="on">arcs</button>
   </div>
   <div class="sust-strip">
-    <div class="sust-pill"><span>Hard-NAT peers</span><b id="pill-nat">–</b></div>
-    <div class="sust-pill"><span>Shaped slots</span><b id="pill-shape">–</b></div>
+    <div class="sust-pill"><span>Reachable home</span><b id="pill-nat">–</b></div>
+    <div class="sust-pill"><span>1-hop shaped slots</span><b id="pill-shape">–</b></div>
     <div class="sust-pill"><span>Onion cover</span><b id="pill-onion">–</b></div>
   </div>
   <p id="status" style="margin:4px 0 2px">building…</p>
@@ -117,11 +130,11 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     <summary></summary>
     <div class="adv-body">
       <div class="adv-sec">
-        <h3><span>Presets</span><span style="color:var(--mute);font-weight:400;font-size:9.5px">CC 4.5.13 / 5.4.3 / 5.4.6</span></h3>
+        <h3><span>Presets</span><span style="color:var(--mute);font-weight:400;font-size:9.5px">CC 4.5.13 / 5.4.3 / 5.4.6 / 6.1.6</span></h3>
         <div class="preset-bar" id="preset-bar">
           <button data-preset="fleet">Fleet Defaults</button>
           <button data-preset="privacy">High Privacy</button>
-          <button data-preset="cgnat">CGNAT Stress (85%)</button>
+          <button data-preset="cgnat">CGNAT Stress (15% reach)</button>
           <button data-preset="unowned">Unowned-Only (73rd Peer)</button>
         </div>
         <div class="control-group" style="margin:4px 0">
@@ -146,16 +159,16 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
           <div class="cg-head"><label>Mesh layer filter</label></div>
           <div class="mesh-pills" id="mesh-seg">
             <button data-tier="-1" class="active">All</button>
-            <button data-tier="0"><span class="dot" style="background:var(--warm)"></span>Low-BW shaped</button>
+            <button data-tier="0"><span class="dot" style="background:var(--warm)"></span>1-hop device shaped</button>
             <button data-tier="1"><span class="dot" style="background:var(--cool)"></span>Seat 33 KB/s</button>
-            <button data-tier="2"><span class="dot" style="background:var(--ok)"></span>Live / ALM tree</button>
+            <button data-tier="2"><span class="dot" style="background:var(--ok)"></span>Ordinary / <code>deterministic-alm</code></button>
             <button data-tier="3"><span class="dot" style="background:var(--violet)"></span>Onion (0B extra)</button>
           </div>
         </div>
       </div>
 
       <div class="adv-sec">
-        <h3><span>Device Tiers, Phone Wi-Fi &amp; Hard NAT</span><span id="tier-sum-lbl" style="color:var(--ok);font-size:9.5px">100%</span></h3>
+        <h3><span>Device Tiers, Phone Wi-Fi &amp; Reachable-Home Share</span><span id="tier-sum-lbl" style="color:var(--ok);font-size:9.5px">100%</span></h3>
         <div class="sl-item">
           <div class="sl-top"><span>Server tier (1 TiB / 1 Gbps always-on)</span><b id="v_srv">5%</b></div>
           <input type="range" class="adv-range" id="sl_srv" min="1" max="25" step="1" value="5">
@@ -176,9 +189,9 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
           <input type="range" class="adv-range" id="sl_chg" min="5" max="90" step="5" value="35">
         </div>
         <div class="sl-item">
-          <div class="sl-top"><span>Hard NAT on Home &amp; Phone (vs IPv6 / hole-punch)</span><b id="v_nat">60% hard NAT</b></div>
+          <div class="sl-top"><span>No direct path on Home &amp; Phone (vs IPv6 / punched)</span><b id="v_nat">60% NAT · 40% direct</b></div>
           <input type="range" class="adv-range" id="sl_nat" min="0" max="95" step="5" value="60">
-          <div class="pro-con">Reticulum popscone NAT / IPv6 directly for the remaining <span id="v_direct_nat" style="color:var(--ok)">40%</span>; hard-NAT leaves home on <i>k</i>=2 reachable parents.</div>
+          <div class="pro-con">Reachable-home share = <span id="v_direct_nat" style="color:var(--ok)">40%</span> direct IPv6 / punched UDP path (<code>leviculum#100</code> NAT-mix, <code>leviculum#101</code> no PCP/NAT-PMP/UPnP). Per CC 5.4.3, a shaped link is 1 direct hop; peers with no direct path carry on ordinary links.</div>
         </div>
       </div>
 
@@ -186,37 +199,37 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
         <h3><span>Population Opt-In Choices</span><span style="color:var(--mute);font-weight:400;font-size:9.5px">Benefits (+) &amp; Downsides (−)</span></h3>
 
         <div class="sl-item">
-          <div class="sl-top"><span>1. Link shaping — Server (7 KB/s)</span><span><span class="dflt">Default: ON</span> <b id="v_sh_srv">95%</b></span></div>
+          <div class="sl-top"><span>1. Link shaping — <code>server</code> (7,000 B/s)</span><span><span class="dflt">Default: ON</span> <b id="v_sh_srv">95%</b></span></div>
           <input type="range" class="adv-range" id="sl_sh_srv" min="0" max="100" step="5" value="95">
           <div class="pro-con">
-            <span class="pro">+ Hides row timing/size in 16,272 B frames (ρ=0.5); carries onion walks at +0 B extra wire cost.</span>
-            <span class="con">− Sends ~18.1 GB/mo/link continuous cover even idle; adds ~1.16 s mean (~2.3 s frame) Poisson wait.</span>
+            <span class="pro">+ Hides row timing/size in channel MDU frames (ρ=0.5, W=600 s); carries onion walks at +0 B extra wire cost.</span>
+            <span class="con">− Sends ~18.1 GB/mo/link continuous cover even idle; adds ~1.16 s mean (~2.3 s @ 16 KB TCP MDU) Poisson wait.</span>
           </div>
         </div>
 
         <div class="sl-item">
-          <div class="sl-top"><span>2. Link shaping — Home (2.8 KB/s)</span><span><span class="dflt off">Default: OFF</span> <b id="v_sh_home">25%</b></span></div>
+          <div class="sl-top"><span>2. Link shaping — <code>home</code> (2,800 B/s)</span><span><span class="dflt off">Default: OFF</span> <b id="v_sh_home">25%</b></span></div>
           <input type="range" class="adv-range" id="sl_sh_home" min="0" max="100" step="5" value="25">
           <div class="pro-con">
-            <span class="pro">+ Masks home traffic timing/size; expands standing shaped cover pool for onion peers.</span>
-            <span class="con">− Costs ~7.2 GB/mo/link continuous cover bandwidth; adds ~2.9 s mean (~5.8 s frame) wait.</span>
+            <span class="pro">+ Masks home traffic timing/size (W=600 s) on direct 1-hop links; expands standing shaped cover pool for onion peers.</span>
+            <span class="con">− Costs ~7.2 GB/mo/link continuous cover bandwidth; adds ~2.9 s mean (~5.8 s @ 16 KB TCP MDU) wait.</span>
           </div>
         </div>
 
         <div class="sl-item">
-          <div class="sl-top"><span>3. Link shaping — Phone (1.4K Wi-Fi / 350B cell)</span><span><span class="dflt off">Default: OFF</span> <b id="v_sh_phone">10%</b></span></div>
+          <div class="sl-top"><span>3. Link shaping — <code>phone-wifi</code> (1,400 B/s) / <code>phone-cellular</code> (350 B/s)</span><span><span class="dflt off">Default: OFF</span> <b id="v_sh_phone">10%</b></span></div>
           <input type="range" class="adv-range" id="sl_sh_phone" min="0" max="100" step="5" value="10">
           <div class="pro-con">
-            <span class="pro">+ Prevents mobile links from spilling unshaped; contributes mobile shaped cover hops.</span>
-            <span class="con">− 3.6 GB/mo/link Wi-Fi (0.9 GB/mo/link cell, ~7 GB/mo @ 8 links); radio awake; 11.6–47 s frame delay.</span>
+            <span class="pro">+ Shapes direct 1-hop mobile links (W=600 s Wi-Fi, W=3,600 s cellular); contributes mobile shaped cover hops.</span>
+            <span class="con">− 3.6 GB/mo/link Wi-Fi (0.9 GB/mo/link cell, ~7 GB/mo @ 8 links); radio awake; 11.6–46.5 s TCP MDU delay.</span>
           </div>
         </div>
 
         <div class="sl-item">
-          <div class="sl-top"><span>4. Offer relay (server/home/phone-charging)</span><span><span class="dflt">Default: ON</span> <b id="v_relay">90%</b></span></div>
+          <div class="sl-top"><span>4. Offer relay (directly reachable server/home/phone-charging)</span><span><span class="dflt">Default: ON</span> <b id="v_relay">90%</b></span></div>
           <input type="range" class="adv-range" id="sl_relay" min="0" max="100" step="5" value="90">
           <div class="pro-con">
-            <span class="pro">+ Each seated home/server adds L−1 = 7 shaped slots (Tiers.lean) &amp; homes hard-NAT leaves so mesh doesn't strand at 73rd peer.</span>
+            <span class="pro">+ Each directly reachable home/server adds L−1 = 7 shaped slots (<code>Tiers.lean</code>: <code>each_home_adds_seven</code>, <code>reach ≠ capacity</code>) &amp; avoids stranding at the 73rd peer.</span>
             <span class="con">− Carries strangers' sealed rows up to class cap; discloses signed route &amp; locality to ≤3 referred strangers.</span>
           </div>
         </div>
@@ -272,20 +285,20 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     <div class="kv"><span>crosses a locality, same region</span><b id="xmetro">–</b></div>
     <div class="kv"><span>crosses a region</span><b id="xregion">–</b></div>
     <div class="kv"><span>mean distance of a crossing</span><b id="km">–</b></div>
-    <h2>sustainability: hard NAT &amp; onion cover</h2>
-    <div class="kv"><span>hard-NAT leaves vs <i>k</i>=2 parent capacity</span><b id="s_nat_cap">–</b></div>
+    <h2>slot supply &amp; 1-hop shaped links (CC 5.4.3 / <code>Tiers.lean</code>)</h2>
+    <div class="kv"><span>no-direct-path leaves vs <i>k</i>=2 parent capacity</span><b id="s_nat_cap">–</b></div>
     <div class="bar"><i id="natbar" style="width:0"></i></div>
-    <div class="kv"><span>max sustainable hard-NAT % (at current mix)</span><b id="s_nat_max">–</b></div>
-    <div class="kv"><span>shaped slots (<i>each_home_adds_seven</i>)</span><b id="s_shape_slots">–</b></div>
-    <div class="kv"><span>nodes shaping traffic (cover pool)</span><b id="s_shapers">–</b></div>
+    <div class="kv"><span>reachable-home share (IPv6 / punched direct path)</span><b id="s_nat_max">–</b></div>
+    <div class="kv"><span>1-hop shaped slots (<code>each_home_adds_seven</code>)</span><b id="s_shape_slots">–</b></div>
+    <div class="kv"><span>direct 1-hop shaping devices (cover pool)</span><b id="s_shapers">–</b></div>
     <div class="kv"><span>shaping cover : onion peer ratio</span><b id="s_cover_ratio">–</b></div>
     <div class="kv"><span>answering onion relays / layer (floor ≥3)</span><b id="s_onion_relays">–</b></div>
-    <h2>3 meshes &amp; ALM relay tree (CC 5.4.3 / Edge 44)</h2>
-    <div class="kv"><span><span class="dot" style="background:var(--warm)"></span> low-BW shaped (≤8 links, ≤64 KiB)</span><b id="m_base">–</b></div>
-    <div class="kv"><span><span class="dot" style="background:var(--cool)"></span> high-BW shaped (seat↔seat 33 KB/s)</span><b id="m_seat">–</b></div>
-    <div class="kv"><span><span class="dot" style="background:var(--ok)"></span> live / ALM tree (&gt;64 KiB + unshaped spill)</span><b id="m_bulk">–</b></div>
+    <h2>CC 5.4.3 budget classes &amp; CC 6.1.6 <code>deterministic-alm</code></h2>
+    <div class="kv"><span><span class="dot" style="background:var(--warm)"></span> 1-hop device shaped (<code>server</code>/<code>home</code>/<code>phone-*</code>)</span><b id="m_base">–</b></div>
+    <div class="kv"><span><span class="dot" style="background:var(--cool)"></span> 1-hop <code>seat</code> shaped (seat↔seat 33,000 B/s)</span><b id="m_seat">–</b></div>
+    <div class="kv"><span><span class="dot" style="background:var(--ok)"></span> ordinary &amp; <code>deterministic-alm</code> (unshaped)</span><b id="m_bulk">–</b></div>
     <div class="kv"><span><span class="dot" style="background:var(--violet)"></span> onion walks (cover-replaced, 0 B extra)</span><b id="m_onion">–</b></div>
-    <div class="kv"><span>public-room ALM relay hops vs direct</span><b id="m_alm">–</b></div>
+    <div class="kv"><span>CC 6.1.6 <code>deterministic-alm</code> member tree savings</span><b id="m_alm">–</b></div>
     <h2>this tick</h2>
     <div class="kv"><span>acts signed</span><b id="acts_n">–</b></div>
     <div class="kv"><span>deliveries (rulebook checks run)</span><b id="deliv">–</b></div>
@@ -298,15 +311,15 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     <div class="kv"><span>ms per tick (rulebook + relay tree)</span><b id="ms">–</b></div>
     <div class="kv"><span>world scale (people · devices)</span><b id="bpn">–</b></div>
     <div class="kv"><span>cumulative deliveries</span><b id="cum">–</b></div>
-    <div class="mob-links"><a href="mesh.html">The small mesh</a> · <a href="index.html">the model in motion</a> · <a href="toy/">scaling toy</a></div>
+    <div class="mob-links"><a href="how-it-works.html#solves">How it works</a> · <a href="how-it-works.html#peers">vs. other meshes</a> · <a href="mesh.html">6-peer kernel</a> · <a href="toy/">scaling toy</a></div>
   </div>
 </div>
 <div id="foot" class="panel-hidden">
   <div class="panel-head" style="margin-bottom:4px">
-    <b style="color:#fff;font-size:11.5px">How the 3-Mesh &amp; Rulebook Globe Works</b>
+    <b style="color:#fff;font-size:11.5px">How the Rulebook &amp; Transport Tiers Globe Works</b>
     <button class="panel-close" id="close-foot" type="button" title="Hide info">✕</button>
   </div>
-  Every person and device sits on populated land (2,961 density cells stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Public rooms fan out via the <b>Seat + ALM Relay Tree</b> (<i>O</i>(log<sub><i>k</i></sub> <i>N</i>) consumer-latched relay hops, not 5,000 direct deliveries). 15,296 B X-Wing onion packets walk standing shaped links, replacing cover frames at <b>0 extra wire bytes</b> (CC 5.4.6). Reticulum uses IPv6 / NAT hole-punching (~40% direct P2P) while hard NAT (~60%) homes leaves on <i>k</i>=2 serve seats. <a href="mesh.html">The small mesh</a> · <a href="index.html">the model in motion</a> · <a href="toy/">scaling toy</a>
+  Every person and device sits on populated land (2,961 density cells stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Per <b>CC 5.4.3</b> ("A shaped link is one hop"), shaped budget classes (<code>server</code> 7,000 B/s, <code>home</code> 2,800 B/s, <code>phone-wifi</code> 1,400 B/s, <code>phone-cellular</code> 350 B/s, <code>seat</code> 33,000 B/s at ρ=0.5) are 1 direct hop and never forwarded; peers without a direct path carry on ordinary links. Large rooms fan out via the <b>CC 6.1.6 <code>deterministic-alm</code> member relay tree</b> over sealed chunks (distinct from CC 5.3.3.2's no-SFU-relay-role; no seat decodes or selects). 15,296 B X-Wing onion packets replace cover frames on shaped links at <b>0 extra wire bytes</b> (CC 5.4.6). <a href="how-it-works.html#solves">How it works</a> · <a href="how-it-works.html#peers">vs. other meshes</a> · <a href="mesh.html">6-peer kernel</a> · <a href="toy/">scaling toy</a>
 </div>
 <script>
 // ------------------------------------------------------------------ the world (population density grid)
@@ -460,8 +473,8 @@ function tickJs(acts){
             const ms0=seatsOff[mm], ms1=seatsOff[mm+1];
             const targetSeat = ms1>ms0 ? seats[ms0] : m;
             o[8]+=kmf(lat[prevHub],lon[prevHub],lat[targetSeat],lon[targetSeat]);
-            o[19]++; o[20]++;
-            const tier = (touchedN&1)===0 ? 1 : 2;
+            o[20]++;
+            const tier = 2;
             if ((rnd()%3)===0) arcsN=pushArcJs(arcsN,prevHub,targetSeat,tier);
             act[targetSeat]=Math.min(255,act[targetSeat]+70);
             if ((touchedN&3)===0) prevHub=targetSeat;
@@ -483,19 +496,20 @@ function tickJs(acts){
         o[2]++; o[3]++; delivered++;
         const directNat = (rnd()%1000)<directNatPm;
         if (directNat) o[23]++;
-        const shapedHop = isOnion || (!isLiveAlm && (rnd()%1000)<shapingPm);
+        // CC 5.4.3 ("A shaped link is one hop"): direct 1-hop only; no forwarding through a third node
+        const shapedHop = directNat && (isOnion || (!isLiveAlm && (rnd()%1000)<shapingPm));
         const mm=metro[m];
         if (mm===sm){
-          o[5]++; wireHops += directNat?1:2;
-          if (!shapedHop) o[20]++; else o[18]++;
+          o[5]++;
+          if (shapedHop){ o[18]++; wireHops++; }
+          else { o[20]++; wireHops += directNat?1:2; }
         } else {
           crossed++;
           if (regionOfMetro[mm]===sr) o[6]++; else o[7]++;
           o[8]+=kmf(slat,slon,lat[m],lon[m]);
-          if (!shapedHop){ o[20]++; wireHops += directNat?1:2; }
-          else if (directNat){ o[18]++; wireHops++; }
-          else { o[18]++; o[19]++; wireHops+=2; }
-          const arcTier = isOnion ? 3 : (!shapedHop ? 2 : (directNat ? 0 : 1));
+          if (shapedHop){ o[18]++; wireHops++; }
+          else { o[20]++; wireHops += directNat?1:2; }
+          const arcTier = (isOnion && shapedHop) ? 3 : (shapedHop ? 0 : 2);
           if ((rnd()%48)===0) arcsN=pushArcJs(arcsN,signer,m,arcTier);
         }
         act[m]=Math.min(255,act[m]+55);
@@ -763,7 +777,7 @@ function computeSustainability(){
   $("v_phone").textContent = phonePct + "%";
   $("v_wifi").textContent = wifiPct + "% Wi-Fi · " + (100 - wifiPct) + "% cell";
   $("v_chg").textContent = chgPct + "% of Wi-Fi";
-  $("v_nat").textContent = natPct + "% hard NAT";
+  $("v_nat").textContent = natPct + "% NAT · " + (100 - natPct) + "% direct";
   $("v_direct_nat").textContent = (100 - natPct) + "%";
   $("v_sh_srv").textContent = Math.round(shSrv*100) + "%";
   $("v_sh_home").textContent = Math.round(shHome*100) + "%";
@@ -779,61 +793,52 @@ function computeSustainability(){
   const M = Math.max(500, Math.round(P / 100000)); // canonical serve seats (50,000 at 5B people)
   const fSrv = srvPct / 100, fHome = homePct / 100, fPhone = phonePct / 100;
   const fWifi = wifiPct / 100, fChg = chgPct / 100, fNat = natPct / 100;
+  const reachHomeShare = Math.max(0, 1 - fNat); // Direct IPv6 or punched UDP path share (leviculum#100 / leviculum#101)
 
   const nSrv = N * fSrv, nHome = N * fHome, nPhone = N * fPhone;
   const nPhoneWifi = nPhone * fWifi, nPhoneChg = nPhoneWifi * fChg;
 
-  // 1. Hard-NAT leaves (home + phone behind symmetric/CGNAT; servers & canonical seats are public)
+  // 1. Peers without a direct path (home + phone behind NAT without IPv6/punched path; servers & canonical seats are directly reachable)
   const nHardNat = (nHome + nPhone) * fNat;
-  // Reachable relay parents (canonical seats + announced relay-offering servers, reachable homes, and reachable charging Wi-Fi phones)
+  // Directly reachable relay parents (canonical seats + announced relay-offering servers, reachable homes, and reachable charging Wi-Fi phones)
   const reachSrvRelays = nSrv * annOpt * relayOpt;
-  const reachHomeRelays = nHome * (1 - fNat) * annOpt * relayOpt;
-  const reachPhoneRelays = nPhoneChg * (1 - fNat) * annOpt * relayOpt;
-  // Each canonical seat / server relay can home up to 32 k=2 leaf attachments (64 slots / 2 parents);
-  // each reachable home relay can home up to 8 k=2 leaves (16 slots / 2); each charging phone relay up to 2 k=2 leaves.
+  const reachHomeRelays = nHome * reachHomeShare * annOpt * relayOpt;
+  const reachPhoneRelays = nPhoneChg * reachHomeShare * annOpt * relayOpt;
   const maxHardNatLeaves = Math.round(M * 36 + reachSrvRelays * 32 + reachHomeRelays * 8 + reachPhoneRelays * 2);
-  // Solve for max sustainable Hard-NAT % of (home+phone) before leaf demand exceeds k=2 parent supply:
-  // fNat * (nHome + nPhone) <= M*36 + reachSrvRelays*32 + (1 - fNat)*(nHome*annOpt*relayOpt*8 + nPhoneChg*annOpt*relayOpt*2)
-  const nonSrvPop = Math.max(1, nHome + nPhone);
-  const fixedLeafCap = M * 36 + reachSrvRelays * 32;
-  const reachDepCap = (nHome * 8 + nPhoneChg * 2) * annOpt * relayOpt;
-  const maxHardNatFrac = Math.min(0.99, (fixedLeafCap + reachDepCap) / (nonSrvPop + reachDepCap));
   const natLoadPct = maxHardNatLeaves > 0 ? (nHardNat / maxHardNatLeaves) * 100 : 999;
 
-  // 2. Shaped slot supply vs demand (Tiers.lean: each_home_adds_seven & unowned_only_strands_the_73rd)
-  // Canonical seats supply L=8 shaped slots each; seated relay-offering servers & homes add (L-1)=7 net slots each;
-  // charging Wi-Fi phones offering relay add 3 net shaped slots.
+  // 2. 1-Hop Shaped slot supply vs demand (CC 5.4.3 "A shaped link is one hop" + Tiers.lean: each_home_adds_seven & reach ≠ capacity)
+  // Only directly reachable nodes (`reachSrvRelays`, `reachHomeRelays`, `reachPhoneRelays`) can supply shaped parent slots.
   const shapedSrvRelays = reachSrvRelays * Math.max(shSrv, orelOpt * 0.5);
-  const shapedHomeRelays = nHome * annOpt * relayOpt * Math.max(shHome, orelOpt * 0.5);
-  const shapedPhoneRelays = nPhoneChg * annOpt * relayOpt * Math.max(shPhone, orelOpt * 0.3);
+  const shapedHomeRelays = reachHomeRelays * Math.max(shHome, orelOpt * 0.5);
+  const shapedPhoneRelays = reachPhoneRelays * Math.max(shPhone, orelOpt * 0.3);
   const shapedSlotsSupply = Math.round(M * 8 + shapedSrvRelays * 7 + shapedHomeRelays * 7 + shapedPhoneRelays * 3);
 
-  // Nodes actively shaping traffic (servers + opting-in homes + opting-in phones + anonymous mode + active onion relays)
+  // CC 5.4.3: a peer with no direct path gets no shaped link and carries the same classes on ordinary links.
   const nShapingNodes = Math.min(N, Math.round(
     nSrv * Math.max(shSrv, annOpt * relayOpt * orelOpt) +
-    nHome * Math.max(shHome, annOpt * relayOpt * orelOpt * 0.5, anonOpt) +
-    nPhone * (fWifi * Math.max(shPhone, fChg * annOpt * relayOpt * orelOpt * 0.35, anonOpt) + (1 - fWifi) * Math.max(shPhone * 0.4, anonOpt * 0.5))
+    (nHome * reachHomeShare) * Math.max(shHome, annOpt * relayOpt * orelOpt * 0.5, anonOpt) +
+    (nPhone * reachHomeShare) * (fWifi * Math.max(shPhone, fChg * annOpt * relayOpt * orelOpt * 0.35, anonOpt) + (1 - fWifi) * Math.max(shPhone * 0.4, anonOpt * 0.5))
   ));
-  // Each shaping peer needs ~2 shaped links on average (k=2 homed or guard + peer)
   const shapedSlotsDemand = Math.max(1, Math.round(nShapingNodes * 1.8));
   const shapedSeatedFrac = Math.min(1.0, shapedSlotsSupply / shapedSlotsDemand);
 
   // 3. Onion cover pool & answering onion relays per layer (CC 5.4.6 floor >= 3 per layer)
-  const nOnionPeers = Math.round(N * anonOpt);
-  const answeringOnionRelays = Math.round(M + (nSrv + nHome * (1 - fNat * 0.5) + nPhoneChg * (1 - fNat * 0.7)) * annOpt * relayOpt * orelOpt);
+  const nOnionPeers = Math.round((nSrv + (nHome + nPhone) * reachHomeShare) * anonOpt);
+  const answeringOnionRelays = Math.round(M + (reachSrvRelays + reachHomeRelays + reachPhoneRelays) * orelOpt);
   const relaysPerLayer = Math.floor(answeringOnionRelays / 3);
   const coverToOnionRatio = nOnionPeers > 0 ? (nShapingNodes / nOnionPeers) : nShapingNodes;
 
   // Update simulation per-mille parameters for WASM & JS engines
-  const effectiveDirectFrac = fSrv + (1 - fSrv) * (1 - fNat);
+  const effectiveDirectFrac = fSrv + (1 - fSrv) * reachHomeShare;
   simParams.directNatPm = Math.round(Math.max(20, Math.min(980, effectiveDirectFrac * 1000)));
-  const rawShapeShare = (nShapingNodes / Math.max(1, N)) * shapedSeatedFrac;
+  const rawShapeShare = (nShapingNodes / Math.max(1, N * effectiveDirectFrac)) * shapedSeatedFrac;
   simParams.shapingPm = Math.round(Math.max(40, Math.min(980, (0.25 + 0.75 * rawShapeShare) * 1000)));
   simParams.onionPm = relaysPerLayer >= 3 ? Math.round(Math.max(0, Math.min(600, anonOpt * 1000))) : 0;
 
   // Update UI pills & #stats
   const natOk = nHardNat <= maxHardNatLeaves;
-  $("pill-nat").textContent = fmt(nHardNat) + " / " + fmt(maxHardNatLeaves) + (natOk ? " ✓" : " ⚠");
+  $("pill-nat").textContent = Math.round(reachHomeShare * 100) + "% reach · " + fmt(nHardNat) + "/" + fmt(maxHardNatLeaves) + (natOk ? " ✓" : " ⚠");
   $("pill-nat").style.color = natOk ? (natLoadPct > 80 ? "var(--warm)" : "var(--ok)") : "var(--hot)";
 
   const shapePct = Math.round(shapedSeatedFrac * 100);
@@ -847,10 +852,10 @@ function computeSustainability(){
   $("s_nat_cap").style.color = natOk ? "#fff" : "var(--hot)";
   $("natbar").style.width = Math.min(100, natLoadPct).toFixed(1) + "%";
   $("natbar").style.background = natOk ? (natLoadPct > 80 ? "var(--warm)" : "var(--ok)") : "var(--hot)";
-  $("s_nat_max").textContent = (maxHardNatFrac * 100).toFixed(1) + "% of home/phone  (" + fmt(maxHardNatLeaves) + " leaves)";
+  $("s_nat_max").textContent = (reachHomeShare * 100).toFixed(0) + "% direct IPv6 / punched  (" + fmt(reachHomeRelays) + " home parents)";
   $("s_shape_slots").textContent = fmt(shapedSlotsSupply) + " supply vs " + fmt(shapedSlotsDemand) + " demand (" + shapePct + "% seated" + (relayOpt === 0 ? " · unowned-only!" : "") + ")";
-  $("s_shapers").textContent = fmt(nShapingNodes) + " nodes (" + (nShapingNodes / N * 100).toFixed(1) + "% of pop)";
-  $("s_cover_ratio").textContent = nOnionPeers > 0 ? coverToOnionRatio.toFixed(2) + " shaping nodes per onion peer (" + fmt(nOnionPeers) + " onion)" : fmt(nShapingNodes) + " shapers / 0 onion peers";
+  $("s_shapers").textContent = fmt(nShapingNodes) + " direct 1-hop devices (" + (nShapingNodes / N * 100).toFixed(1) + "% of fleet)";
+  $("s_cover_ratio").textContent = nOnionPeers > 0 ? coverToOnionRatio.toFixed(2) + " shaping devices per onion peer (" + fmt(nOnionPeers) + " onion)" : fmt(nShapingNodes) + " shapers / 0 onion peers";
   $("s_onion_relays").textContent = fmt(relaysPerLayer) + " / layer  (" + (relaysPerLayer >= 10 ? "✓ healthy ≥10" : relaysPerLayer >= 3 ? "⚠ small set <10" : "✗ below CC 5.4.6 floor <3") + ")";
 }
 ["sl_srv","sl_home","sl_wifi","sl_chg","sl_nat","sl_sh_srv","sl_sh_home","sl_sh_phone","sl_relay","sl_ann","sl_anon","sl_orel","sl_trc"].forEach(id=>{
@@ -912,7 +917,7 @@ function tick(){
   $("m_seat").textContent=fmt(o[19])+" hops · "+fmtBytes(o[19]*4096);
   $("m_bulk").textContent=fmt(o[20])+" hops · "+fmtBytes(o[20]*4096);
   $("m_onion").textContent=fmt(o[22])+" acts  (+0 B extra wire)";
-  $("m_alm").textContent=fmt(o[21])+" direct deliveries saved · "+fmt(o[23])+" NAT-popped";
+  $("m_alm").textContent=fmt(o[21])+" direct deliveries saved · "+fmt(o[23])+" direct 1-hop";
   $("acts_n").textContent=fmt(o[0])+"  (family "+fmt(o[12])+" · room "+fmt(o[13])+" · c-free "+fmt(o[14])+" · public "+fmt(o[15])+")"; $("deliv").textContent=fmt(o[1]); $("refused").textContent=fmt(o[4]);
   const totalDevs = Math.round(currentPop * DEVICES_PER_PERSON);
   const bcastWorld = o[17] * totalDevs * 4096;

@@ -8,9 +8,10 @@ an AI governance / superalignment platform — built on the bet that
 
 ## See it move
 
-- [**Billions of people and devices, one rulebook**](https://cirisai.github.io/CEWP/globe.html) — 5 billion people and 11.25 billion devices (adjustable from `100 M` to `8.1 B` people) on a land-bounded world population density grid (`2,961` cells, `181` localities, `9` GSMA/UN regions). Every device evaluates the same constitutional rulebook in WebAssembly across the **3 transport meshes** (low-BW shaped, 33 KB/s seat, and live/ALM relay trees), cover-replaced 15,296 B X-Wing onion walks (`+0 B` extra wire bytes), and Reticulum IPv6/NAT traversal, with expandable `☰ Controls` (8 Constitutional opt-in choices with `+` benefit / `−` downside) and `☰ Metrics` drawers.
+- [**Billions of people and devices, one rulebook (Landing Page)**](https://cirisai.github.io/CEWP/) — 5 billion people and 11.25 billion devices (adjustable from `100 M` to `8.1 B` people) on a land-bounded world population density grid (`2,961` cells, `181` localities, `9` GSMA/UN regions). Every device evaluates the same constitutional rulebook in WebAssembly across **CC §5.4.3 1-hop shaped budget classes** (`server` 7,000 B/s, `home` 2,800 B/s, `phone-wifi` 1,400 B/s, `phone-cellular` 350 B/s, `seat` 33,000 B/s), ordinary links, **CC §6.1.6 `deterministic-alm` member relay trees** over sealed chunks, and cover-replaced 15,296 B X-Wing onion walks (`+0 B` extra wire bytes), with expandable `☰ Controls`, `☰ Metrics`, and direct pill links to how it works and how it compares to other decentralized meshes.
+- [**How it works & compared to other decentralized meshes**](https://cirisai.github.io/CEWP/how-it-works.html) — tabs for [how it solves 11 structural problems of decentralized networks](https://cirisai.github.io/CEWP/how-it-works.html#solves) (each with its mechanism, existing standards, and stated residual), [how CEWP compares to BitTorrent/IPFS, ActivityPub/Matrix, Nostr/SSB, and Tor/Nym](https://cirisai.github.io/CEWP/how-it-works.html#peers) alongside the Verify/Persist/Edge substrate tables, [the 6-person + 1-agent queue/view story in motion](https://cirisai.github.io/CEWP/how-it-works.html#motion), and [the contract](https://cirisai.github.io/CEWP/how-it-works.html#contract) ([`docs/why-it-works.md`](docs/why-it-works.md), [`docs/epistemic-web.md`](docs/epistemic-web.md), CIRISConstitution `rc17`).
 - [**A mesh run by its kernel**](https://cirisai.github.io/CEWP/mesh.html) — people and their devices as cells, rows as signals travelling one hop per tick, every node folding what it holds with the same order-free function; click any node for its owner's queue and a preview that equals execution. Driven by [`docs/kernel/kernel.js`](docs/kernel/kernel.js) (one file, zero dependencies) over the constitution's own tables (`node --test docs/kernel/kernel.test.js`).
-- [**An epistemic web, in motion**](https://cirisai.github.io/CEWP/) — six people and an agent share one mesh of signed rows; each sees a **view** folded through their own standing, and each view generates a **queue**: the exact actions the local admission door would accept from them now. Includes tabs for [what this solves and how](https://cirisai.github.io/CEWP/#solves) (11 problems of decentralized networks, each with its mechanism, existing standards, and stated residual), [where it stands beside its peers](https://cirisai.github.io/CEWP/#peers) (ahead / parity / behind across Verify, Persist, and Edge), and [the contract](https://cirisai.github.io/CEWP/#contract) ([`docs/why-it-works.md`](docs/why-it-works.md), [`docs/epistemic-web.md`](docs/epistemic-web.md), CIRISConstitution `rc17`).
+- [**Interactive scaling & slot-supply toy**](https://cirisai.github.io/CEWP/toy/) — per-server feasibility gates (`1 TB / 1 Gbps / 1 core`), 8 Constitutional opt-in trade-offs (`+` benefit / `−` downside), reachable-home share input, and 1-hop shaped onion cover capacity.
 
 ## What CEWP is
 
@@ -48,21 +49,35 @@ privacy, and AI accountability reinforce each other instead of trading off:
    emits a discovery attestation (`holds_bytes`), and community rooms
    (~30%) are predominantly local. As a result, **~92% of signed acts
    never leave the signer's locality** (CC 5.2), and the 1% of acts in
-   5,000-member public rooms fan out over deterministic $O(\log_k N)$
-   Seat/ALM relay trees rather than unicasting from a central server.
-   Privacy is not a tax on scale; privacy is *why* 5 billion people and
-   11.25 billion devices fit on commodity hardware without datacenters.
-3. **Three transport meshes + zero-extra-byte onion cover (CC 5.4.3 / 5.4.6 / Edge v44).**
-   Links separate into **low-BW shaped (`base`)**, **33 KB/s high-BW
-   shaped (`seat`)**, and **unshaped live/ALM (`bulk`)**. When a peer
-   walks a 3-hop `15,296 B` X-Wing (`CONP`) onion route from a sticky
-   contact guard, each hop replaces a scheduled `16 KiB` chaff frame on
-   an already-shaped link (**`+0 B` extra wire bytes**), while realtime
-   A/V bypasses the shaped queue on the live/ALM mesh. And because
-   home/server nodes offer relay by default (`each_home_adds_seven` in
-   `Tiers.lean`), the fleet sustains up to **99% Hard-NAT / CGNAT leaves**
-   ($k=2$ homed parents) and billions of shaped cover slots instead of
-   stranding at the 73rd peer (`unowned_only_strands_the_73rd`).
+   5,000-member public rooms fan out over the **CC §6.1.6 `deterministic-alm`
+   member relay tree** ($O(\log_k N)$ fan-out where every member computes
+   the same deterministic tree over sealed chunks, distinct from CC §5.3.3.2's
+   realtime profile which has no selective-forwarding relay role — no seat
+   or third party decodes or selects) rather than unicasting from a central
+   server. Privacy is not a tax on scale; privacy is *why* 5 billion people
+   and 11.25 billion devices fit on commodity hardware without datacenters.
+3. **CC §5.4.3 1-hop shaped budget classes + zero-extra-byte onion cover (CC §5.4.6 / Edge v44).**
+   Per **CC §5.4.3 ("A shaped link is one hop")**, a shaped link is one
+   direct hop between its two ends, never forwarded through a third node,
+   at one of five constitutional budget classes (`server` `7,000 B/s`,
+   `home` `2,800 B/s`, `phone-wifi` `1,400 B/s`, `phone-cellular` `350 B/s`,
+   and `seat` `33,000 B/s`, each at $\rho = 0.5$, with $W = 600\text{ s}$ or
+   $3,600\text{ s}$ on cellular; channel payload MDU $\approx 400\text{ B}$ at
+   Reticulum base MTU or $\approx 16\text{ KB}$ / `16,272 B` over TCP).
+   The shaped tier carries identity, consent, chat, and small attachments
+   ($\le 64\text{ KiB}$); A/V and bulk ride unshaped only; a peer with no
+   direct path gets no shaped link and (like a node not opted in) carries
+   the same classes on ordinary links. When a peer walks a 3-hop `15,296 B`
+   X-Wing (`CONP`) onion route from a sticky contact guard, each hop
+   replaces a scheduled cover frame on an already-shaped link (**`+0 B`
+   extra wire bytes**). `formal/transport_tiers/Tiers.lean` proves the
+   8-link bound, displacement (`home_displaces_a_phone`), carriage and
+   referral reach (`each_home_adds_seven`, `unowned_only_strands_the_73rd`),
+   and the **`reach ≠ capacity`** theorem; combined with an explicit
+   **reachable-home share** input (direct IPv6 or punched UDP path;
+   `leviculum#100` NAT-mix data, `leviculum#101` no PCP/NAT-PMP/UPnP),
+   directly reachable servers and homes supply billions of 1-hop shaped
+   slots without stranding at the 73rd peer.
 4. **`agent = fabric node + brain` (alignment as an epistemic-web problem).**
    Every node is a **fabric node** that stores, witnesses, degrades, and
    transports — *mechanically, never reasoning*. Add a reasoning brain
@@ -204,20 +219,21 @@ are mirrored for easy cross-reference.
 | [`FSD/CEWP.md`](FSD/CEWP.md) | Platform identity — three load-bearing claims, "we don't need big tech" premise, agents-as-participants, superalignment via distributed epistemic governance |
 | [`FSD/FEDERATION_SCALING_MODEL.md`](FSD/FEDERATION_SCALING_MODEL.md) | Quantitative model. Single-pool storage. Trust × capacity intake + popularity × freshness eviction. L0 / L1 tier model. 13 scenarios up to full-internet-with-video; identity-aware-storage thesis with prior-art comparison. |
 | [`FSD/MEDIA_SHARING.md`](FSD/MEDIA_SHARING.md) | **Multimedia tier — YouTube / TikTok / Netflix / OnlyFans / AdultHUB replacement.** Five new external_content sub_kinds (image / audio / video / film / model_3d); content classification + multi-scheme rating (MPAA / BBFC / PEGI / etc.); operator-managed age gate; takedown_notice + key_grant CEG-native subject_kinds; content encryption (DEK / KEK / X25519+AES-GCM HPKE base mode); international standards mapping (DMCA / DSA / OSA / TVEC / NCMEC / AVMSD / KOSA / EU AI Act). |
-| [`FSD/ANONYMOUS_TIER.md`](FSD/ANONYMOUS_TIER.md) | The opt-in GPA-unobservability tier — CC RC17 §5.4.6 / Edge v44 cover-replaced 3-hop X-Wing `CONP` onion routing (15,296 B fixed frame riding inside the 16 KiB shaped slot at **+0 B extra wire bytes**) + Ed25519 key blinding + AEAD + rendezvous discoverability. **Cohort-scoped anonymity is already the default (CC 1.13.3.4);** this is the residual federation-scope opt-in, whose shaped cover capacity and latency cost both the [globe](https://cirisai.github.io/CEWP/globe.html) and [toy](toy/index.html) model. |
+| [`FSD/ANONYMOUS_TIER.md`](FSD/ANONYMOUS_TIER.md) | The opt-in GPA-unobservability tier — CC RC17 §5.4.6 / Edge v44 cover-replaced 3-hop X-Wing `CONP` onion routing (`15,296 B` fixed frame riding inside a `16 KiB` / `16,272 B` TCP shaped slot at **`+0 B` extra wire bytes**) + Ed25519 key blinding + AEAD + rendezvous discoverability. **Cohort-scoped anonymity is already the default (CC 1.13.3.4);** this is the residual federation-scope opt-in, whose 1-hop shaped cover capacity and latency cost both the [globe landing page](https://cirisai.github.io/CEWP/) and [toy](toy/index.html) model. |
 | [`FSD/SIMULATION_ENGINE.md`](FSD/SIMULATION_ENGINE.md) | Rust simulation engine spec — modular workspace; scalable from 1 K-agent browser playback to 5 B-agent GPU sim at 1:1. Real-world topology data (PeeringDB, CAIDA, TeleGeography submarine cables, GeoNames). Snapshots feed the website team's existing Three.js viz. |
 
 ### Working toy
 
 | Path | Purpose |
 |---|---|
-| [`examples/scale_model.rs`](examples/scale_model.rs) | The runnable scaling-model toy. `cargo run --example scale_model` (from CIRISNodeCore workspace; mirrored here for reference). **14 workload scenarios** (bootstrap → dunbar → media-heavy → twitter → news → full-internet → tiktok → youtube → netflix → adulthub → full-internet-with-video) **+ 3 regional-realism scenarios** (south-asia-dense, sub-saharan-bootstrap, north-america-realistic) **+ CC RC17 / Edge v44 3-mesh transport (`base` low-BW shaped, `seat` 33 KB/s high-BW shaped, `live`/`bulk` + $O(\log_k N)$ Seat/ALM relay tree), cover-replaced X-Wing onion walks, and Reticulum IPv6/NAT leaf accounting + a threat-model pass + per-scenario environmental footprint**. All feasible per-server at v1 gates (1 TB / 1 Gbps / 1 core). |
-| [`toy/index.html`](toy/index.html) | The **interactive** browser toy — pick a scenario, tune the top-level hardware gates (disk / bandwidth / core), and expand **▸ Advanced: Population Opt-In Choices (+/-), Device Tiers & Sustainability** to adjust device tier shares (`% server`, `% home`, `% phone`), phone Wi-Fi vs. cellular + charging share, Hard-NAT share, and the 8 Constitutional opt-in choices with live **Hard-NAT Leaf Capacity** and **Shaped Onion Cover Capacity** readouts. Mirrors the `scale_model.rs` math; no build step, just open it. |
+| [`examples/scale_model.rs`](examples/scale_model.rs) | The runnable scaling-model toy. `cargo run --example scale_model` (from CIRISNodeCore workspace; mirrored here for reference). **14 workload scenarios** (bootstrap → dunbar → media-heavy → twitter → news → full-internet → tiktok → youtube → netflix → adulthub → full-internet-with-video) **+ 3 regional-realism scenarios** (south-asia-dense, sub-saharan-bootstrap, north-america-realistic) **+ CC RC17 §5.4.3 budget classes (`server` `7,000 B/s`, `home` `2,800 B/s`, `phone-wifi` `1,400 B/s`, `phone-cellular` `350 B/s`, `seat` `33,000 B/s`, each at $\rho=0.5$, 1 direct hop per shaped link), CC §6.1.6 `deterministic-alm` member relay tree over sealed chunks (distinct from CC §5.3.3.2 realtime no-relay-role), cover-replaced X-Wing onion walks, and `reach_home_share` / no-direct-path leaf accounting (`formal/transport_tiers/Tiers.lean` proves `reach ≠ capacity`) + a threat-model pass + per-scenario environmental footprint**. All feasible per-server at v1 gates (1 TB / 1 Gbps / 1 core). |
+| [`toy/index.html`](toy/index.html) | The **interactive** browser toy — pick a scenario, tune the top-level hardware gates (disk / bandwidth / core), and expand **▸ Advanced: Population Opt-In Choices (+/-), Device Tiers & Sustainability** to adjust device tier shares (`% server`, `% home`, `% phone`), phone Wi-Fi vs. cellular + charging share, directly reachable home share (`reach_home_share`), no-direct-path share, and the 8 Constitutional opt-in choices with live **No-Direct-Path Leaf Capacity** and **1-Hop Shaped Onion Cover Capacity** readouts. Mirrors the `scale_model.rs` math; no build step, just open it. |
 
 ### Explanation docs (for general audience + website team)
 
 | Path | Purpose |
 |---|---|
+| [`docs/how-it-works.html`](docs/how-it-works.html) | What CEWP solves (11 structural failures), how it compares to BitTorrent/IPFS, ActivityPub/Matrix, Nostr/SSB, and Tor/Nym, and how it moves |
 | [`docs/overview.md`](docs/overview.md) | Plain-language platform explanation |
 | [`docs/seven-repos.md`](docs/seven-repos.md) | The fabric-node architecture: who does what across the cores (CIRISServer cohabitation + substrate trio + agent) |
 | [`docs/the-bet.md`](docs/the-bet.md) | The premise + the empirical bet from the research synthesis |
@@ -289,27 +305,27 @@ these numbers in animation-ready form — modeled at 1:1 over the
 real internet topology (real metros, real submarine cables, real
 peering points).
 
-### 3-Mesh Transport, Opt-In Choices (+/-) & Sustainability (CC RC17 / Edge v44)
+### CC §5.4.3 Budget Classes, 1-Hop Shaped Slot Supply & CC §6.1.6 `deterministic-alm` (CC RC17 / Edge v44)
 
-Per **CIRISConstitution RC17** (§4.5.13, §5.4.3, §5.4.6, and [`Tiers.lean`](https://github.com/CIRISAI/CIRISConstitution)) and **CIRISEdge v44**, the mesh runs three transport tiers simultaneously:
-1. **Low-BW Shaped (`base`)**: `16 KiB` packet every `2 s` (`8 KB/s`, `691 MB/day/slot`) — padded or chaff-filled on the tick.
-2. **High-BW Shaped (`seat`)**: `16 KiB` packet every `500 ms` (`33 KB/s`, `2.76 GB/day/slot`) — canonical serve seats (`serve_max = 8`) and server-tier links.
-3. **Live / Unshaped Bulk (`live`)**: Reticulum IPv6 / UDP hole-punched links + $O(\log_k N)$ Seat/ALM relay trees (`k = 8` seat fan-out) for public rooms and real-time media.
-4. **Cover-Replaced X-Wing Onion (`CONP`, `15,296 B`)**: 3-hop hybrid X25519 + ML-KEM-768 onion packets (`3 × 1,264 B` headers + `11,488 B` body) replace scheduled `16 KiB` chaff frames on shaped links (**`+0 B` extra wire bytes**; latency-only cost).
+Per **CIRISConstitution RC17** (§4.5.13, §5.3.3.2, §5.4.3, §5.4.6, §6.1.6, and [`formal/transport_tiers/Tiers.lean`](https://github.com/CIRISAI/CIRISConstitution)) and **CIRISEdge v44**, transport separates into the Constitution's named budget classes and fan-out rules:
+1. **Device-tier 1-hop shaped links (`L ≤ 8`, CC §5.4.3)**: `server` (`7,000 B/s` = `605 MB/day`), `home` (`2,800 B/s` = `242 MB/day`), `phone-wifi` (`1,400 B/s` = `121 MB/day`), and `phone-cellular` (`350 B/s` = `30 MB/day`), each at cover fraction $\rho = 0.5$ (`W = 600 s`, or `3,600 s` on cellular; channel payload MDU `≈ 400 B` at the Reticulum `500 B` base MTU or `≈ 16 KB` / `16,272 B` over TCP). **A shaped link is 1 direct hop** between its two ends, never forwarded through a third node; a peer with no direct path gets no shaped link (and carries identity, consent, chat, and small attachments on ordinary links; A/V and bulk unshaped only).
+2. **Serve-tier shaped (`seat`, CC §5.4.3)**: `33,000 B/s` (`2.85 GB/day/slot`, $\rho = 0.5$, `W = 600 s`) — canonical serve seats (`serve_max = 8`).
+3. **Ordinary links & CC §6.1.6 `deterministic-alm` member relay tree**: Reticulum direct IPv6 / UDP-punched links (`leviculum#100` first empirical NAT-mix measurement; `leviculum#101` notes neither PCP/NAT-PMP nor UPnP is implemented) + $O(\log_k N)$ **CC §6.1.6 `deterministic-alm` member relay tree** (`k = 8`) over sealed chunks for large-$N$ rooms (distinct from **CC §5.3.3.2**, where the realtime transport profile has **no selective-forwarding relay role** — no seat or third party decodes or selects).
+4. **Cover-Replaced X-Wing Onion (`CONP`, `15,296 B`, CC §5.4.6)**: 3-hop hybrid X25519 + ML-KEM-768 onion packets (`3 × 1,264 B` headers + `11,488 B` body) replace scheduled chaff frames on TCP shaped links (**`+0 B` extra wire bytes**; latency-only cost).
 
-Both [`docs/globe.html`](docs/globe.html), [`toy/index.html`](toy/index.html), and [`examples/scale_model.rs`](examples/scale_model.rs) model how the 8 Constitutional opt-in choices and device tiers sustain **Hard-NAT leaf peers** ($k=2$ homed parents per leaf, `cap = 32` $k=2$ leaves on server / `8` on reachable home) and **shaped onion cover** at full-internet scale (**`5.00 B` people · `11.25 B` devices** at `2.25` devices/person across `self` rosters · `50,000` canonical serve seats):
+Note: [`formal/transport_tiers/Tiers.lean`](https://github.com/CIRISAI/CIRISConstitution) proves the 8-link bound (`L ≤ 8`), displacement (`unowned_only_strands_the_73rd`), carriage/referral reach (`each_home_adds_seven`), and the **`reach ≠ capacity`** theorem — it has no reachability term. Both [`docs/index.html`](docs/index.html), [`toy/index.html`](toy/index.html), and [`examples/scale_model.rs`](examples/scale_model.rs) therefore take **directly reachable home share (`reach_home_share`)** as an explicit scenario input alongside the 8 Constitutional opt-in choices at full-internet scale (**`5.00 B` people · `11.25 B` devices** at `2.25` devices/person across `self` rosters · `50,000` canonical serve seats):
 
-| Regime (`5.00 B` people · `11.25 B` devices) | Hard-NAT Leaves vs. Capacity | Max Sustainable Hard-NAT | Shaped Slots (`each_home_adds_seven`) | Shaping Cover Pool (`+0 B` wire) | Answering Onion Relays / Layer |
+| Regime (`5.00 B` people · `11.25 B` devices) | No-Direct-Path Leaves vs. Capacity | Reachable Home Share (`reach_home_share`) | 1-Hop Shaped Slots (`each_home_adds_seven` when reachable) | Direct 1-Hop Shaping Pool (`+0 B` wire) | Answering Onion Relays / Layer |
 |---|---|---|---|---|---|
-| **Fleet Defaults** (`5%` server, `55%` home, `40%` phone, `60%` Hard-NAT, `90%` relay offer, `25%` home shaping, `12%` onion) | `6.41 B / 29.55 B` (**22% load**) | **99.0%** | `18.06 B` supplied vs. `5.51 B` demanded (**100% seated**) | `3.06 B` devices (`27.2%` of fleet; **2.27×** per onion device) | `1.23 B / layer` (floor $\ge 3$) |
-| **High Privacy** (`8%` server, `60%` home, `75%` home shaping, `40%` phone shaping, `36%` onion) | `5.69 B / 41.19 B` (**14% load**) | **99.0%** | `32.83 B` supplied vs. `12.97 B` demanded (**100% seated**) | `7.20 B` devices (`64.0%` of fleet; **1.78×** per onion device) | `1.59 B / layer` (floor $\ge 3$) |
-| **CGNAT / Mobile Stress** (`4%` server, `40%` home, `56%` phone, `85%` Hard-NAT, `45%` Wi-Fi) | `9.18 B / 15.31 B` (**60% load**) | **99.0%** (needs $\ge 2.3\%$ server tier at `85%` CGNAT) | `13.32 B` supplied vs. `4.65 B` demanded (**100% seated**) | `2.58 B` devices (`22.9%` of fleet; **1.64×** per onion device) | `746.04 M / layer` (floor $\ge 3$) |
-| **Unowned-Only (`0%` Relay Offer — `unowned_only_strands_the_73rd`)** | `6.41 B / 1.80 M` (**99.97% stranded**) | **0.03%** | `400.00 K` supplied vs. `4.55 B` demanded (**0.01% seated; 99.99% displaced**) | `400.00 K` canonical slots only | `16.67 K / layer` |
+| **Fleet Defaults** (`5%` server, `55%` home, `40%` phone, `60%` no-direct-path, `90%` relay offer, `25%` home shaping, `12%` onion) | `6.41 B / 29.55 B` (**22% load**) | **40.0%** | `8.94 B` supplied vs. `2.78 B` demanded (**100% seated**) | `1.55 B` devices (`13.8%` of fleet; **2.66×** per onion device) | `773.52 M / layer` (floor $\ge 3$) |
+| **High Privacy** (`8%` server, `60%` home, `75%` home shaping, `40%` phone shaping, `36%` onion) | `5.69 B / 41.19 B` (**14% load**) | **45.0%** | `17.41 B` supplied vs. `6.73 B` demanded (**100% seated**) | `3.74 B` devices (`33.3%` of fleet; **1.87×** per onion device) | `1.09 B / layer` (floor $\ge 3$) |
+| **CGNAT / Mobile Stress** (`4%` server, `40%` home, `56%` phone, `85%` no-direct-path, `45%` Wi-Fi) | `9.18 B / 15.31 B` (**60% load**) | **15.0%** | `3.94 B` supplied vs. `1.35 B` demanded (**100% seated**) | `750.62 M` devices (`6.7%` of fleet; **2.59×** per onion device) | `276.32 M / layer` (floor $\ge 3$) |
+| **Unowned-Only (`0%` Relay Offer — `unowned_only_strands_the_73rd`)** | `6.41 B / 1.80 M` (**999% load / stranded**) | **40.0%** | `400.00 K` supplied vs. `2.40 B` demanded (**0.02% seated; 99.98% displaced**) | `400.00 K` canonical slots only | `16.67 K / layer` |
 
 In the live `100,000`-act rulebook simulation over `5.00 B` people / `11.25 B` devices (`cargo run --example scale_model`):
 - **91.9% of acts** never leave the signer's locality (CC 5.2 locality dividend).
-- **12.04 M local rulebook checks** run in **6.75 ms** (**1.78 B rulebook checks/sec** on 1 core; `2.98 K` stranger acts refused at the signer's own door).
-- **3-Mesh wire traffic** moves **6.80 GB** (`920.63 K` low-BW shaped hops, `17.12 K` seat hops, `845.19 K` live/ALM hops, `11.68 K` onion acts at `+0 B`), saving **10.01 M** unicast deliveries via the public-room Seat + ALM relay tree (**6.8× less wire traffic** than a central datacenter at `45.93 GB`, and **612.20 M× less** than broadcasting to `11.25 B` devices at `3.88 EB`).
+- **12.55 M local rulebook checks** run in **2.60 ms** (**4.82 B rulebook checks/sec** on 1 core; `3.10 K` stranger acts refused at the signer's own door).
+- **Wire traffic** moves **7.24 GB** (`280.89 K` 1-hop device-shaped hops, `3.71 K` `seat` hops, `1.61 M` ordinary/`deterministic-alm` hops, `5.02 K` onion acts at `+0 B`), saving **10.49 M** unicast deliveries via the CC §6.1.6 `deterministic-alm` member relay tree (**6.6× less wire traffic** than a central datacenter at `47.86 GB`, and **574.49 M× less** than broadcasting to `11.25 B` devices at `3.87 EB`).
 
 ## The fabric-node stack
 
