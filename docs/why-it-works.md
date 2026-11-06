@@ -38,9 +38,9 @@ Decentralized networks have failed on a short list of problems for twenty years.
 
 **The problem.** Encryption hides content and leaks the graph. Onion routing hides the graph from most observers and breaks under a global one.
 
-**What this does.** Links between peers that choose it carry a constant stream of identical frames, so timing and volume inside a link are hidden; what is hidden and what is not is stated to the person before they choose. Group addresses are derived, never announced. Strangers may carry only what no one must consent to carry. The anonymous tier is a separate dedicated identity, reached only at a rendezvous, in private rooms held on members' own always-on nodes, its first hop a sticky guard from the person's own contacts. What remains against a global observer and a compromised relay is written in the text with edge's numbers.
+**What this does.** Transport separates into three meshes (CC 5.4.3 / Edge v44): low-bandwidth shaped links (`L ≤ 8`, `≤ 64 KiB`), high-bandwidth 33 KB/s shaped seat links, and unshaped live/ALM relay trees. Links between peers that choose shaping carry a constant stream of identical `16,272 B` frames (`ρ = 0.5`), so timing and volume inside a link are hidden; what is hidden and what is not (`+` benefit / `−` downside) is stated to the person before they choose. Group addresses are derived, never announced. Strangers may carry only what no one must consent to carry. The anonymous tier (CC 5.4.6) is a separate dedicated identity, reached only at a rendezvous, in private rooms held on members' own always-on nodes, its first hop a sticky guard from the person's own contacts, walking `15,296 B` X-Wing onion frames across shaped links by replacing scheduled cover frames at **zero extra wire bytes**. What remains against a global observer and a compromised relay is written in the text with edge's numbers.
 
-**With.** Poisson-timed cover traffic in the mixnet lineage, per-hop post-quantum encapsulation in fixed-length packets, and HKDF-derived addresses.
+**With.** Poisson-timed cover traffic in the mixnet lineage (`Tiers.lean`: `each_home_adds_seven`), per-hop X-Wing post-quantum encapsulation in fixed-length `CONP` packets, Reticulum IPv6/NAT hole-punching + $k=2$ homed leaves, and HKDF-derived addresses.
 
 ## 6. Post-quantum from the first key
 

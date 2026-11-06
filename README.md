@@ -8,11 +8,9 @@ an AI governance / superalignment platform — built on the bet that
 
 ## See it move
 
-[**Billions of people and devices, one rulebook**](https://cirisai.github.io/CEWP/globe.html) — up to 8.1 billion people and 18.1 billion devices (`5.00 B` people / `11.25 B` devices default) placed on a land-bounded world population density grid (2,961 cells across 181 localities and 9 GSMA/UN regions), random acts every tick, the constitutional rulebook evaluated at every device of each row's audience in WebAssembly; models the three CC RC17 / Edge v44 transport meshes (low-bandwidth shaped, 33 KB/s seat, and live/unshaped bulk with $O(\log_k N)$ Seat/ALM relay trees for public rooms), cover-replaced 15,296 B X-Wing onion walks (`+0 B` extra wire bytes), Reticulum IPv6/NAT hole-punching vs. $k=2$ homed leaves, and a collapsible **Advanced** section exposing the 8 Constitutional opt-in choices (`+` benefit / `−` downside) with live Hard-NAT & shaped onion cover sustainability metrics.
-
-[**A mesh run by its kernel**](https://cirisai.github.io/CEWP/mesh.html) — people and their nodes as cells, rows as signals travelling one hop per tick, every node folding what it holds with the same function; click a node for its owner's queue and a preview that equals execution. The kernel is [`docs/kernel/kernel.js`](docs/kernel/kernel.js), one file with no dependencies, driven by the constitution's own tables and checked against its story (`node --test docs/kernel/kernel.test.js`).
-
-[**An epistemic web, in motion**](https://cirisai.github.io/CEWP/) — six people and an agent share one mesh of signed rows; each sees a view folded through their own standing, and each view generates a queue, exactly the actions the door would admit from them now. Pick a person, act, and watch the other queues shift. The same page carries, as tabs, [what this solves and how](https://cirisai.github.io/CEWP/#solves) (eleven problems of decentralized networks, each answered by existing technology in a new arrangement, with a diagram and its residual), [where it stands beside its peers](https://cirisai.github.io/CEWP/#peers) (from the Verify, Persist and Edge comparisons) and [the contract](https://cirisai.github.io/CEWP/#contract); the plain-text sources are [docs/why-it-works.md](docs/why-it-works.md) and [docs/epistemic-web.md](docs/epistemic-web.md) (pre-release, CIRISConstitution `rc17`).
+- [**Billions of people and devices, one rulebook**](https://cirisai.github.io/CEWP/globe.html) — 5 billion people and 11.25 billion devices (adjustable from `100 M` to `8.1 B` people) on a land-bounded world population density grid (`2,961` cells, `181` localities, `9` GSMA/UN regions). Every device evaluates the same constitutional rulebook in WebAssembly across the **3 transport meshes** (low-BW shaped, 33 KB/s seat, and live/ALM relay trees), cover-replaced 15,296 B X-Wing onion walks (`+0 B` extra wire bytes), and Reticulum IPv6/NAT traversal, with expandable `☰ Controls` (8 Constitutional opt-in choices with `+` benefit / `−` downside) and `☰ Metrics` drawers.
+- [**A mesh run by its kernel**](https://cirisai.github.io/CEWP/mesh.html) — people and their devices as cells, rows as signals travelling one hop per tick, every node folding what it holds with the same order-free function; click any node for its owner's queue and a preview that equals execution. Driven by [`docs/kernel/kernel.js`](docs/kernel/kernel.js) (one file, zero dependencies) over the constitution's own tables (`node --test docs/kernel/kernel.test.js`).
+- [**An epistemic web, in motion**](https://cirisai.github.io/CEWP/) — six people and an agent share one mesh of signed rows; each sees a **view** folded through their own standing, and each view generates a **queue**: the exact actions the local admission door would accept from them now. Includes tabs for [what this solves and how](https://cirisai.github.io/CEWP/#solves) (11 problems of decentralized networks, each with its mechanism, existing standards, and stated residual), [where it stands beside its peers](https://cirisai.github.io/CEWP/#peers) (ahead / parity / behind across Verify, Persist, and Edge), and [the contract](https://cirisai.github.io/CEWP/#contract) ([`docs/why-it-works.md`](docs/why-it-works.md), [`docs/epistemic-web.md`](docs/epistemic-web.md), CIRISConstitution `rc17`).
 
 ## What CEWP is
 
@@ -25,20 +23,69 @@ wire-format artifact in one small grammar (CEG's **"1+4"**); the
 federation's collective weighted-aggregate scoring of those artifacts
 is what *governs* the system in real time.
 
+Nothing here relies on uninvented cryptography. Hybrid post-quantum
+signatures (`Ed25519 + ML-DSA-65`), hybrid KEMs (`X-Wing`), CBOR/COSE
+statements, RFC 9162 Merkle trees, RaptorQ fountain codes, and
+Poisson-timed cover traffic all exist today. **What is new is the
+arrangement** — five load-bearing properties that make decentralization,
+privacy, and AI accountability reinforce each other instead of trading off:
+
+1. **One rulebook (`the queue is the door run forwards`).**
+   Every networked app normally writes its rules twice — once in the UI
+   that draws the buttons and once in the server that authorizes the
+   request — and their drift is where authorization bugs live. In CEWP
+   (CC 4.5.13), a client renders only two served shapes, the **view** and
+   the **queue**, and holds no policy. One constitutional table
+   ([`transitions.json`](docs/kernel/tables/transitions.json) +
+   [`governance_policy.json`](docs/kernel/tables/governance_policy.json))
+   runs backward at every node's boundary as the admission check
+   (`door`) and forward to generate the user's actionable items
+   (`queue`), with `preview` equal to execution over a permutation-invariant
+   fold. Nothing offered is refused; nothing refused was offered; a
+   stranger sees nothing.
+2. **Privacy and scale come from the same primitive (~92% locality dividend).**
+   Content at `self` and `family` scope (~65% of typical activity) never
+   emits a discovery attestation (`holds_bytes`), and community rooms
+   (~30%) are predominantly local. As a result, **~92% of signed acts
+   never leave the signer's locality** (CC 5.2), and the 1% of acts in
+   5,000-member public rooms fan out over deterministic $O(\log_k N)$
+   Seat/ALM relay trees rather than unicasting from a central server.
+   Privacy is not a tax on scale; privacy is *why* 5 billion people and
+   11.25 billion devices fit on commodity hardware without datacenters.
+3. **Three transport meshes + zero-extra-byte onion cover (CC 5.4.3 / 5.4.6 / Edge v44).**
+   Links separate into **low-BW shaped (`base`)**, **33 KB/s high-BW
+   shaped (`seat`)**, and **unshaped live/ALM (`bulk`)**. When a peer
+   walks a 3-hop `15,296 B` X-Wing (`CONP`) onion route from a sticky
+   contact guard, each hop replaces a scheduled `16 KiB` chaff frame on
+   an already-shaped link (**`+0 B` extra wire bytes**), while realtime
+   A/V bypasses the shaped queue on the live/ALM mesh. And because
+   home/server nodes offer relay by default (`each_home_adds_seven` in
+   `Tiers.lean`), the fleet sustains up to **99% Hard-NAT / CGNAT leaves**
+   ($k=2$ homed parents) and billions of shaped cover slots instead of
+   stranding at the 73rd peer (`unowned_only_strands_the_73rd`).
+4. **`agent = fabric node + brain` (alignment as an epistemic-web problem).**
+   Every node is a **fabric node** that stores, witnesses, degrades, and
+   transports — *mechanically, never reasoning*. Add a reasoning brain
+   and it becomes an agent that signs only its own rows, never inherits
+   a human's standing, and roots its authority in an accountable human
+   who can narrow or withdraw consent in one forward-only step.
+5. **Every choice and every claim states its downside and residual.**
+   In the queue schema (`manifests/choice_item.cddl`), every option must
+   carry a non-empty `benefit` and `downside` before a person signs (e.g.,
+   link shaping hides timing/volume `+`, and costs continuous cover
+   gigabytes/month and Poisson frame wait `−`). Likewise, the substrate's
+   peer comparisons and threat models state explicitly where it is
+   **ahead**, **at parity**, and **behind** (including open exposures like
+   `F-AV-ECLIPSE` until multi-medium transport lands and no third-party
+   crypto audit yet).
+
 **No center, no DNS, no load-bearing server.** You address a peer by
 its key, reach it over the mesh, and trust it through a chain you can
-re-root at will. Content is **holographic** — erasure-coded so any
-sufficient subset of fragments reconstructs it, and the federation
-re-establishes from any single survivor with a signed witness chain.
-Memory is forever but still forgets: revocation, eviction, expiry, and
-aging are *one* descent toward a **noise floor**, keeping all of
-history as a memory pyramid at `O(log T)`.
-
-Agents live **inside** CEWP; they don't have CEWP as a tool. Every
-node is a **fabric node** that stores, witnesses, degrades, and
-transports — *mechanically, never reasoning*: **`agent = fabric node
-+ brain`**, and authority roots in accountable humans, never in bare
-infrastructure.
+re-root at will. Content is **holographic** — RaptorQ erasure-coded so
+each holder stores one symbol (`1/N ≈ 5%`, `H/N = 1.5×` network overhead)
+and any sufficient subset reconstructs it. Memory is forever but still
+forgets: revocation, eviction, expiry, and aging are *one* descent toward
+a **noise floor**, keeping all of history as a memory pyramid at `O(log T)`.
 
 ```
                           ┌─────────────────────────────┐
