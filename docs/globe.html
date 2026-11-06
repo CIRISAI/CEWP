@@ -7,9 +7,9 @@
 <meta name="description" content="Millions of nodes placed on a land-bounded world population density grid; 3 transport meshes (low-BW shaped, high-BW 33 KB/s seat, live/ALM relay tree) + cover-replaced onion walks and Reticulum NAT traversal in WebAssembly.">
 <style>
 :root{--bg:#0b0d12;--panel:#12151c;--line:#242a36;--ink:#dfe3ea;--mute:#8a93a3;--ok:#5ad38f;--warm:#ffb15c;--hot:#ff6a5c;--cool:#6cb6ff;--violet:#c68aff;--mono:ui-monospace,Menlo,Consolas,monospace}
-*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--mono);overflow:hidden}
-#c{position:fixed;inset:0;width:100vw;height:100vh;display:block;cursor:grab}
-#hud{position:fixed;left:12px;top:12px;width:min(410px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 90%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;backdrop-filter:blur(6px);max-height:calc(100vh - 44px);overflow-y:auto}
+*{box-sizing:border-box}html,body{height:100%;overscroll-behavior:none}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--mono);overflow:hidden;-webkit-text-size-adjust:100%}
+#c{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:block;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}
+#hud{position:fixed;left:12px;top:12px;width:min(410px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 90%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;backdrop-filter:blur(6px);max-height:calc(100dvh - 44px);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10}
 #hud h1{font:600 16px/1.2 Georgia,serif;margin:0 0 4px;color:#fff}#hud p{margin:0 0 7px;color:var(--mute);font-size:11.5px}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
 button,select{font:12px var(--mono);background:#1a1f2a;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 8px;cursor:pointer}
@@ -56,12 +56,27 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
 .pro-con{font-size:10px;line-height:1.32;color:var(--mute)}
 .pro-con .pro{color:#7ee2a8;display:block}
 .pro-con .con{color:#ff9e8e;display:block}
-#stats{position:fixed;right:12px;top:12px;width:min(384px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12px;backdrop-filter:blur(6px);max-height:calc(100vh - 48px);overflow:auto}
+#stats{position:fixed;right:12px;top:12px;width:min(384px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12px;backdrop-filter:blur(6px);max-height:calc(100dvh - 48px);overflow:auto;-webkit-overflow-scrolling:touch;z-index:10}
 #stats h2{font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:9px 0 4px}
 .kv{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px dashed #1e2430}.kv b{color:#fff;font-weight:600;text-align:right}.kv .big{font-size:19px;color:var(--ok)}
 .bar{height:8px;background:#1a1f2a;border-radius:4px;overflow:hidden;margin:4px 0 8px}.bar i{display:block;height:100%;background:var(--ok);transition:width .25s ease}
-#foot{position:fixed;left:12px;bottom:10px;color:var(--mute);font-size:11px;max-width:min(760px,calc(100vw - 24px))}#foot a{color:var(--cool)}
-@media(max-width:800px){#stats{top:auto;bottom:40px;max-height:46vh;overflow:auto}#hud{max-height:42vh;overflow:auto}}
+#stats-toggle{display:none;width:100%;margin-top:4px;padding:5px 8px;font:600 11px var(--mono);color:var(--cool);background:#141923;border:1px solid var(--line);border-radius:6px;text-align:center}
+.mob-links{display:none;margin-top:8px;padding-top:6px;border-top:1px solid var(--line);font-size:11px;color:var(--mute);text-align:center}
+.mob-links a{color:var(--cool)}
+#foot{position:fixed;left:12px;bottom:10px;color:var(--mute);font-size:11px;max-width:min(760px,calc(100vw - 24px));z-index:5}#foot a{color:var(--cool)}
+@media(max-width:800px){
+  #hud{left:8px;top:8px;width:calc(100vw - 16px);padding:9px 11px;max-height:48dvh}
+  #hud h1{font-size:15px;margin-bottom:2px}
+  #hud>p:first-of-type{display:none}
+  #stats{left:8px;right:8px;width:calc(100vw - 16px);top:auto;bottom:max(8px,env(safe-area-inset-bottom));padding:8px 11px;max-height:46dvh}
+  #stats-toggle{display:block}
+  #stats.mob-collapsed #stats-more{display:none}
+  .mob-links{display:block}
+  #foot{display:none}
+  button,select{padding:7px 10px;font-size:12px}
+  .preset-bar button{padding:6px 8px;font-size:10.5px}
+  input[type=range].adv-range{height:8px;margin:7px 0 5px}
+}
 </style>
 </head>
 <body>
@@ -231,39 +246,43 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     </div>
   </details>
 </div>
-<div id="stats">
+<div id="stats" class="mob-collapsed">
   <div class="kv"><span>rows that never leave the signer's locality</span><b class="big" id="local">–</b></div>
   <div class="bar"><i id="localbar" style="width:0"></i></div>
-  <div class="kv"><span>deliveries within the locality</span><b id="dlocal">–</b></div>
-  <div class="kv"><span>crosses a locality, same region</span><b id="xmetro">–</b></div>
-  <div class="kv"><span>crosses a region</span><b id="xregion">–</b></div>
-  <div class="kv"><span>mean distance of a crossing</span><b id="km">–</b></div>
-  <h2>sustainability: hard NAT &amp; onion cover</h2>
-  <div class="kv"><span>hard-NAT leaves vs <i>k</i>=2 parent capacity</span><b id="s_nat_cap">–</b></div>
-  <div class="bar"><i id="natbar" style="width:0"></i></div>
-  <div class="kv"><span>max sustainable hard-NAT % (at current mix)</span><b id="s_nat_max">–</b></div>
-  <div class="kv"><span>shaped slots (<i>each_home_adds_seven</i>)</span><b id="s_shape_slots">–</b></div>
-  <div class="kv"><span>nodes shaping traffic (cover pool)</span><b id="s_shapers">–</b></div>
-  <div class="kv"><span>shaping cover : onion peer ratio</span><b id="s_cover_ratio">–</b></div>
-  <div class="kv"><span>answering onion relays / layer (floor ≥3)</span><b id="s_onion_relays">–</b></div>
-  <h2>3 meshes &amp; ALM relay tree (CC 5.4.3 / Edge 44)</h2>
-  <div class="kv"><span><span class="dot" style="background:var(--warm)"></span> low-BW shaped (≤8 links, ≤64 KiB)</span><b id="m_base">–</b></div>
-  <div class="kv"><span><span class="dot" style="background:var(--cool)"></span> high-BW shaped (seat↔seat 33 KB/s)</span><b id="m_seat">–</b></div>
-  <div class="kv"><span><span class="dot" style="background:var(--ok)"></span> live / ALM tree (&gt;64 KiB + unshaped spill)</span><b id="m_bulk">–</b></div>
-  <div class="kv"><span><span class="dot" style="background:var(--violet)"></span> onion walks (cover-replaced, 0 B extra)</span><b id="m_onion">–</b></div>
-  <div class="kv"><span>public-room ALM relay hops vs direct</span><b id="m_alm">–</b></div>
-  <h2>this tick</h2>
-  <div class="kv"><span>acts signed</span><b id="acts_n">–</b></div>
-  <div class="kv"><span>deliveries (doors run)</span><b id="deliv">–</b></div>
-  <div class="kv"><span>refused at the signer's own door</span><b id="refused">–</b></div>
-  <div class="kv"><span>wire bytes moved (excl. 0B onion cover)</span><b id="bytes">–</b></div>
-  <div class="kv"><span>a broadcast network would move</span><b id="bcast">–</b></div>
-  <div class="kv"><span>with a datacenter in the middle</span><b id="central">–</b></div>
-  <h2>the kernel</h2>
-  <div class="kv"><span>door checks / second</span><b id="dps">–</b></div>
-  <div class="kv"><span>ms per tick (door + relay tree)</span><b id="ms">–</b></div>
-  <div class="kv"><span>bytes of state per node</span><b id="bpn">–</b></div>
-  <div class="kv"><span>cumulative deliveries</span><b id="cum">–</b></div>
+  <button id="stats-toggle" type="button">▸ Telemetry &amp; sustainability details</button>
+  <div id="stats-more">
+    <div class="kv"><span>deliveries within the locality</span><b id="dlocal">–</b></div>
+    <div class="kv"><span>crosses a locality, same region</span><b id="xmetro">–</b></div>
+    <div class="kv"><span>crosses a region</span><b id="xregion">–</b></div>
+    <div class="kv"><span>mean distance of a crossing</span><b id="km">–</b></div>
+    <h2>sustainability: hard NAT &amp; onion cover</h2>
+    <div class="kv"><span>hard-NAT leaves vs <i>k</i>=2 parent capacity</span><b id="s_nat_cap">–</b></div>
+    <div class="bar"><i id="natbar" style="width:0"></i></div>
+    <div class="kv"><span>max sustainable hard-NAT % (at current mix)</span><b id="s_nat_max">–</b></div>
+    <div class="kv"><span>shaped slots (<i>each_home_adds_seven</i>)</span><b id="s_shape_slots">–</b></div>
+    <div class="kv"><span>nodes shaping traffic (cover pool)</span><b id="s_shapers">–</b></div>
+    <div class="kv"><span>shaping cover : onion peer ratio</span><b id="s_cover_ratio">–</b></div>
+    <div class="kv"><span>answering onion relays / layer (floor ≥3)</span><b id="s_onion_relays">–</b></div>
+    <h2>3 meshes &amp; ALM relay tree (CC 5.4.3 / Edge 44)</h2>
+    <div class="kv"><span><span class="dot" style="background:var(--warm)"></span> low-BW shaped (≤8 links, ≤64 KiB)</span><b id="m_base">–</b></div>
+    <div class="kv"><span><span class="dot" style="background:var(--cool)"></span> high-BW shaped (seat↔seat 33 KB/s)</span><b id="m_seat">–</b></div>
+    <div class="kv"><span><span class="dot" style="background:var(--ok)"></span> live / ALM tree (&gt;64 KiB + unshaped spill)</span><b id="m_bulk">–</b></div>
+    <div class="kv"><span><span class="dot" style="background:var(--violet)"></span> onion walks (cover-replaced, 0 B extra)</span><b id="m_onion">–</b></div>
+    <div class="kv"><span>public-room ALM relay hops vs direct</span><b id="m_alm">–</b></div>
+    <h2>this tick</h2>
+    <div class="kv"><span>acts signed</span><b id="acts_n">–</b></div>
+    <div class="kv"><span>deliveries (doors run)</span><b id="deliv">–</b></div>
+    <div class="kv"><span>refused at the signer's own door</span><b id="refused">–</b></div>
+    <div class="kv"><span>wire bytes moved (excl. 0B onion cover)</span><b id="bytes">–</b></div>
+    <div class="kv"><span>a broadcast network would move</span><b id="bcast">–</b></div>
+    <div class="kv"><span>with a datacenter in the middle</span><b id="central">–</b></div>
+    <h2>the kernel</h2>
+    <div class="kv"><span>door checks / second</span><b id="dps">–</b></div>
+    <div class="kv"><span>ms per tick (door + relay tree)</span><b id="ms">–</b></div>
+    <div class="kv"><span>bytes of state per node</span><b id="bpn">–</b></div>
+    <div class="kv"><span>cumulative deliveries</span><b id="cum">–</b></div>
+    <div class="mob-links"><a href="mesh.html">The small mesh</a> · <a href="index.html">the model in motion</a></div>
+  </div>
 </div>
 <div id="foot">Every node sits on populated land (2,961 density cells stitched to continent polygons). Public rooms fan out via the <b>Seat + ALM Relay Tree</b> (<i>O</i>(log<sub><i>k</i></sub> <i>N</i>) consumer-latched relay hops, not 5,000 direct deliveries). 15,296 B X-Wing onion packets walk standing shaped links, replacing cover frames at <b>0 extra wire bytes</b> (CC 5.4.6). Reticulum uses IPv6 / NAT hole-punching (~40% direct P2P) while hard NAT (~60%) homes leaves on <i>k</i>=2 serve seats. <a href="mesh.html">The small mesh</a> · <a href="index.html">the model in motion</a></div>
 <script>
@@ -614,12 +633,51 @@ function draw(){
 cv.addEventListener("mousedown",e=>{drag=[e.clientX,e.clientY];velYaw=0;velPitch=0;cv.style.cursor="grabbing";lastTouchTime=performance.now();}); window.addEventListener("mouseup",()=>{drag=null;cv.style.cursor="grab";});
 window.addEventListener("mousemove",e=>{ if(!drag) return; const dx=e.clientX-drag[0], dy=e.clientY-drag[1]; velYaw=dx*0.0035; velPitch=dy*0.0035; yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[e.clientX,e.clientY]; lastTouchTime=performance.now(); });
 cv.addEventListener("wheel",e=>{ e.preventDefault(); targetZoom=Math.max(0.6,Math.min(6,targetZoom*(e.deltaY<0?1.15:0.87))); lastTouchTime=performance.now(); },{passive:false});
-cv.addEventListener("touchstart",e=>{ const t=e.touches[0]; drag=[t.clientX,t.clientY]; velYaw=0; velPitch=0; lastTouchTime=performance.now(); },{passive:true});
-cv.addEventListener("touchmove",e=>{ if(!drag) return; const t=e.touches[0]; const dx=t.clientX-drag[0], dy=t.clientY-drag[1]; velYaw=dx*0.0035; velPitch=dy*0.0035; yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[t.clientX,t.clientY]; lastTouchTime=performance.now(); },{passive:true}); cv.addEventListener("touchend",()=>drag=null);
+let pinchDist=0;
+cv.addEventListener("touchstart",e=>{
+  if(e.touches.length===2){
+    drag=null;
+    pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+  }else if(e.touches.length===1){
+    const t=e.touches[0]; drag=[t.clientX,t.clientY]; velYaw=0; velPitch=0;
+  }
+  lastTouchTime=performance.now();
+},{passive:true});
+cv.addEventListener("touchmove",e=>{
+  if(e.touches.length===2&&pinchDist>0){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    if(d>4){ targetZoom=Math.max(0.6,Math.min(6,targetZoom*(d/pinchDist))); pinchDist=d; }
+    lastTouchTime=performance.now(); return;
+  }
+  if(!drag||e.touches.length!==1) return;
+  const t=e.touches[0]; const dx=t.clientX-drag[0], dy=t.clientY-drag[1]; velYaw=dx*0.0035; velPitch=dy*0.0035; yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[t.clientX,t.clientY]; lastTouchTime=performance.now();
+},{passive:true});
+cv.addEventListener("touchend",e=>{ if(e.touches.length<2) pinchDist=0; if(e.touches.length===0) drag=null; });
 // ------------------------------------------------------------------ the loop
+const isMobileViewport = window.innerWidth <= 800;
 let playing=false, useWasm=true, showArcs=true, cum=0, lastActivity=null, activeBlocks=[];
-let currentSize=1000000, currentActs=10000, avgMsPerTick=0, avgMsPerAct=0;
+let currentSize=isMobileViewport?100000:1000000, currentActs=isMobileViewport?2000:10000, avgMsPerTick=0, avgMsPerAct=0;
 const $=(id)=>document.getElementById(id); const fmt=(x)=>x>=1e12?(x/1e12).toFixed(2)+" T":x>=1e9?(x/1e9).toFixed(2)+" G":x>=1e6?(x/1e6).toFixed(2)+" M":x>=1e3?(x/1e3).toFixed(1)+" k":String(Math.round(x));
+if (isMobileViewport){
+  $("size").value=String(currentSize); $("acts").value=String(currentActs);
+  document.querySelectorAll("#size-seg button").forEach(b=>b.classList.toggle("active",+b.getAttribute("data-val")===currentSize));
+  document.querySelectorAll("#acts-seg button").forEach(b=>b.classList.toggle("active",+b.getAttribute("data-val")===currentActs));
+}
+if ($("stats-toggle")){
+  $("stats-toggle").onclick=()=>{
+    const st=$("stats"); const col=st.classList.toggle("mob-collapsed");
+    $("stats-toggle").textContent = col ? "▸ Telemetry & sustainability details" : "▾ Hide telemetry details";
+    if (!col && window.innerWidth<=800 && $("adv")) $("adv").open=false;
+  };
+}
+if ($("adv")){
+  $("adv").addEventListener("toggle",()=>{
+    if ($("adv").open && window.innerWidth<=800 && $("stats")){
+      $("stats").classList.add("mob-collapsed");
+      if ($("stats-toggle")) $("stats-toggle").textContent="▸ Telemetry & sustainability details";
+    }
+  });
+}
 function selectSize(n){
   if (n===currentSize&&W) return;
   currentSize=n; if ($("size")) $("size").value=String(n);
