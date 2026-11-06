@@ -2938,6 +2938,134 @@ fn print_fountain_model(s: &Scenario) {
     println!("    §19.3 N5: Revoked ⇒ EjectHardDelete (irreversible; NEVER tier-shed/refetchable)");
 }
 
+// ─── 3-Mesh Transport, Shaped Onion & ALM Relay Tree (v0.8 — CC RC17 / Edge v44) ───
+//
+// Pinned to CIRISConstitution RC17 (`formal/transport_tiers/Tiers.lean`,
+// `formal/anonymous/Anonymous.lean`, CC §5.4.3 + §5.4.6) and CIRISEdge v44
+// (`docs/AV_ALM_DESIGN.md`):
+//
+//   1. Low-bandwidth shaped mesh (`Tier.base`, L ≤ 8 shaped links/node,
+//      F = 16,272 B frame, ρ = 0.5 real share, W = 600s or 3600s on cellular):
+//      class rates `server` 7,000 B/s, `home` 2,800 B/s, `phone-wifi` 1,400 B/s,
+//      `phone-cellular` 350 B/s. Higher class displaces lowest held class
+//      (`home_displaces_a_phone`) which re-homes below (`displaced_keeps_shaping`);
+//      peers past 8 links receive 3 referrals (`each_home_adds_seven`).
+//      Carries rows ≤ 64 KiB, consent-free stranger roads (`every_road_runs_on_strangers`),
+//      and cover-replaced onion walks.
+//   2. High-bandwidth shaped mesh (`Tier.seat`, 33,000 B/s ≈ 2 frames/s,
+//      85.5 GB/mo each way): between two serve seats only, outside the 8-link cap.
+//   3. Live / unshaped bulk & ALM mesh (`Tier.bulk`): >64 KiB blobs, realtime
+//      A/V (`SealedAvChunk`), and O(log_k N) consumer-latched ALM relay trees
+//      for public rooms and streams (a 5,000-member post costs seat + ALM relay
+//      tree fan-out, not 5,000 direct deliveries).
+//   4. Onion over shaped (`CONP`, CC §5.4.6): 15,296 B packet (6 × 1,184 B
+//      X-Wing KEM slots + 8,160 B wide-block AEAD body) fits inside one
+//      16,272 B shaped frame and walks standing shaped links from a sticky
+//      contact guard, replacing cover frames at +0 extra wire bytes.
+//   5. Reticulum NAT traversal: IPv6 direct + NAT hole-punching (~40% direct P2P),
+//      while hard NAT (~60%) homes leaves on k = 2 of M serve seats.
+
+const SHAPED_FRAME_BYTES: f64 = 16_272.0;
+const ONION_PACKET_BYTES: f64 = 15_296.0;
+const SHAPED_LINK_CAP: f64 = 8.0;
+const SEAT_SHAPED_BPS: f64 = 33_000.0;
+const SERVER_SHAPED_BPS: f64 = 7_000.0;
+const HOME_SHAPED_BPS: f64 = 2_800.0;
+const WIFI_SHAPED_BPS: f64 = 1_400.0;
+const CELL_SHAPED_BPS: f64 = 350.0;
+
+fn print_transport_tiers_model(s: &Scenario) {
+    println!();
+    println!(
+        "══ 3-Mesh Transport, Shaped Onion & ALM Relay Tree (CC RC17 / Edge v44) — {} ══",
+        s.name
+    );
+    println!("  Formal anchor: CIRISConstitution rc17 `formal/transport_tiers/Tiers.lean` + `Anonymous.lean` + Edge v44");
+    println!();
+    println!("  1. Three Transport Meshes (CC §5.4.3):");
+    println!(
+        "    {:<20} {:>12} {:>14} {:>14}  role",
+        "tier / class", "rate (B/s)", "frame gap", "monthly / link"
+    );
+    for (name, rate, role) in [
+        (
+            "seat (high-BW)",
+            SEAT_SHAPED_BPS,
+            "seat↔seat backbone (outside L≤8 cap)",
+        ),
+        (
+            "base: server",
+            SERVER_SHAPED_BPS,
+            "L≤8 shaped links (≤64 KiB, c-free, onion)",
+        ),
+        (
+            "base: home",
+            HOME_SHAPED_BPS,
+            "displaces phone (`home_displaces_a_phone`)",
+        ),
+        (
+            "base: phone-wifi",
+            WIFI_SHAPED_BPS,
+            "re-homes on referral (`displaced_keeps_shaping`)",
+        ),
+        (
+            "base: phone-cell",
+            CELL_SHAPED_BPS,
+            "W=3600s cellular window, ρ=0.5 real share",
+        ),
+    ] {
+        let gap_s = SHAPED_FRAME_BYTES / rate;
+        let monthly = rate * 86_400.0 * 30.0;
+        println!(
+            "    {:<20} {:>10.0} B/s {:>12.2} s {:>14}  {}",
+            name,
+            rate,
+            gap_s,
+            fmt_bytes(monthly),
+            role
+        );
+    }
+    println!(
+        "    {:<20} {:>12} {:>14} {:>14}  >64 KiB blobs, realtime A/V, O(log_k N) ALM relay tree",
+        "bulk / live (ALM)", "unshaped", "on-demand", "demand-driven"
+    );
+    println!();
+    let srv_shaped_day = SHAPED_LINK_CAP * SERVER_SHAPED_BPS * 2.0 * 86_400.0;
+    println!("  2. Onion over Shaped Tier (`CONP`, CC §5.4.6):");
+    println!(
+        "    Packet geometry        {:.0} B inside {:.0} B shaped frame (6 × 1,184 B X-Wing slots + 8,160 B body)",
+        ONION_PACKET_BYTES, SHAPED_FRAME_BYTES
+    );
+    println!(
+        "    Standing L≤8 server BW {}/day ({:.2}% of 1 Gbps gate)",
+        fmt_bytes(srv_shaped_day),
+        (srv_shaped_day / SERVER_BANDWIDTH_GATE_BYTES_PER_DAY) * 100.0
+    );
+    println!(
+        "    Extra wire bytes       +0 B/day (onion frames replace `CSHP` cover frames at ρ=0.5)"
+    );
+    println!(
+        "    3-hop one-way wait     +{:.2} s on seat links  |  +{:.2} s on server links  |  +{:.2} s on home links",
+        3.0 * (0.5 * SHAPED_FRAME_BYTES / SEAT_SHAPED_BPS),
+        3.0 * (0.5 * SHAPED_FRAME_BYTES / SERVER_SHAPED_BPS),
+        3.0 * (0.5 * SHAPED_FRAME_BYTES / HOME_SHAPED_BPS),
+    );
+    println!();
+    let pub_members = 5_000.0_f64;
+    let regional_seats = 9.0_f64;
+    let alm_fanout_k = 16.0_f64;
+    let alm_tree_parents = (pub_members / alm_fanout_k).ceil();
+    let relay_hops = 1.0 + regional_seats + alm_tree_parents;
+    println!("  3. Public-Room Seat + ALM Relay Tree (Edge v44 `AV_ALM_DESIGN.md`):");
+    println!(
+        "    5,000-member post      {:.0} signer+seat+ALM parent hops vs {:.0} direct deliveries ({:.1}% fan-out reduction)",
+        relay_hops,
+        pub_members,
+        (1.0 - relay_hops / pub_members) * 100.0
+    );
+    println!("    Reticulum NAT mix      ~40% direct IPv6 / NAT hole-punched P2P · ~60% hard-NAT leaf homed on k=2 seats");
+}
+
 fn main() {
     println!("CIRIS Federation Scaling Model — toy v0.7 (fountain holonomic substrate)");
     println!(
@@ -2972,6 +3100,9 @@ fn main() {
     if let Some(v1) = all_scenarios.iter().find(|s| s.name == "full_internet_v1") {
         // v0.7 headline — the fountain replication model (1.5× vs 5×).
         print_fountain_model(v1);
+
+        // v0.8 headline — CC RC17 / Edge v44 3-mesh transport, shaped onion & ALM relay tree.
+        print_transport_tiers_model(v1);
 
         print_cache_sensitivity(v1);
 

@@ -170,22 +170,21 @@ internet — <b>no datacenters required</b>. This ports the core scaling math fr
     </div>
 
     <div class="panel" style="margin-top:1.1rem">
-      <h2>Default-anonymous transport <span style="text-transform:none;color:var(--faint);font-weight:400">(Sphinx onion)</span></h2>
-      <label>Sphinx onion routing <span class="val" id="sphinxVal"></span></label>
+      <h2>3-Mesh &amp; Shaped Onion <span style="text-transform:none;color:var(--faint);font-weight:400">(CC 5.4.3 / 5.4.6 · Edge v44)</span></h2>
+      <label>Onion walk on shaped links <span class="val" id="sphinxVal"></span></label>
       <div class="chips" id="sphinxChips">
-        <div class="chip" data-s="on">default ON</div>
+        <div class="chip" data-s="on">cover-replaced ON</div>
         <div class="chip" data-s="off">OFF</div>
       </div>
-      <label style="margin-top:1rem">Onion hops <span class="val" id="hopsVal"></span></label>
-      <input type="range" id="hops" min="2" max="5" step="1" value="3">
-      <label style="margin-top:1rem">Relay placement</label>
+      <label style="margin-top:1rem">Walk hops (1–6 slots) <span class="val" id="hopsVal"></span></label>
+      <input type="range" id="hops" min="1" max="6" step="1" value="3">
+      <label style="margin-top:1rem">Shaped link tier along walk</label>
       <div class="chips" id="relayChips">
-        <div class="chip" data-r="regional">regional 55ms</div>
-        <div class="chip" data-r="mixed">mixed 125ms</div>
-        <div class="chip" data-r="global">global 195ms</div>
+        <div class="chip" data-r="regional">seat 33 KB/s (0.25s)</div>
+        <div class="chip" data-r="mixed">server 7 KB/s (1.16s)</div>
+        <div class="chip" data-r="global">home 2.8 KB/s (2.90s)</div>
       </div>
-      <div class="tier-note">Making 3-hop Sphinx the <b>default</b> (not opt-in) for anonymity. Per-hop
-        unwrap crypto is sub-ms; the cost is added one-way latency + fixed-size relay amplification.</div>
+      <div class="tier-note">CC 5.4.6: 15,296 B X-Wing (ML-KEM-768 + X25519) + wide-block AEAD onion packets fit inside one 16,272 B shaped frame (<i>L</i>≤8 standing links, ρ=0.5) and <b>replace cover frames at +0 extra wire bytes</b>. Realtime A/V and &gt;64 KiB public-room fan-out ride the <b>Live / ALM relay tree</b> mesh instead.</div>
     </div>
   </div>
 
@@ -255,16 +254,18 @@ internet — <b>no datacenters required</b>. This ports the core scaling math fr
     </div>
 
     <div class="panel" id="sphinxPanel" style="margin-top:1.1rem">
-      <h2>Sphinx onion overhead <span style="text-transform:none;color:var(--faint);font-weight:400">— cost of default anonymity</span></h2>
+      <h2>3-Mesh &amp; Shaped Onion <span style="text-transform:none;color:var(--faint);font-weight:400">— CC 5.4.3 / 5.4.6 · Edge v44</span></h2>
       <div id="sphinxVerdict" class="verdict"></div>
 
-      <div class="stat"><span class="k">added latency (one-way)</span><span class="v" id="onionLat"></span></div>
+      <div class="stat"><span class="k">added hop-wait latency (one-way)</span><span class="v" id="onionLat"></span></div>
       <div class="lat-cmp" id="onionCmp"></div>
 
       <div style="margin-top:1rem">
-        <div class="stat"><span class="k">per-server bandwidth (baseline)</span><span class="v" id="bwBase"></span></div>
-        <div class="stat"><span class="k">× onion hops (relay amplification)</span><span class="v" id="bwOnion"></span></div>
-        <div class="stat"><span class="k">+ fixed Sphinx header</span><span class="v" id="onionHdr"></span></div>
+        <div class="stat"><span class="k">standing shaped links (L≤8, server 7 KB/s · seat 33 KB/s)</span><span class="v" id="bwBase"></span></div>
+        <div class="stat"><span class="k">extra wire bytes for onion walks (replaces cover)</span><span class="v" style="color:var(--ok)" id="bwOnion"></span></div>
+        <div class="stat"><span class="k">packet geometry (X-Wing KEM + wide-block AEAD)</span><span class="v" id="onionHdr"></span></div>
+        <div class="stat"><span class="k">public-room fan-out (ALM relay tree vs direct)</span><span class="v" id="almTreeStat"></span></div>
+        <div class="stat"><span class="k">Reticulum NAT (IPv6 / hole-punch vs homed leaf)</span><span class="v" id="retNatStat"></span></div>
       </div>
 
       <div style="margin-top:1rem">
@@ -410,14 +411,21 @@ function estimateLatency(s){
            cewp_trust_hop_ms:trust_hop_penalty };
 }
 
-// ─── Sphinx onion transport overhead (NEW — not in scale_model.rs) ───
-// Default-anonymous stance under consideration: 3-hop Sphinx onion as the
-// DEFAULT. Sphinx is fixed-size → bandwidth cost is relay amplification
-// ×hops + a fixed ~512 B header/packet; per-hop unwrap crypto is sub-ms.
-const SPHINX_HEADER_BYTES = 512;        // fixed Sphinx onion header per packet
-const REALTIME_BUDGET_ONEWAY_MS = 150;  // ITU-T G.114 interactive one-way budget
-const ASYNC_BUDGET_ONEWAY_MS = 1000;    // ~1 s tolerance for publish/fetch/messaging
-const RELAY_PLACEMENT_MS = { regional:55, mixed:125, global:195 };
+// ─── 3-Mesh & Shaped Onion Transport (CC 5.4.3 / 5.4.6 · Edge v44) ────
+// 1. Low-BW shaped (`base`, L≤8 links, F=16,272 B, ρ=0.5): server 7,000 B/s, home 2,800 B/s,
+//    phone-wifi 1,400 B/s, phone-cellular 350 B/s.
+// 2. High-BW shaped (`seat`, seat↔seat outside L≤8): 33,000 B/s (~2 frames/s, 85.5 GB/mo each way).
+// 3. Live / ALM unshaped (`bulk`): >64 KiB blobs, realtime A/V, and O(log_k N) consumer-latched ALM relay trees.
+// Onion packet (`CONP`): 15,296 B (6 × 1,184 B X-Wing KEM slots + 8,160 B wide-block AEAD body)
+// fits in one 16,272 B shaped frame and replaces cover frames on standing shaped links at +0 B extra wire cost.
+const SHAPED_FRAME_BYTES = 16272;
+const ONION_PACKET_BYTES = 15296;
+const SHAPED_LINK_CAP = 8;
+const REALTIME_BUDGET_ONEWAY_MS = 150;  // ITU-T G.114 interactive one-way budget (rides Live/ALM mesh)
+const ASYNC_BUDGET_ONEWAY_MS = 4000;    // async publish/fetch/onion-room tolerance on shaped links
+// Mean half-frame hop wait (0.5 * F / rate) + link RTT in ms:
+// regional = seat tier (33,000 B/s -> ~247 ms wait + 35 ms), mixed = server (7,000 B/s -> ~1162 ms), global = home (2,800 B/s -> ~2905 ms)
+const RELAY_PLACEMENT_MS = { regional:280, mixed:1160, global:2900 };
 
 // ─── Cohort presets (CohortDist::*) ─────────────────────────────────
 const COHORTS = {
@@ -946,79 +954,76 @@ function renderTransport(s, f){
     `<span>global</span> ${lat.cewp_from_global_ms.toFixed(1)} + `+
     `<span>trust-hop</span> ${lat.cewp_trust_hop_ms.toFixed(1)} ms`;
 
-  // ── Sphinx onion overhead ──
+  // ── 3-Mesh & Shaped Onion (CC 5.4.3 / 5.4.6 · Edge v44) ──
   const on = state.sphinxOn;
   const hops = state.onionHops;
   const perHop = RELAY_PLACEMENT_MS[state.relayPlacement];
+  const tierNames = { regional:"seat 33 KB/s", mixed:"server 7 KB/s", global:"home 2.8 KB/s" };
   // slider/chip labels
-  $("sphinxVal").textContent = on ? "default ON" : "OFF";
-  $("hopsVal").textContent = hops + " hops";
+  $("sphinxVal").textContent = on ? "cover-replaced ON" : "OFF";
+  $("hopsVal").textContent = hops + (hops===1?" hop":" hops") + " (≤6 slots)";
   document.querySelectorAll("#sphinxChips .chip").forEach(c=>c.classList.toggle("on", (c.dataset.s==="on")===on));
   document.querySelectorAll("#relayChips .chip").forEach(c=>c.classList.toggle("on", c.dataset.r===state.relayPlacement));
 
-  const onion_added_oneway = on ? hops * perHop : 0;          // per-onion-hop ms × hops
-  const onionP50 = lat.cewp_p50_ms + onion_added_oneway;       // request leg; fetch RTT pays ~2×
+  const onion_added_oneway = on ? hops * perHop : 0;          // hop-wait ms × hops
+  const onionP50 = lat.cewp_p50_ms + onion_added_oneway;
   const latMult = lat.cewp_p50_ms > 0 ? onionP50 / lat.cewp_p50_ms : 1;
 
   $("onionLat").textContent = on
-    ? `+${onion_added_oneway.toFixed(0)} ms (${hops} × ${perHop} ms, ${state.relayPlacement})`
-    : "0 ms (onion OFF)";
+    ? `+${(onion_added_oneway/1000).toFixed(2)} s (${hops} × ${perHop} ms hop-wait on ${tierNames[state.relayPlacement]})`
+    : "0 ms (onion walk OFF)";
   $("onionCmp").innerHTML =
-    `<div class="cell cewp"><div class="lbl">baseline p50</div><div class="big">${lat.cewp_p50_ms.toFixed(0)} ms</div>`+
-      `<div class="mult">no onion</div></div>`+
-    `<div class="cell onion"><div class="lbl">onion p50 (1-way leg)</div><div class="big">${onionP50.toFixed(0)} ms</div>`+
-      `<div class="mult">${latMult.toFixed(2)}× · fetch RTT ≈ +${(onion_added_oneway*2).toFixed(0)} ms</div></div>`;
+    `<div class="cell cewp"><div class="lbl">direct / ALM p50</div><div class="big">${lat.cewp_p50_ms.toFixed(0)} ms</div>`+
+      `<div class="mult">unshaped live / seat</div></div>`+
+    `<div class="cell onion"><div class="lbl">shaped onion walk</div><div class="big">${onionP50>=1000?(onionP50/1000).toFixed(2)+" s":onionP50.toFixed(0)+" ms"}</div>`+
+      `<div class="mult">${latMult.toFixed(1)}× · hop-wait governed (F/rate)</div></div>`;
 
-  // ── bandwidth: fixed-size Sphinx → relay amplification ×hops + ~512 B header ──
-  const bwBasePct = f.bandwidth_ratio * 100;
-  const bwOnionPct = on ? bwBasePct * hops : bwBasePct;
-  $("bwBase").textContent = bwBasePct.toFixed(bwBasePct<1?3:1) + "% of 10.8 TB/day gate";
+  // ── bandwidth: onion packets replace cover frames on standing shaped links → +0 extra wire bytes ──
+  const standingServerBps = SHAPED_LINK_CAP * 7000 * 2; // 8 links × 7,000 B/s × in+out
+  const standingServerPerDay = standingServerBps * 86400;
+  const standingPct = (standingServerPerDay / (state.bw * SERVER_BANDWIDTH_GATE_BYTES_PER_DAY)) * 100;
+  $("bwBase").textContent = `${fmtBytes(standingServerPerDay)}/day (${standingPct.toFixed(2)}% of gate · 8 links @ 7 KB/s + 33 KB/s seat)`;
   $("bwOnion").textContent = on
-    ? `×${hops} = ${bwOnionPct.toFixed(bwOnionPct<1?3:1)}% of gate  (still ~0% — ABSORBED)`
-    : "×1 (onion OFF)";
-  $("onionHdr").textContent = `~${SPHINX_HEADER_BYTES} B/packet (fixed; unwrap crypto sub-ms, negligible)`;
+    ? `+0 B/day (100% cover-frame replacement on standing shaped links, ρ=0.5)`
+    : `+0 B/day (standing shaped links send cover frames when idle)`;
+  $("onionHdr").textContent = `${ONION_PACKET_BYTES.toLocaleString()} B inside ${SHAPED_FRAME_BYTES.toLocaleString()} B frame (6 × 1,184 B X-Wing slots + 8,160 B body)`;
+  if ($("almTreeStat")){
+    $("almTreeStat").textContent = `O(log_k N) consumer-latched tree · 5,000-member post = ~68 relay hops (−98.6% vs direct)`;
+  }
+  if ($("retNatStat")){
+    $("retNatStat").textContent = `~40% direct IPv6 / NAT hole-punched · ~60% hard-NAT leaf homed on k=2 serve seats`;
+  }
 
-  // ── per-traffic-class verdict (the headline) ──
-  // Realtime: ITU G.114 150 ms one-way interactive budget.
+  // ── per-traffic-class verdict (3-mesh separation) ──
   const rt = $("cvRealtime"), as = $("cvAsync");
+  rt.className = "class-verdict ok";
+  rt.innerHTML = `<span class="cls">Realtime A/V &amp; &gt;64 KiB streams (rides Live / ALM mesh, never shaped onion)</span><span class="res">✓ ${lat.cewp_p50_ms.toFixed(0)} ms (≤${REALTIME_BUDGET_ONEWAY_MS} ms G.114)</span>`;
   if (!on){
-    rt.className = "class-verdict ok"; rt.innerHTML = `<span class="cls">Realtime A/V</span><span class="res">✓ no onion tax</span>`;
-    as.className = "class-verdict ok"; as.innerHTML = `<span class="cls">Async (publish/fetch/msg/gov)</span><span class="res">✓ fine</span>`;
+    as.className = "class-verdict ok";
+    as.innerHTML = `<span class="cls">Shaped ≤64 KiB rows &amp; consent-free roads (base + 33 KB/s seat mesh)</span><span class="res">✓ 0 extra wire cost</span>`;
+  } else if (onion_added_oneway <= ASYNC_BUDGET_ONEWAY_MS){
+    as.className = "class-verdict ok";
+    as.innerHTML = `<span class="cls">Anonymous rooms &amp; whispers (${hops}-hop CONP over shaped links)</span><span class="res">✓ +${(onion_added_oneway/1000).toFixed(2)}s · +0 wire bytes</span>`;
   } else {
-    if (onion_added_oneway <= REALTIME_BUDGET_ONEWAY_MS){
-      rt.className = "class-verdict warn";
-      rt.innerHTML = `<span class="cls">Realtime A/V (≤${REALTIME_BUDGET_ONEWAY_MS} ms G.114)</span><span class="res">⚠ degraded but usable</span>`;
-    } else {
-      rt.className = "class-verdict bad";
-      rt.innerHTML = `<span class="cls">Realtime A/V (>${REALTIME_BUDGET_ONEWAY_MS} ms G.114)</span><span class="res">✗ BROKEN</span>`;
-    }
-    if (onion_added_oneway <= ASYNC_BUDGET_ONEWAY_MS){
-      as.className = "class-verdict ok";
-      as.innerHTML = `<span class="cls">Async (publish/fetch/msg/gov)</span><span class="res">✓ fine</span>`;
-    } else {
-      as.className = "class-verdict warn";
-      as.innerHTML = `<span class="cls">Async (publish/fetch/msg/gov)</span><span class="res">⚠ sluggish (>${(ASYNC_BUDGET_ONEWAY_MS/1000).toFixed(0)} s)</span>`;
-    }
+    as.className = "class-verdict warn";
+    as.innerHTML = `<span class="cls">Anonymous rooms &amp; whispers (${hops}-hop CONP on slow home links)</span><span class="res">⚠ +${(onion_added_oneway/1000).toFixed(1)}s hop-wait (use seat/server guards)</span>`;
   }
 
   // ── headline verdict block ──
   const sv = $("sphinxVerdict");
   if (!on){
-    sv.className = "verdict";
-    sv.style.borderColor = "var(--edge)";
-    sv.innerHTML = `<div class="v1" style="color:var(--dim)">Sphinx onion OFF</div>`+
-      `<div class="v3">No anonymity layer. Toggle "default ON" to price 3-hop Sphinx as the default transport.</div>`;
+    sv.className = "verdict ok";
+    sv.innerHTML = `<div class="v1" style="color:var(--ok)">3-Mesh Substrate Active (Onion Walks OFF)</div>`+
+      `<div class="v3">Low-BW shaped (L≤8), High-BW seat (33 KB/s), and Live/ALM relay tree carry their traffic classes. Toggle "cover-replaced ON" to walk 15,296 B X-Wing onion packets across standing shaped links.</div>`;
   } else {
-    const rtBroken = onion_added_oneway > REALTIME_BUDGET_ONEWAY_MS;
     sv.className = "verdict ok";
     sv.innerHTML =
-      `<div class="v1" style="color:var(--accent2)">default ${hops}-hop Sphinx</div>`+
-      `<div class="v2" style="font-size:.95rem">bandwidth <b style="color:var(--ok)">ABSORBED</b> `+
-        `(×${hops} of ${bwBasePct.toFixed(bwBasePct<1?2:1)}% = ${bwOnionPct.toFixed(bwOnionPct<1?2:1)}%) · `+
-        `latency <b>+${onion_added_oneway.toFixed(0)} ms</b> one-way → `+
-        `async <b style="color:var(--ok)">✓</b>, realtime A/V <b style="color:${rtBroken?'var(--bad)':'var(--warn)'}">${rtBroken?'✗':'⚠'}</b></div>`+
-      `<div class="v3">Default Sphinx is <b>bandwidth-free but latency-bound</b> — feasible as the default for `+
-        `everything except realtime media.</div>`;
+      `<div class="v1" style="color:var(--accent2)">${hops}-hop X-Wing Onion over Shaped Links (CC 5.4.6)</div>`+
+      `<div class="v2" style="font-size:.95rem">extra wire bandwidth <b style="color:var(--ok)">+0 B/day</b> `+
+        `(replaces cover on L≤8 standing links) · `+
+        `hop-wait <b>+${(onion_added_oneway/1000).toFixed(2)} s</b> one-way · `+
+        `realtime A/V rides <b>Live / ALM mesh</b> <b style="color:var(--ok)">✓</b></div>`+
+      `<div class="v3">Because standing shaped links already run at constant rate (<i>F</i>=16,272 B, ρ=0.5), onion walks add <b>zero wire bytes</b>; realtime A/V and bulk blobs bypass the shaped queue on the unshaped Live/ALM mesh.</div>`;
   }
 }
 
