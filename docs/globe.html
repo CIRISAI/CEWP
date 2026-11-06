@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Millions of nodes, one door — 3-Mesh & ALM Relay Tree</title>
-<meta name="description" content="Millions of nodes placed on a land-bounded world population density grid; 3 transport meshes (low-BW shaped, high-BW 33 KB/s seat, live/ALM relay tree) + cover-replaced onion walks and Reticulum NAT traversal in WebAssembly.">
+<title>Billions of people and devices, one rulebook — 3-Mesh & ALM Relay Tree</title>
+<meta name="description" content="Billions of people and devices placed on a land-bounded world population density grid, governed by one constitutional rulebook across 3 transport meshes (low-BW shaped, high-BW 33 KB/s seat, live/ALM relay tree) + cover-replaced onion walks and Reticulum NAT traversal in WebAssembly.">
 <style>
 :root{--bg:#0b0d12;--panel:#12151c;--line:#242a36;--ink:#dfe3ea;--mute:#8a93a3;--ok:#5ad38f;--warm:#ffb15c;--hot:#ff6a5c;--cool:#6cb6ff;--violet:#c68aff;--mono:ui-monospace,Menlo,Consolas,monospace}
 *{box-sizing:border-box}html,body{height:100%;overscroll-behavior:none}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--mono);overflow:hidden;-webkit-text-size-adjust:100%}
@@ -82,9 +82,9 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
 <body>
 <canvas id="c"></canvas>
 <div id="hud">
-  <h1>Millions of nodes, one door</h1>
-  <p>Land-bounded world population grid (2,961 cells, 181 localities). Signs traffic across <b>3 meshes</b> (CC 5.4.3 / Edge 44): low-BW shaped, seat 33 KB/s, and live/ALM relay trees, plus 0-byte-extra onion walks and Reticulum NAT traversal.</p>
-  <input type="hidden" id="size" value="1000000">
+  <h1>Billions of people and devices, one rulebook</h1>
+  <p>Land-bounded world population grid (2,961 cells, 181 localities). Every person's devices evaluate the same constitutional rulebook across <b>3 meshes</b> (CC 5.4.3 / Edge 44): low-BW shaped, seat 33 KB/s, and live/ALM relay trees, plus 0-byte-extra onion walks and Reticulum NAT traversal.</p>
+  <input type="hidden" id="size" value="5000000000">
   <input type="hidden" id="acts" value="10000">
   <div class="row main-actions">
     <button id="play" class="btn-primary active">❚❚ pause</button>
@@ -111,12 +111,12 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
           <button data-preset="unowned">Unowned-Only (73rd Peer)</button>
         </div>
         <div class="control-group" style="margin:4px 0">
-          <div class="cg-head"><label>World scale</label></div>
+          <div class="cg-head"><label>World population (people · 2.25 devices/person)</label></div>
           <div class="seg" id="size-seg">
-            <button data-val="100000">100 k</button>
-            <button data-val="1000000" class="active">1 M</button>
-            <button data-val="2000000">2 M</button>
-            <button data-val="4000000">4 M</button>
+            <button data-val="100000000">100 M</button>
+            <button data-val="1000000000">1 B</button>
+            <button data-val="5000000000" class="active">5 B</button>
+            <button data-val="8050000000">8.1 B</button>
           </div>
         </div>
         <div class="control-group" style="margin:4px 0">
@@ -271,20 +271,20 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     <div class="kv"><span>public-room ALM relay hops vs direct</span><b id="m_alm">–</b></div>
     <h2>this tick</h2>
     <div class="kv"><span>acts signed</span><b id="acts_n">–</b></div>
-    <div class="kv"><span>deliveries (doors run)</span><b id="deliv">–</b></div>
-    <div class="kv"><span>refused at the signer's own door</span><b id="refused">–</b></div>
+    <div class="kv"><span>deliveries (rulebook checks run)</span><b id="deliv">–</b></div>
+    <div class="kv"><span>refused by signer's local rulebook</span><b id="refused">–</b></div>
     <div class="kv"><span>wire bytes moved (excl. 0B onion cover)</span><b id="bytes">–</b></div>
     <div class="kv"><span>a broadcast network would move</span><b id="bcast">–</b></div>
     <div class="kv"><span>with a datacenter in the middle</span><b id="central">–</b></div>
-    <h2>the kernel</h2>
-    <div class="kv"><span>door checks / second</span><b id="dps">–</b></div>
-    <div class="kv"><span>ms per tick (door + relay tree)</span><b id="ms">–</b></div>
-    <div class="kv"><span>bytes of state per node</span><b id="bpn">–</b></div>
+    <h2>the rulebook kernel</h2>
+    <div class="kv"><span>rulebook checks / second</span><b id="dps">–</b></div>
+    <div class="kv"><span>ms per tick (rulebook + relay tree)</span><b id="ms">–</b></div>
+    <div class="kv"><span>world scale (people · devices)</span><b id="bpn">–</b></div>
     <div class="kv"><span>cumulative deliveries</span><b id="cum">–</b></div>
     <div class="mob-links"><a href="mesh.html">The small mesh</a> · <a href="index.html">the model in motion</a></div>
   </div>
 </div>
-<div id="foot">Every node sits on populated land (2,961 density cells stitched to continent polygons). Public rooms fan out via the <b>Seat + ALM Relay Tree</b> (<i>O</i>(log<sub><i>k</i></sub> <i>N</i>) consumer-latched relay hops, not 5,000 direct deliveries). 15,296 B X-Wing onion packets walk standing shaped links, replacing cover frames at <b>0 extra wire bytes</b> (CC 5.4.6). Reticulum uses IPv6 / NAT hole-punching (~40% direct P2P) while hard NAT (~60%) homes leaves on <i>k</i>=2 serve seats. <a href="mesh.html">The small mesh</a> · <a href="index.html">the model in motion</a></div>
+<div id="foot">Every person and device sits on populated land (2,961 density cells stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Public rooms fan out via the <b>Seat + ALM Relay Tree</b> (<i>O</i>(log<sub><i>k</i></sub> <i>N</i>) consumer-latched relay hops, not 5,000 direct deliveries). 15,296 B X-Wing onion packets walk standing shaped links, replacing cover frames at <b>0 extra wire bytes</b> (CC 5.4.6). Reticulum uses IPv6 / NAT hole-punching (~40% direct P2P) while hard NAT (~60%) homes leaves on <i>k</i>=2 serve seats. <a href="mesh.html">The small mesh</a> · <a href="index.html">the model in motion</a></div>
 <script>
 // ------------------------------------------------------------------ the world (population density grid)
 const REG = ["N. America","Latin America","Europe","MENA","Sub-Saharan Africa","South Asia","East Asia","SE Asia & Oceania","Russia & C. Asia"];
@@ -655,12 +655,14 @@ cv.addEventListener("touchmove",e=>{
 cv.addEventListener("touchend",e=>{ if(e.touches.length<2) pinchDist=0; if(e.touches.length===0) drag=null; });
 // ------------------------------------------------------------------ the loop
 const isMobileViewport = window.innerWidth <= 800;
+const DEVICES_PER_PERSON = 2.25; // CC 4.5.13 self roster: ~1 phone + ~1 home/laptop/tablet + ~0.25 shared/personal server
 let playing=false, useWasm=true, showArcs=true, cum=0, lastActivity=null, activeBlocks=[];
-let currentSize=isMobileViewport?100000:1000000, currentActs=isMobileViewport?2000:10000, avgMsPerTick=0, avgMsPerAct=0;
-const $=(id)=>document.getElementById(id); const fmt=(x)=>x>=1e12?(x/1e12).toFixed(2)+" T":x>=1e9?(x/1e9).toFixed(2)+" G":x>=1e6?(x/1e6).toFixed(2)+" M":x>=1e3?(x/1e3).toFixed(1)+" k":String(Math.round(x));
+let currentPop=5000000000, currentSize=isMobileViewport?100000:1000000, currentActs=isMobileViewport?2000:10000, avgMsPerTick=0, avgMsPerAct=0;
+const $=(id)=>document.getElementById(id);
+const fmt=(x)=>x>=1e12?(x/1e12).toFixed(2)+" T":x>=1e9?(x/1e9).toFixed(2)+" B":x>=1e6?(x/1e6).toFixed(2)+" M":x>=1e3?(x/1e3).toFixed(1)+" k":String(Math.round(x));
+const fmtBytes=(x)=>x>=1e18?(x/1e18).toFixed(2)+" EB":x>=1e15?(x/1e15).toFixed(2)+" PB":x>=1e12?(x/1e12).toFixed(2)+" TB":x>=1e9?(x/1e9).toFixed(2)+" GB":x>=1e6?(x/1e6).toFixed(2)+" MB":x>=1e3?(x/1e3).toFixed(1)+" KB":Math.round(x)+" B";
 if (isMobileViewport){
-  $("size").value=String(currentSize); $("acts").value=String(currentActs);
-  document.querySelectorAll("#size-seg button").forEach(b=>b.classList.toggle("active",+b.getAttribute("data-val")===currentSize));
+  $("acts").value=String(currentActs);
   document.querySelectorAll("#acts-seg button").forEach(b=>b.classList.toggle("active",+b.getAttribute("data-val")===currentActs));
 }
 if ($("stats-toggle")){
@@ -678,11 +680,18 @@ if ($("adv")){
     }
   });
 }
-function selectSize(n){
-  if (n===currentSize&&W) return;
-  currentSize=n; if ($("size")) $("size").value=String(n);
-  document.querySelectorAll("#size-seg button").forEach(b=>b.classList.toggle("active",+b.getAttribute("data-val")===n));
-  build();
+function updateStatusLine(buildSec){
+  if (!W) return;
+  const P = currentPop, D = Math.round(P * DEVICES_PER_PERSON);
+  const M = Math.max(500, Math.round(P / 100000));
+  const timing = buildSec != null ? " · built in "+buildSec.toFixed(1)+" s" : "";
+  $("status").textContent=fmt(P)+" people · "+fmt(D)+" devices ("+fmt(W.n)+" cohorts on "+W.nCells+" land cells, "+W.nLocs+" localities, "+REG.length+" regions) · "+fmt(M)+" serve seats"+timing+(wasm?"":" · JS engine");
+}
+function selectSize(pop){
+  currentPop=pop; if ($("size")) $("size").value=String(pop);
+  document.querySelectorAll("#size-seg button").forEach(b=>b.classList.toggle("active",+b.getAttribute("data-val")===pop));
+  computeSustainability();
+  updateStatusLine(null);
 }
 function selectActs(a){
   currentActs=a; if ($("acts")) $("acts").value=String(a);
@@ -736,8 +745,9 @@ function computeSustainability(){
   $("v_orel").textContent = Math.round(orelOpt*100) + "%";
   $("v_trc").textContent = Math.round(trcOpt*100) + "%";
 
-  const N = W ? W.n : currentSize;
-  const M = W ? W.seats.length : Math.max(9, Math.round(N / 2000));
+  const P = currentPop;
+  const N = Math.round(P * DEVICES_PER_PERSON); // total devices across all people's self rosters
+  const M = Math.max(500, Math.round(P / 100000)); // canonical serve seats (50,000 at 5B people)
   const fSrv = srvPct / 100, fHome = homePct / 100, fPhone = phonePct / 100;
   const fWifi = wifiPct / 100, fChg = chgPct / 100, fNat = natPct / 100;
 
@@ -855,14 +865,6 @@ function updateWorkloadLimits(ms,actsCount){
     budgetEl.textContent=`~${est} ms / tick · ${label}`;
     budgetEl.style.color=avgMsPerTick<20?"var(--ok)":avgMsPerTick<50?"var(--warm)":"var(--hot)";
   }
-  document.querySelectorAll("#size-seg button").forEach(btn=>{
-    const val=+btn.getAttribute("data-val");
-    if (!useWasm&&val>2000000){
-      btn.disabled=true; btn.title="4M nodes disabled in JS engine to prevent memory lag (use WASM to unlock)";
-    } else {
-      btn.disabled=false; btn.title="";
-    }
-  });
 }
 function recordActiveBlocks(){
   if (!lastActivity) return; const a=lastActivity; const u32=new Uint32Array(a.buffer,a.byteOffset,a.byteLength>>>2);
@@ -875,14 +877,16 @@ function tick(){
   $("local").textContent=(local*100).toFixed(1)+"%"; $("localbar").style.width=(local*100).toFixed(1)+"%";
   $("xmetro").textContent=(o[1]?o[6]/o[1]*100:0).toFixed(1)+"%"; $("xregion").textContent=(o[1]?o[7]/o[1]*100:0).toFixed(1)+"%";
   const crossings=o[6]+o[7]; $("km").textContent=crossings?Math.round(o[8]/crossings)+" km":"–";
-  $("m_base").textContent=fmt(o[18])+" hops · "+fmt(o[18]*4096)+"B";
-  $("m_seat").textContent=fmt(o[19])+" hops · "+fmt(o[19]*4096)+"B";
-  $("m_bulk").textContent=fmt(o[20])+" hops · "+fmt(o[20]*4096)+"B";
+  $("m_base").textContent=fmt(o[18])+" hops · "+fmtBytes(o[18]*4096);
+  $("m_seat").textContent=fmt(o[19])+" hops · "+fmtBytes(o[19]*4096);
+  $("m_bulk").textContent=fmt(o[20])+" hops · "+fmtBytes(o[20]*4096);
   $("m_onion").textContent=fmt(o[22])+" acts  (+0 B extra wire)";
   $("m_alm").textContent=fmt(o[21])+" direct deliveries saved · "+fmt(o[23])+" NAT-popped";
   $("acts_n").textContent=fmt(o[0])+"  (family "+fmt(o[12])+" · room "+fmt(o[13])+" · c-free "+fmt(o[14])+" · public "+fmt(o[15])+")"; $("deliv").textContent=fmt(o[1]); $("refused").textContent=fmt(o[4]);
-  $("bytes").textContent=fmt(o[9])+"B"; $("bcast").textContent=fmt(o[10])+"B  ("+fmt(o[10]/Math.max(1,o[9]))+"×)"; $("central").textContent=fmt(o[11])+"B  ("+fmt(o[11]/Math.max(1,o[9]))+"× vs relay tree)";
-  $("dps").textContent=fmt(o[2]/(ms/1000)); $("ms").textContent=ms.toFixed(1)+" ms  ("+(useWasm&&wasm?"WASM":"JS")+")"; $("bpn").textContent=BYTES_PER_NODE+" B  ·  "+fmt(W.n*BYTES_PER_NODE)+"B for "+fmt(W.n)+" nodes"; $("cum").textContent=fmt(cum);
+  const totalDevs = Math.round(currentPop * DEVICES_PER_PERSON);
+  const bcastWorld = o[17] * totalDevs * 4096;
+  $("bytes").textContent=fmtBytes(o[9]); $("bcast").textContent=fmtBytes(bcastWorld)+"  ("+fmt(bcastWorld/Math.max(1,o[9]))+"×)"; $("central").textContent=fmtBytes(o[11])+"  ("+fmt(o[11]/Math.max(1,o[9]))+"× vs relay tree)";
+  $("dps").textContent=fmt(o[2]/(ms/1000)); $("ms").textContent=ms.toFixed(1)+" ms  ("+(useWasm&&wasm?"WASM":"JS")+")"; $("bpn").textContent=fmt(currentPop)+" people · "+fmt(totalDevs)+" devices"; $("cum").textContent=fmt(cum);
   lastActivity=res.activity; recordActiveBlocks(); gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,lastActivity); setArcs(res.arcs);
 }
 function decay(){
@@ -914,9 +918,9 @@ function loop(){
 async function build(){
   const wasPlaying=playing;
   playing=false; $("play").textContent="▶ run"; $("play").classList.remove("active");
-  const n=currentSize; $("status").textContent="placing "+fmt(n)+" nodes on land density grid…"; await new Promise(r=>setTimeout(r,30));
+  const n=currentSize; $("status").textContent="placing "+fmt(currentPop)+" people ("+fmt(currentPop*DEVICES_PER_PERSON)+" devices) on land density grid…"; await new Promise(r=>setTimeout(r,30));
   const t0=performance.now(); W=buildWorld(n); const t1=performance.now(); uploadWorld(); uploadPoints(); cum=0; lastActivity=null; activeBlocks=[]; activeArcs=[]; arcCount=0; arcsNeedUpload=true; pruneAndPackArcs(getTime()); computeSustainability();
-  $("status").textContent=fmt(W.n)+" nodes across "+W.nCells+" land cells ("+W.nLocs+" localities, "+REG.length+" regions) · "+fmt(W.nFamilies)+" families · "+fmt(W.rooms-W.nFamilies)+" rooms · "+W.seats.length+" serve seats · built in "+((t1-t0)/1000).toFixed(1)+" s"+(wasm?"":" · WASM unavailable, JS engine");
+  updateStatusLine((t1-t0)/1000);
   if (wasPlaying){ playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); }
 }
 if ($("build")) $("build").onclick=build;

@@ -24,9 +24,9 @@ The tables are the constitution's, vendored under [`tables/`](tables/) at the co
 
 [`../mesh.html`](../mesh.html) runs it in the browser as a mesh of people and their nodes.
 
-## At scale: the door in WebAssembly
+## At scale: billions of people and devices, one rulebook in WebAssembly
 
-[`../globe.html`](../globe.html) puts up to a few million nodes on a globe, placed on a land-bounded world population density grid (`2,961` populated land cells across `181` localities and `9` GSMA/UN regions, stitched to continent coastlines with zero ocean nodes), and signs random acts every tick: 65% family-scope, 30% in a community room, 4% consent-free rows, 1% in a public room. The door runs at the signer's node and at every node of the row's audience. The loop is [`kernel-wasm/src/lib.rs`](../../kernel-wasm/src/lib.rs), compiled to `kernel_scale.wasm` (34 KB, no dependencies, `kernel-wasm/build.sh`), with the same loop in JavaScript on the page so the two engines can be timed on one world.
+[`../globe.html`](../globe.html) models up to **8.1 billion people and 18.1 billion devices** (`5.00 B` people / `11.25 B` devices default at `2.25` devices per person's `self` roster), placed on a land-bounded world population density grid (`2,961` populated land cells across `181` localities and `9` GSMA/UN regions, stitched to continent coastlines with zero ocean nodes), and signs random acts every tick: 65% family-scope, 30% in a community room, 4% consent-free rows, 1% in a public room. Each node's local door evaluates the same constitutional rulebook (`transitions.json` + `governance_policy.json`) at the signer's device and at every device of the row's audience. The loop is [`kernel-wasm/src/lib.rs`](../../kernel-wasm/src/lib.rs), compiled to `kernel_scale.wasm` (34 KB, no dependencies, `kernel-wasm/build.sh`), with the same loop in JavaScript on the page so the two engines can be timed on one world.
 
 What it models and measures (per **CC RC17 §4.5.13 / §5.4.3 / §5.4.6** and **CIRISEdge v44**):
 - **The locality dividend (CC 5.2)**: the share of rows that never leave the signer's locality (~90% with community rooms drawn 90% local).

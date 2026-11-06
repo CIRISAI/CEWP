@@ -1173,8 +1173,9 @@ function renderTransport(s, f){
   }
 
   // ── Population Opt-Ins, Hard-NAT Sustainability & Shaped Onion Cover Capacity ──
-  const N = s.n_users;
-  const M = Math.max(9, Math.round(N / 2000)); // canonical serve seats (~1 per 2,000 nodes)
+  const P = s.n_users;
+  const N = Math.round(P * 2.25); // 2.25 devices/person across self rosters (11.25 B devices at 5 B people)
+  const M = Math.max(500, Math.round(P / 100000)); // canonical serve seats (50,000 at 5 B people)
   const fSrv = s.tier_mix.server, fHome = s.tier_mix.proxy, fPhone = s.tier_mix.client;
   const fWifi = state.wifiShare / 100, fChg = state.chgShare / 100, fNat = state.hardNat / 100;
   const shSrv = state.shSrv / 100, shHome = state.shHome / 100, shPhone = state.shPhone / 100;
@@ -1243,7 +1244,7 @@ function renderTransport(s, f){
   $("sustHardNat").textContent = `${fmtCount(nHardNat)} / ${fmtCount(maxHardNatLeaves)} (${(natRatio*100).toFixed(0)}% load)`;
   $("sustMaxNat").textContent = `${(maxHardNatFrac*100).toFixed(1)}% of home/phone (${fmtCount(maxHardNatLeaves)} max leaves)`;
   $("sustShapeSlots").textContent = `${fmtCount(shapedSlotsSupply)} supply vs ${fmtCount(shapedSlotsDemand)} demand (${shapedSeatedPct.toFixed(0)}% seated)`;
-  $("sustShapers").textContent = `${fmtCount(nShapingNodes)} nodes (${(nShapingNodes/N*100).toFixed(1)}% of pop)`;
+  $("sustShapers").textContent = `${fmtCount(nShapingNodes)} devices (${(nShapingNodes/N*100).toFixed(1)}% of ${fmtCount(N)} devices · ${fmtCount(P)} people)`;
   $("sustCoverRatio").textContent = nOnionPeers > 0 ? `${coverRatio.toFixed(2)} shaping nodes per onion peer (${fmtCount(nOnionPeers)} onion)` : `${fmtCount(nShapingNodes)} shapers / 0 onion`;
   $("sustOnionRelays").textContent = `${fmtCount(relaysPerLayer)} / layer (${relaysPerLayer>=10?"✓ healthy ≥10":relaysPerLayer>=3?"⚠ small set <10":"✗ below floor <3"})`;
 
