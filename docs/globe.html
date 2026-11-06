@@ -9,7 +9,17 @@
 :root{--bg:#0b0d12;--panel:#12151c;--line:#242a36;--ink:#dfe3ea;--mute:#8a93a3;--ok:#5ad38f;--warm:#ffb15c;--hot:#ff6a5c;--cool:#6cb6ff;--violet:#c68aff;--mono:ui-monospace,Menlo,Consolas,monospace}
 *{box-sizing:border-box}html,body{height:100%;overscroll-behavior:none}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--mono);overflow:hidden;-webkit-text-size-adjust:100%}
 #c{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:block;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}
-#hud{position:fixed;left:12px;top:12px;width:min(410px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 90%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;backdrop-filter:blur(6px);max-height:calc(100dvh - 44px);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10}
+.fab{position:fixed;z-index:20;display:inline-flex;align-items:center;gap:7px;background:color-mix(in srgb,var(--panel) 86%,transparent);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:7px 13px;font:600 12px/1 var(--mono);backdrop-filter:blur(8px);cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:border-color .18s,background .18s,color .18s}
+.fab:hover,.fab.open{border-color:var(--ok);color:#fff;background:color-mix(in srgb,var(--panel) 96%,transparent)}
+.fab .badge{color:var(--ok);font-weight:600;font-variant-numeric:tabular-nums}
+#btn-hud{left:12px;top:12px}
+#btn-stats{right:12px;top:12px}
+#btn-foot{left:12px;bottom:max(12px,env(safe-area-inset-bottom));font-weight:500;font-size:11px;padding:6px 11px;color:var(--mute)}
+.panel-hidden{display:none!important}
+.panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.panel-close{background:transparent;border:1px solid var(--line);color:var(--mute);border-radius:6px;padding:2px 7px;font:12px/1.2 var(--mono);cursor:pointer;flex:none}
+.panel-close:hover{color:#fff;border-color:var(--ink)}
+#hud{position:fixed;left:12px;top:50px;width:min(410px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;backdrop-filter:blur(8px);max-height:calc(100dvh - 64px);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:15;box-shadow:0 8px 28px rgba(0,0,0,.45)}
 #hud h1{font:600 16px/1.2 Georgia,serif;margin:0 0 4px;color:#fff}#hud p{margin:0 0 7px;color:var(--mute);font-size:11.5px}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
 button,select{font:12px var(--mono);background:#1a1f2a;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 8px;cursor:pointer}
@@ -56,23 +66,21 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
 .pro-con{font-size:10px;line-height:1.32;color:var(--mute)}
 .pro-con .pro{color:#7ee2a8;display:block}
 .pro-con .con{color:#ff9e8e;display:block}
-#stats{position:fixed;right:12px;top:12px;width:min(384px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12px;backdrop-filter:blur(6px);max-height:calc(100dvh - 48px);overflow:auto;-webkit-overflow-scrolling:touch;z-index:10}
+#stats{position:fixed;right:12px;top:50px;width:min(384px,calc(100vw - 24px));background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12px;backdrop-filter:blur(8px);max-height:calc(100dvh - 64px);overflow:auto;-webkit-overflow-scrolling:touch;z-index:15;box-shadow:0 8px 28px rgba(0,0,0,.45)}
 #stats h2{font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:9px 0 4px}
 .kv{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px dashed #1e2430}.kv b{color:#fff;font-weight:600;text-align:right}.kv .big{font-size:19px;color:var(--ok)}
 .bar{height:8px;background:#1a1f2a;border-radius:4px;overflow:hidden;margin:4px 0 8px}.bar i{display:block;height:100%;background:var(--ok);transition:width .25s ease}
-#stats-toggle{display:none;width:100%;margin-top:4px;padding:5px 8px;font:600 11px var(--mono);color:var(--cool);background:#141923;border:1px solid var(--line);border-radius:6px;text-align:center}
-.mob-links{display:none;margin-top:8px;padding-top:6px;border-top:1px solid var(--line);font-size:11px;color:var(--mute);text-align:center}
+.mob-links{margin-top:8px;padding-top:6px;border-top:1px solid var(--line);font-size:11px;color:var(--mute);text-align:center}
 .mob-links a{color:var(--cool)}
-#foot{position:fixed;left:12px;bottom:10px;color:var(--mute);font-size:11px;max-width:min(760px,calc(100vw - 24px));z-index:5}#foot a{color:var(--cool)}
+#foot{position:fixed;left:12px;bottom:48px;background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:10px;padding:10px 13px;backdrop-filter:blur(8px);color:var(--mute);font-size:11.5px;max-width:min(680px,calc(100vw - 24px));z-index:15;box-shadow:0 8px 28px rgba(0,0,0,.45)}#foot a{color:var(--cool)}
 @media(max-width:800px){
-  #hud{left:8px;top:8px;width:calc(100vw - 16px);padding:9px 11px;max-height:48dvh}
+  #btn-hud{left:8px;top:8px;padding:7px 11px;font-size:11.5px}
+  #btn-stats{right:8px;top:8px;padding:7px 11px;font-size:11.5px}
+  #btn-foot{left:8px;bottom:max(8px,env(safe-area-inset-bottom))}
+  #hud{left:8px;top:44px;width:calc(100vw - 16px);padding:10px 12px;max-height:calc(100dvh - 56px)}
   #hud h1{font-size:15px;margin-bottom:2px}
-  #hud>p:first-of-type{display:none}
-  #stats{left:8px;right:8px;width:calc(100vw - 16px);top:auto;bottom:max(8px,env(safe-area-inset-bottom));padding:8px 11px;max-height:46dvh}
-  #stats-toggle{display:block}
-  #stats.mob-collapsed #stats-more{display:none}
-  .mob-links{display:block}
-  #foot{display:none}
+  #stats{left:8px;right:8px;width:calc(100vw - 16px);top:44px;padding:10px 12px;max-height:calc(100dvh - 56px)}
+  #foot{left:8px;bottom:44px;width:calc(100vw - 16px)}
   button,select{padding:7px 10px;font-size:12px}
   .preset-bar button{padding:6px 8px;font-size:10.5px}
   input[type=range].adv-range{height:8px;margin:7px 0 5px}
@@ -81,8 +89,14 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="hud">
-  <h1>Billions of people and devices, one rulebook</h1>
+<button id="btn-hud" class="fab" type="button" title="Toggle controls &amp; population opt-ins">☰ Controls · <span class="badge" id="badge-scale">5.00 B</span></button>
+<button id="btn-stats" class="fab" type="button" title="Toggle live telemetry &amp; sustainability metrics">☰ Metrics · <span class="badge" id="badge-local">– local</span></button>
+<button id="btn-foot" class="fab" type="button" title="Toggle architecture legend &amp; links">? Info</button>
+<div id="hud" class="panel-hidden">
+  <div class="panel-head">
+    <h1>Billions of people and devices, one rulebook</h1>
+    <button class="panel-close" id="close-hud" type="button" title="Hide controls">✕</button>
+  </div>
   <p>Land-bounded world population grid (2,961 cells, 181 localities). Every person's devices evaluate the same constitutional rulebook across <b>3 meshes</b> (CC 5.4.3 / Edge 44): low-BW shaped, seat 33 KB/s, and live/ALM relay trees, plus 0-byte-extra onion walks and Reticulum NAT traversal.</p>
   <input type="hidden" id="size" value="5000000000">
   <input type="hidden" id="acts" value="10000">
@@ -246,10 +260,13 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     </div>
   </details>
 </div>
-<div id="stats" class="mob-collapsed">
+<div id="stats" class="panel-hidden">
+  <div class="panel-head" style="margin-bottom:4px">
+    <span style="font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--cool)">Live Telemetry &amp; Sustainability</span>
+    <button class="panel-close" id="close-stats" type="button" title="Hide metrics">✕</button>
+  </div>
   <div class="kv"><span>rows that never leave the signer's locality</span><b class="big" id="local">–</b></div>
   <div class="bar"><i id="localbar" style="width:0"></i></div>
-  <button id="stats-toggle" type="button">▸ Telemetry &amp; sustainability details</button>
   <div id="stats-more">
     <div class="kv"><span>deliveries within the locality</span><b id="dlocal">–</b></div>
     <div class="kv"><span>crosses a locality, same region</span><b id="xmetro">–</b></div>
@@ -284,7 +301,13 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     <div class="mob-links"><a href="mesh.html">The small mesh</a> · <a href="index.html">the model in motion</a></div>
   </div>
 </div>
-<div id="foot">Every person and device sits on populated land (2,961 density cells stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Public rooms fan out via the <b>Seat + ALM Relay Tree</b> (<i>O</i>(log<sub><i>k</i></sub> <i>N</i>) consumer-latched relay hops, not 5,000 direct deliveries). 15,296 B X-Wing onion packets walk standing shaped links, replacing cover frames at <b>0 extra wire bytes</b> (CC 5.4.6). Reticulum uses IPv6 / NAT hole-punching (~40% direct P2P) while hard NAT (~60%) homes leaves on <i>k</i>=2 serve seats. <a href="mesh.html">The small mesh</a> · <a href="index.html">the model in motion</a></div>
+<div id="foot" class="panel-hidden">
+  <div class="panel-head" style="margin-bottom:4px">
+    <b style="color:#fff;font-size:11.5px">How the 3-Mesh &amp; Rulebook Globe Works</b>
+    <button class="panel-close" id="close-foot" type="button" title="Hide info">✕</button>
+  </div>
+  Every person and device sits on populated land (2,961 density cells stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Public rooms fan out via the <b>Seat + ALM Relay Tree</b> (<i>O</i>(log<sub><i>k</i></sub> <i>N</i>) consumer-latched relay hops, not 5,000 direct deliveries). 15,296 B X-Wing onion packets walk standing shaped links, replacing cover frames at <b>0 extra wire bytes</b> (CC 5.4.6). Reticulum uses IPv6 / NAT hole-punching (~40% direct P2P) while hard NAT (~60%) homes leaves on <i>k</i>=2 serve seats. <a href="mesh.html">The small mesh</a> · <a href="index.html">the model in motion</a>
+</div>
 <script>
 // ------------------------------------------------------------------ the world (population density grid)
 const REG = ["N. America","Latin America","Europe","MENA","Sub-Saharan Africa","South Asia","East Asia","SE Asia & Oceania","Russia & C. Asia"];
@@ -665,27 +688,33 @@ if (isMobileViewport){
   $("acts").value=String(currentActs);
   document.querySelectorAll("#acts-seg button").forEach(b=>b.classList.toggle("active",+b.getAttribute("data-val")===currentActs));
 }
-if ($("stats-toggle")){
-  $("stats-toggle").onclick=()=>{
-    const st=$("stats"); const col=st.classList.toggle("mob-collapsed");
-    $("stats-toggle").textContent = col ? "▸ Telemetry & sustainability details" : "▾ Hide telemetry details";
-    if (!col && window.innerWidth<=800 && $("adv")) $("adv").open=false;
-  };
+function togglePanel(panelId, btnId){
+  const p = $(panelId), b = $(btnId);
+  if (!p) return;
+  const hidden = p.classList.toggle("panel-hidden");
+  if (b) b.classList.toggle("open", !hidden);
+  if (!hidden && window.innerWidth <= 800){
+    ["hud","stats","foot"].forEach(other=>{
+      if (other !== panelId && $(other)){
+        $(other).classList.add("panel-hidden");
+        const ob = $("btn-"+other); if (ob) ob.classList.remove("open");
+      }
+    });
+  }
 }
-if ($("adv")){
-  $("adv").addEventListener("toggle",()=>{
-    if ($("adv").open && window.innerWidth<=800 && $("stats")){
-      $("stats").classList.add("mob-collapsed");
-      if ($("stats-toggle")) $("stats-toggle").textContent="▸ Telemetry & sustainability details";
-    }
-  });
-}
+if ($("btn-hud")) $("btn-hud").onclick=()=>togglePanel("hud","btn-hud");
+if ($("btn-stats")) $("btn-stats").onclick=()=>togglePanel("stats","btn-stats");
+if ($("btn-foot")) $("btn-foot").onclick=()=>togglePanel("foot","btn-foot");
+if ($("close-hud")) $("close-hud").onclick=()=>togglePanel("hud","btn-hud");
+if ($("close-stats")) $("close-stats").onclick=()=>togglePanel("stats","btn-stats");
+if ($("close-foot")) $("close-foot").onclick=()=>togglePanel("foot","btn-foot");
 function updateStatusLine(buildSec){
   if (!W) return;
   const P = currentPop, D = Math.round(P * DEVICES_PER_PERSON);
   const M = Math.max(500, Math.round(P / 100000));
   const timing = buildSec != null ? " · built in "+buildSec.toFixed(1)+" s" : "";
   $("status").textContent=fmt(P)+" people · "+fmt(D)+" devices ("+fmt(W.n)+" cohorts on "+W.nCells+" land cells, "+W.nLocs+" localities, "+REG.length+" regions) · "+fmt(M)+" serve seats"+timing+(wasm?"":" · JS engine");
+  if ($("badge-scale")) $("badge-scale").textContent=fmt(P);
 }
 function selectSize(pop){
   currentPop=pop; if ($("size")) $("size").value=String(pop);
@@ -874,7 +903,9 @@ function tick(){
   const acts=currentActs; const t0=performance.now(); const res=(useWasm&&wasm)?tickWasm(acts):tickJs(acts); const ms=performance.now()-t0;
   updateWorkloadLimits(ms,acts);
   const o=res.out; cum+=o[1]; const local=o[17]?o[16]/o[17]:0; $("dlocal").textContent=(o[1]?o[5]/o[1]*100:0).toFixed(1)+"%";
-  $("local").textContent=(local*100).toFixed(1)+"%"; $("localbar").style.width=(local*100).toFixed(1)+"%";
+  const localStr=(local*100).toFixed(1)+"%";
+  $("local").textContent=localStr; $("localbar").style.width=localStr;
+  if ($("badge-local")) $("badge-local").textContent=localStr+" local";
   $("xmetro").textContent=(o[1]?o[6]/o[1]*100:0).toFixed(1)+"%"; $("xregion").textContent=(o[1]?o[7]/o[1]*100:0).toFixed(1)+"%";
   const crossings=o[6]+o[7]; $("km").textContent=crossings?Math.round(o[8]/crossings)+" km":"–";
   $("m_base").textContent=fmt(o[18])+" hops · "+fmtBytes(o[18]*4096);
