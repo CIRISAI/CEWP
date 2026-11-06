@@ -127,7 +127,7 @@ deployments already deliver today.
 
 No datacenters required.
 
-See the [interactive toy](../toy/index.html) to play with the numbers.
+See the [live 3-mesh globe](../docs/globe.html) and the [interactive scaling & sustainability toy](../toy/index.html) to explore the numbers, the 3 transport meshes (low-BW shaped, 33 KB/s seat, and live/ALM relay tree), cover-replaced X-Wing onion routing (`+0 B` extra wire cost), and the 8 Constitutional opt-in choices (`+` benefit / `−` downside).
 
 ## What's NOT in scope
 
@@ -138,4 +138,4 @@ CEWP is not:
 - A content moderation service (it gives the federation moderation primitives)
 - A replacement for top-down regulation (it provides the enforcement substrate regulation currently lacks)
 - A single-deployment system (every federation is independent; deployments interoperate via wire format)
-- Finished (cohort-scoped anonymity is the default per CC 1.13.3.4; the opt-in GPA-unobservability tier — Sphinx onion, for totalitarian-threat deniability — is being measured for default promotion; v-next is undefined)
+- Finished (cohort-scoped anonymity is the default per CC 1.13.3.4; the opt-in GPA-unobservability tier — cover-replaced 3-hop X-Wing `CONP` onion riding the shaped mesh at `+0 B` extra wire bytes per CC 5.4.6 — is modeled live in the [globe](../docs/globe.html) and [toy](../toy/index.html); v-next is undefined)

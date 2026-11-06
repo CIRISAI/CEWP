@@ -22,18 +22,19 @@ unobservability against an adversary observing every network link.
 That is genuinely costly (onion latency) and only reached by an
 operator already publishing to the public commons.
 
-**Default-promotion cost (the provisional line).** CC 1.13.3.4 marks
-the opt-in boundary as provisional — it MAY move toward default as
-the overhead is measured. The model's first-order read: a 3-hop
-Sphinx default is **bandwidth-free in practice** (3× relay
-amplification + a fixed ~512 B onion header, riding the substrate's
-near-zero bandwidth headroom — ~0% of the 10.8 TB/day per-server
-gate) and **latency-bound** (≈ +`hops × per-hop-RTT` one-way; ~+165 ms
-for a 3-hop regional circuit, up to ~+585 ms global). So the line can
-move to default for **every async class** (publish / fetch /
-governance / messaging); **realtime A/V** is the one class that must
-stay opt-in or use a short curated circuit. Tune it in the
-[interactive toy](../toy/index.html).
+**Default-promotion cost (the provisional line, updated for CC RC17 §5.4.6 & Edge v44).**
+CC 1.13.3.4 marks the opt-in boundary as provisional — it MAY move toward default as
+the overhead is measured. Under the finalized **CC RC17 §5.4.3 / §5.4.6** and **CIRISEdge v44**
+3-mesh design (`base` low-BW shaped at `16 KiB / 2 s = 8 KB/s`, `seat` high-BW shaped at
+`16 KiB / 500 ms = 33 KB/s`, and `live`/`bulk` unshaped), a 3-hop **X-Wing `CONP` onion packet**
+(`15,296 B` fixed frame: `4 B` magic + `3 × 1,264 B` hybrid X25519+ML-KEM-768 headers + `11,488 B`
+payload + `12 B` nonce) rides inside a `16 KiB` shaped slot by **replacing a scheduled chaff packet
+on the tick**. It therefore adds **`+0 B` extra wire bytes** on shaped links and is purely
+**latency-bound** (three shaped tick intervals plus per-hop RTT; ~+165 ms regional to ~+585 ms
+global). Both the [3-mesh globe](../docs/globe.html) and the [interactive toy](../toy/index.html)
+model the live **Shaped Onion Cover Pool** and **Answering Relays per Layer** (CC 5.4.6 floor
+$\ge 3$ independent operators per layer; `each_home_adds_seven` supplies **2.94×** shaping cover
+nodes per onion peer at Fleet Defaults).
 
 The mental model: cohort scopes are the **rooms of your house**
 (private by default); federation scope is the **public square**; this
@@ -184,18 +185,16 @@ storage node holds opaque ciphertext.
   embedded). Decision deferred to §9.
 * New work: the subcredential-derivation KDF
 
-### 4.3 Onion-routed write path (Sphinx or Veilid private routes)
+### 4.3 Onion-routed write path (CC RC17 §5.4.6 / Edge v44 X-Wing `CONP` on the shaped mesh)
 
-The publishing node's IP is not the record's network origin. Either
-Sphinx (the cryptographic packet format Tor uses) or Veilid-style
-private routes (3-hop onion-encrypted route blobs).
+The publishing node's IP is not the record's network origin. In **CIRISEdge v44** (`crates/ciris-edge-tor/src/onion.rs`) and **CIRISConstitution RC17 §5.4.6** (`formal/Ciris/Tiers.lean`), onion routing uses a 3-hop hybrid post-quantum **X-Wing (`X25519 + ML-KEM-768`) `CONP` frame** riding inside the `16 KiB` shaped mesh slots:
 
-* Anchor: [Sphinx packet format paper (Danezis & Goldberg)](https://www.cypherpunks.ca/~iang/pubs/Sphinx_Oakland09.pdf),
-  [Veilid: Private Routing](https://veilid.com/how-it-works/private-routing/)
-* Already present: none — this is the most substantial v2 addition
-* New work: a new transport class alongside Reticulum + HTTPS in
-  edge. Sphinx is well-specified and has reference implementations
-  (Lightning's onion routing is a direct adaptation). 3-hop default.
+* **Wire frame (`15,296 B`, fits inside one `16,384 B` shaped slot)**:
+  * `4 B` magic (`CONP`)
+  * `3 × 1,264 B` (`3,792 B`) per-hop hybrid headers (`1,120 B` X-Wing `ML-KEM-768 + X25519` ciphertext + `12 B` nonce + `132 B` encrypted routing/MAC)
+  * `11,488 B` encrypted inner payload + `12 B` payload nonce
+* **Cover replacement (`+0 B` extra wire cost)**: When a link is already running traffic shaping (`base` at `16 KiB / 2 s = 8 KB/s` or `seat` at `16 KiB / 500 ms = 33 KB/s`), each onion hop replaces a scheduled chaff packet on the tick (`onion_extra_wire_bytes_on_shaped = 0` in `Tiers.lean`).
+* **Guard & layer diversity (CC 5.4.6)**: 2 entry guards held for 60 days; 3 hops drawn from distinct operator groups (`≥ 3` answering onion relays per layer required before sending; if fewer than 3 answer, the node waits and sends chaff rather than dropping to 2 hops).
 
 ### 4.4 Discoverability rendezvous
 

@@ -203,12 +203,7 @@ multimedia was net-new since CEG 0.3). They refine, not replace, the
   re-establishes from one survivor holding a signed witness chain
   (WholenessWitness). The §2.7-style demand-driven holder fan-out
   becomes fragment fan-out; per-fragment cost is unbenched here.
-* **Deterministic ALM multicast** (CEG §19.4) — a deterministic
-  application-layer-multicast relay topology replaces the
-  point-to-point fan-out the §3.7 latency model assumes; multicast
-  cardinality (live broadcast, swarm replication) rides one relay
-  tree rather than R independent unicasts. Topology cost not yet in
-  the toy.
+* **Deterministic ALM multicast & 3-Mesh Transport** (CEG §19.4, CC RC17 §5.4.3 / §5.4.6, Edge v44) — a deterministic application-layer-multicast (`k = 8` Seat/ALM relay tree) replaces point-to-point fan-out so a `5,000`-member public room post costs seat fan-out (`O(log_k N)`, ~43 hops) rather than `5,000` unicasts. This is now modeled across all three transport meshes (`base` low-BW shaped at `16 KiB / 2 s = 8 KB/s`, `seat` high-BW shaped at `16 KiB / 500 ms = 33 KB/s`, and `live`/`bulk` unshaped + Reticulum IPv6/NAT traversal vs. $k=2$ homed leaves) in [`examples/scale_model.rs`](../examples/scale_model.rs), [`toy/index.html`](../toy/index.html), and [`docs/globe.html`](../docs/globe.html).
 
 Holonomic mechanisms are blind to the anonymous tier
 ([ANONYMOUS_TIER.md](ANONYMOUS_TIER.md)), subordinate to

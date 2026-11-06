@@ -8,7 +8,7 @@ an AI governance / superalignment platform — built on the bet that
 
 ## See it move
 
-[**Millions of nodes, one door**](https://cirisai.github.io/CEWP/globe.html) — a few million nodes on a globe, random acts every tick, the kernel's door run at every node of each row's audience in WebAssembly; what stays in the metro, what crosses, what a broadcast network or a datacenter in the middle would have moved, and door checks per second against the same loop in JavaScript.
+[**Millions of nodes, one door**](https://cirisai.github.io/CEWP/globe.html) — up to a few million nodes placed on a land-bounded world population density grid (2,961 cells across 181 localities and 9 GSMA/UN regions), random acts every tick, the kernel's door run at every node of each row's audience in WebAssembly; models the three CC RC17 / Edge v44 transport meshes (low-bandwidth shaped, 33 KB/s seat, and live/unshaped bulk with $O(\log_k N)$ Seat/ALM relay trees for public rooms), cover-replaced 15,296 B X-Wing onion walks (`+0 B` extra wire bytes), Reticulum IPv6/NAT hole-punching vs. $k=2$ homed leaves, and a collapsible **Advanced** section exposing the 8 Constitutional opt-in choices (`+` benefit / `−` downside) with live Hard-NAT & shaped onion cover sustainability metrics.
 
 [**A mesh run by its kernel**](https://cirisai.github.io/CEWP/mesh.html) — people and their nodes as cells, rows as signals travelling one hop per tick, every node folding what it holds with the same function; click a node for its owner's queue and a preview that equals execution. The kernel is [`docs/kernel/kernel.js`](docs/kernel/kernel.js), one file with no dependencies, driven by the constitution's own tables and checked against its story (`node --test docs/kernel/kernel.test.js`).
 
@@ -157,15 +157,15 @@ are mirrored for easy cross-reference.
 | [`FSD/CEWP.md`](FSD/CEWP.md) | Platform identity — three load-bearing claims, "we don't need big tech" premise, agents-as-participants, superalignment via distributed epistemic governance |
 | [`FSD/FEDERATION_SCALING_MODEL.md`](FSD/FEDERATION_SCALING_MODEL.md) | Quantitative model. Single-pool storage. Trust × capacity intake + popularity × freshness eviction. L0 / L1 tier model. 13 scenarios up to full-internet-with-video; identity-aware-storage thesis with prior-art comparison. |
 | [`FSD/MEDIA_SHARING.md`](FSD/MEDIA_SHARING.md) | **Multimedia tier — YouTube / TikTok / Netflix / OnlyFans / AdultHUB replacement.** Five new external_content sub_kinds (image / audio / video / film / model_3d); content classification + multi-scheme rating (MPAA / BBFC / PEGI / etc.); operator-managed age gate; takedown_notice + key_grant CEG-native subject_kinds; content encryption (DEK / KEK / X25519+AES-GCM HPKE base mode); international standards mapping (DMCA / DSA / OSA / TVEC / NCMEC / AVMSD / KOSA / EU AI Act). |
-| [`FSD/ANONYMOUS_TIER.md`](FSD/ANONYMOUS_TIER.md) | The opt-in GPA-unobservability tier — Sphinx onion routing + Ed25519 key blinding + AEAD + rendezvous discoverability for totalitarian-threat deniability. **Cohort-scoped anonymity is already the default (CC 1.13.3.4);** this is the residual federation-scope opt-in, whose default-promotion cost (bandwidth-free, latency-bound) the [toy](toy/index.html) models. |
+| [`FSD/ANONYMOUS_TIER.md`](FSD/ANONYMOUS_TIER.md) | The opt-in GPA-unobservability tier — CC RC17 §5.4.6 / Edge v44 cover-replaced 3-hop X-Wing `CONP` onion routing (15,296 B fixed frame riding inside the 16 KiB shaped slot at **+0 B extra wire bytes**) + Ed25519 key blinding + AEAD + rendezvous discoverability. **Cohort-scoped anonymity is already the default (CC 1.13.3.4);** this is the residual federation-scope opt-in, whose shaped cover capacity and latency cost both the [globe](https://cirisai.github.io/CEWP/globe.html) and [toy](toy/index.html) model. |
 | [`FSD/SIMULATION_ENGINE.md`](FSD/SIMULATION_ENGINE.md) | Rust simulation engine spec — modular workspace; scalable from 1 K-agent browser playback to 5 B-agent GPU sim at 1:1. Real-world topology data (PeeringDB, CAIDA, TeleGeography submarine cables, GeoNames). Snapshots feed the website team's existing Three.js viz. |
 
 ### Working toy
 
 | Path | Purpose |
 |---|---|
-| [`examples/scale_model.rs`](examples/scale_model.rs) | The runnable scaling-model toy. `cargo run --example scale_model` (from CIRISNodeCore workspace; mirrored here for reference). **14 workload scenarios** (bootstrap → dunbar → media-heavy → twitter → news → full-internet → tiktok → youtube → netflix → adulthub → full-internet-with-video) **+ 3 regional-realism scenarios** (south-asia-dense, sub-saharan-bootstrap, north-america-realistic) **+ a threat-model pass + per-scenario environmental footprint**. All feasible per-server at v1 gates (1 TB / 1 Gbps / 1 core). |
-| [`toy/index.html`](toy/index.html) | The **interactive** browser toy — pick a scenario, tune the gates (disk / bandwidth / core, cohort mix, trust depth), watch per-server feasibility update live. Mirrors the `scale_model.rs` math; no build step, just open it. |
+| [`examples/scale_model.rs`](examples/scale_model.rs) | The runnable scaling-model toy. `cargo run --example scale_model` (from CIRISNodeCore workspace; mirrored here for reference). **14 workload scenarios** (bootstrap → dunbar → media-heavy → twitter → news → full-internet → tiktok → youtube → netflix → adulthub → full-internet-with-video) **+ 3 regional-realism scenarios** (south-asia-dense, sub-saharan-bootstrap, north-america-realistic) **+ CC RC17 / Edge v44 3-mesh transport (`base` low-BW shaped, `seat` 33 KB/s high-BW shaped, `live`/`bulk` + $O(\log_k N)$ Seat/ALM relay tree), cover-replaced X-Wing onion walks, and Reticulum IPv6/NAT leaf accounting + a threat-model pass + per-scenario environmental footprint**. All feasible per-server at v1 gates (1 TB / 1 Gbps / 1 core). |
+| [`toy/index.html`](toy/index.html) | The **interactive** browser toy — pick a scenario, tune the top-level hardware gates (disk / bandwidth / core), and expand **▸ Advanced: Population Opt-In Choices (+/-), Device Tiers & Sustainability** to adjust device tier shares (`% server`, `% home`, `% phone`), phone Wi-Fi vs. cellular + charging share, Hard-NAT share, and the 8 Constitutional opt-in choices with live **Hard-NAT Leaf Capacity** and **Shaped Onion Cover Capacity** readouts. Mirrors the `scale_model.rs` math; no build step, just open it. |
 
 ### Explanation docs (for general audience + website team)
 
@@ -237,10 +237,27 @@ At "full internet replacement" — 5 billion users, 50 MB/user/day:
 | Switching cost | Network-effects lock-in (Facebook holds your graph) | ~Zero (federation key portable) |
 | Storage duration | Platform-decided; deletion is a promise | **Effectively indefinite** — full-fidelity for centuries-to-millennia on one commodity server (the fountain `1/N` store); the hardest "entire internet *with video* on one home server" run still holds ~1–2 yr at full fidelity, then degrades-not-deletes into the O(log T) memory pyramid forever ([scaling model §2.6](FSD/FEDERATION_SCALING_MODEL.md)) |
 
-The simulation engine (FSD/SIMULATION_ENGINE.md) is what produces
+The simulation engine ([`FSD/SIMULATION_ENGINE.md`](FSD/SIMULATION_ENGINE.md)) is what produces
 these numbers in animation-ready form — modeled at 1:1 over the
 real internet topology (real metros, real submarine cables, real
 peering points).
+
+### 3-Mesh Transport, Opt-In Choices (+/-) & Sustainability (CC RC17 / Edge v44)
+
+Per **CIRISConstitution RC17** (§4.5.13, §5.4.3, §5.4.6, and [`Tiers.lean`](https://github.com/CIRISAI/CIRISConstitution)) and **CIRISEdge v44**, the mesh runs three transport tiers simultaneously:
+1. **Low-BW Shaped (`base`)**: `16 KiB` packet every `2 s` (`8 KB/s`, `691 MB/day/slot`) — padded or chaff-filled on the tick.
+2. **High-BW Shaped (`seat`)**: `16 KiB` packet every `500 ms` (`33 KB/s`, `2.76 GB/day/slot`) — canonical serve seats (`serve_max = 8`) and server-tier links.
+3. **Live / Unshaped Bulk (`live`)**: Reticulum IPv6 / UDP hole-punched links + $O(\log_k N)$ Seat/ALM relay trees (`k = 8` seat fan-out) for public rooms and real-time media.
+4. **Cover-Replaced X-Wing Onion (`CONP`, `15,296 B`)**: 3-hop hybrid X25519 + ML-KEM-768 onion packets (`3 × 1,264 B` headers + `11,488 B` body) replace scheduled `16 KiB` chaff frames on shaped links (**`+0 B` extra wire bytes**; latency-only cost).
+
+Both [`docs/globe.html`](docs/globe.html) and [`toy/index.html`](toy/index.html) model how the 8 Constitutional opt-in choices and device tiers sustain **Hard-NAT leaf peers** ($k=2$ homed parents per leaf, `cap = 36` on server / `4` on home) and **shaped onion cover** across a $1\text{ M}$-node world ($M \approx 500$ canonical serve seats):
+
+| Regime | Hard-NAT Leaves vs. Capacity | Max Sustainable Hard-NAT | Shaped Slots (`each_home_adds_seven`) | Shaping Cover Pool (`+0 B` wire) | Answering Onion Relays / Layer |
+|---|---|---|---|---|---|
+| **Fleet Defaults** (`5%` server, `55%` home, `40%` phone, `60%` Hard-NAT, `90%` relay offer, `25%` home shaping, `12%` onion) | `570k / 2.66M` (**21% load**) | **99.0%** | `1.66M` supplied vs. `635k` demanded (**100% seated**) | `353k` nodes (`35.3%` of fleet; **2.94×** per onion peer) | `144k / layer` (floor $\ge 3$) |
+| **High Privacy** (`8%` server, `60%` home, `75%` home shaping, `40%` phone shaping, `36%` onion) | `506k / 3.43M` (**15% load**) | **99.0%** | `3.51M` supplied vs. `987k` demanded (**100% seated**) | `548k` nodes (`54.8%` of fleet; **1.52×** per onion peer) | `192k / layer` (floor $\ge 3$) |
+| **CGNAT / Mobile Stress** (`4%` server, `40%` home, `56%` phone, `85%` Hard-NAT, `45%` Wi-Fi) | `816k / 1.47M` (**55% load**) | **91.4%** (needs $\ge 2.3\%$ server tier at `85%` CGNAT) | `1.59M` supplied vs. `451k` demanded (**100% seated**) | `322k` nodes (`32.2%` of fleet; **1.79×** per onion peer) | `86k / layer` (floor $\ge 3$) |
+| **Unowned-Only (`0%` Relay Offer — `unowned_only_strands_the_73rd`)** | `570k / 18k` (**3,167% — 96.8% stranded**) | **1.8%** | `4.0k` supplied vs. `356k` demanded (**1% seated; 99% displaced**) | `4.0k` canonical slots only | `500 / layer` |
 
 ## The fabric-node stack
 
