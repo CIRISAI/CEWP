@@ -9,6 +9,9 @@ license = "Apache-2.0"
 crate-type = ["cdylib"]
 path = "src/lib.rs"
 
+[dependencies]
+cewp-sim = { path = "../crates/cewp-sim" }
+
 [profile.release]
 opt-level = 3
 lto = true

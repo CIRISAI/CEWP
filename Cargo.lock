@@ -30,5 +30,12 @@ name = "cewp-kernel"
 version = "0.1.0"
 
 [[package]]
+name = "cewp-kernel-scale"
+version = "0.1.0"
+dependencies = [
+ "cewp-sim",
+]
+
+[[package]]
 name = "cewp-sim"
 version = "0.2.0"

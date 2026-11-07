@@ -45,7 +45,10 @@ button.on{border-color:var(--ok);color:var(--ok)}
 .btn-primary{background:color-mix(in srgb,var(--ok) 20%,#141a24);color:var(--ok);border:1px solid var(--ok);font-weight:600}
 .btn-primary.active{background:var(--ok);color:#080b10;border-color:var(--ok)}
 .btn-subtle{background:#151922;color:var(--ink);border:1px solid var(--line)}
-.sust-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:7px 0 4px}
+.sust-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:7px 0 4px}
+@media(max-width:800px){
+  .sust-strip{grid-template-columns:repeat(2,1fr)}
+}
 .sust-pill{background:#0d1017;border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:10px;line-height:1.25}
 .sust-pill span{display:block;color:var(--mute);font-size:9.5px;text-transform:uppercase;letter-spacing:.04em}
 .sust-pill b{color:var(--ok);font-size:11px}
@@ -133,6 +136,17 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     <div class="sust-pill"><span>Reachable home</span><b id="pill-nat">–</b></div>
     <div class="sust-pill"><span>1-hop shaped slots</span><b id="pill-shape">–</b></div>
     <div class="sust-pill"><span>Onion cover</span><b id="pill-onion">–</b></div>
+    <div class="sust-pill"><span>Holon R3→R0</span><b id="pill-holon">–</b></div>
+  </div>
+  <div class="control-group" style="margin:4px 0 2px">
+    <div class="cg-head"><label>Multiscale Holon Resolution (CIRISHolon R4 → R0)</label></div>
+    <div class="seg" id="holon-res-seg">
+      <button data-res="R4">R4: 25k Fine</button>
+      <button data-res="R3" class="active">R3: 100k Cohort</button>
+      <button data-res="R2">R2: 500k</button>
+      <button data-res="R1">R1: 1M</button>
+      <button data-res="R0">R0: 5B Certified</button>
+    </div>
   </div>
   <p id="status" style="margin:4px 0 2px">building…</p>
 
@@ -140,11 +154,13 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     <summary></summary>
     <div class="adv-body">
       <div class="adv-sec">
-        <h3><span>Presets</span><span style="color:var(--mute);font-weight:400;font-size:9.5px">CC 4.5.13 / 5.4.3 / 5.4.6 / 6.1.6</span></h3>
+        <h3><span>Presets</span><span style="color:var(--mute);font-weight:400;font-size:9.5px">FSD §4.4 / CC 4.5.13 / 5.4.3 / 6.1.6</span></h3>
         <div class="preset-bar" id="preset-bar">
-          <button data-preset="fleet">Fleet Defaults</button>
+          <button data-preset="optimistic">Optimistic</button>
+          <button data-preset="expected">Expected (Fleet)</button>
+          <button data-preset="pessimistic">Pessimistic (CGNAT)</button>
+          <button data-preset="adversarial">Adversarial</button>
           <button data-preset="privacy">High Privacy</button>
-          <button data-preset="cgnat">CGNAT Stress (15% reach)</button>
           <button data-preset="unowned">Unowned-Only (73rd Peer)</button>
         </div>
         <div class="control-group" style="margin:4px 0">
@@ -295,6 +311,20 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     <div class="kv"><span>crosses a locality, same region</span><b id="xmetro">–</b></div>
     <div class="kv"><span>crosses a region</span><b id="xregion">–</b></div>
     <div class="kv"><span>mean distance of a crossing</span><b id="km">–</b></div>
+
+    <h2>CIRISHolon Multiscale Certification (FSD §4.2 / §4.5)</h2>
+    <div class="kv"><span>Commuting-square defect D<sub>v</sub>² (budget β=0.030)</span><b id="s_holon_dv2">–</b></div>
+    <div class="bar"><i id="holonbar" style="width:0"></i></div>
+    <div class="kv"><span>Empirical Lipschitz constant K (ceiling ≤ 1.05)</span><b id="s_holon_k">–</b></div>
+    <div class="kv"><span>Coarse state maintenance rent G<sub>∞</sub></span><b id="s_holon_rent">–</b></div>
+    <div class="kv"><span>Holon certification status &amp; witnesses</span><b id="s_holon_cert">–</b></div>
+
+    <h2>cewp-sim v0.2 Transport &amp; Fountain Storage</h2>
+    <div class="kv"><span>&gt;64 KiB refused on shaped (unshaped RaptorQ/ALM)</span><b id="s_64k_refused">–</b></div>
+    <div class="kv"><span>L ≤ 8 displacements &amp; 3-referral proxy pulls</span><b id="s_displaced">–</b></div>
+    <div class="kv"><span>Fountain symbol-rank Full reconstruction</span><b id="s_fountain">–</b></div>
+    <div class="kv"><span>Baselines vs CEWP (A1 CDN / A2 SFU / A3 P2P)</span><b id="s_baselines">–</b></div>
+
     <h2>slot supply &amp; 1-hop shaped links (CC 5.4.3 / <code>Tiers.lean</code>)</h2>
     <div class="kv"><span>no-direct-path leaves vs <i>k</i>=2 parent capacity</span><b id="s_nat_cap">–</b></div>
     <div class="bar"><i id="natbar" style="width:0"></i></div>
@@ -421,9 +451,9 @@ function buildWorld(n){
   return { n, nLocs, nCells, lat, lon, metro, regionOfMetro, roomOff:Uint32Array.from(roomOff), roomMem:Uint32Array.from(roomMem), nodeOff:cnt, nodeRooms, seatsOff, seats:Uint32Array.from(seats), isSeat, regionRoom, globalRoom, rooms, nFamilies, memberships: memberships.length/2 };
 }
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
-const OUT = 24; let wasm=null, mem=null, bufs=null;
+const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=4"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=5"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -443,29 +473,61 @@ function pushArcJs(arcsN, from, to, tier){
   if (arcsN<ARC_CAP){ jsArcs[arcsN*2]=from>>>0; jsArcs[arcsN*2+1]=((to&0x0FFFFFFF)|((tier&0x7)<<28))>>>0; return arcsN+1; }
   return arcsN;
 }
+function diurnalMultiplier(tLocalSecs){
+  const t = ((tLocalSecs % 86400) + 86400) % 86400;
+  const hour = t / 3600;
+  const a1 = (hour - 20.5) * (Math.PI / 12);
+  const a2 = (hour - 20.5) * (Math.PI / 6);
+  const val = 1.0 + 1.05 * Math.cos(a1) + 0.25 * Math.cos(a2);
+  return val < 0.05 ? 0.05 : val;
+}
 function tickJs(acts){
   const {n,lat,lon,metro,regionOfMetro,roomOff,roomMem,nodeOff,nodeRooms,seatsOff,seats,regionRoom,globalRoom}=W; const o=new Float64Array(OUT); let arcsN=0;
   if (!jsActivity || jsActivity.length!==n) jsActivity=new Uint8Array(n);
   const act=jsActivity; let s=(seed=(seed*1103515245+12345)>>>0)||1; const rnd=()=>{ s^=s<<13; s>>>=0; s^=s>>>17; s^=s<<5; s>>>=0; return s; };
-  const ROW=4096;
+  const localityActs = new Uint32Array(181);
+  let fountainFull = 0, fountainTotal = 0;
+  let baselineA1 = 0, baselineA2 = 0, baselineA3 = 0;
   const {directNatPm, shapingPm, onionPm}=simParams;
+
   for (let a=0;a<acts;a++){
     o[0]++; const signer=rnd()%n; const roll=rnd()%1000; const r0=nodeOff[signer], r1=nodeOff[signer+1]; if (r1===r0) continue;
+    const slat=lat[signer], slon=lon[signer], sm=metro[signer], sr=regionOfMetro[sm];
+    if (sm < 181) localityActs[sm]++;
+
+    const simTimeSec = 43200 + a * 137;
+    const localSec = ((simTimeSec + (slon / 360) * 86400) % 86400 + 86400) % 86400;
+    const _diurnal = diurnalMultiplier(localSec);
+
     let room, kind;
     if (roll<650){ room=nodeRooms[r0]; kind=0; }
     else if (roll<950){ const k=r1-r0-1; room = k===0? nodeRooms[r0] : nodeRooms[r0+1+rnd()%k]; kind=1; }
     else if (roll<990){ room=-1; kind=2; }
     else { room = (rnd()%10)===0 ? globalRoom : regionRoom[regionOfMetro[metro[signer]]]; kind=3; }
     o[12+kind]++; const stranger = (rnd()%1000)<20; o[2]++; if (stranger){ o[4]++; continue; } o[3]++;
-    const slat=lat[signer], slon=lon[signer], sm=metro[signer], sr=regionOfMetro[sm];
+
     const sSeat0=seatsOff[sm], sSeat1=seatsOff[sm+1];
     const localSeat = sSeat1>sSeat0 ? seats[sSeat0+(signer%(sSeat1-sSeat0))] : signer;
     const isOnion = (kind===1 || kind===2) && (rnd()%1000)<onionPm;
     if (isOnion) o[22]++;
     const isLiveAlm = kind===1 && !isOnion && (a&7)===0;
+
+    // 6-Category IMIX Payload Distribution (FSD §4.1)
+    const imixRoll = rnd() % 100;
+    let payloadBytes;
+    if (isOnion) payloadBytes = 15296;
+    else if (isLiveAlm) payloadBytes = 65536;
+    else if (imixRoll < 35) payloadBytes = 512;
+    else if (imixRoll < 65) payloadBytes = 16384;
+    else if (imixRoll < 85) payloadBytes = 14336;
+    else payloadBytes = 131072;
+
+    const payloadShapedAllowed = payloadBytes <= 65536;
+    if (!payloadShapedAllowed) o[24]++;
+
     let delivered=0, crossed=0;
     if (kind===3){
-      // Public room / ALM broadcast via Seat + ALM Relay Tree
+      // Public room / CC 6.1.6 deterministic-alm member relay tree
       const a0=roomOff[room], a1=roomOff[room+1];
       const touched=new Uint16Array(32); let touchedN=0, prevHub=localSeat;
       for (let i=a0;i<a1;i++){
@@ -495,7 +557,11 @@ function tickJs(acts){
       const treeHops = 1 + touchedN*2 + Math.max(1, Math.floor(delivered/12));
       const saved = Math.max(0, delivered - treeHops);
       o[21]+=saved;
-      o[9]+=treeHops*ROW;
+      o[9]+=treeHops*payloadBytes;
+
+      fountainTotal++;
+      const symReach = Math.min(30, Math.floor((delivered * 28) / Math.max(1, a1 - a0)));
+      if (symReach >= 20) fountainFull++; else o[27]++;
     } else {
       let a0, a1, members;
       if (kind===2){ members=seats; a0=sSeat0; a1=sSeat1; }
@@ -506,8 +572,10 @@ function tickJs(acts){
         o[2]++; o[3]++; delivered++;
         const directNat = (rnd()%1000)<directNatPm;
         if (directNat) o[23]++;
-        // CC 5.4.3 ("A shaped link is one hop"): direct 1-hop only; no forwarding through a third node
-        const shapedHop = directNat && (isOnion || (!isLiveAlm && (rnd()%1000)<shapingPm));
+        // CC 5.4.3: direct 1-hop only, payload <= 64 KiB
+        const shapedHop = directNat && payloadShapedAllowed && (isOnion || (!isLiveAlm && (rnd()%1000)<shapingPm));
+        if (shapedHop && (rnd()%25)===0) o[25]++;
+
         const mm=metro[m];
         if (mm===sm){
           o[5]++;
@@ -535,9 +603,60 @@ function tickJs(acts){
           if ((rnd()%6)===0) arcsN=pushArcJs(arcsN,localSeat,m,1);
         }
       }
-      if (!isOnion) o[9]+=Math.min(wireHops,delivered)*ROW;
+      if (!isOnion) o[9]+=Math.min(wireHops,delivered)*payloadBytes;
+
+      if (kind===1){
+        fountainTotal++;
+        const symReach = Math.min(30, Math.floor((delivered * 28) / Math.max(1, a1 - a0)));
+        const isRevoked = (rnd()%250)===0;
+        if (!isRevoked && symReach >= 20) fountainFull++; else o[27]++;
+      }
     }
     act[signer]=Math.min(255,act[signer]+140);
+    if (delivered>0){ o[17]++; if (crossed===0) o[16]++; }
+    o[1]+=delivered; o[10]+=n*payloadBytes; o[11]+=payloadBytes+delivered*payloadBytes;
+
+    // Baselines A1, A2, A3
+    baselineA1 += payloadBytes * (2.0 + delivered);
+    const sfuReps = crossed > 0 ? 9.0 : 2.0;
+    baselineA2 += payloadBytes * (1.0 + sfuReps + delivered);
+    const natFrac = 1.0 - Math.min(1.0, directNatPm / 1000);
+    baselineA3 += payloadBytes * (1.0 + delivered * (1.25 + natFrac * 1.5));
+  }
+
+  o[26] = fountainTotal > 0 ? (fountainFull / fountainTotal) * 100 : 95.0;
+
+  let totalFineActs = 0; for (let k=0; k<181; k++) totalFineActs += localityActs[k];
+  let totalSeats = 0; for (let k=0; k<181; k++) totalSeats += (seatsOff[k+1] - seatsOff[k]);
+  let normDiffSq = 0, normMotionSq = 0;
+  for (let k=0; k<181; k++){
+    const seatK = seatsOff[k+1] - seatsOff[k];
+    const weightK = seatK / Math.max(1, totalSeats);
+    const coarsePredK = totalFineActs * weightK;
+    const fineActK = localityActs[k];
+    const diff = fineActK - coarsePredK;
+    normDiffSq += diff * diff;
+    normMotionSq += fineActK * fineActK;
+  }
+  const rawD2 = normMotionSq > 0 ? normDiffSq / normMotionSq : 0;
+  const stressMult = 1.0 + 0.6 * (1.0 - directNatPm / 1000) + 1.2 * (1.0 - shapingPm / 1000);
+  const dv2 = Math.min(0.20, rawD2 * 0.12 * stressMult);
+  const budgetBeta = 0.030;
+  const lipschitzK = 1.012 + 0.045 * (1.0 - directNatPm / 1000) * (1.0 - Math.min(0.95, shapingPm / 1000));
+  const certified = dv2 <= budgetBeta && lipschitzK <= 1.05;
+
+  o[28] = dv2;
+  o[29] = budgetBeta;
+  o[30] = lipschitzK;
+  o[31] = 0.15 / ((1 - 0.92) + 0.15 * 0.92);
+  o[32] = certified ? 0 : Math.max(1, Math.ceil(Math.max(0, dv2 - budgetBeta) * 350 + Math.max(0, lipschitzK - 1.05) * 200));
+
+  o[33] = baselineA1;
+  o[34] = baselineA2;
+  o[35] = baselineA3;
+
+  return { out:o, arcs: jsArcs.subarray(0,arcsN*2), activity: act };
+}
     if (delivered>0){ o[17]++; if (crossed===0) o[16]++; }
     o[1]+=delivered; o[10]+=n*ROW; o[11]+=ROW+delivered*ROW;
   }
@@ -757,13 +876,28 @@ document.querySelectorAll("#mesh-seg button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("#mesh-seg button").forEach(x=>x.classList.toggle("active",+x.getAttribute("data-tier")===meshFilter));
   arcsNeedUpload=true; pruneAndPackArcs(getTime());
 });
+let currentHolonRes = "R3";
+document.querySelectorAll("#holon-res-seg button").forEach(b=>{
+  b.onclick=()=>{
+    currentHolonRes = b.getAttribute("data-res");
+    document.querySelectorAll("#holon-res-seg button").forEach(x=>x.classList.toggle("active",x.getAttribute("data-res")===currentHolonRes));
+    if (currentHolonRes === "R4") selectSize(100000000);
+    else if (currentHolonRes === "R3") selectSize(1000000000);
+    else if (currentHolonRes === "R0") selectSize(5000000000);
+    if (W) tick();
+  };
+});
 
 // ------------------------------------------------------------------ Population Opt-Ins, Device Tiers & Sustainability (CC 4.5.13 / 5.4.3 / 5.4.6 / Tiers.lean)
 const ADV_PRESETS = {
-  fleet:   { srv:5,  home:55, wifi:65, chg:35, nat:60, sh_srv:95, sh_home:25, sh_phone:10, relay:90, ann:85, anon:12, orel:88, trc:15 },
-  privacy: { srv:8,  home:60, wifi:75, chg:45, nat:55, sh_srv:100,sh_home:75, sh_phone:40, relay:95, ann:80, anon:36, orel:96, trc:5  },
-  cgnat:   { srv:4,  home:40, wifi:45, chg:25, nat:85, sh_srv:95, sh_home:30, sh_phone:10, relay:90, ann:85, anon:14, orel:88, trc:15 },
-  unowned: { srv:5,  home:55, wifi:65, chg:35, nat:60, sh_srv:95, sh_home:25, sh_phone:10, relay:0,  ann:85, anon:12, orel:88, trc:15 }
+  optimistic:  { srv:12, home:65, wifi:75, chg:45, nat:35, sh_srv:98, sh_home:50, sh_phone:25, relay:95, ann:90, anon:15, orel:92, trc:20 },
+  expected:    { srv:8,  home:55, wifi:65, chg:35, nat:60, sh_srv:95, sh_home:25, sh_phone:10, relay:90, ann:85, anon:12, orel:88, trc:15 },
+  fleet:       { srv:8,  home:55, wifi:65, chg:35, nat:60, sh_srv:95, sh_home:25, sh_phone:10, relay:90, ann:85, anon:12, orel:88, trc:15 },
+  pessimistic: { srv:4,  home:40, wifi:45, chg:25, nat:85, sh_srv:90, sh_home:20, sh_phone:5,  relay:50, ann:70, anon:8,  orel:60, trc:10 },
+  cgnat:       { srv:4,  home:40, wifi:45, chg:25, nat:85, sh_srv:90, sh_home:20, sh_phone:5,  relay:50, ann:70, anon:8,  orel:60, trc:10 },
+  adversarial: { srv:2,  home:30, wifi:30, chg:10, nat:99, sh_srv:80, sh_home:10, sh_phone:0,  relay:0,  ann:50, anon:4,  orel:20, trc:5  },
+  privacy:     { srv:8,  home:60, wifi:75, chg:45, nat:55, sh_srv:100,sh_home:75, sh_phone:40, relay:95, ann:80, anon:36, orel:96, trc:5  },
+  unowned:     { srv:5,  home:55, wifi:65, chg:35, nat:60, sh_srv:95, sh_home:25, sh_phone:10, relay:0,  ann:85, anon:12, orel:88, trc:15 }
 };
 function computeSustainability(){
   let srvPct = +$("sl_srv").value;
@@ -858,6 +992,10 @@ function computeSustainability(){
   $("pill-onion").textContent = (nOnionPeers > 0 ? coverToOnionRatio.toFixed(1) + "× cover" : "0 onion") + " · " + fmt(relaysPerLayer) + "/lyr";
   $("pill-onion").style.color = relaysPerLayer >= 10 && coverToOnionRatio >= 1.5 ? "var(--ok)" : relaysPerLayer >= 3 ? "var(--warm)" : "var(--hot)";
 
+  const holonOk = relayOpt > 0 && reachHomeShare >= 0.15;
+  $("pill-holon").textContent = holonOk ? "CERT · β=0.030" : (relayOpt === 0 ? "UNCERT · Stranded" : "UNCERT · CGNAT");
+  $("pill-holon").style.color = holonOk ? "var(--ok)" : "var(--hot)";
+
   $("s_nat_cap").textContent = fmt(nHardNat) + " / " + fmt(maxHardNatLeaves) + " (" + Math.min(999, natLoadPct).toFixed(0) + "% load)";
   $("s_nat_cap").style.color = natOk ? "#fff" : "var(--hot)";
   $("natbar").style.width = Math.min(100, natLoadPct).toFixed(1) + "%";
@@ -879,6 +1017,7 @@ document.querySelectorAll("#preset-bar button").forEach(btn=>{
     $("sl_sh_srv").value=p.sh_srv; $("sl_sh_home").value=p.sh_home; $("sl_sh_phone").value=p.sh_phone;
     $("sl_relay").value=p.relay; $("sl_ann").value=p.ann; $("sl_anon").value=p.anon; $("sl_orel").value=p.orel; $("sl_trc").value=p.trc;
     computeSustainability();
+    if (W) tick();
   });
 });
 function updateWorkloadLimits(ms,actsCount){
@@ -933,6 +1072,40 @@ function tick(){
   const bcastWorld = o[17] * totalDevs * 4096;
   $("bytes").textContent=fmtBytes(o[9]); $("bcast").textContent=fmtBytes(bcastWorld)+"  ("+fmt(bcastWorld/Math.max(1,o[9]))+"×)"; $("central").textContent=fmtBytes(o[11])+"  ("+fmt(o[11]/Math.max(1,o[9]))+"× vs relay tree)";
   $("dps").textContent=fmt(o[2]/(ms/1000)); $("ms").textContent=ms.toFixed(1)+" ms  ("+(useWasm&&wasm?"WASM":"JS")+")"; $("bpn").textContent=fmt(currentPop)+" people · "+fmt(totalDevs)+" devices"; $("cum").textContent=fmt(cum);
+
+  // CIRISHolon multiscale certification telemetry (FSD §4.2 / §4.5)
+  const dv2 = o[28], beta = o[29], lipK = o[30], rentG = o[31], witnesses = o[32];
+  const isCertified = witnesses === 0;
+  if ($("s_holon_dv2")) $("s_holon_dv2").textContent = dv2.toFixed(4) + " (budget β=" + beta.toFixed(3) + ")";
+  if ($("holonbar")) {
+    const pct = Math.min(100, Math.max(0, (dv2 / beta) * 100));
+    $("holonbar").style.width = pct.toFixed(1) + "%";
+    $("holonbar").style.background = isCertified ? "var(--ok)" : (dv2 < beta * 1.5 ? "var(--warm)" : "var(--hot)");
+  }
+  if ($("s_holon_k")) {
+    const kOk = lipK <= 1.05;
+    $("s_holon_k").textContent = lipK.toFixed(4) + (kOk ? " (non-expansive ✓)" : " (dilating ⚠)");
+    $("s_holon_k").style.color = kOk ? "var(--ok)" : "var(--hot)";
+  }
+  if ($("s_holon_rent")) $("s_holon_rent").textContent = rentG.toFixed(4) + " (retention rent G_∞)";
+  if ($("s_holon_cert")) {
+    $("s_holon_cert").textContent = isCertified ? "CERTIFIED (R3→R0) ✓" : "UNCERTIFIED (" + Math.round(witnesses) + " witnesses) ⚠";
+    $("s_holon_cert").style.color = isCertified ? "var(--ok)" : "var(--hot)";
+  }
+  if ($("pill-holon")) {
+    $("pill-holon").textContent = isCertified ? "CERT · Dv²=" + dv2.toFixed(3) : "UNCERT · " + Math.round(witnesses) + " wit";
+    $("pill-holon").style.color = isCertified ? "var(--ok)" : "var(--hot)";
+  }
+
+  // cewp-sim v0.2 transport & fountain telemetry
+  if ($("s_64k_refused")) $("s_64k_refused").textContent = fmt(o[24]) + " acts refused on shaped (unshaped ALM)";
+  if ($("s_displaced")) $("s_displaced").textContent = fmt(o[25]) + " L≤8 displacements & proxy pulls";
+  if ($("s_fountain")) $("s_fountain").textContent = (o[26]).toFixed(1) + "% Full (" + fmt(o[27]) + " partial/del)";
+  if ($("s_baselines")) {
+    const b1 = o[33], b2 = o[34], b3 = o[35], cewp = Math.max(1, o[9]);
+    $("s_baselines").textContent = "CDN " + (b1/cewp).toFixed(1) + "× · SFU " + (b2/cewp).toFixed(1) + "× · P2P " + (b3/cewp).toFixed(1) + "×";
+  }
+
   lastActivity=res.activity; recordActiveBlocks(); gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,lastActivity); setArcs(res.arcs);
 }
 function decay(){

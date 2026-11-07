@@ -7,4 +7,5 @@ members = [
     "crates/cewp-adversary",
     "crates/cewp-evidence",
     "crates/cewp-cli",
+    "kernel-wasm",
 ]
