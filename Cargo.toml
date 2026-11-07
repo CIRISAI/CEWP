@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/cewp-kernel",
+    "crates/cewp-csd4",
+    "crates/cewp-sim",
+    "crates/cewp-adversary",
+    "crates/cewp-evidence",
+    "crates/cewp-cli",
+]

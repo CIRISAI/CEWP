@@ -10,9 +10,301 @@
 
 export const STATES = ["none", "admitted", "withdrawn", "recanted", "superseded"];
 
+// ---------------------------------------------------------------- default tables
+
+let defaultRegistry = null;
+let defaultAliases = null;
+if (typeof process !== "undefined" && process?.versions?.node) {
+  try {
+    const { readFileSync } = await import("node:fs");
+    defaultRegistry = JSON.parse(readFileSync(new URL("./tables/namespace_registry.json", import.meta.url)));
+    try {
+      defaultAliases = JSON.parse(readFileSync(new URL("./tables/csd_namespace_map.json", import.meta.url))).aliases;
+    } catch {}
+  } catch {}
+}
+
+// ---------------------------------------------------------------- CC RC17 dimension matcher
+
+const HEX_PATTERN = /^[0-9a-f]+$/;
+const VERSION_LIKE = /^[vV][0-9]+(\.[0-9]+)*$/;
+const VERSION_ATTEMPT = /^[vV][0-9][0-9A-Za-z_.\-]*$/;
+
+export class Rules {
+  constructor(manifest) {
+    const meta = manifest._meta || {};
+    const cr = meta.case_rule || {};
+    this.vocab = new RegExp("^" + (cr.vocab_pattern || "[a-z0-9][a-z0-9_.-]*") + "$");
+    this.literal = new RegExp("^" + (cr.literal_pattern || "[a-z0-9][a-z0-9_]*") + "$");
+    this.private = meta.private_use_prefix || "x_private:";
+    const vs = cr.version_segment || {};
+    this.version = new RegExp("^" + (vs.pattern || "v[0-9]+(\\.[0-9]+)*") + "$");
+    this.version_required = vs.required !== false;
+    this.exempt = new Set(vs.exempt || []);
+    this.tokens = cr.refusal_tokens || {
+      case_malformed: "namespace_dimension_case_malformed",
+      family_unregistered: "namespace_family_unregistered",
+      missing_version_segment: "missing_version_segment",
+      private_use_not_federatable: "namespace_private_use_not_federatable",
+      vocab_value_unregistered: "namespace_vocab_value_unregistered"
+    };
+    this.external = {};
+    for (const [name, spec] of Object.entries(cr.external_standards || {})) {
+      if (spec.pattern) this.external[name] = new RegExp("^" + spec.pattern + "$");
+    }
+    this.reserved_stems = (cr.reserved_stems || []).map((s) => s.stem);
+    this.families = (manifest.families || []).map((f, i) => ({ ...f, index: i }));
+    this.familyMap = new Map();
+    for (const f of this.families) this.familyMap.set(f.prefix, f);
+    const cs = new Set();
+    for (const f of this.families) {
+      if (f.leaves_closed) {
+        const last = f.segments[f.segments.length - 1];
+        if (last && last.class === "wildcard") cs.add(f.prefix.slice(0, -1));
+        else cs.add(f.prefix.split(":")[0] + ":");
+      }
+    }
+    this.closed_stems = [...cs].sort();
+  }
+}
+
+function score(fam) {
+  const segs = fam.segments;
+  const literals = segs.filter((s) => s.class === "literal").length;
+  const wildcard = segs[segs.length - 1].class === "wildcard";
+  return [literals, wildcard ? 0 : 1, segs.length];
+}
+
+function checkSeg(seg, got, rules) {
+  if (!got) return rules.tokens.case_malformed;
+  if (seg.segment === "{version}") {
+    return rules.version.test(got) ? null : rules.tokens.case_malformed;
+  }
+  const cls = seg.class;
+  const name = seg.segment.replace(/^\{|\}$/g, "");
+  if (cls === "vocab") {
+    if (!rules.vocab.test(got)) return rules.tokens.case_malformed;
+    if (seg.values && seg.values.length > 0 && !seg.open && !seg.values.includes(got)) {
+      return rules.tokens.vocab_value_unregistered;
+    }
+    return null;
+  }
+  if (cls === "hex") {
+    const pat = seg.pattern ? new RegExp("^" + seg.pattern + "$") : HEX_PATTERN;
+    return pat.test(got) ? null : rules.tokens.case_malformed;
+  }
+  if (cls === "external") {
+    const pat = seg.pattern ? new RegExp("^" + seg.pattern + "$") : rules.external[name];
+    return (!pat || pat.test(got)) ? null : rules.tokens.case_malformed;
+  }
+  if (seg.pattern && !new RegExp("^" + seg.pattern + "$").test(got)) {
+    return rules.tokens.case_malformed;
+  }
+  return null;
+}
+
+function matchSegments(fam, parts, rules) {
+  const segs = fam.segments;
+  const wildcard = segs[segs.length - 1].class === "wildcard";
+  const fixed = wildcard ? segs.slice(0, -1) : segs;
+  const multiIdx = fixed.findIndex((s) => s.multi);
+  let extra = 0;
+  if (wildcard) {
+    if (parts.length < fixed.length + 1) return [false, {}, null];
+  } else if (multiIdx !== -1) {
+    extra = parts.length - fixed.length;
+    if (extra < 0) return [false, {}, null];
+  } else if (parts.length !== fixed.length) {
+    return [false, {}, null];
+  }
+  const binds = {};
+  let refusal = null;
+  let pi = 0;
+  for (let i = 0; i < fixed.length; i++) {
+    const seg = fixed[i];
+    if (multiIdx === i) {
+      const span = parts.slice(pi, pi + 1 + extra);
+      pi += 1 + extra;
+      for (const got of span) {
+        refusal = refusal || checkSeg(seg, got, rules);
+      }
+      binds[seg.segment.replace(/^\{|\}$/g, "")] = span.join(":");
+      continue;
+    }
+    const got = parts[pi++];
+    if (seg.class === "literal") {
+      if (seg.segment !== got) return [false, {}, null];
+      continue;
+    }
+    refusal = refusal || checkSeg(seg, got, rules);
+    binds[seg.segment.replace(/^\{|\}$/g, "")] = got;
+  }
+  const tail = parts.slice(pi);
+  for (let k = 0; k < tail.length; k++) {
+    const got = tail[k];
+    const last = pi + k === parts.length - 1;
+    if (!got || !rules.vocab.test(got) || VERSION_LIKE.test(got) || (last && VERSION_ATTEMPT.test(got))) {
+      refusal = refusal || rules.tokens.case_malformed;
+    }
+  }
+  if (tail.length > 0) binds["*"] = tail.join(":");
+  return [true, binds, refusal];
+}
+
+function mutatedTail(rules, seg) {
+  return Boolean((VERSION_LIKE.test(seg) && !rules.version.test(seg)) || VERSION_ATTEMPT.test(seg));
+}
+
+function resolve(rules, parts) {
+  const versioned = parts.length > 0 && rules.version.test(parts[parts.length - 1]);
+  const candidates = [];
+  for (const fam of rules.families) {
+    const ends_version = fam.segments[fam.segments.length - 1].segment === "{version}";
+    if (ends_version && !versioned) {
+      const headless = { ...fam, segments: fam.segments.slice(0, -1) };
+      let [ok, binds, ref] = matchSegments(headless, parts, rules);
+      if (ok) candidates.push({ sc: score(fam), prefix: fam.prefix, binds, ref, has_version: false, index: fam.index });
+      let [ok2, binds2, ref2] = matchSegments(fam, parts, rules);
+      if (ok2) candidates.push({ sc: score(fam), prefix: fam.prefix, binds: binds2, ref: ref2, has_version: true, index: fam.index });
+    } else if (ends_version || !versioned) {
+      let [ok, binds, ref] = matchSegments(fam, parts, rules);
+      if (ok) {
+        if (!versioned && mutatedTail(rules, parts[parts.length - 1])) {
+          ref = ref || rules.tokens.case_malformed;
+        }
+        candidates.push({ sc: score(fam), prefix: fam.prefix, binds, ref, has_version: ends_version, index: fam.index });
+      }
+    } else if (parts.length > 1) {
+      let [ok, binds, ref] = matchSegments(fam, parts.slice(0, -1), rules);
+      if (ok) candidates.push({ sc: score(fam), prefix: fam.prefix, binds, ref, has_version: true, index: fam.index });
+    }
+  }
+  if (candidates.length === 0 && versioned) {
+    for (const fam of rules.families) {
+      if (fam.segments[fam.segments.length - 1].segment === "{version}") continue;
+      let [ok, binds, ref] = matchSegments(fam, parts, rules);
+      if (ok) candidates.push({ sc: score(fam), prefix: fam.prefix, binds, ref, has_version: false, index: fam.index });
+    }
+  }
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => {
+    if (a.sc[0] !== b.sc[0]) return b.sc[0] - a.sc[0];
+    if (a.sc[1] !== b.sc[1]) return b.sc[1] - a.sc[1];
+    if (a.sc[2] !== b.sc[2]) return b.sc[2] - a.sc[2];
+    return a.index - b.index;
+  });
+  return candidates[0];
+}
+
+function detectMalformed(rules, parts, cleanOnly = false) {
+  const variants = [];
+  const low = parts.map((p) => p.toLowerCase());
+  if (low.some((p, i) => p !== parts[i])) variants.push(low);
+  const n = parts.length;
+  if (n > 1 && (VERSION_LIKE.test(parts[n - 1]) || VERSION_ATTEMPT.test(parts[n - 1]))) {
+    variants.push(parts.slice(0, -1));
+    variants.push(low.slice(0, -1));
+    if (n > 2 && VERSION_LIKE.test(parts[n - 2])) {
+      variants.push(parts.slice(0, -2));
+      variants.push(low.slice(0, -2));
+    }
+  }
+  for (const v of variants) {
+    const hit = resolve(rules, v);
+    if (hit && (!hit.ref || !cleanOnly)) return hit.prefix;
+  }
+  return null;
+}
+
+export function matchFamily(wireNamespace, tables = null) {
+  if (!wireNamespace) return { family: null, binds: {}, refusal: "namespace_dimension_case_malformed", ok: false };
+  
+  // Fast path 1: explicit aliases from csd_namespace_map.json
+  const aliases = tables?.aliases || defaultAliases || {};
+  let target = aliases[wireNamespace] || wireNamespace;
+  
+  // Fast path 2: direct exact lookup in transitions table for template families
+  if ((target.includes("{") || target.endsWith("*")) && tables?.families?.has(target)) {
+    return { family: target, binds: {}, refusal: null, ok: true };
+  }
+
+  // Full segment-by-segment grammar matching
+  const rules = tables?.rules || (tables?.registry ? new Rules(tables.registry) : (defaultRegistry ? new Rules(defaultRegistry) : null));
+  if (!rules) {
+    return { family: target, binds: {}, refusal: null, ok: true };
+  }
+
+  if (target.trim() !== target) {
+    return { family: null, binds: {}, refusal: rules.tokens.case_malformed, ok: false };
+  }
+  if (target.startsWith(rules.private)) {
+    return { family: null, binds: {}, refusal: rules.tokens.private_use_not_federatable, ok: false };
+  }
+  const parts = target.split(":");
+  if (parts.some((p) => p === "")) {
+    return { family: null, binds: {}, refusal: rules.tokens.case_malformed, ok: false };
+  }
+  const hit = resolve(rules, parts);
+  if (!hit) {
+    const mutated = detectMalformed(rules, parts, false);
+    if (mutated) return { family: mutated, binds: {}, refusal: rules.tokens.case_malformed, ok: false };
+    const fenced = [...rules.reserved_stems, ...rules.closed_stems];
+    if (fenced.some((stem) => target.startsWith(stem))) {
+      return { family: null, binds: {}, refusal: rules.tokens.family_unregistered, ok: false };
+    }
+    const low = target.toLowerCase();
+    if (low !== target && fenced.some((stem) => low.startsWith(stem))) {
+      return { family: null, binds: {}, refusal: rules.tokens.case_malformed, ok: false };
+    }
+    if (rules.version_required && !rules.version.test(parts[parts.length - 1])) {
+      if (mutatedTail(rules, parts[parts.length - 1])) {
+        return { family: null, binds: {}, refusal: rules.tokens.case_malformed, ok: false };
+      }
+      return { family: null, binds: {}, refusal: rules.tokens.missing_version_segment, ok: false };
+    }
+    if (parts.length >= 2 && VERSION_LIKE.test(parts[parts.length - 2])) {
+      return { family: null, binds: {}, refusal: rules.tokens.case_malformed, ok: false };
+    }
+    if (parts.length < 2) {
+      return { family: null, binds: {}, refusal: rules.tokens.case_malformed, ok: false };
+    }
+    return { family: null, binds: {}, refusal: null, ok: true };
+  }
+  const { prefix, binds, ref, has_version } = hit;
+  let refusal = ref;
+  const fam = rules.familyMap.get(prefix);
+  if (refusal) {
+    const mutated = detectMalformed(rules, parts, true);
+    if (mutated && mutated !== prefix) {
+      return { family: mutated, binds: {}, refusal: rules.tokens.case_malformed, ok: false };
+    }
+    return { family: prefix, binds, refusal, ok: false };
+  }
+  const versioned = rules.version.test(parts[parts.length - 1]);
+  if (fam.leaves_closed && (fam.segments[fam.segments.length - 1].class === "wildcard" || fam.segments[fam.segments.length - 1].class === "vocab")) {
+    const leaf_parts = (versioned && has_version) ? parts.slice(0, -1) : parts;
+    const ok_leaf = (fam.leaves || []).some((l) => rules.familyMap.has(l) && matchSegments(rules.familyMap.get(l), leaf_parts, rules)[0]);
+    if (!ok_leaf) {
+      return { family: prefix, binds, refusal: rules.tokens.family_unregistered, ok: false };
+    }
+  }
+  if (rules.version_required && !rules.exempt.has(prefix) && !has_version) {
+    return { family: prefix, binds, refusal: rules.tokens.missing_version_segment, ok: false };
+  }
+  if (has_version) {
+    binds.version = parts[parts.length - 1];
+  }
+  return { family: prefix, binds, refusal: null, ok: true };
+}
+
+export function extractDimensions(wireNamespace, tables = null) {
+  const m = matchFamily(wireNamespace, tables);
+  return m ? m.binds : {};
+}
+
 // ---------------------------------------------------------------- tables
 
-export function loadTables(transitions, policies) {
+export function loadTables(transitions, policies, registry = null, aliases = null) {
   const families = new Map();
   for (const r of transitions.rows) {
     families.set(r.family, r.transitions.map((t) => ({
@@ -26,11 +318,26 @@ export function loadTables(transitions, policies) {
   const policy = new Map();
   for (const p of policies.families) policy.set(p.family, p);
   const defaults = { two_path: "default_standing", mirror: "moderation_action", cosigned: "custodian_replace", ranked: "moderator_election" };
-  return { families, policy, defaults };
+  
+  const reg = registry || defaultRegistry;
+  const aliasMap = aliases || defaultAliases || {};
+  const rules = reg ? new Rules(reg) : null;
+  
+  const tbl = { families, policy, defaults, registry: reg, aliases: aliasMap, rules };
+  tbl.matchFamily = (wire) => matchFamily(wire, tbl);
+  tbl.extractDimensions = (wire) => extractDimensions(wire, tbl);
+  return tbl;
 }
 
 export function transitionOf(tables, family, verb, state) {
-  const ts = tables.families.get(family);
+  let famKey = family;
+  if (!tables.families.has(famKey)) {
+    const m = tables.matchFamily ? tables.matchFamily(family) : matchFamily(family, tables);
+    if (m && m.family && tables.families.has(m.family)) {
+      famKey = m.family;
+    }
+  }
+  const ts = tables.families.get(famKey);
   if (!ts) return null;
   return ts.find((t) => t.verb === verb && t.from === state) || null;
 }
@@ -61,18 +368,35 @@ export function fold(held, tables, now) {
   const nodesOf = new Map();      // person -> Set(node id)
   const duties = [];              // {from, to, scope, room}
   const halt = { latched: false, by: null, since: null, confirmed: false };
+  const rolesOf = new Map();      // person -> Set(role name)
+  const systemIdentities = new Set();
+  const ownersOf = new Map();     // target -> Set(person)
+  const attesters = new Set();    // persons with attest capability
+
+  const addRole = (person, role) => {
+    if (!person || !role) return;
+    if (!rolesOf.has(person)) rolesOf.set(person, new Set());
+    rolesOf.get(person).add(role);
+  };
 
   const room = (id) => { if (!rooms.has(id)) rooms.set(id, { id, founders: new Set(), members: new Set(), removed: new Set(), moderators: new Set() }); return rooms.get(id); };
 
   for (const h of rows) {
     const { row } = h;
+    let famKey = row.family;
+    let binds = {};
+    if (!tables.families.has(famKey)) {
+      const m = tables.matchFamily ? tables.matchFamily(row.family) : matchFamily(row.family, tables);
+      if (m?.family) { famKey = m.family; binds = m.binds || {}; }
+    }
+
     let o = objects.get(row.object);
     if (!o) {
-      o = { id: row.object, family: row.family, state: "none", rows: [], scope: row.scope || { tier: "self" }, author: row.signer, subject: row.subject || null, pending: null, outcome: null };
+      o = { id: row.object, family: famKey, rawFamily: row.family, binds, state: "none", rows: [], scope: row.scope || { tier: "self" }, author: row.signer, subject: row.subject || null, pending: null, outcome: null };
       objects.set(o.id, o);
     }
     o.rows.push(h);
-    const t = transitionOf(tables, row.family, row.verb, o.state);
+    const t = transitionOf(tables, famKey, row.verb, o.state);
     if (!t) {
       // a vote-shaped row on an object already admitted: counted by the policy fold below
       continue;
@@ -117,22 +441,55 @@ export function fold(held, tables, now) {
     o.outcome = outcome; o.missing = missing; o.voices = { for: [...voices.for], against: [...voices.against] };
   }
 
-  // standing folds
+  // standing folds across families
   for (const o of objects.values()) {
     const { family, state } = o;
     const live = state === "admitted";
     if (family === "key:record" && live) registered.add(o.author);
     if (family === "transport:{kind}" && live) { if (!nodesOf.has(o.author)) nodesOf.set(o.author, new Set()); nodesOf.get(o.author).add(o.node || o.id); }
-    if (family === "trust:{job}:{version}" && live) { holders.add(o.author); for (const { row } of o.rows) if (row.stance === "for") holders.add(row.signer); }
+    if (family === "trust:{job}:{version}" && live) {
+      holders.add(o.author);
+      for (const { row } of o.rows) if (row.stance === "for") holders.add(row.signer);
+      let job = o.binds?.job;
+      if (!job || job.includes("{")) {
+        const p1 = (o.rawFamily || "").split(":")[1];
+        if (p1 && !p1.includes("{")) job = p1;
+      }
+      if (!job || job.includes("{")) {
+        const p2 = (o.id || "").split(":")[1];
+        if (p2 && !p2.includes("{")) job = p2;
+      }
+      if (!job || job.includes("{")) {
+        job = o.rows?.[0]?.row?.role || o.rows?.[0]?.row?.job;
+      }
+      if (job) {
+        addRole(o.author, job);
+        if (job === "attest") attesters.add(o.author);
+      }
+    }
+    if ((family.startsWith("role:") || family === "role:{job}") && live) {
+      const job = o.binds?.job || o.rawFamily.split(":")[1] || o.id.split(":")[1];
+      if (job) addRole(o.author, job);
+    }
+    if (family === "ownership:{relation}:{target_kind}:{version}" && live) {
+      const target = o.subject || o.id;
+      if (!ownersOf.has(target)) ownersOf.set(target, new Set());
+      ownersOf.get(target).add(o.author);
+    }
     if (family === "group:roster" && live) { const r = room(o.scope.room || o.id); r.founders.add(o.author); }
     if (family === "membership:{stage}" && o.subject) {
       const r = room(o.scope.room);
       if (live && o.outcome === "enacted") r.members.add(o.subject);
       if (state === "withdrawn") { r.members.delete(o.subject); r.removed.add(o.subject); }
     }
-    if (family === "delegates_to" && live && o.dimension === "moderate") duties.push({ from: o.author, to: o.subject, scope: "moderate", room: o.scope.room });
+    if ((family === "delegates_to" || family === "self:delegates_to") && live) {
+      if (o.dimension === "moderate" || o.scope?.tier === "room") duties.push({ from: o.author, to: o.subject, scope: "moderate", room: o.scope.room });
+    }
     if (family === "accord:invoke:constitutional:{halt_id}" && live) { halt.latched = true; halt.by = o.author; halt.since = o.last.firstHeld; halt.confirmed = o.voices && o.voices.for.length * 2 > Math.max(holders.size, 1); }
     if (family === "ballot:moderator" && o.outcome && o.outcome.seated) { room(o.scope.room).moderators.add(o.outcome.seated); }
+    if (family === "system:*" && live) {
+      systemIdentities.add(o.author);
+    }
   }
   for (const r of rooms.values()) {
     for (const f of r.founders) r.moderators.add(f);           // a founder keeps the duty
@@ -141,7 +498,7 @@ export function fold(held, tables, now) {
   }
   if (halt.latched && !halt.confirmed && now - halt.since > 86400 * 1000) halt.latched = false; // a lone latch lapses after a day
 
-  return { objects, registered, rooms, holders, nodesOf, halt, now };
+  return { objects, registered, rooms, holders, nodesOf, halt, rolesOf, systemIdentities, ownersOf, attesters, now };
 }
 
 export function irv(ballots) {
@@ -166,8 +523,8 @@ export function standing(f, person, object) {
   const roles = new Set();
   if (f.registered.has(person)) roles.add("registered");
   if (f.holders.has(person)) roles.add("holder");
-  const o = object ? f.objects.get(object.id || object) : null;
-  const roomId = o ? o.scope.room : (object && object.room);
+  const o = object ? (f.objects.get(object.id || object) || (typeof object === "object" ? object : null)) : null;
+  const roomId = o ? (o.scope?.room || o.room) : (object && object.room);
   if (roomId && f.rooms.has(roomId)) {
     const r = f.rooms.get(roomId);
     if (r.founders.has(person)) roles.add("founder");
@@ -175,16 +532,51 @@ export function standing(f, person, object) {
     if (r.moderators.has(person)) roles.add("moderate");
   }
   if (o) {
-    if (o.author === person) { roles.add("author"); roles.add("self"); }
+    if (o.author === person || o.signer === person) { roles.add("author"); roles.add("self"); }
     if (o.subject === person) roles.add("subject");
   } else {
     roles.add("self");
   }
+
+  // --- Specialized Roles (Deriving all 17 constitutional role tokens) ---
+  const subj = (o && o.subject) || (object && object.subject) || null;
+  const targetId = (o && o.id) || (object && (object.id || object.object)) || null;
+  const isTargetOwner = (targetId && f.ownersOf?.has(targetId) && f.ownersOf.get(targetId).has(person)) ||
+                        (subj && f.ownersOf?.has(subj) && f.ownersOf.get(subj).has(person));
+  const isRoomFounder = roomId && f.rooms.has(roomId) && f.rooms.get(roomId).founders.has(person);
+  if (person === subj || isTargetOwner || isRoomFounder || (o && (o.author === person || o.signer === person))) {
+    roles.add("owner");
+  }
+
+  // attest role
+  if (f.attesters?.has(person) || f.rolesOf?.get(person)?.has("attest") || f.holders.has(person)) {
+    roles.add("attest");
+  }
+
+  // steward, wa, takedown, review, slash
+  const personRoles = f.rolesOf?.get(person);
+  for (const job of ["steward", "wa", "takedown", "review", "slash"]) {
+    if (personRoles?.has(job)) roles.add(job);
+  }
+
+  // system identities: identity:lenscore_detector, identity:substrate_persist
+  if (person === "identity:lenscore_detector" || f.systemIdentities?.has("identity:lenscore_detector") || personRoles?.has("identity:lenscore_detector") || personRoles?.has("lenscore_detector")) {
+    roles.add("identity:lenscore_detector");
+  }
+  if (person === "identity:substrate_persist" || f.systemIdentities?.has("identity:substrate_persist") || personRoles?.has("identity:substrate_persist") || personRoles?.has("substrate_persist")) {
+    roles.add("identity:substrate_persist");
+  }
+
   return roles;
 }
 
 export function enabledFor(tables, family, state, roles) {
-  const ts = tables.families.get(family) || [];
+  let famKey = family;
+  if (!tables.families.has(famKey)) {
+    const m = tables.matchFamily ? tables.matchFamily(family) : matchFamily(family, tables);
+    if (m && m.family && tables.families.has(m.family)) famKey = m.family;
+  }
+  const ts = tables.families.get(famKey) || [];
   const rs = roles instanceof Set ? roles : new Set(roles);
   return ts.filter((t) => t.from === state && t.roles.length > 0 && (t.roles.some((r) => rs.has(r)) || (t.roles.includes("registered") && rs.size > 0 && rs.has("registered"))));
 }
@@ -195,14 +587,26 @@ export function enabledFor(tables, family, state, roles) {
 export function step(held, tables, row, now) {
   if (held.has(row.id)) return { ok: false, refusal: "already_held" };
   const f = fold(held.values(), tables, now);
+  
+  // Resolve wire family
+  let famKey = row.family;
+  if (!tables.families.has(famKey)) {
+    const m = tables.matchFamily ? tables.matchFamily(row.family) : matchFamily(row.family, tables);
+    if (m?.refusal) return { ok: false, refusal: m.refusal };
+    if (m?.family) famKey = m.family;
+  }
+
   const o = f.objects.get(row.object);
   const state = o ? o.state : "none";
-  const family = o ? o.family : row.family;
-  if (o && o.family !== row.family) return { ok: false, refusal: "family_mismatch" };
-  const roles = standing(f, row.signer, o || { room: row.scope && row.scope.room });
+  const family = o ? o.family : famKey;
+  if (o && o.family !== famKey) return { ok: false, refusal: "family_mismatch" };
+
+  const roles = standing(f, row.signer, o || { room: row.scope && row.scope.room, subject: row.subject, id: row.object, author: row.signer });
+  
   // founding: a roster's first version seats a listed member iff that member signed it, no owner gate
-  if (!o && row.family === "group:roster" && row.verb === "attest" && f.registered.has(row.signer)) { roles.add("founder"); roles.add("member"); }
-  let t = transitionOf(tables, family, row.verb, state);
+  if (!o && (famKey === "group:roster" || row.family === "group:roster") && row.verb === "attest" && f.registered.has(row.signer)) { roles.add("founder"); roles.add("member"); }
+  
+  let t = transitionOf(tables, famKey, row.verb, state);
   if (!t && o && o.pending && (row.stance || row.ranking)) {
     // a voice on an object under a policy: a row the fold counts, moving nothing by itself
     t = { verb: "voice", from: state, to: state, roles: ["member", "subject", "holder"], policy: o.pending.policy.kind, policyRows: [], widens: false };
@@ -210,15 +614,16 @@ export function step(held, tables, row, now) {
   if (!t) return { ok: false, refusal: "no_transition" };
   if (t.roles.length === 0) return { ok: false, refusal: "closed" };
   if (!t.roles.some((r) => roles.has(r))) return { ok: false, refusal: "no_standing" };
-  const selfKey = row.family === "key:record" && row.verb === "attest";
-  if (!selfKey && !f.registered.has(row.signer)) return { ok: false, refusal: "unregistered" };
+  const selfKey = (famKey === "key:record" || row.family === "key:record") && row.verb === "attest";
+  const isSystem = row.signer === "identity:substrate_persist" || row.signer === "identity:lenscore_detector";
+  if (!selfKey && !isSystem && !f.registered.has(row.signer)) return { ok: false, refusal: "unregistered" };
   if (row.scope && row.scope.tier === "room") {
     const r = f.rooms.get(row.scope.room);
     const inRoom = r && (r.members.has(row.signer) || r.founders.has(row.signer));
-    const invitee = row.family === "membership:{stage}" && row.subject === row.signer;
-    if (!r && row.family !== "group:roster") return { ok: false, refusal: "no_such_room" };
+    const invitee = (famKey === "membership:{stage}" || row.family === "membership:{stage}") && row.subject === row.signer;
+    if (!r && famKey !== "group:roster" && row.family !== "group:roster") return { ok: false, refusal: "no_such_room" };
     if (r && !inRoom && !invitee) return { ok: false, refusal: "subject_outside_audience" };
-    if (row.subject && r && !(r.members.has(row.subject) || r.founders.has(row.subject)) && row.family !== "membership:{stage}") return { ok: false, refusal: "subject_outside_audience" };
+    if (row.subject && r && !(r.members.has(row.subject) || r.founders.has(row.subject)) && famKey !== "membership:{stage}" && row.family !== "membership:{stage}") return { ok: false, refusal: "subject_outside_audience" };
   }
   if (f.halt.latched && row.signerType === "agent") return { ok: false, refusal: "halted" };
   return { ok: true, plan: { row, transition: t, firstHeld: now, policy: policyRow(tables, t) } };
@@ -228,6 +633,9 @@ export function commit(held, plan) { held.set(plan.row.id, { row: plan.row, firs
 
 // door = step then commit
 export function door(held, tables, row, now) { const s = step(held, tables, row, now); if (s.ok) commit(held, s.plan); return s; }
+
+// admit = alias of door
+export function admit(held, tables, row, now) { return door(held, tables, row, now); }
 
 // queue = the door run forwards: every transition enabled for this person, one item each
 export function queue(held, tables, person, now) {
@@ -296,7 +704,9 @@ export class Mesh {
   audience(node, row) {
     const f = fold(node.held.values(), this.tables, this.now);
     const tier = (row.scope && row.scope.tier) || "self";
-    if (tier === "federation" || CONSENT_FREE.has(row.family)) return null; // everyone may carry it
+    const m = this.tables.matchFamily ? this.tables.matchFamily(row.family) : matchFamily(row.family, this.tables);
+    const famKey = m?.family || row.family;
+    if (tier === "federation" || CONSENT_FREE.has(famKey) || CONSENT_FREE.has(row.family)) return null; // everyone may carry it
     if (tier === "self") return new Set([row.signer]);
     const r = f.rooms.get(row.scope.room);
     const who = new Set(r ? [...r.members, ...r.founders] : []);

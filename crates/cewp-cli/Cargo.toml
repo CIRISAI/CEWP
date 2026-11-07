@@ -1,0 +1,14 @@
+[package]
+name = "cewp-cli"
+version = "0.2.0"
+edition = "2021"
+authors = ["CEWP Team"]
+description = "Unified CEWP verification and evidence simulation CLI runner"
+license = "Apache-2.0"
+
+[dependencies]
+cewp-kernel = { path = "../cewp-kernel" }
+cewp-csd4 = { path = "../cewp-csd4" }
+cewp-sim = { path = "../cewp-sim" }
+cewp-adversary = { path = "../cewp-adversary" }
+cewp-evidence = { path = "../cewp-evidence" }

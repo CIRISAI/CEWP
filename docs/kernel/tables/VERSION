@@ -1,1 +1,9 @@
-CIRISConstitution rc17 f267ce8 (2026-11-05): manifests/transitions.json, manifests/governance_policy.json, manifests/mesh_story_trace.json
+CIRISConstitution rc17 f267ce8 (2026-11-05): manifests/transitions.json, manifests/governance_policy.json, manifests/mesh_story_trace.json, manifests/namespace_registry.json, manifests/namespace_match_vectors.json, csd_namespace_map.json
+
+SHA-256 Hashes:
+  csd_namespace_map.json: ffce01677bb31e514447110837ee2cab878f13b3a5cc4d9e933a6199ab3c2cc4
+  governance_policy.json: 8698e31013c9ac1cd92e6cca6fdb896b65000eb128721ba8020ddfae58faa58f
+  mesh_story_trace.json: 3f42bc744a5a921d06100dd4bba6c40f9e436c90666c3d83071ad79a5e1a3b8f
+  namespace_match_vectors.json: e35f3361602791c482b5a1730356d91eb4c386e0ddccf6bfe9c34fa843a21017
+  namespace_registry.json: f400bfc393a8134c92f5927a80090d95474b5514415e282b6aacb9761cfc44a9
+  transitions.json: 9a8f976d2b4709bafe9eb3a27a24e3ffd82dd1ded024bbbca2c7f1f026987a38

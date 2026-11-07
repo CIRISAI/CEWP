@@ -83,6 +83,10 @@ table.cmp th{font:600 12px var(--mono);letter-spacing:.04em;text-transform:upper
 .contract h3{margin:0 0 6px;font-size:18px;font-weight:600}
 .contract pre{font:12px/1.45 var(--mono);background:var(--chip);padding:10px;border-radius:8px;overflow:auto;margin:8px 0}
 .wrap{overflow:auto}
+.nav-strip{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center;padding:14px 10px 4px;max-width:1200px;margin:0 auto}
+.nav-pill{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font:500 12px/1 var(--mono);text-decoration:none;transition:border-color .18s,color .18s,background .18s;white-space:nowrap}
+.nav-pill:hover{border-color:var(--accent);color:var(--accent)}
+.nav-pill.active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 15%,transparent);font-weight:600}
 svg text{font:11px var(--mono);fill:currentColor}
 svg .a{fill:var(--accent)} svg .b{fill:var(--accent2)} svg .m{fill:var(--mute)} svg .c{fill:var(--chip)}
 svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--accent);fill:none;stroke-width:2} svg .sb{stroke:var(--accent2);fill:none;stroke-width:2} svg .sd{stroke:var(--mute);fill:none;stroke-width:1.5;stroke-dasharray:4 3}
@@ -91,6 +95,17 @@ svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--acce
 <svg width="0" height="0" style="position:absolute"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent)"/></marker></defs></svg>
 </head>
 <body>
+<nav class="nav-strip" aria-label="Global navigation">
+  <a class="nav-pill" href="index.html">🌍 Globe</a>
+  <a class="nav-pill" href="csd-explorer.html">🧭 CSD/4 &amp; Namespace Browser</a>
+  <a class="nav-pill" href="#peers" data-top-tab="peers">⚖️ vs. Other Meshes</a>
+  <a class="nav-pill" href="#solves" data-top-tab="solves">⚙️ How This Works</a>
+  <a class="nav-pill" href="#motion" data-top-tab="motion">▶️ In Motion</a>
+  <a class="nav-pill" href="mesh.html">🕸️ 6-Peer Kernel</a>
+  <a class="nav-pill" href="toy/">📐 Scaling Toy</a>
+  <a class="nav-pill" href="https://github.com/CIRISAI/CEWP/blob/main/FSD/SIMULATION_ENGINE.md" target="_blank" rel="noopener">📄 Sim FSD v0.2</a>
+  <a class="nav-pill" href="https://github.com/CIRISAI/CEWP" target="_blank" rel="noopener">GitHub</a>
+</nav>
 <header>
   <h1>How CEWP works — and how it compares to other decentralized meshes</h1>
   <p class="lead">Six people and one agent share one mesh of signed rows. Each sees a <b>view</b> of the same rows, folded through their own standing, and each view generates a <b>queue</b>: exactly the actions the admission door would accept from them now. Nothing here is a list of buttons: the queue is the door run forwards. Existing technology, in a new architecture.</p>
@@ -330,9 +345,18 @@ reset();
 </script>
 <script>
 (function(){
-  const tabs=document.querySelectorAll('#tabs a'); const panes={}; document.querySelectorAll('.tab').forEach(t=>panes[t.id.slice(4)]=t);
-  function show(k){ if(!panes[k]) k='solves'; tabs.forEach(a=>a.classList.toggle('on',a.dataset.tab===k)); Object.entries(panes).forEach(([id,el])=>el.classList.toggle('on',id===k)); }
+  const tabs=document.querySelectorAll('#tabs a');
+  const topTabs=document.querySelectorAll('.nav-strip a[data-top-tab]');
+  const panes={};
+  document.querySelectorAll('.tab').forEach(t=>panes[t.id.slice(4)]=t);
+  function show(k){
+    if(!panes[k]) k='solves';
+    tabs.forEach(a=>a.classList.toggle('on',a.dataset.tab===k));
+    topTabs.forEach(a=>a.classList.toggle('active',a.dataset.topTab===k));
+    Object.entries(panes).forEach(([id,el])=>el.classList.toggle('on',id===k));
+  }
   tabs.forEach(a=>a.addEventListener('click',e=>{ e.preventDefault(); history.replaceState(null,'','#'+a.dataset.tab); show(a.dataset.tab); }));
+  topTabs.forEach(a=>a.addEventListener('click',e=>{ e.preventDefault(); history.replaceState(null,'','#'+a.dataset.topTab); show(a.dataset.topTab); }));
   show((location.hash||'#solves').slice(1));
   window.addEventListener('hashchange',()=>show(location.hash.slice(1)));
 })();

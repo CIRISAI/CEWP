@@ -1,0 +1,9 @@
+[package]
+name = "cewp-csd4"
+version = "0.2.0"
+edition = "2021"
+authors = ["CEWP Team"]
+description = "CSD/4 holistic scenario contract, step-window model, realizability validator, and planner"
+
+[dependencies]
+# Pure Rust: std only, zero external crates in [dependencies]

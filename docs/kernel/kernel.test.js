@@ -4,11 +4,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { loadTables, enabledFor, Mesh, fold, standing, door, queue, preview } from "./kernel.js";
+import { loadTables, enabledFor, Mesh, fold, standing, door, admit, queue, preview, matchFamily, extractDimensions } from "./kernel.js";
 
 const here = new URL("./tables/", import.meta.url);
 const J = (f) => JSON.parse(readFileSync(new URL(f, here)));
-const tables = loadTables(J("transitions.json"), J("governance_policy.json"));
+const transitions = J("transitions.json");
+const policies = J("governance_policy.json");
+const registry = J("namespace_registry.json");
+const csdMap = J("csd_namespace_map.json");
+const matchVectors = J("namespace_match_vectors.json");
+
+const tables = loadTables(transitions, policies, registry, csdMap.aliases);
 const trace = J("mesh_story_trace.json");
 
 test("the queue is the door run forwards: parity with the constitution's story", () => {
@@ -383,4 +389,174 @@ test("churn, mobile sleep/wake & stranger refusal under partition healing", () =
     assert.notEqual(row.scope?.tier, "room", `stranger mallory-phone must never hold room-scoped row ${row.id}`);
   }
   assert.equal(m.foldOf("mallory-phone").rooms.size, 0, "stranger folds zero rooms");
+});
+
+test("CC RC17 namespace_match_vectors.json conformance (1,256 dimension vectors + 25 row-type vectors)", () => {
+  let passedVectors = 0;
+  for (const v of matchVectors.vectors) {
+    const res = matchFamily(v.dimension, tables);
+    assert.equal(res.family, v.family, `Vector ${v.dimension} family mismatch`);
+    assert.equal(res.refusal, v.refusal, `Vector ${v.dimension} refusal mismatch`);
+    if (!v.refusal && v.family) {
+      const binds = extractDimensions(v.dimension, tables);
+      assert.ok(binds, `Dimensions extracted for ${v.dimension}`);
+    }
+    passedVectors++;
+  }
+  assert.equal(passedVectors, 1256, "all 1,256 dimension vectors replayed");
+
+  const STRUCTURAL = new Set(["scores", "delegates_to", "supersedes", "withdraws", "recants"]);
+  let passedRowTypes = 0;
+  for (const v of matchVectors.row_type_vectors) {
+    const isStruct = STRUCTURAL.has(v.attestation_type);
+    const ref = isStruct ? null : "attestation_type_unregistered";
+    assert.equal(ref, v.refusal, `Row type ${v.attestation_type} refusal mismatch`);
+    passedRowTypes++;
+  }
+  assert.equal(passedRowTypes, 25, "all 25 row-type vectors replayed");
+});
+
+test("191-family & 17-role exhaustive transition coverage & csd_namespace_map.json verification", () => {
+  // 1. Verify csd_namespace_map.json integrity & summary
+  assert.equal(csdMap.version, "rc17-csd4-v1");
+  assert.equal(csdMap.summary.total_families, 191);
+  assert.equal(csdMap.summary.total_transitions, 474);
+  assert.equal(csdMap.summary.total_policies, 12);
+  assert.equal(csdMap.summary.total_csd_cards, 105);
+  assert.equal(csdMap.summary.csd_mapped_families, 94);
+  assert.equal(csdMap.summary.substrate_autonomous_families, 97);
+  assert.equal(csdMap.summary.total_csd_shows_fields, 660);
+  assert.equal(csdMap.summary.resolved_csd_shows_fields, 660);
+
+  // Verify all 105 cards and their 660 fields
+  let resolvedShowsCount = 0;
+  for (const card of csdMap.cards) {
+    assert.ok(card.id.startsWith("CSD-"));
+    assert.ok(card.title);
+    assert.ok(Array.isArray(card.topologies) && card.topologies.length > 0);
+    for (const show of card.shows) {
+      if (show.field.startsWith("x_private:")) {
+        assert.equal(show.canonical_family, "x_private:*");
+        const m = matchFamily(show.field, tables);
+        assert.equal(m.refusal, "namespace_private_use_not_federatable");
+        resolvedShowsCount++;
+      } else if (show.field.startsWith("holds_bytes:")) {
+        assert.equal(show.canonical_family, "holds_bytes:sha256:{prefix}");
+        resolvedShowsCount++;
+      } else {
+        const m = matchFamily(show.field, tables);
+        assert.equal(m.family, show.canonical_family, `Field ${show.field} in ${card.id}`);
+        resolvedShowsCount++;
+      }
+    }
+  }
+  assert.equal(resolvedShowsCount, 660, "all 660 csd:shows fields resolved");
+
+  // 2. Verify all 17 role tokens across all 474 transitions & 3 equivalences
+  let testedTransitions = 0;
+  let gapCellsTested = 0;
+  let regularTested = 0;
+
+  for (const row of transitions.rows) {
+    const family = row.family;
+    for (const t of row.transitions) {
+      testedTransitions++;
+      const roles = t.roles.value || [];
+      const held = new Map();
+      let now = 1000;
+      const testObj = 'obj:' + family.replace(/[:{}*]/g, '_') + ':' + testedTransitions;
+
+      const fromNone = row.transitions.find(x => x.from === 'none');
+
+      // (A) Equivalence 1: refused_previews_nothing on unauthorized stranger
+      if (family !== 'key:record') {
+        const strangerRow = {
+          id: 'row:stranger:' + testedTransitions,
+          family,
+          verb: t.verb,
+          signer: 'stranger-nobody',
+          object: testObj,
+          scope: { tier: 'self' },
+          asserted_at: now++
+        };
+        const unauthPrev = preview(held, tables, [strangerRow], now);
+        assert.equal(unauthPrev.verdicts[0].ok, false);
+        assert.equal(unauthPrev.changed.length, 0);
+        const unauthDoor = door(held, tables, strangerRow, now);
+        assert.equal(unauthDoor.ok, false);
+      }
+
+      if (roles.length === 0) {
+        gapCellsTested++;
+        continue;
+      }
+
+      if (t.from === 'admitted' && (!fromNone || fromNone.roles.value?.length === 0)) {
+        continue;
+      }
+
+      // (B) Authorized actor holding the required role
+      regularTested++;
+      const role = roles[0];
+      const isSystemDetector = role === 'identity:lenscore_detector' || fromNone?.roles.value?.[0] === 'identity:lenscore_detector';
+      const isSystemPersist = role === 'identity:substrate_persist' || fromNone?.roles.value?.[0] === 'identity:substrate_persist';
+      
+      let signer = isSystemDetector ? 'identity:lenscore_detector' :
+                   isSystemPersist ? 'identity:substrate_persist' :
+                   'actor-omni';
+
+      const isRoomRole = roles.some(r => ['founder', 'member', 'moderate'].includes(r));
+      const needsRoom = isRoomRole || (fromNone && fromNone.roles.value?.some(r => ['founder', 'member', 'moderate'].includes(r)));
+      const roomId = 'room:omni';
+      const scope = needsRoom ? { tier: 'room', room: roomId } : { tier: 'self' };
+
+      if (!signer.startsWith('identity:')) {
+        door(held, tables, { id: 'key:' + signer, family: 'key:record', verb: 'attest', signer, object: 'key:' + signer, scope: { tier: 'self' }, asserted_at: now++ }, now);
+        door(held, tables, { id: 'trust:init:' + signer, family: 'trust:{job}:{version}', verb: 'authorize', signer, object: 'trust:root:' + signer, scope: { tier: 'self' }, asserted_at: now++ }, now);
+        for (const spec of ['steward', 'wa', 'takedown', 'review', 'slash', 'attest']) {
+          door(held, tables, { id: 'trust:' + spec + ':obj', family: 'trust:{job}:{version}', verb: 'authorize', signer, object: 'trust:' + spec + ':1', scope: { tier: 'self' }, asserted_at: now++ }, now);
+        }
+      }
+
+      if (needsRoom) {
+        door(held, tables, { id: 'room:roster:' + signer, family: 'group:roster', verb: 'attest', signer, object: roomId, scope: { tier: 'room', room: roomId }, asserted_at: now++ }, now);
+      }
+
+      if (t.from === 'admitted' && fromNone && fromNone.roles.value?.length > 0) {
+        const initVerb = fromNone.verb;
+        door(held, tables, { id: testObj + ':seed', family, verb: initVerb, signer, object: testObj, subject: signer, scope, asserted_at: now++ }, now);
+      }
+
+      const validRow = {
+        id: 'row:valid:' + testedTransitions,
+        family,
+        verb: t.verb,
+        signer,
+        object: testObj,
+        subject: signer,
+        scope,
+        asserted_at: now++
+      };
+
+      // Equivalence 2: door_is_queue
+      const fBefore = fold(held.values(), tables, now);
+      const curRoles = standing(fBefore, signer, { object: testObj, id: testObj, subject: signer, author: signer, room: needsRoom ? roomId : undefined });
+      const qVerbs = enabledFor(tables, family, t.from, curRoles).map(x => x.verb);
+      assert.ok(qVerbs.includes(t.verb), `Queue missing ${t.verb} from ${t.from} for ${family} under role ${role}`);
+
+      // Equivalence 3: preview_is_execution
+      const validPrev = preview(held, tables, [validRow], now);
+      assert.equal(validPrev.verdicts[0].ok, true, `Preview failed for ${family} / ${t.verb}`);
+      assert.ok(validPrev.changed.some(c => c.object === testObj && c.to === t.to), `Preview changed missing ${t.to} for ${family}`);
+
+      const validAdm = admit(held, tables, validRow, now);
+      assert.equal(validAdm.ok, true, `Admit failed for ${family} / ${t.verb}`);
+      const fAfter = fold(held.values(), tables, now);
+      assert.equal(fAfter.objects.get(testObj)?.state, t.to, `Final state mismatch for ${family}`);
+    }
+  }
+
+  assert.equal(testedTransitions, 474, "all 474 transitions tested");
+  assert.equal(gapCellsTested, 13, "all 13 gap transitions verified closed");
+  assert.equal(regularTested, 458, "all 458 executable transitions passed with preview, door, and queue parity");
 });

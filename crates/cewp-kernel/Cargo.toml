@@ -1,0 +1,8 @@
+[package]
+name = "cewp-kernel"
+version = "0.1.0"
+edition = "2021"
+description = "Authoritative CC §4.5.13 state processor in pure Rust"
+license = "Apache-2.0"
+
+[dependencies]

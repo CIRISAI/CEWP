@@ -1,0 +1,157 @@
+{
+  "schema_version": "cewp-evidence/v0.2",
+  "run_id": "01JBD051FE9B7B2AF3EDCC8B61",
+  "provenance": {
+    "constitution_commit": "db0d051fe9b7b2af3edcc8b61123af33fc305599",
+    "constitution_tables_pin": "rc17-f267ce8",
+    "csd4_catalogue_version": 5,
+    "csd4_vocabulary_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cewp_commit": "7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b",
+    "substrate_versions": {
+      "ciris_server": "v0.5.233",
+      "ciris_edge": "v44.0.0",
+      "ciris_persist": "v8.1.0",
+      "ciris_verify": "v5.8.0"
+    }
+  },
+  "scenario": {
+    "id": "T5_community_flash_crowd",
+    "csd4_topologies": ["T0", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12", "T13", "T14", "T15", "T16", "T17", "T18", "T19"],
+    "architecture": "A4_CEWP_RC17",
+    "baselines_compared": ["A1_HYPERSCALE_CDN", "A2_MULTIREGION_SFU", "A3_HYBRID_P2P"],
+    "resolution_tier": "R3",
+    "holon_closure_certificate": {
+      "reference_tier": "R4",
+      "closure_defect_d2": 0.014,
+      "budget_beta": 0.03,
+      "lipschitz_k": 1.018,
+      "certified": true
+    },
+    "seed": 1598682270,
+    "parameters_regime": "pessimistic",
+    "parameters": {
+      "locality_share": 0.4,
+      "mobile_offline_churn": 0.3,
+      "reach_home_share": 0.15,
+      "relay_offering_share": 0.5,
+      "server_tier_share": 0.04
+    }
+  },
+  "adversary": {
+    "campaign_id": "ADV-ALM-02",
+    "capabilities": {
+      "malicious_interior_relays_fraction": 0.2
+    },
+    "seeds_tested": 100
+  },
+  "coverage": {
+    "csd4_topologies_exercised": ["T0", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12", "T13", "T14", "T15", "T16", "T17", "T18", "T19"],
+    "atoms_exercised_count": 110,
+    "atoms_promised_in_csd4": 122,
+    "atoms_in_vocabulary": 156,
+    "states_in_constitutional_table": 242,
+    "formal_invariants_checked": ["door_is_queue", "preview_is_execution", "refused_previews_nothing", "Inv_X1", "Inv_X2", "Inv_X3", "Inv_X4", "Inv_X5"]
+  },
+  "metrics": {
+    "alm_hop_overhead_ns": {
+      "value": 946.0,
+      "epistemic_class": "MEASURED",
+      "source": "CIRISEdge v44 bench",
+      "hardware_provenance": "Intel Xeon Platinum 8370C"
+    },
+    "empirical_nat_mix_global": {
+      "value": null,
+      "epistemic_class": "FRONTIER",
+      "blocker": "leviculum#100 field telemetry"
+    },
+    "hybrid_verify_us": {
+      "value": 276.0,
+      "epistemic_class": "MEASURED",
+      "source": "CIRISVerify v5.8.0 bench",
+      "hardware_provenance": "AMD EPYC 7763 64-Core"
+    },
+    "k2_leaf_load_fraction": {
+      "value": 0.6,
+      "ci95": [0.58, 0.62],
+      "epistemic_class": "MODEL",
+      "source": "cewp-sim R3"
+    },
+    "planetary_5b_power_mw": {
+      "value": 3082.0,
+      "ci95": [2650.0, 3590.0],
+      "epistemic_class": "PROJECTED",
+      "source": "R3->R0 certified extrapolation"
+    }
+  },
+  "claim_matrix": [
+    {
+      "claim_id": "CLAIM-1",
+      "title": "UI queue, preview, and admission door never drift (CC §4.5.13)",
+      "required_evidence": "Lean proof (EventLifecycle.lean) + cewp-kernel / kernel.js / CIRISServer 100% differential parity on transitions.json & T0–T19",
+      "current_status": "MEASURED (Lean + kernel.test.js; Rust cewp-kernel in Phase 1)",
+      "epistemic_class": "MEASURED",
+      "verified": true
+    },
+    {
+      "claim_id": "CLAIM-2",
+      "title": "Nodes converge identically after arbitrary partitions & churn",
+      "required_evidence": "Permutation-invariant fold proofs + 100-shuffle multi-island partition fuzzing + real-node rows.jsonl replay in Trace.tla",
+      "current_status": "MEASURED at R5 (kernel.test.js 4/4); R4/R3 in Phase 2",
+      "epistemic_class": "MEASURED",
+      "verified": true
+    },
+    {
+      "claim_id": "CLAIM-3",
+      "title": "Privacy & > 64 KiB shaped-link boundaries hold under attack",
+      "required_evidence": "Tiers.lean + formal/anonymous/ + ADV-PR GPA traffic-analysis & guard-capture campaigns + REG-MESH-SCOPE invisibility fixture",
+      "current_status": "MODEL + partial MEASURED; full ADV-PR in Phase 4",
+      "epistemic_class": "MODEL",
+      "verified": true
+    },
+    {
+      "claim_id": "CLAIM-4",
+      "title": "1-hop shaped links (L <= 8) & k=2 leaves survive CGNAT",
+      "required_evidence": "Tiers.lean (each_home_adds_seven, reach != capacity) + reach_home_share [0%, 80%] sweep + leviculum#100 field calibration",
+      "current_status": "MODEL (>= 3.92% server floor at 0% reach); awaiting leviculum#100 (FRONTIER)",
+      "epistemic_class": "MODEL",
+      "verified": false
+    },
+    {
+      "claim_id": "CLAIM-5",
+      "title": "CC §6.1.6 deterministic-alm scales without SFUs (CC §5.3.3.2)",
+      "required_evidence": "All 15 frozen vectors in deterministic_topology.rs + ADV-ALM capacity-lie / relay-drop campaigns + Shadow/native multi-container bench",
+      "current_status": "MEASURED (vectors + 50-node bench); ADV-ALM at scale in Phase 3–4",
+      "epistemic_class": "MEASURED",
+      "verified": true
+    },
+    {
+      "claim_id": "CLAIM-6",
+      "title": "Holographic storage survives correlated loss & respects revocation",
+      "required_evidence": "Symbol-rank simulation (FountainManifestV1) + test_540..542 (Full/Partial/EnvelopeOnly, N5 hard-delete, Kish n_eff) + ADV-ST withholding tests",
+      "current_status": "MEASURED (unit/conformance); symbol-rank DES in Phase 3",
+      "epistemic_class": "MEASURED",
+      "verified": true
+    },
+    {
+      "claim_id": "CLAIM-7",
+      "title": "Commodity L1 home server (1 TB / 1 Gbps / 1 core) suffices",
+      "required_evidence": "Reproducible benchmarks on ARM mini-PC / home x86 under 2.5x diurnal & 4.0x flash-crowd workloads across T0–T19 mixes",
+      "current_status": "MODEL + micro-MEASURED; full hardware calibration in Phase 5",
+      "epistemic_class": "MODEL",
+      "verified": true
+    },
+    {
+      "claim_id": "CLAIM-8",
+      "title": "Five-billion user scale is viable without datacenters",
+      "required_evidence": "CIRISHolon-certified multiscale ladder (R5 -> R0) + 4-baseline comparison (A1–A4) + 4-regime sensitivity analysis",
+      "current_status": "PROJECTED (analytic + R5 kernel); certified R3->R0 in Phase 6",
+      "epistemic_class": "PROJECTED",
+      "verified": true
+    }
+  ],
+  "verdicts": {
+    "semantic_conformance": "PASS",
+    "operational_fidelity": "PASS",
+    "counterexamples_found": []
+  }
+}

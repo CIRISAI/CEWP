@@ -1,0 +1,1210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSD/4 Architecture &amp; CC RC17 Namespace Explorer · CEWP</title>
+<meta name="description" content="Interactive CSD/4 holistic architecture explainer, 20 closed topologies (T0–T19), 105 CSD cards, and CC RC17 namespace browser across 191 families, 474 transitions, 17 roles, and 12 governance policies.">
+<style>
+:root {
+  --bg: #0b0d12;
+  --panel: #12151c;
+  --panel-alt: #171b24;
+  --line: #242a36;
+  --line-strong: #363e50;
+  --ink: #dfe3ea;
+  --mute: #8a93a3;
+  --faint: #5a6272;
+  --ok: #5ad38f;
+  --ok-bg: rgba(90, 211, 143, 0.12);
+  --warm: #ffb15c;
+  --warm-bg: rgba(255, 177, 92, 0.12);
+  --hot: #ff6a5c;
+  --hot-bg: rgba(255, 106, 92, 0.12);
+  --cool: #6cb6ff;
+  --cool-bg: rgba(108, 182, 255, 0.12);
+  --violet: #c68aff;
+  --violet-bg: rgba(198, 138, 255, 0.12);
+  --mono: ui-monospace, Menlo, Consolas, "SF Mono", monospace;
+  --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.5 var(--mono);
+  -webkit-font-smoothing: antialiased;
+  padding: 0 16px 80px;
+}
+
+/* ---------------- Top Global Navigation Strip ---------------- */
+.nav-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 14px 10px 8px;
+  max-width: 1300px;
+  margin: 0 auto;
+}
+.nav-pill {
+  background: color-mix(in srgb, var(--panel) 84%, transparent);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 13px;
+  font: 500 11.5px/1 var(--mono);
+  text-decoration: none;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  transition: border-color .18s, color .18s, background .18s;
+  white-space: nowrap;
+}
+.nav-pill:hover {
+  border-color: var(--cool);
+  color: #fff;
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+}
+.nav-pill.active {
+  border-color: var(--ok);
+  color: #fff;
+  background: color-mix(in srgb, var(--ok) 22%, var(--panel));
+  font-weight: 600;
+}
+
+/* ---------------- Page Container & Header ---------------- */
+.container {
+  max-width: 1300px;
+  margin: 0 auto;
+}
+header.page-head {
+  padding: 24px 0 16px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 20px;
+}
+h1.title {
+  font: 600 28px/1.2 var(--serif);
+  color: #fff;
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+}
+p.subtitle {
+  margin: 0;
+  color: var(--mute);
+  font-size: 13.5px;
+  max-width: 95ch;
+  line-height: 1.55;
+}
+
+/* ---------------- Primary Tab Switcher ---------------- */
+nav.section-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 24px;
+}
+.sec-tab {
+  background: transparent;
+  color: var(--mute);
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 16px;
+  font: 600 13px/1.2 var(--mono);
+  cursor: pointer;
+  transition: color .18s, border-color .18s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -1px;
+}
+.sec-tab:hover { color: var(--ink); }
+.sec-tab.active {
+  color: #fff;
+  border-bottom-color: var(--ok);
+  font-weight: 600;
+}
+.sec-tab .count {
+  font-size: 11px;
+  background: var(--line);
+  color: var(--ink);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+/* ---------------- Panes & Layout ---------------- */
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+.card-box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+.card-box h2 {
+  font: 600 18px/1.3 var(--serif);
+  color: #fff;
+  margin: 0 0 10px;
+}
+.card-box h3 {
+  font: 600 14px/1.3 var(--mono);
+  color: var(--cool);
+  margin: 16px 0 6px;
+  letter-spacing: 0.02em;
+}
+.card-box p {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+.card-box p.lead {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+/* ---------------- Metric Badges & Pills ---------------- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  text-align: left;
+}
+.stat-val {
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+.stat-val.ok { color: var(--ok); }
+.stat-val.cool { color: var(--cool); }
+.stat-val.warm { color: var(--warm); }
+.stat-val.violet { color: var(--violet); }
+.stat-label {
+  font-size: 11px;
+  color: var(--mute);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.badge-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid rgba(90,211,143,.3); }
+.badge-cool { background: var(--cool-bg); color: var(--cool); border: 1px solid rgba(108,182,255,.3); }
+.badge-warm { background: var(--warm-bg); color: var(--warm); border: 1px solid rgba(255,177,92,.3); }
+.badge-hot { background: var(--hot-bg); color: var(--hot); border: 1px solid rgba(255,106,92,.3); }
+.badge-violet { background: var(--violet-bg); color: var(--violet); border: 1px solid rgba(198,138,255,.3); }
+.badge-faint { background: var(--panel-alt); color: var(--mute); border: 1px solid var(--line); }
+
+/* ---------------- Filter & Search Bars ---------------- */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+.search-input {
+  flex: 1 1 240px;
+  background: #0d1017;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font: 13px var(--mono);
+}
+.search-input:focus {
+  outline: none;
+  border-color: var(--cool);
+}
+.select-ctl {
+  background: #0d1017;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font: 12.5px var(--mono);
+  cursor: pointer;
+}
+.select-ctl:focus {
+  outline: none;
+  border-color: var(--cool);
+}
+
+.chip-scroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 6px 0 10px;
+  scrollbar-width: thin;
+}
+.chip-btn {
+  background: var(--panel-alt);
+  color: var(--mute);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font: 500 11.5px var(--mono);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s ease;
+}
+.chip-btn:hover {
+  color: #fff;
+  border-color: var(--cool);
+}
+.chip-btn.active {
+  background: var(--cool-bg);
+  color: var(--cool);
+  border-color: var(--cool);
+  font-weight: 600;
+}
+
+/* ---------------- Tables & Grids ---------------- */
+.table-wrap {
+  overflow-x: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+table.data-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  text-align: left;
+}
+table.data-tbl th, table.data-tbl td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+table.data-tbl th {
+  background: #0d1017;
+  color: var(--mute);
+  font: 600 11px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+table.data-tbl tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ---------------- Interactive Cards Grid ---------------- */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 14px;
+}
+.csd-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  transition: border-color .2s, box-shadow .2s;
+  cursor: pointer;
+}
+.csd-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: 0 4px 20px rgba(0,0,0,.3);
+}
+.csd-card.expanded {
+  border-color: var(--cool);
+}
+.csd-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.csd-id {
+  font: 700 14px var(--mono);
+  color: var(--cool);
+}
+.csd-title {
+  font: 600 14px/1.35 var(--serif);
+  color: #fff;
+  margin: 0 0 6px;
+}
+.csd-badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin: 6px 0;
+}
+.csd-details {
+  display: none;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  font-size: 12px;
+}
+.csd-card.expanded .csd-details { display: block; }
+
+/* ---------------- Sandbox UI ---------------- */
+.sandbox-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .sandbox-split { grid-template-columns: 1fr; }
+}
+.box-pane {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+}
+.code-block {
+  background: #080a0e;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  font: 12px/1.5 var(--mono);
+  color: var(--ink);
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+/* ---------------- Responsive ---------------- */
+@media (max-width: 800px) {
+  body { padding: 0 8px 60px; font-size: 13px; }
+  .cards-grid { grid-template-columns: 1fr; }
+  .nav-strip { gap: 4px; }
+  .nav-pill { padding: 5px 9px; font-size: 10px; }
+  h1.title { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Global Top Navigation -->
+<nav class="nav-strip" aria-label="Global navigation">
+  <a class="nav-pill" href="index.html">🌍 Globe</a>
+  <a class="nav-pill active" href="csd-explorer.html">🧭 CSD/4 &amp; Namespace Browser</a>
+  <a class="nav-pill" href="how-it-works.html#peers">⚖️ vs. Other Meshes</a>
+  <a class="nav-pill" href="how-it-works.html#solves">⚙️ How This Works</a>
+  <a class="nav-pill" href="how-it-works.html#motion">▶️ In Motion</a>
+  <a class="nav-pill" href="mesh.html">🕸️ 6-Peer Kernel</a>
+  <a class="nav-pill" href="toy/">📐 Scaling Toy</a>
+  <a class="nav-pill" href="https://github.com/CIRISAI/CEWP/blob/main/FSD/SIMULATION_ENGINE.md" target="_blank" rel="noopener">📄 Sim FSD v0.2</a>
+  <a class="nav-pill" href="https://github.com/CIRISAI/CEWP" target="_blank" rel="noopener">GitHub</a>
+</nav>
+
+<div class="container">
+  <header class="page-head">
+    <h1 class="title">CSD/4 Architecture &amp; CC RC17 Namespace Explorer</h1>
+    <p class="subtitle">
+      A unified, interactive reference bridging <b>CIRISConstitution@rc17</b>, <b>CIRISServer</b>, <b>CIRISClient</b>, <b>CEWPOS</b>, and <b>CEWP</b>:
+      the closed catalogue of <b>20 topologies (T0–T19)</b>, <b>105 CSD UI cards</b>, <b>191 namespace families</b>, <b>474 constitutional transitions</b>, <b>17 role tokens</b>, and <b>12 governance policies</b> running live against the browser-executable CEWP kernel.
+    </p>
+  </header>
+
+  <!-- Metric Overview Cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-val ok" id="stat-families">191</div>
+      <div class="stat-label">Namespace Families</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val cool" id="stat-transitions">474</div>
+      <div class="stat-label">Constitutional Transitions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val warm" id="stat-topologies">20 (T0–T19)</div>
+      <div class="stat-label">Closed Topologies</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val violet" id="stat-cards">105</div>
+      <div class="stat-label">CSD UI Cards</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val ok" id="stat-roles">17 Roles</div>
+      <div class="stat-label">8 Base + 9 Specialized</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val cool" id="stat-shows">660 / 660</div>
+      <div class="stat-label">Resolved csd:shows (100%)</div>
+    </div>
+  </div>
+
+  <!-- Primary Tab Switcher -->
+  <nav class="section-tabs" id="sec-tabs">
+    <button class="sec-tab active" data-tab="explainer">📖 CSD/4 Architecture Explainer</button>
+    <button class="sec-tab" data-tab="cards">🗂️ T0–T19 Topologies &amp; 105 CSD Cards <span class="count">105</span></button>
+    <button class="sec-tab" data-tab="namespaces">📜 CC RC17 Namespaces &amp; Transitions <span class="count">191</span></button>
+    <button class="sec-tab" data-tab="sandbox">🧪 Live Pattern Matcher &amp; Sandbox</button>
+  </nav>
+
+  <!-- ==================== TAB 1: CSD/4 ARCHITECTURE EXPLAINER ==================== -->
+  <section class="tab-pane active" id="pane-explainer">
+    <div class="card-box">
+      <h2>The Problem CSD/4 Solves: Bridging 5 Repositories with Realistic Usage</h2>
+      <p class="lead">
+        In traditional decentralized software, application interfaces, network protocols, and cryptographic rulebooks drift apart.
+        Client developers build UI screens with ad-hoc assumptions; server teams invent unconstrained RPC APIs; and formal rulebooks exist only as abstract mathematical proofs disconnected from what a user actually clicks.
+      </p>
+      <p>
+        <b>CSD/4 (Constitutional Scenario &amp; Screen Definition, v4)</b> completely eliminates this drift. It bridges five core repositories into an unbroken formal loop:
+      </p>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 14px 0 18px;">
+        <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
+          <div style="color:var(--ok); font-weight:700; margin-bottom:4px;">1. CIRISConstitution</div>
+          <div style="font-size:12px; color:var(--mute);">The formal rulebook: 191 namespace families, 474 transitions, 12 governance policies, and verified invariants.</div>
+        </div>
+        <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
+          <div style="color:var(--cool); font-weight:700; margin-bottom:4px;">2. CIRISServer</div>
+          <div style="font-size:12px; color:var(--mute);">State machine model, 120 vocabulary atoms, and execution traces for all 20 canonical topologies.</div>
+        </div>
+        <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
+          <div style="color:var(--warm); font-weight:700; margin-bottom:4px;">3. CIRISClient</div>
+          <div style="font-size:12px; color:var(--mute);">Epistemic UI, 105 CSD cards (CSD-001..132), rendering queues directly from admission folds.</div>
+        </div>
+        <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
+          <div style="color:var(--violet); font-weight:700; margin-bottom:4px;">4. CEWPOS</div>
+          <div style="font-size:12px; color:var(--mute);">Operating system substrate, packaging, requirements validation, and native runtime bindings.</div>
+        </div>
+        <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
+          <div style="color:var(--hot); font-weight:700; margin-bottom:4px;">5. CEWP</div>
+          <div style="font-size:12px; color:var(--mute);">P2P transport protocol, slot-supply simulation engine, and browser/Node kernel implementation.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Closed Catalogue of 20 Topologies -->
+    <div class="card-box">
+      <h2>The Closed Catalogue of 20 Topologies (T0–T19)</h2>
+      <p>
+        Instead of permitting arbitrary, untestable graph topologies, CSD/4 proves that every human and device interaction in the epistemic web maps into a <b>closed catalogue of 20 canonical topologies (T0–T19)</b>.
+        Each topology is a formal state trace with explicit initial preconditions, step-by-step actions, and constitutional promises.
+      </p>
+      <div class="table-wrap">
+        <table class="data-tbl">
+          <thead>
+            <tr>
+              <th style="width:70px;">ID</th>
+              <th style="width:280px;">Title &amp; Story</th>
+              <th>Key State Atoms &amp; Promises</th>
+              <th style="width:110px;">Cards</th>
+              <th style="width:110px;">Families</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-topologies-explainer">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Step-Indexed Transient Windows & Invariants -->
+    <div class="card-box">
+      <h2>Step-Indexed Transient Windows <code>[start, end)</code></h2>
+      <p>
+        State in CSD/4 is not a static property; it is step-indexed. Atoms exist during specific, bounded transient windows <code>[start, end)</code> during which constitutional actions must be performed:
+      </p>
+      <ul style="margin: 0 0 14px; padding-left: 20px; line-height: 1.7; font-size: 13px;">
+        <li><code>T0</code> <b><code>node.unclaimed [0, 1)</code></b>: A fresh device waiting for key establishment. Exists exclusively at step 0; transitions immediately to <code>node.claimed</code> at step 1.</li>
+        <li><code>T3</code> <b><code>device.join_requested [3, 4)</code></b>: Ephemeral pairing negotiation window. Admits <code>approve</code> or <code>refuse</code> from an existing authenticated device.</li>
+        <li><code>T5</code> <b><code>member.applicant_pending [4, 5)</code></b>: Applicant waiting on community quorum threshold voting before admission or decline.</li>
+        <li><code>T8</code> <b><code>root.halted [1, 2)</code></b>: Emergency brake suspension window where standard mutations are refused until quorum confirmation resumes or revokes the root.</li>
+        <li><code>T10</code> <b><code>self.compromised_device [3, 4)</code></b>: Isolation window before key revocation and quorum eviction of compromised hardware.</li>
+      </ul>
+    </div>
+
+    <!-- The 5 Cross-Plane Spine Invariants -->
+    <div class="card-box">
+      <h2>The 5 Cross-Plane Spine Invariants (X1–X5)</h2>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 10px;">
+        <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:12px;">
+          <div style="color:var(--ok); font-weight:700; margin-bottom:4px;">X1: Identity &amp; Key Anchoring</div>
+          <div style="font-size:12px; color:var(--ink);">No state atom or row exists without a verifiable root or key-holder authority anchor. Unanchored signals are dropped at the physical door.</div>
+        </div>
+        <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:12px;">
+          <div style="color:var(--cool); font-weight:700; margin-bottom:4px;">X2: Monotonic Audit Spine</div>
+          <div style="font-size:12px; color:var(--ink);">Append-only signal log. Every valid mutation has a non-decreasing causal timestamp and immutable parent hash chain.</div>
+        </div>
+        <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:12px;">
+          <div style="color:var(--warm); font-weight:700; margin-bottom:4px;">X3: Bounded Visibility &amp; Privacy</div>
+          <div style="font-size:12px; color:var(--ink);">Rows propagate strictly along admissible links to holders whose standing grants visibility. Stranger sets carry strictly zero non-consent data.</div>
+        </div>
+        <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:12px;">
+          <div style="color:var(--violet); font-weight:700; margin-bottom:4px;">X4: Door, Queue &amp; Preview Equivalence</div>
+          <div style="font-size:12px; color:var(--ink);"><code>door(s, r) === admit(s, r)</code>, <code>preview(s, r) === fold(s, r)</code>, and <code>preview(s, refused) === s</code>. The queue is the door run forwards.</div>
+        </div>
+        <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:12px;">
+          <div style="color:var(--hot); font-weight:700; margin-bottom:4px;">X5: Finite Convergence &amp; Re-Merge</div>
+          <div style="font-size:12px; color:var(--ink);">Under arbitrary partitions and message permutations, merging held sets converges deterministically to identical folded state.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subset-Search Cost-Minimizing Planner & Coverage -->
+    <div class="card-box">
+      <h2>Subset-Search Cost-Minimizing Planner &amp; Formal Coverage</h2>
+      <p>
+        The CSD/4 simulator does not brute-force mesh states. It runs a <b>subset-search cost-minimizing planner</b> that finds the optimal sequence of actions folding an initial topology into a destination topology (e.g., folding <code>T0</code> into <code>T2</code> at steps 1 &amp; 2: claim node, key holder, pair room) with zero redundant round trips.
+      </p>
+      <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:14px; margin-top:12px;">
+        <div style="font-weight:700; color:#fff; margin-bottom:6px;">Formal State Coverage Report:</div>
+        <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:var(--ink);">
+          <div><b style="color:var(--ok);">116</b> in Formal State Table (<code>formal/STATE_TABLE.tsv</code>)</div>
+          <div><b style="color:var(--cool);">122</b> Promised Atoms across T0–T19</div>
+          <div><b style="color:var(--warm);">156</b> Total Vocabulary Atoms</div>
+          <div><b style="color:var(--violet);">242</b> Theoretical Constitutional States</div>
+        </div>
+        <p style="margin:10px 0 0; font-size:12px; color:var(--mute);">
+          <b>Note on Remaining Atoms:</b> The 6 <code>file.durable.*</code> atoms (<code>file.durable.held</code>, <code>file.durable.replicating</code>, <code>file.durable.replicated</code>, <code>file.durable.below_quorum</code>, <code>file.durable.target_reached</code>, <code>file.durable.tombstoned</code>) correspond to the target-holder replication durability tier (CC 6.1.5) and await the planned <code>T20</code> durability topology.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== TAB 2: TOPOLOGIES & 105 CSD CARDS ==================== -->
+  <section class="tab-pane" id="pane-cards">
+    <!-- Active Topology Hero Filter -->
+    <div class="card-box" id="top-hero-box" style="margin-bottom:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <div>
+          <span class="pill-badge badge-cool" id="hero-top-badge">All Topologies</span>
+          <span style="font-size:16px; font-weight:700; color:#fff; margin-left:8px;" id="hero-top-title">Showing all 105 CSD UI Cards</span>
+        </div>
+        <div style="font-size:12px; color:var(--mute);" id="hero-top-counts">105 Cards · 191 Families</div>
+      </div>
+      <div class="chip-scroll" id="top-selector-chips" style="margin-top:10px;">
+        <button class="chip-btn active" data-top="ALL">All (105)</button>
+        <!-- T0..T19 buttons injected -->
+      </div>
+    </div>
+
+    <!-- Search and Filter Bar -->
+    <div class="filter-bar">
+      <input type="text" class="search-input" id="cards-search" placeholder="Search cards by ID, title, family, or atom...">
+      <select class="select-ctl" id="cards-domain-filter">
+        <option value="ALL">All Domains</option>
+        <option value="client">client</option>
+        <option value="server">server</option>
+        <option value="os">os</option>
+        <option value="substrate">substrate</option>
+        <option value="identity">identity</option>
+        <option value="room">room</option>
+      </select>
+      <select class="select-ctl" id="cards-atom-filter">
+        <option value="ALL">All State Atoms</option>
+        <!-- Injected -->
+      </select>
+      <div style="margin-left:auto; font-size:12px; color:var(--mute);">
+        Showing <span id="cards-match-count" style="color:#fff; font-weight:600;">105</span> cards
+      </div>
+    </div>
+
+    <!-- Cards Grid -->
+    <div class="cards-grid" id="cards-container">
+      <!-- Injected CSD Cards -->
+    </div>
+  </section>
+
+  <!-- ==================== TAB 3: CC RC17 NAMESPACES & TRANSITIONS ==================== -->
+  <section class="tab-pane" id="pane-namespaces">
+    <div class="filter-bar">
+      <input type="text" class="search-input" id="ns-search" placeholder="Filter families by pattern (e.g. trust:, chat:, room_admin:)...">
+      <select class="select-ctl" id="ns-cat-filter">
+        <option value="ALL">All 191 Families</option>
+        <option value="csd_ui_surface">94 CSD UI Surface</option>
+        <option value="substrate_autonomous">97 Substrate Autonomous</option>
+      </select>
+      <select class="select-ctl" id="ns-role-filter">
+        <option value="ALL">All 17 Roles</option>
+        <!-- Injected 17 roles -->
+      </select>
+      <select class="select-ctl" id="ns-policy-filter">
+        <option value="ALL">All 12 Policies</option>
+        <!-- Injected 12 policies -->
+      </select>
+      <div style="margin-left:auto; font-size:12px; color:var(--mute);">
+        Showing <span id="ns-match-count" style="color:#fff; font-weight:600;">191</span> families
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data-tbl">
+        <thead>
+          <tr>
+            <th style="width:280px;">Family Pattern</th>
+            <th style="width:130px;">Category</th>
+            <th style="width:110px;">Authority</th>
+            <th style="width:140px;">Roles Required</th>
+            <th style="width:80px;">Trans.</th>
+            <th>Referencing CSD Cards</th>
+            <th style="width:70px;">Details</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-families-body">
+          <!-- Injected families -->
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ==================== TAB 4: LIVE MATCHER & TRANSITION SANDBOX ==================== -->
+  <section class="tab-pane" id="pane-sandbox">
+    <div class="card-box">
+      <h2>Live Wire-Namespace Pattern Matcher &amp; Transition Sandbox</h2>
+      <p>
+        Test any wire namespace against the CC RC17 segment dimension grammar running live in <code>kernel.js</code>.
+        The matcher validates dimension counts, vocabularies, hex encodings, aliases, and version segments, resolving the canonical family and all admissible transitions.
+      </p>
+
+      <div style="margin: 12px 0 10px;">
+        <span style="font-size:11.5px; color:var(--mute); font-weight:600; margin-right:8px;">PRESETS:</span>
+        <div class="chip-scroll" style="display:inline-flex; vertical-align:middle; padding:0;">
+          <button class="chip-btn" data-preset="trust:steward:v1">trust:steward:v1</button>
+          <button class="chip-btn" data-preset="chat:general">chat:general</button>
+          <button class="chip-btn" data-preset="directory:handle:alice">directory:handle:alice</button>
+          <button class="chip-btn" data-preset="consent_request">consent_request (alias)</button>
+          <button class="chip-btn" data-preset="trust:attestation:device">trust:attestation:device (alias)</button>
+          <button class="chip-btn" data-preset="room_admin:core">room_admin:core</button>
+          <button class="chip-btn" data-preset="trust:steward">trust:steward (missing version)</button>
+          <button class="chip-btn" data-preset="accord:human_dignity">accord:human_dignity (bare)</button>
+          <button class="chip-btn" data-preset="identity:lenscore_detector">identity:lenscore_detector</button>
+          <button class="chip-btn" data-preset="unknown:foo:bar">unknown:foo:bar (refused)</button>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:14px;">
+        <input type="text" id="sb-input" class="search-input" style="font-size:15px; padding:10px 14px;" value="trust:steward:v1" placeholder="Type a wire namespace, e.g. trust:steward:v1, chat:general, directory:handle:alice...">
+        <button class="chip-btn active" id="sb-eval-btn" style="padding:0 20px; font-size:13px;">Evaluate</button>
+      </div>
+    </div>
+
+    <div class="sandbox-split">
+      <!-- Evaluation Verdict Panel -->
+      <div class="box-pane">
+        <h3 style="color:#fff; margin-top:0;">Pattern Match Verdict</h3>
+        <div id="sb-verdict-badge" style="margin: 8px 0 12px;"></div>
+        <div style="font-size:12.5px; margin-bottom:8px;">
+          <span style="color:var(--mute);">Wire Namespace:</span> <code id="sb-out-wire" style="color:#fff;">-</code>
+        </div>
+        <div style="font-size:12.5px; margin-bottom:12px;">
+          <span style="color:var(--mute);">Canonical Family:</span> <code id="sb-out-family" style="color:var(--ok); font-weight:700;">-</code>
+        </div>
+        
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--mute); font-weight:600; margin-bottom:6px;">Extracted Dimensions:</div>
+        <div class="code-block" id="sb-out-dims">{}</div>
+      </div>
+
+      <!-- Transitions for this Family -->
+      <div class="box-pane">
+        <h3 style="color:#fff; margin-top:0;">Admissible Constitutional Transitions (<span id="sb-out-trans-count">0</span>)</h3>
+        <div class="table-wrap" style="max-height: 280px; overflow-y:auto;">
+          <table class="data-tbl">
+            <thead>
+              <tr>
+                <th>Verb</th>
+                <th>From → To</th>
+                <th>Roles</th>
+                <th>Scope</th>
+                <th>Policy</th>
+              </tr>
+            </thead>
+            <tbody id="sb-out-trans-tbody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ==================== SCRIPT: DATA LOADING & KERNEL ENGINE ==================== -->
+<script type="module">
+import { loadTables, matchFamily, extractDimensions } from "./kernel/kernel.js";
+
+// Global data stores
+let DATA = {
+  transitions: null,
+  policies: null,
+  registry: null,
+  csdMap: null,
+  tables: null,
+  activeTopology: "ALL",
+  activeFamilyDetails: new Set()
+};
+
+const TOPOLOGY_TITLES = {
+  "T0": "Just me, offline — one person, one node, no root",
+  "T1": "One person, two devices, self room",
+  "T2": "Two people, pair room, one outsider",
+  "T3": "Two people, contact by code, second device by approval",
+  "T4": "A household — guardian on two devices, one child",
+  "T5": "A community — a held quorum change, a moderator duty",
+  "T6": "An affiliation — licensing authority, delegation chain",
+  "T7": "An agent under a steward with a Wise Authority",
+  "T8": "A trust root with M-of-N holders — halt, confirm, resume",
+  "T9": "Two roots and a party outside both",
+  "T10": "A stolen device — the owner evicts it by the quorum path",
+  "T11": "Two lost devices — recovery by the lone path over the window",
+  "T12": "A root stalls and recovers by a conferred human",
+  "T13": "A witnessed lineage — stale head refuses attach",
+  "T14": "Consent end to end — grant, revoke, expiry, decay",
+  "T15": "A community's ceremony — decline, removal, resignation",
+  "T16": "An agent retired under the Standard",
+  "T17": "A takedown and a steward purge — tombstone, dwell, purge",
+  "T18": "Delegation ends — withdrawal cascades, term expires",
+  "T19": "Holders under coercion and censorship"
+};
+
+async function init() {
+  try {
+    const [transitions, policies, registry, csdMap] = await Promise.all([
+      fetch("./kernel/tables/transitions.json").then(r => r.json()),
+      fetch("./kernel/tables/governance_policy.json").then(r => r.json()),
+      fetch("./kernel/tables/namespace_registry.json").then(r => r.json()),
+      fetch("./kernel/tables/csd_namespace_map.json").then(r => r.json())
+    ]);
+
+    DATA.transitions = transitions;
+    DATA.policies = policies;
+    DATA.registry = registry;
+    DATA.csdMap = csdMap;
+    DATA.tables = loadTables(transitions, policies, registry, csdMap.aliases);
+
+    renderExplainer();
+    renderCardsTab();
+    renderNamespacesTab();
+    setupSandbox();
+    setupTabSwitching();
+  } catch (err) {
+    console.error("Initialization failed:", err);
+  }
+}
+
+// ---------------- Primary Tab Switching ----------------
+function setupTabSwitching() {
+  const tabs = document.querySelectorAll('#sec-tabs button');
+  const panes = document.querySelectorAll('.tab-pane');
+  
+  function switchTab(name) {
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    panes.forEach(p => p.classList.toggle('active', p.id === 'pane-' + name));
+    history.replaceState(null, '', '#' + name);
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => switchTab(t.dataset.tab));
+  });
+
+  if (location.hash && document.getElementById('pane-' + location.hash.slice(1))) {
+    switchTab(location.hash.slice(1));
+  }
+}
+
+// ---------------- Tab 1: Explainer Rendering ----------------
+function renderExplainer() {
+  const tbody = document.getElementById("tbl-topologies-explainer");
+  if (!tbody || !DATA.csdMap) return;
+
+  tbody.innerHTML = "";
+  for (let i = 0; i <= 19; i++) {
+    const tid = "T" + i;
+    const topData = DATA.csdMap.topologies[tid] || { cards: [], families: [], state_atoms: [] };
+    const title = TOPOLOGY_TITLES[tid] || tid;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><span class="pill-badge badge-cool" style="font-weight:700;">${tid}</span></td>
+      <td>
+        <div style="font-weight:600; color:#fff;">${title}</div>
+      </td>
+      <td>
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+          ${topData.state_atoms.slice(0, 4).map(a => `<span class="pill-badge badge-faint">${a}</span>`).join("")}
+          ${topData.state_atoms.length > 4 ? `<span class="pill-badge badge-faint">+${topData.state_atoms.length - 4} more</span>` : ""}
+        </div>
+      </td>
+      <td><span class="pill-badge badge-warm">${topData.cards.length} cards</span></td>
+      <td><span class="pill-badge badge-ok">${topData.families.length} families</span></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+// ---------------- Tab 2: Topologies & Cards Rendering ----------------
+function renderCardsTab() {
+  const chipsContainer = document.getElementById("top-selector-chips");
+  const atomSelect = document.getElementById("cards-atom-filter");
+  const searchInput = document.getElementById("cards-search");
+  const domainFilter = document.getElementById("cards-domain-filter");
+
+  // Populate topology filter buttons
+  chipsContainer.innerHTML = `<button class="chip-btn active" data-top="ALL">All (105)</button>`;
+  for (let i = 0; i <= 19; i++) {
+    const tid = "T" + i;
+    const topData = DATA.csdMap.topologies[tid] || { cards: [] };
+    const btn = document.createElement("button");
+    btn.className = "chip-btn";
+    btn.dataset.top = tid;
+    btn.textContent = `${tid} (${topData.cards.length})`;
+    btn.onclick = () => {
+      document.querySelectorAll("#top-selector-chips .chip-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      DATA.activeTopology = tid;
+      updateCardsHero();
+      filterCards();
+    };
+    chipsContainer.appendChild(btn);
+  }
+
+  document.querySelector("#top-selector-chips button[data-top='ALL']").onclick = (e) => {
+    document.querySelectorAll("#top-selector-chips .chip-btn").forEach(b => b.classList.remove("active"));
+    e.target.classList.add("active");
+    DATA.activeTopology = "ALL";
+    updateCardsHero();
+    filterCards();
+  };
+
+  // Populate state atoms dropdown
+  const allAtoms = new Set();
+  DATA.csdMap.cards.forEach(c => (c.state_atoms || []).forEach(a => allAtoms.add(a)));
+  atomSelect.innerHTML = `<option value="ALL">All State Atoms (${allAtoms.size})</option>`;
+  Array.from(allAtoms).sort().forEach(a => {
+    const opt = document.createElement("option");
+    opt.value = a;
+    opt.textContent = a;
+    atomSelect.appendChild(opt);
+  });
+
+  searchInput.oninput = filterCards;
+  domainFilter.onchange = filterCards;
+  atomSelect.onchange = filterCards;
+
+  filterCards();
+}
+
+function updateCardsHero() {
+  const heroBadge = document.getElementById("hero-top-badge");
+  const heroTitle = document.getElementById("hero-top-title");
+  const heroCounts = document.getElementById("hero-top-counts");
+
+  if (DATA.activeTopology === "ALL") {
+    heroBadge.textContent = "All Topologies";
+    heroTitle.textContent = "Showing all 105 CSD UI Cards";
+    heroCounts.textContent = "105 Cards · 191 Families";
+  } else {
+    const topData = DATA.csdMap.topologies[DATA.activeTopology] || { cards: [], families: [], state_atoms: [] };
+    heroBadge.textContent = DATA.activeTopology;
+    heroTitle.textContent = TOPOLOGY_TITLES[DATA.activeTopology] || DATA.activeTopology;
+    heroCounts.textContent = `${topData.cards.length} Cards · ${topData.families.length} Families · ${topData.state_atoms.length} State Atoms`;
+  }
+}
+
+function filterCards() {
+  const q = document.getElementById("cards-search").value.toLowerCase().trim();
+  const domain = document.getElementById("cards-domain-filter").value;
+  const atom = document.getElementById("cards-atom-filter").value;
+  const container = document.getElementById("cards-container");
+  container.innerHTML = "";
+
+  const filtered = DATA.csdMap.cards.filter(c => {
+    if (DATA.activeTopology !== "ALL" && !c.topologies.includes(DATA.activeTopology)) return false;
+    if (domain !== "ALL" && c.domain !== domain) return false;
+    if (atom !== "ALL" && !(c.state_atoms || []).includes(atom)) return false;
+    if (q) {
+      const matchId = c.id.toLowerCase().includes(q);
+      const matchTitle = c.title.toLowerCase().includes(q);
+      const matchShows = (c.shows || []).some(s => s.field.toLowerCase().includes(q) || s.family.toLowerCase().includes(q));
+      const matchAtoms = (c.state_atoms || []).some(a => a.toLowerCase().includes(q));
+      if (!matchId && !matchTitle && !matchShows && !matchAtoms) return false;
+    }
+    return true;
+  });
+
+  document.getElementById("cards-match-count").textContent = filtered.length;
+
+  filtered.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "csd-card";
+    div.innerHTML = `
+      <div class="csd-card-head">
+        <span class="csd-id">${c.id}</span>
+        <span class="pill-badge badge-cool">${c.domain}</span>
+      </div>
+      <div class="csd-title">${c.title}</div>
+      <div class="csd-badges">
+        ${(c.topologies || []).map(t => `<span class="pill-badge badge-warm">${t}</span>`).join("")}
+        ${(c.transitions_exercised || []).map(v => `<span class="pill-badge badge-ok">${v}</span>`).join("")}
+      </div>
+      <div style="font-size:11.5px; color:var(--mute); margin-top:4px;">
+        ${(c.shows || []).length} csd:shows fields · ${(c.state_atoms || []).length} state atoms
+      </div>
+      <div class="csd-details">
+        <div style="font-weight:600; color:#fff; margin-bottom:4px;">Resolved csd:shows Fields:</div>
+        <div style="display:flex; flex-direction:column; gap:4px; max-height:160px; overflow-y:auto; margin-bottom:8px;">
+          ${(c.shows || []).map(s => `
+            <div style="display:flex; justify-content:space-between; gap:6px; background:#080a0e; padding:4px 6px; border-radius:4px;">
+              <code style="color:var(--cool); font-size:11px;">${s.field}</code>
+              <code style="color:var(--ok); font-size:11px;">${s.family}</code>
+            </div>
+          `).join("")}
+        </div>
+        ${c.state_atoms && c.state_atoms.length ? `
+          <div style="font-weight:600; color:#fff; margin-bottom:4px;">State Atoms:</div>
+          <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:8px;">
+            ${c.state_atoms.map(a => `<span class="pill-badge badge-faint">${a}</span>`).join("")}
+          </div>
+        ` : ''}
+        ${c.governance_policies && c.governance_policies.length ? `
+          <div style="font-weight:600; color:#fff; margin-bottom:4px;">Governance Policies:</div>
+          <div style="display:flex; gap:4px; flex-wrap:wrap;">
+            ${c.governance_policies.map(p => `<span class="pill-badge badge-violet">${p}</span>`).join("")}
+          </div>
+        ` : ''}
+      </div>
+    `;
+    div.onclick = () => div.classList.toggle("expanded");
+    container.appendChild(div);
+  });
+}
+
+// ---------------- Tab 3: Namespaces & Transitions Rendering ----------------
+function renderNamespacesTab() {
+  const roleSelect = document.getElementById("ns-role-filter");
+  const policySelect = document.getElementById("ns-policy-filter");
+  const catSelect = document.getElementById("ns-cat-filter");
+  const searchInput = document.getElementById("ns-search");
+
+  // Populate roles
+  const roles = [
+    "author", "subject", "registered", "self", "holder", "member", "moderate", "founder",
+    "owner", "attest", "steward", "wa", "takedown", "review", "slash", "identity:lenscore_detector", "identity:substrate_persist"
+  ];
+  roleSelect.innerHTML = `<option value="ALL">All 17 Roles</option>` + roles.map(r => `<option value="${r}">${r}</option>`).join("");
+
+  // Populate policies
+  const policies = Array.from(DATA.tables.policy.keys()).sort();
+  policySelect.innerHTML = `<option value="ALL">All ${policies.length} Policies</option>` + policies.map(p => `<option value="${p}">${p}</option>`).join("");
+
+  searchInput.oninput = filterNamespaces;
+  catSelect.onchange = filterNamespaces;
+  roleSelect.onchange = filterNamespaces;
+  policySelect.onchange = filterNamespaces;
+
+  filterNamespaces();
+}
+
+function filterNamespaces() {
+  const q = document.getElementById("ns-search").value.toLowerCase().trim();
+  const cat = document.getElementById("ns-cat-filter").value;
+  const role = document.getElementById("ns-role-filter").value;
+  const pol = document.getElementById("ns-policy-filter").value;
+  const tbody = document.getElementById("tbl-families-body");
+  tbody.innerHTML = "";
+
+  const filtered = DATA.csdMap.families.filter(f => {
+    if (cat !== "ALL" && f.category !== cat) return false;
+    if (role !== "ALL" && !(f.roles_required || []).includes(role)) return false;
+    if (pol !== "ALL") {
+      const trans = DATA.tables.families.get(f.pattern) || [];
+      if (!trans.some(t => t.policy === pol)) return false;
+    }
+    if (q) {
+      const matchPat = f.pattern.toLowerCase().includes(q);
+      const matchAuth = (f.authority || "").toLowerCase().includes(q);
+      const matchRules = (f.rule_ids || []).some(r => r.toLowerCase().includes(q));
+      if (!matchPat && !matchAuth && !matchRules) return false;
+    }
+    return true;
+  });
+
+  document.getElementById("ns-match-count").textContent = filtered.length;
+
+  filtered.forEach(f => {
+    const isExpanded = DATA.activeFamilyDetails.has(f.pattern);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>
+        <code style="color:var(--ok); font-weight:700; font-size:13px;">${f.pattern}</code>
+      </td>
+      <td>
+        <span class="pill-badge ${f.category === 'csd_ui_surface' ? 'badge-cool' : 'badge-faint'}">
+          ${f.category === 'csd_ui_surface' ? 'CSD UI Surface' : 'Substrate'}
+        </span>
+      </td>
+      <td><span class="pill-badge badge-violet">${f.authority || 'holder'}</span></td>
+      <td>
+        <div style="display:flex; gap:3px; flex-wrap:wrap;">
+          ${(f.roles_required || []).map(r => `<span class="pill-badge badge-warm">${r}</span>`).join("")}
+        </div>
+      </td>
+      <td><span class="pill-badge badge-ok">${f.transitions_count}</span></td>
+      <td>
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+          ${(f.referenced_by_csd_cards || []).slice(0, 5).map(c => `<span class="pill-badge badge-faint">${c}</span>`).join("")}
+          ${(f.referenced_by_csd_cards || []).length > 5 ? `<span class="pill-badge badge-faint">+${f.referenced_by_csd_cards.length - 5}</span>` : ''}
+        </div>
+      </td>
+      <td>
+        <button class="chip-btn" style="padding:2px 8px; font-size:11px;">${isExpanded ? '▲' : '▼'}</button>
+      </td>
+    `;
+
+    const detailTr = document.createElement("tr");
+    detailTr.style.display = isExpanded ? "table-row" : "none";
+    const transitions = DATA.tables.families.get(f.pattern) || [];
+
+    detailTr.innerHTML = `
+      <td colspan="7" style="background:#080a0e; padding:12px 16px;">
+        <div style="font-weight:600; color:#fff; margin-bottom:6px;">Transitions for <code>${f.pattern}</code>:</div>
+        <table class="data-tbl" style="margin-bottom:8px; font-size:11.5px;">
+          <thead>
+            <tr>
+              <th>Verb</th>
+              <th>From State</th>
+              <th>To State</th>
+              <th>Roles Required</th>
+              <th>Policy</th>
+              <th>Widens</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${transitions.map(t => `
+              <tr>
+                <td><code style="color:var(--cool); font-weight:700;">${t.verb}</code></td>
+                <td><span class="pill-badge badge-faint">${t.from}</span></td>
+                <td><span class="pill-badge badge-ok">${t.to}</span></td>
+                <td>${t.roles.map(r => `<span class="pill-badge badge-warm">${r}</span>`).join(" ")}</td>
+                <td><span class="pill-badge badge-violet">${t.policy}</span></td>
+                <td>${t.widens ? '<span class="pill-badge badge-hot">widens</span>' : '<span style="color:var(--faint)">no</span>'}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        <div style="font-size:11px; color:var(--mute);">
+          Constitutional Rule IDs: <b>${(f.rule_ids || []).join(", ") || 'none'}</b>
+        </div>
+      </td>
+    `;
+
+    tr.querySelector("button").onclick = () => {
+      if (DATA.activeFamilyDetails.has(f.pattern)) {
+        DATA.activeFamilyDetails.delete(f.pattern);
+      } else {
+        DATA.activeFamilyDetails.add(f.pattern);
+      }
+      filterNamespaces();
+    };
+
+    tbody.appendChild(tr);
+    tbody.appendChild(detailTr);
+  });
+}
+
+// ---------------- Tab 4: Live Sandbox Setup ----------------
+function setupSandbox() {
+  const input = document.getElementById("sb-input");
+  const btn = document.getElementById("sb-eval-btn");
+
+  function evaluate() {
+    const raw = input.value.trim();
+    if (!raw) return;
+
+    const res = matchFamily(raw, DATA.tables);
+    const dims = extractDimensions(raw, DATA.tables);
+    const isAlias = !!(DATA.csdMap?.aliases && DATA.csdMap.aliases[raw]);
+
+    document.getElementById("sb-out-wire").textContent = raw;
+    const badgeEl = document.getElementById("sb-verdict-badge");
+    const famEl = document.getElementById("sb-out-family");
+    const tbody = document.getElementById("sb-out-trans-tbody");
+    tbody.innerHTML = "";
+
+    const canonical = res.family || (isAlias ? DATA.csdMap.aliases[raw] : null);
+
+    if (res.ok) {
+      if (isAlias) {
+        badgeEl.innerHTML = `<span class="pill-badge badge-cool" style="font-size:13px; padding:4px 10px;">⇄ Resolved Alias → Canonical Family</span>`;
+      } else {
+        badgeEl.innerHTML = `<span class="pill-badge badge-ok" style="font-size:13px; padding:4px 10px;">✓ Valid Canonical Family</span>`;
+      }
+      famEl.textContent = canonical || raw;
+    } else if (res.refusal === "missing_version_segment" && canonical) {
+      badgeEl.innerHTML = `<span class="pill-badge badge-warm" style="font-size:13px; padding:4px 10px;">⚠ Refusal: missing_version_segment (stem matches ${canonical})</span>`;
+      famEl.textContent = canonical;
+    } else {
+      badgeEl.innerHTML = `<span class="pill-badge badge-hot" style="font-size:13px; padding:4px 10px;">✕ Refusal: ${res.refusal || 'namespace_family_unregistered'}</span>`;
+      famEl.textContent = canonical || "none";
+    }
+
+    const transitions = canonical ? (DATA.tables.families.get(canonical) || []) : [];
+    document.getElementById("sb-out-trans-count").textContent = transitions.length;
+    if (transitions.length) {
+      transitions.forEach(t => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><code style="color:var(--cool); font-weight:700;">${t.verb}</code></td>
+          <td>${t.from} → <b>${t.to}</b></td>
+          <td>${t.roles.map(r => `<span class="pill-badge badge-warm">${r}</span>`).join(" ")}</td>
+          <td><span class="pill-badge badge-faint">tier</span></td>
+          <td><span class="pill-badge badge-violet">${t.policy}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } else {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="5" style="color:var(--mute); text-align:center; padding:12px;">No constitutional transitions registered for this namespace.</td>`;
+      tbody.appendChild(tr);
+    }
+
+    const combinedDims = Object.keys(dims).length ? dims : (res.binds && Object.keys(res.binds).length ? res.binds : {});
+    document.getElementById("sb-out-dims").textContent = JSON.stringify(combinedDims, null, 2);
+  }
+
+  btn.onclick = evaluate;
+  input.onkeydown = (e) => { if (e.key === "Enter") evaluate(); };
+
+  document.querySelectorAll("[data-preset]").forEach(p => {
+    p.onclick = () => {
+      input.value = p.dataset.preset;
+      evaluate();
+    };
+  });
+
+  evaluate();
+}
+
+// Start everything
+init();
+</script>
+</body>
+</html>

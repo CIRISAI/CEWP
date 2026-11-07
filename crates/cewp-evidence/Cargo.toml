@@ -1,0 +1,8 @@
+[package]
+name = "cewp-evidence"
+version = "0.2.0"
+edition = "2021"
+description = "Auditable evidence bundles, claim-to-evidence matrix, and epistemic classification fence for CEWP (Layer 8)"
+license = "Apache-2.0"
+
+[dependencies]

@@ -1,0 +1,1156 @@
+//! Vendored constitutional tables, policy mappings, and CC RC17 namespace matcher.
+
+use crate::json::{parse, JsonValue};
+use crate::types::{Fraction, MatchResult, Policy, Transition};
+use std::collections::{HashMap, HashSet};
+
+pub const VENDORED_VERSION: &str = include_str!("../../../docs/kernel/tables/VERSION");
+pub const VENDORED_TRANSITIONS: &str = include_str!("../../../docs/kernel/tables/transitions.json");
+pub const VENDORED_GOVERNANCE_POLICY: &str = include_str!("../../../docs/kernel/tables/governance_policy.json");
+pub const VENDORED_MESH_STORY_TRACE: &str = include_str!("../../../docs/kernel/tables/mesh_story_trace.json");
+pub const VENDORED_NAMESPACE_REGISTRY: &str = include_str!("../../../docs/kernel/tables/namespace_registry.json");
+pub const VENDORED_NAMESPACE_MATCH_VECTORS: &str = include_str!("../../../docs/kernel/tables/namespace_match_vectors.json");
+pub const VENDORED_CSD_NAMESPACE_MAP: &str = include_str!("../../../docs/kernel/tables/csd_namespace_map.json");
+
+// ---------------------------------------------------------------- CC RC17 dimension matcher
+
+pub fn is_hex(s: &str) -> bool {
+    !s.is_empty() && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+pub fn is_hex64(s: &str) -> bool {
+    s.len() == 64 && is_hex(s)
+}
+
+pub fn is_digits(s: &str) -> bool {
+    !s.is_empty() && s.bytes().all(|b| matches!(b, b'0'..=b'9'))
+}
+
+pub fn is_currency(s: &str) -> bool {
+    s.len() == 3 && s.bytes().all(|b| matches!(b, b'A'..=b'Z'))
+}
+
+pub fn is_vocab(s: &str) -> bool {
+    if s.is_empty() {
+        return false;
+    }
+    let bytes = s.as_bytes();
+    if !matches!(bytes[0], b'a'..=b'z' | b'0'..=b'9') {
+        return false;
+    }
+    bytes[1..].iter().all(|&b| matches!(b, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-'))
+}
+
+pub fn is_literal(s: &str) -> bool {
+    if s.is_empty() {
+        return false;
+    }
+    let bytes = s.as_bytes();
+    if !matches!(bytes[0], b'a'..=b'z' | b'0'..=b'9') {
+        return false;
+    }
+    bytes[1..].iter().all(|&b| matches!(b, b'a'..=b'z' | b'0'..=b'9' | b'_'))
+}
+
+pub fn is_version(s: &str) -> bool {
+    if !s.starts_with('v') {
+        return false;
+    }
+    let rest = &s[1..];
+    if rest.is_empty() {
+        return false;
+    }
+    let parts: Vec<&str> = rest.split('.').collect();
+    parts.iter().all(|p| !p.is_empty() && p.bytes().all(|b| matches!(b, b'0'..=b'9')))
+}
+
+pub fn is_version_like(s: &str) -> bool {
+    if !s.starts_with('v') && !s.starts_with('V') {
+        return false;
+    }
+    let rest = &s[1..];
+    if rest.is_empty() {
+        return false;
+    }
+    let parts: Vec<&str> = rest.split('.').collect();
+    parts.iter().all(|p| !p.is_empty() && p.bytes().all(|b| matches!(b, b'0'..=b'9')))
+}
+
+pub fn is_version_attempt(s: &str) -> bool {
+    if !s.starts_with('v') && !s.starts_with('V') {
+        return false;
+    }
+    let bytes = s.as_bytes();
+    if bytes.len() < 2 || !matches!(bytes[1], b'0'..=b'9') {
+        return false;
+    }
+    bytes[2..].iter().all(|&b| matches!(b, b'0'..=b'9' | b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'.' | b'-'))
+}
+
+pub fn is_bcp47_lang_code(s: &str) -> bool {
+    if s == "i-default" || s == "i-enochian" || s == "i-mingo" || s == "cel-gaulish" || s == "zh-min" {
+        return true;
+    }
+    if s.starts_with("x-") {
+        let parts: Vec<&str> = s[2..].split('-').collect();
+        return !parts.is_empty()
+            && parts
+                .iter()
+                .all(|p| !p.is_empty() && p.len() <= 8 && p.bytes().all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9')));
+    }
+    let parts: Vec<&str> = s.split('-').collect();
+    if parts.is_empty() {
+        return false;
+    }
+    let mut idx = 0;
+    let lang = parts[idx];
+    if !(lang.len() == 2 || lang.len() == 3) || !lang.bytes().all(|b| matches!(b, b'a'..=b'z')) {
+        return false;
+    }
+    idx += 1;
+    // optional script: [A-Z][a-z]{3}
+    if idx < parts.len() {
+        let p = parts[idx];
+        if p.len() == 4
+            && matches!(p.as_bytes()[0], b'A'..=b'Z')
+            && p.as_bytes()[1..].iter().all(|b| matches!(b, b'a'..=b'z'))
+        {
+            idx += 1;
+        }
+    }
+    // optional region: [A-Z]{2} | [0-9]{3}
+    if idx < parts.len() {
+        let p = parts[idx];
+        if (p.len() == 2 && p.bytes().all(|b| matches!(b, b'A'..=b'Z')))
+            || (p.len() == 3 && p.bytes().all(|b| matches!(b, b'0'..=b'9')))
+        {
+            idx += 1;
+        }
+    }
+    // optional variants: (?:[a-z0-9]{5,8}|[0-9][a-z0-9]{3})
+    while idx < parts.len() {
+        let p = parts[idx];
+        let is_var = (p.len() >= 5
+            && p.len() <= 8
+            && p.bytes().all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9')))
+            || (p.len() == 4
+                && matches!(p.as_bytes()[0], b'0'..=b'9')
+                && p.bytes().all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9')));
+        if is_var {
+            idx += 1;
+        } else {
+            break;
+        }
+    }
+    // optional extensions: [a-wy-z0-9](-[a-z0-9]{2,8})+
+    while idx < parts.len() {
+        let p = parts[idx];
+        if p.len() == 1 && matches!(p.as_bytes()[0], b'a'..=b'w' | b'y'..=b'z' | b'0'..=b'9') {
+            idx += 1;
+            let start_ext = idx;
+            while idx < parts.len() {
+                let sub = parts[idx];
+                if sub.len() >= 2
+                    && sub.len() <= 8
+                    && sub.bytes().all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9'))
+                {
+                    idx += 1;
+                } else {
+                    break;
+                }
+            }
+            if idx == start_ext {
+                return false;
+            }
+        } else {
+            break;
+        }
+    }
+    // optional privateuse: -x(-[a-z0-9]{1,8})+
+    if idx < parts.len() && parts[idx] == "x" {
+        idx += 1;
+        let start_priv = idx;
+        while idx < parts.len() {
+            let sub = parts[idx];
+            if !sub.is_empty()
+                && sub.len() <= 8
+                && sub.bytes().all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9'))
+            {
+                idx += 1;
+            } else {
+                break;
+            }
+        }
+        if idx == start_priv {
+            return false;
+        }
+    }
+    idx == parts.len()
+}
+
+fn match_pattern(pattern: &str, got: &str) -> bool {
+    if pattern == "^[0-9]+$" {
+        is_digits(got)
+    } else if pattern == "^[0-9a-f]{64}$" {
+        is_hex64(got)
+    } else if pattern == "^[0-9a-f]+$" {
+        is_hex(got)
+    } else if pattern == "^[A-Z]{3}$" {
+        is_currency(got)
+    } else if pattern.starts_with("^v[0-9]+") {
+        is_version(got)
+    } else if pattern.starts_with("^(?:[a-z]{2,3}") || pattern.contains("cel-gaulish") {
+        is_bcp47_lang_code(got)
+    } else {
+        true
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RegistrySegment {
+    pub segment: String,
+    pub class: String,
+    pub pattern: Option<String>,
+    pub values: Vec<String>,
+    pub open: bool,
+    pub multi: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct RegistryFamily {
+    pub prefix: String,
+    pub segments: Vec<RegistrySegment>,
+    pub leaves: Vec<String>,
+    pub leaves_closed: bool,
+    pub index: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct RefusalTokens {
+    pub case_malformed: &'static str,
+    pub family_unregistered: &'static str,
+    pub missing_version_segment: &'static str,
+    pub private_use_not_federatable: &'static str,
+    pub vocab_value_unregistered: &'static str,
+}
+
+impl Default for RefusalTokens {
+    fn default() -> Self {
+        Self {
+            case_malformed: "namespace_dimension_case_malformed",
+            family_unregistered: "namespace_family_unregistered",
+            missing_version_segment: "missing_version_segment",
+            private_use_not_federatable: "namespace_private_use_not_federatable",
+            vocab_value_unregistered: "namespace_vocab_value_unregistered",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Rules {
+    pub private: String,
+    pub version_required: bool,
+    pub exempt: HashSet<String>,
+    pub tokens: RefusalTokens,
+    pub external: HashMap<String, String>,
+    pub reserved_stems: Vec<String>,
+    pub closed_stems: Vec<String>,
+    pub families: Vec<RegistryFamily>,
+    pub family_map: HashMap<String, RegistryFamily>,
+}
+
+impl Default for Rules {
+    fn default() -> Self {
+        Self {
+            private: "x_private:".to_string(),
+            version_required: true,
+            exempt: HashSet::new(),
+            tokens: RefusalTokens::default(),
+            external: HashMap::new(),
+            reserved_stems: Vec::new(),
+            closed_stems: Vec::new(),
+            families: Vec::new(),
+            family_map: HashMap::new(),
+        }
+    }
+}
+
+impl Rules {
+    pub fn from_json(manifest: &JsonValue) -> Self {
+        let meta = manifest.get("_meta");
+        let cr = meta.and_then(|m| m.get("case_rule"));
+        let private = meta
+            .and_then(|m| m.get("private_use_prefix"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("x_private:")
+            .to_string();
+
+        let vs = cr.and_then(|c| c.get("version_segment"));
+        let version_required = vs
+            .and_then(|v| v.get("required"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        let mut exempt = HashSet::new();
+        if let Some(arr) = vs.and_then(|v| v.get("exempt")).and_then(|v| v.as_array()) {
+            for item in arr {
+                if let Some(s) = item.as_str() {
+                    exempt.insert(s.to_string());
+                }
+            }
+        }
+
+        let tokens = RefusalTokens::default();
+
+        let mut external = HashMap::new();
+        if let Some(ext_map) = cr.and_then(|c| c.get("external_standards")).and_then(|v| v.as_object()) {
+            for (name, spec) in ext_map {
+                if let Some(pat) = spec.get("pattern").and_then(|v| v.as_str()) {
+                    external.insert(name.clone(), pat.to_string());
+                }
+            }
+        }
+
+        let mut reserved_stems = Vec::new();
+        if let Some(stems_arr) = cr.and_then(|c| c.get("reserved_stems")).and_then(|v| v.as_array()) {
+            for s in stems_arr {
+                if let Some(stem) = s.get("stem").and_then(|v| v.as_str()) {
+                    reserved_stems.push(stem.to_string());
+                }
+            }
+        }
+
+        let mut families = Vec::new();
+        let mut family_map = HashMap::new();
+        if let Some(f_arr) = manifest.get("families").and_then(|v| v.as_array()) {
+            for (idx, f) in f_arr.iter().enumerate() {
+                let prefix = f.get("prefix").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let leaves_closed = f.get("leaves_closed").and_then(|v| v.as_bool()).unwrap_or(false);
+
+                let mut leaves = Vec::new();
+                if let Some(l_arr) = f.get("leaves").and_then(|v| v.as_array()) {
+                    for l in l_arr {
+                        if let Some(s) = l.as_str() {
+                            leaves.push(s.to_string());
+                        }
+                    }
+                }
+
+                let mut segments = Vec::new();
+                if let Some(s_arr) = f.get("segments").and_then(|v| v.as_array()) {
+                    for seg in s_arr {
+                        let segment = seg.get("segment").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let class = seg.get("class").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let pattern = seg.get("pattern").and_then(|v| v.as_str()).map(|s| s.to_string());
+                        let open = seg.get("open").and_then(|v| v.as_bool()).unwrap_or(false);
+                        let multi = seg.get("multi").and_then(|v| v.as_bool()).unwrap_or(false);
+
+                        let mut values = Vec::new();
+                        if let Some(v_arr) = seg.get("values").and_then(|v| v.as_array()) {
+                            for val in v_arr {
+                                if let Some(s) = val.as_str() {
+                                    values.push(s.to_string());
+                                }
+                            }
+                        }
+
+                        segments.push(RegistrySegment {
+                            segment,
+                            class,
+                            pattern,
+                            values,
+                            open,
+                            multi,
+                        });
+                    }
+                }
+
+                let reg_fam = RegistryFamily {
+                    prefix: prefix.clone(),
+                    segments,
+                    leaves,
+                    leaves_closed,
+                    index: idx,
+                };
+                families.push(reg_fam.clone());
+                family_map.insert(prefix, reg_fam);
+            }
+        }
+
+        let mut cs = HashSet::new();
+        for f in &families {
+            if f.leaves_closed {
+                if let Some(last) = f.segments.last() {
+                    if last.class == "wildcard" {
+                        if f.prefix.ends_with('*') {
+                            cs.insert(f.prefix[..f.prefix.len() - 1].to_string());
+                        } else {
+                            cs.insert(f.prefix.clone());
+                        }
+                    } else {
+                        let first = f.prefix.split(':').next().unwrap_or("");
+                        cs.insert(format!("{}:", first));
+                    }
+                }
+            }
+        }
+        let mut closed_stems: Vec<String> = cs.into_iter().collect();
+        closed_stems.sort();
+
+        Self {
+            private,
+            version_required,
+            exempt,
+            tokens,
+            external,
+            reserved_stems,
+            closed_stems,
+            families,
+            family_map,
+        }
+    }
+}
+
+fn score(fam: &RegistryFamily) -> (usize, usize, usize) {
+    let literals = fam.segments.iter().filter(|s| s.class == "literal").count();
+    let wildcard = fam.segments.last().map(|s| s.class == "wildcard").unwrap_or(false);
+    (literals, if wildcard { 0 } else { 1 }, fam.segments.len())
+}
+
+fn check_seg(seg: &RegistrySegment, got: &str, rules: &Rules) -> Option<&'static str> {
+    if got.is_empty() {
+        return Some(rules.tokens.case_malformed);
+    }
+    if seg.segment == "{version}" {
+        return if is_version(got) {
+            None
+        } else {
+            Some(rules.tokens.case_malformed)
+        };
+    }
+    let cls = seg.class.as_str();
+    let name = seg.segment.trim_start_matches('{').trim_end_matches('}');
+    if cls == "vocab" {
+        if !is_vocab(got) {
+            return Some(rules.tokens.case_malformed);
+        }
+        if !seg.values.is_empty() && !seg.open && !seg.values.iter().any(|v| v == got) {
+            return Some(rules.tokens.vocab_value_unregistered);
+        }
+        return None;
+    }
+    if cls == "hex" {
+        let ok = if let Some(ref p) = seg.pattern {
+            match_pattern(p, got)
+        } else {
+            is_hex(got)
+        };
+        return if ok {
+            None
+        } else {
+            Some(rules.tokens.case_malformed)
+        };
+    }
+    if cls == "external" {
+        let ok = if let Some(ref p) = seg.pattern {
+            match_pattern(p, got)
+        } else if let Some(p) = rules.external.get(name) {
+            match_pattern(p, got)
+        } else {
+            true
+        };
+        return if ok {
+            None
+        } else {
+            Some(rules.tokens.case_malformed)
+        };
+    }
+    if let Some(ref p) = seg.pattern {
+        if !match_pattern(p, got) {
+            return Some(rules.tokens.case_malformed);
+        }
+    }
+    None
+}
+
+fn match_segments(
+    fam: &RegistryFamily,
+    parts: &[&str],
+    rules: &Rules,
+) -> (bool, HashMap<String, String>, Option<&'static str>) {
+    let segs = &fam.segments;
+    if segs.is_empty() {
+        return (false, HashMap::new(), None);
+    }
+    let wildcard = segs.last().map(|s| s.class == "wildcard").unwrap_or(false);
+    let fixed = if wildcard {
+        &segs[..segs.len() - 1]
+    } else {
+        &segs[..]
+    };
+    let multi_idx = fixed.iter().position(|s| s.multi);
+    let extra: isize = if wildcard {
+        if parts.len() < fixed.len() + 1 {
+            return (false, HashMap::new(), None);
+        }
+        0
+    } else if let Some(_) = multi_idx {
+        let ext = parts.len() as isize - fixed.len() as isize;
+        if ext < 0 {
+            return (false, HashMap::new(), None);
+        }
+        ext
+    } else if parts.len() != fixed.len() {
+        return (false, HashMap::new(), None);
+    } else {
+        0
+    };
+
+    let mut binds = HashMap::new();
+    let mut refusal: Option<&'static str> = None;
+    let mut pi = 0;
+
+    for (i, seg) in fixed.iter().enumerate() {
+        if Some(i) == multi_idx {
+            let count = 1 + extra as usize;
+            let span = &parts[pi..pi + count];
+            pi += count;
+            for got in span {
+                if refusal.is_none() {
+                    refusal = check_seg(seg, got, rules);
+                }
+            }
+            let key = seg.segment.trim_start_matches('{').trim_end_matches('}');
+            binds.insert(key.to_string(), span.join(":"));
+            continue;
+        }
+        let got = parts[pi];
+        pi += 1;
+        if seg.class == "literal" {
+            if seg.segment != got {
+                return (false, HashMap::new(), None);
+            }
+            continue;
+        }
+        if refusal.is_none() {
+            refusal = check_seg(seg, got, rules);
+        }
+        let key = seg.segment.trim_start_matches('{').trim_end_matches('}');
+        binds.insert(key.to_string(), got.to_string());
+    }
+
+    let tail = &parts[pi..];
+    for (k, got) in tail.iter().enumerate() {
+        let last = pi + k == parts.len() - 1;
+        if got.is_empty()
+            || !is_vocab(got)
+            || is_version_like(got)
+            || (last && is_version_attempt(got))
+        {
+            if refusal.is_none() {
+                refusal = Some(rules.tokens.case_malformed);
+            }
+        }
+    }
+    if !tail.is_empty() {
+        binds.insert("*".to_string(), tail.join(":"));
+    }
+    (true, binds, refusal)
+}
+
+fn mutated_tail(seg: &str) -> bool {
+    (is_version_like(seg) && !is_version(seg)) || is_version_attempt(seg)
+}
+
+#[derive(Debug, Clone)]
+struct Candidate {
+    sc: (usize, usize, usize),
+    prefix: String,
+    binds: HashMap<String, String>,
+    refusal: Option<&'static str>,
+    has_version: bool,
+    index: usize,
+}
+
+fn resolve(rules: &Rules, parts: &[&str]) -> Option<Candidate> {
+    let versioned = parts.last().map(|p| is_version(p)).unwrap_or(false);
+    let mut candidates = Vec::new();
+
+    for fam in &rules.families {
+        let ends_version = fam
+            .segments
+            .last()
+            .map(|s| s.segment == "{version}")
+            .unwrap_or(false);
+
+        if ends_version && !versioned {
+            let mut headless = fam.clone();
+            headless.segments.pop();
+            let (ok, binds, ref1) = match_segments(&headless, parts, rules);
+            if ok {
+                candidates.push(Candidate {
+                    sc: score(fam),
+                    prefix: fam.prefix.clone(),
+                    binds,
+                    refusal: ref1,
+                    has_version: false,
+                    index: fam.index,
+                });
+            }
+            let (ok2, binds2, ref2) = match_segments(fam, parts, rules);
+            if ok2 {
+                candidates.push(Candidate {
+                    sc: score(fam),
+                    prefix: fam.prefix.clone(),
+                    binds: binds2,
+                    refusal: ref2,
+                    has_version: true,
+                    index: fam.index,
+                });
+            }
+        } else if ends_version || !versioned {
+            let (ok, binds, mut ref1) = match_segments(fam, parts, rules);
+            if ok {
+                if !versioned && parts.last().map(|p| mutated_tail(p)).unwrap_or(false) {
+                    if ref1.is_none() {
+                        ref1 = Some(rules.tokens.case_malformed);
+                    }
+                }
+                candidates.push(Candidate {
+                    sc: score(fam),
+                    prefix: fam.prefix.clone(),
+                    binds,
+                    refusal: ref1,
+                    has_version: ends_version,
+                    index: fam.index,
+                });
+            }
+        } else if parts.len() > 1 {
+            let (ok, binds, ref1) = match_segments(fam, &parts[..parts.len() - 1], rules);
+            if ok {
+                candidates.push(Candidate {
+                    sc: score(fam),
+                    prefix: fam.prefix.clone(),
+                    binds,
+                    refusal: ref1,
+                    has_version: true,
+                    index: fam.index,
+                });
+            }
+        }
+    }
+
+    if candidates.is_empty() && versioned {
+        for fam in &rules.families {
+            let ends_version = fam
+                .segments
+                .last()
+                .map(|s| s.segment == "{version}")
+                .unwrap_or(false);
+            if ends_version {
+                continue;
+            }
+            let (ok, binds, ref1) = match_segments(fam, parts, rules);
+            if ok {
+                candidates.push(Candidate {
+                    sc: score(fam),
+                    prefix: fam.prefix.clone(),
+                    binds,
+                    refusal: ref1,
+                    has_version: false,
+                    index: fam.index,
+                });
+            }
+        }
+    }
+
+    if candidates.is_empty() {
+        return None;
+    }
+
+    candidates.sort_by(|a, b| {
+        b.sc.0
+            .cmp(&a.sc.0)
+            .then_with(|| b.sc.1.cmp(&a.sc.1))
+            .then_with(|| b.sc.2.cmp(&a.sc.2))
+            .then_with(|| a.index.cmp(&b.index))
+    });
+
+    candidates.into_iter().next()
+}
+
+fn detect_malformed(rules: &Rules, parts: &[&str], clean_only: bool) -> Option<String> {
+    let mut variants: Vec<Vec<String>> = Vec::new();
+    let low: Vec<String> = parts.iter().map(|p| p.to_lowercase()).collect();
+    if low.iter().zip(parts.iter()).any(|(l, p)| l.as_str() != *p) {
+        variants.push(low.clone());
+    }
+    let n = parts.len();
+    if n > 1 && (is_version_like(parts[n - 1]) || is_version_attempt(parts[n - 1])) {
+        variants.push(parts[..n - 1].iter().map(|s| s.to_string()).collect());
+        variants.push(low[..n - 1].to_vec());
+        if n > 2 && is_version_like(parts[n - 2]) {
+            variants.push(parts[..n - 2].iter().map(|s| s.to_string()).collect());
+            variants.push(low[..n - 2].to_vec());
+        }
+    }
+    for v in variants {
+        let v_slices: Vec<&str> = v.iter().map(|s| s.as_str()).collect();
+        if let Some(hit) = resolve(rules, &v_slices) {
+            if hit.refusal.is_none() || !clean_only {
+                return Some(hit.prefix);
+            }
+        }
+    }
+    None
+}
+
+pub fn match_family_with_rules(
+    wire_namespace: &str,
+    tables: &Tables,
+) -> MatchResult {
+    if wire_namespace.is_empty() {
+        return MatchResult {
+            family: None,
+            binds: HashMap::new(),
+            refusal: Some("namespace_dimension_case_malformed".to_string()),
+            ok: false,
+        };
+    }
+
+    // Fast path 1: explicit aliases from csd_namespace_map.json
+    let target = tables
+        .aliases
+        .get(wire_namespace)
+        .map(|s| s.as_str())
+        .unwrap_or(wire_namespace);
+
+    // Fast path 2: direct exact lookup in transitions table for template families
+    if (target.contains('{') || target.ends_with('*')) && tables.families.contains_key(target) {
+        return MatchResult {
+            family: Some(target.to_string()),
+            binds: HashMap::new(),
+            refusal: None,
+            ok: true,
+        };
+    }
+
+    let rules = &tables.rules;
+
+    if target.trim() != target {
+        return MatchResult {
+            family: None,
+            binds: HashMap::new(),
+            refusal: Some(rules.tokens.case_malformed.to_string()),
+            ok: false,
+        };
+    }
+
+    if target.starts_with(&rules.private) {
+        return MatchResult {
+            family: None,
+            binds: HashMap::new(),
+            refusal: Some(rules.tokens.private_use_not_federatable.to_string()),
+            ok: false,
+        };
+    }
+
+    let parts: Vec<&str> = target.split(':').collect();
+    if parts.iter().any(|p| p.is_empty()) {
+        return MatchResult {
+            family: None,
+            binds: HashMap::new(),
+            refusal: Some(rules.tokens.case_malformed.to_string()),
+            ok: false,
+        };
+    }
+
+    let hit = resolve(rules, &parts);
+    if hit.is_none() {
+        if let Some(mutated) = detect_malformed(rules, &parts, false) {
+            return MatchResult {
+                family: Some(mutated),
+                binds: HashMap::new(),
+                refusal: Some(rules.tokens.case_malformed.to_string()),
+                ok: false,
+            };
+        }
+        let fenced: Vec<&str> = rules
+            .reserved_stems
+            .iter()
+            .chain(rules.closed_stems.iter())
+            .map(|s| s.as_str())
+            .collect();
+        if fenced.iter().any(|stem| target.starts_with(stem)) {
+            return MatchResult {
+                family: None,
+                binds: HashMap::new(),
+                refusal: Some(rules.tokens.family_unregistered.to_string()),
+                ok: false,
+            };
+        }
+        let low = target.to_lowercase();
+        if low != target && fenced.iter().any(|stem| low.starts_with(stem)) {
+            return MatchResult {
+                family: None,
+                binds: HashMap::new(),
+                refusal: Some(rules.tokens.case_malformed.to_string()),
+                ok: false,
+            };
+        }
+        if rules.version_required && !is_version(parts[parts.len() - 1]) {
+            if mutated_tail(parts[parts.len() - 1]) {
+                return MatchResult {
+                    family: None,
+                    binds: HashMap::new(),
+                    refusal: Some(rules.tokens.case_malformed.to_string()),
+                    ok: false,
+                };
+            }
+            return MatchResult {
+                family: None,
+                binds: HashMap::new(),
+                refusal: Some(rules.tokens.missing_version_segment.to_string()),
+                ok: false,
+            };
+        }
+        if parts.len() >= 2 && is_version_like(parts[parts.len() - 2]) {
+            return MatchResult {
+                family: None,
+                binds: HashMap::new(),
+                refusal: Some(rules.tokens.case_malformed.to_string()),
+                ok: false,
+            };
+        }
+        if parts.len() < 2 {
+            return MatchResult {
+                family: None,
+                binds: HashMap::new(),
+                refusal: Some(rules.tokens.case_malformed.to_string()),
+                ok: false,
+            };
+        }
+        return MatchResult {
+            family: None,
+            binds: HashMap::new(),
+            refusal: None,
+            ok: true,
+        };
+    }
+
+    let hit = hit.unwrap();
+    let prefix = hit.prefix;
+    let mut binds = hit.binds;
+    let refusal = hit.refusal;
+    let has_version = hit.has_version;
+
+    let fam = match rules.family_map.get(&prefix) {
+        Some(f) => f,
+        None => {
+            return MatchResult {
+                family: Some(prefix),
+                binds,
+                refusal: refusal.map(|s| s.to_string()),
+                ok: refusal.is_none(),
+            };
+        }
+    };
+
+    if let Some(ref_str) = refusal {
+        if let Some(mutated) = detect_malformed(rules, &parts, true) {
+            if mutated != prefix {
+                return MatchResult {
+                    family: Some(mutated),
+                    binds: HashMap::new(),
+                    refusal: Some(rules.tokens.case_malformed.to_string()),
+                    ok: false,
+                };
+            }
+        }
+        return MatchResult {
+            family: Some(prefix),
+            binds,
+            refusal: Some(ref_str.to_string()),
+            ok: false,
+        };
+    }
+
+    let versioned = is_version(parts[parts.len() - 1]);
+    let last_seg_class = fam.segments.last().map(|s| s.class.as_str());
+    if fam.leaves_closed && (last_seg_class == Some("wildcard") || last_seg_class == Some("vocab")) {
+        let leaf_parts = if versioned && has_version {
+            &parts[..parts.len() - 1]
+        } else {
+            &parts[..]
+        };
+        let ok_leaf = fam.leaves.iter().any(|l| {
+            if let Some(lfam) = rules.family_map.get(l) {
+                let (ok, _, _) = match_segments(lfam, leaf_parts, rules);
+                ok
+            } else {
+                false
+            }
+        });
+        if !ok_leaf {
+            return MatchResult {
+                family: Some(prefix),
+                binds,
+                refusal: Some(rules.tokens.family_unregistered.to_string()),
+                ok: false,
+            };
+        }
+    }
+
+    if rules.version_required && !rules.exempt.contains(&prefix) && !has_version {
+        return MatchResult {
+            family: Some(prefix),
+            binds,
+            refusal: Some(rules.tokens.missing_version_segment.to_string()),
+            ok: false,
+        };
+    }
+
+    if has_version {
+        binds.insert("version".to_string(), parts[parts.len() - 1].to_string());
+    }
+
+    MatchResult {
+        family: Some(prefix),
+        binds,
+        refusal: None,
+        ok: true,
+    }
+}
+
+// ---------------------------------------------------------------- tables
+
+#[derive(Debug, Clone)]
+pub struct Tables {
+    pub families: HashMap<String, Vec<Transition>>,
+    pub family_order: Vec<String>,
+    pub policies: HashMap<String, Policy>,
+    pub defaults: HashMap<String, String>,
+    pub version: String,
+    pub story_trace: JsonValue,
+    pub aliases: HashMap<String, String>,
+    pub registry: JsonValue,
+    pub match_vectors: JsonValue,
+    pub csd_map: JsonValue,
+    pub rules: Rules,
+}
+
+impl Tables {
+    pub fn load_vendored() -> Self {
+        Self::load_all(
+            VENDORED_VERSION,
+            VENDORED_TRANSITIONS,
+            VENDORED_GOVERNANCE_POLICY,
+            VENDORED_MESH_STORY_TRACE,
+            VENDORED_NAMESPACE_REGISTRY,
+            VENDORED_NAMESPACE_MATCH_VECTORS,
+            VENDORED_CSD_NAMESPACE_MAP,
+        )
+        .expect("Failed to load vendored CC §4.5.13 constitutional tables")
+    }
+
+    pub fn load_from_strings(
+        version_str: &str,
+        transitions_str: &str,
+        policy_str: &str,
+        trace_str: &str,
+    ) -> Result<Self, String> {
+        Self::load_all(
+            version_str,
+            transitions_str,
+            policy_str,
+            trace_str,
+            VENDORED_NAMESPACE_REGISTRY,
+            VENDORED_NAMESPACE_MATCH_VECTORS,
+            VENDORED_CSD_NAMESPACE_MAP,
+        )
+    }
+
+    pub fn load_all(
+        version_str: &str,
+        transitions_str: &str,
+        policy_str: &str,
+        trace_str: &str,
+        registry_str: &str,
+        match_vectors_str: &str,
+        csd_map_str: &str,
+    ) -> Result<Self, String> {
+        let transitions_json = parse(transitions_str).map_err(|e| format!("transitions.json parse error: {}", e))?;
+        let policy_json = parse(policy_str).map_err(|e| format!("governance_policy.json parse error: {}", e))?;
+        let trace_json = parse(trace_str).map_err(|e| format!("mesh_story_trace.json parse error: {}", e))?;
+        let registry_json = parse(registry_str).map_err(|e| format!("namespace_registry.json parse error: {}", e))?;
+        let match_vectors_json = parse(match_vectors_str).map_err(|e| format!("namespace_match_vectors.json parse error: {}", e))?;
+        let csd_map_json = parse(csd_map_str).map_err(|e| format!("csd_namespace_map.json parse error: {}", e))?;
+
+        let mut families = HashMap::new();
+        let mut family_order = Vec::new();
+
+        if let Some(rows) = transitions_json.get("rows").and_then(|v| v.as_array()) {
+            for r in rows {
+                let fam = r.get("family").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                if fam.is_empty() {
+                    continue;
+                }
+                let mut ts = Vec::new();
+                if let Some(t_arr) = r.get("transitions").and_then(|v| v.as_array()) {
+                    for t in t_arr {
+                        let verb = t.get("verb").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let from = t.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let to = t.get("to").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+                        let mut roles = Vec::new();
+                        if let Some(role_arr) = t.get("roles").and_then(|v| v.get("value")).and_then(|v| v.as_array()) {
+                            for role in role_arr {
+                                if let Some(s) = role.as_str() {
+                                    roles.push(s.to_string());
+                                }
+                            }
+                        }
+
+                        let policy_val = t.get("policy").and_then(|v| v.get("value"));
+                        let policy = policy_val
+                            .and_then(|v| v.get("policy"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("selfAct")
+                            .to_string();
+
+                        let mut policy_rows = Vec::new();
+                        if let Some(p_rows) = policy_val.and_then(|v| v.get("rows")).and_then(|v| v.as_array()) {
+                            for pr in p_rows {
+                                if let Some(s) = pr.as_str() {
+                                    policy_rows.push(s.to_string());
+                                }
+                            }
+                        }
+
+                        let widens = t
+                            .get("widens")
+                            .and_then(|v| v.get("value"))
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+
+                        ts.push(Transition {
+                            verb,
+                            from,
+                            to,
+                            roles,
+                            policy,
+                            policy_rows,
+                            widens,
+                        });
+                    }
+                }
+                family_order.push(fam.clone());
+                families.insert(fam, ts);
+            }
+        }
+
+        let mut policies = HashMap::new();
+        if let Some(fams) = policy_json.get("families").and_then(|v| v.as_array()) {
+            for p in fams {
+                let fam = p.get("family").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let kind = p.get("kind").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+                let enact = p.get("enact").and_then(|v| {
+                    let num = v.get("num")?.as_u64()?;
+                    let den = v.get("den")?.as_u64()?;
+                    Some(Fraction { num, den })
+                });
+
+                let cancel = p.get("cancel").and_then(|v| {
+                    let num = v.get("num")?.as_u64()?;
+                    let den = v.get("den")?.as_u64()?;
+                    Some(Fraction { num, den })
+                });
+
+                let at_window = p.get("at_window").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let window_secs = p.get("window_secs").and_then(|v| v.as_u64());
+
+                policies.insert(
+                    fam.clone(),
+                    Policy {
+                        family: fam,
+                        kind,
+                        enact,
+                        cancel,
+                        at_window,
+                        window_secs,
+                    },
+                );
+            }
+        }
+
+        let mut defaults = HashMap::new();
+        defaults.insert("two_path".to_string(), "default_standing".to_string());
+        defaults.insert("mirror".to_string(), "moderation_action".to_string());
+        defaults.insert("cosigned".to_string(), "custodian_replace".to_string());
+        defaults.insert("ranked".to_string(), "moderator_election".to_string());
+
+        let mut aliases = HashMap::new();
+        if let Some(alias_obj) = csd_map_json.get("aliases").and_then(|v| v.as_object()) {
+            for (k, v) in alias_obj {
+                if let Some(target) = v.as_str() {
+                    aliases.insert(k.clone(), target.to_string());
+                }
+            }
+        }
+
+        let rules = Rules::from_json(&registry_json);
+
+        Ok(Tables {
+            families,
+            family_order,
+            policies,
+            defaults,
+            version: version_str.trim().to_string(),
+            story_trace: trace_json,
+            aliases,
+            registry: registry_json,
+            match_vectors: match_vectors_json,
+            csd_map: csd_map_json,
+            rules,
+        })
+    }
+
+    pub fn match_family(&self, wire_namespace: &str) -> MatchResult {
+        match_family_with_rules(wire_namespace, self)
+    }
+
+    pub fn extract_dimensions(&self, wire_namespace: &str) -> HashMap<String, String> {
+        let m = self.match_family(wire_namespace);
+        m.binds
+    }
+}
+
+pub fn transition_of(tables: &Tables, family: &str, verb: &str, state: &str) -> Option<Transition> {
+    let mut fam_key = family;
+    let resolved;
+    if !tables.families.contains_key(fam_key) {
+        let m = tables.match_family(family);
+        if let Some(ref fam) = m.family {
+            if tables.families.contains_key(fam) {
+                resolved = fam.clone();
+                fam_key = &resolved;
+            }
+        }
+    }
+    let ts = tables.families.get(fam_key)?;
+    ts.iter().find(|t| t.verb == verb && t.from == state).cloned()
+}
+
+pub fn policy_row<'a>(tables: &'a Tables, t: &Transition) -> Option<&'a Policy> {
+    if t.policy == "selfAct" || t.policy == "none" {
+        return None;
+    }
+    let default_val = String::new();
+    let default_lookup = tables.defaults.get(&t.policy).unwrap_or(&default_val);
+    let name = t.policy_rows.first().unwrap_or(default_lookup);
+    if name.is_empty() {
+        return None;
+    }
+    tables.policies.get(name)
+}
