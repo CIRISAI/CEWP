@@ -1,570 +1,585 @@
-# FSD: CEWP Simulation Engine
+# FSD: CEWP Simulation, Verification, and Evidence Engine
 
-**Status:** v0.1 design.
-**Scope:** A modular, performant Rust simulation engine that models
-the centralized internet AND the CEWP substrate on the same
-real-world topology, at resolutions from one-thousand to
-five-billion nodes, producing snapshot streams the website team
-consumes via their existing Three.js / WebGL visualization stack
-(`ciris-website/src/app/grammar/explore/AlephScene.tsx`).
-**Audience:** sim engine implementers (this repo) + website team
-(consumers of snapshot output).
-**Goal:** make the bet visible. Run the same workload over both
-topologies; show the centralized internet routing every byte
-through ~10K hyperscale facilities, then show CEWP routing the same
-workload through 500 M home-server-class nodes with no datacenters.
-The math comes from
-[CIRISNodeCore/FSD/FEDERATION_SCALING_MODEL.md](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_SCALING_MODEL.md);
-the topology comes from public datasets; the engine connects them.
+**Status:** v0.2 architecture & verification specification (supersedes v0.1).  
+**Scope:** A multi-resolution, event-driven Rust simulation and conformance system that executes the **authoritative semantics of the CIRIS Constitution (`rc17`)**, instantiates the **holistic CSD/4 topology and state-atom contract (`T0–T19`)** across formal models, simulated meshes, real `CIRISServer` nodes, and `CIRISClient` / `CEWPOS` surfaces, enforces the exact **transport (`CC §5.4.3 / §5.4.6`), deterministic ALM (`CC §6.1.6`), and fountain noise-floor storage (`CC §6.1.2`)** rules, and emits **auditable, machine-checkable evidence bundles**.  
+**Audience:** Simulation engine implementers (`CEWP`), substrate & server engineers (`CIRISServer`, `CIRISEdge`, `CIRISPersist`, `CIRISVerify`, `CIRISConformance`), client & UX engineers (`CIRISClient`, `CEWPOS`), formal verification engineers (`CIRISConstitution`, `CIRISHolon`), and the visualization team (`ciris-website`).
 
 ---
 
-## 0. Premise restated
+## 0. Central Design Principle: One Semantic Authority, Multiple Ways to Challenge It
 
-Per [CEWP.md](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/CEWP.md):
+> **Core Invariant:** CEWP simulates the network, but it **must never invent a second version of CIRIS's rules**. The [CIRIS Constitution (`rc17`)](https://github.com/CIRISAI/CIRISConstitution/tree/rc17) defines the authoritative semantics. CEWP tests how those exact semantics behave under scale, churn, failures, adversarial participants, and real-world network conditions — and verifies that the deployed implementation behaves the same way.
 
-> CEWP's premise: big tech is not necessary.
-> CEWP's bet: cryptographic substrate + standardized ethical tracing
-> prove it.
+The goal of the CEWP Simulation Engine is **not** merely to produce impressive scale numbers or a globe animation. Its goal is to produce **scientific and engineering evidence that survives adversarial technical scrutiny** — and, where an architectural assumption fails (e.g., if `reach_home_share` is too low, repair bandwidth saturates consumer uplinks, or anonymity degrades under realistic relay collusion), **to disprove the bet and surface the exact failure boundary**.
 
-The simulation engine's job is to make the "big tech is not
-necessary" claim **animatable**. Side-by-side, on a globe, with real
-metros + real submarine cables + real IXPs. The same 5B users
-generating the same workload — flowing through the centralized
-internet (5 hyperscalers, ~10K datacenters, observable bottlenecks)
-vs flowing through CEWP (federation of equals, no central party,
-edges along the trust graph). The engine produces the numbers + the
-snapshot stream; the website team renders.
+This FSD organizes the system into **nine architectural layers**:
 
----
-
-## 1. Non-goals
-
-- **Not a network simulator at packet level.** ns-3 / OMNeT++ /
-  Mininet exist for that. The engine models aggregate flows, not
-  packets.
-- **Not a router simulator.** No BGP convergence, no IGP, no MPLS.
-  We model the existing AS-level topology as a static graph and
-  evolve demand on top of it.
-- **Not a UI.** Website team owns the visualization layer (see §10).
-- **Not a benchmark tool for any one substrate.** It compares two
-  topologies under identical workload; the substrate trio's
-  CI benches are the ground truth for per-op costs (see §2 inputs).
+1. **Constitutional Executable Authority (`CC §4.5.13`)** — One state processor, zero rule drift.
+2. **Holistic CSD/4 Scenario Contract (`T0–T19`)** — One shared topology and state-atom vocabulary across `CIRISConstitution`, `CIRISServer`, `CIRISClient`, `CEWPOS`, and `CEWP`.
+3. **Exact Transport, Deterministic ALM, and Storage Fidelity (`CC §5.4.3`, `§5.4.6`, `§6.1.2`, `§6.1.6`)** — Modeling the actual constitutional constraints, frozen vectors, and symbol ranks rather than idealized graphs.
+4. **Workload Mathematics, Certified Multiscale Coarse-Graining (`CIRISHolon`), and Credible Baselines** — Dimensional correctness, mathematically certified resolution tiers (`R0–R5`), and fair four-way architectural comparisons.
+5. **Adversarial Testing Programme & Formal-Exclusion Regression Suite** — Actively searching for failure boundaries and testing what the formal models explicitly exclude.
+6. **Real-Implementation Conformance Bridge & Independent Checkers** — Separating *semantic conformance* from *operational fidelity* across all 8 repositories.
+7. **Five-Level Simulation & Verification Stack** — Matching the right tool (Lean/TLA+, Rust DES, Shadow/ns-3, Native Multi-Node Testbed, Consented Telemetry) to each question.
+8. **Auditable Evidence Bundles & Claim-to-Evidence Matrix** — Enforcing `MEASURED`, `MODEL`, `PROJECTED`, and `FRONTIER` provenance tags in machine-readable outputs.
+9. **Six-Phase Implementation Sequence** — Making the small system trustworthy before scaling to billions.
 
 ---
 
-## 2. Empirical inputs (measured + sourced)
+## 1. Layer 1: The Constitution as Executable Authority (`CC §4.5.13`)
 
-### 2.1 Per-op compute costs (from substrate-trio benchmarks)
+### 1.1 Normative Anchor
+Per **`CIRISConstitution` (`rc17`) Part 4 §4.5.13** (*"The state processor"*), [`formal/README.md`](https://github.com/CIRISAI/CIRISConstitution/blob/rc17/formal/README.md), and [`formal/event_lifecycle/EventLifecycle.lean`](https://github.com/CIRISAI/CIRISConstitution/blob/rc17/formal/event_lifecycle/EventLifecycle.lean):
 
-These are the load-bearing numbers the engine uses for per-node CPU
-accounting. They come from the substrate trio's published
-benchmark suites:
+- A node's state is derived solely from the append-only set of verified signed rows it holds (each with its local `firstHeld` timestamp). It is **not** an independently mutable database.
+- Every verdict — object lifecycle state (`none`, `admitted`, `withdrawn`, `recanted`, `superseded`), room rosters and moderators, registered identities, trust-root standing, halt latches, and policy folds (`selfAct`, `twoPath`, `mirror`, `cosigned`, `ranked`) — is an order-free fold over held rows.
+- The user-facing action queue, the dry-run preview of an action, and the admission door that accepts or refuses an inbound row are **one predicate**.
 
-| Op | Cost | Source |
+### 1.2 The Eight Machine-Checked State Processor Theorems (`EventLifecycle.lean`)
+Every simulation run must enforce — and never bypass — the equivalences proved in `formal/event_lifecycle/EventLifecycle.lean`:
+
+| Theorem / Equivalence | Formal Statement (`EventLifecycle.lean`) | Operational Gate in `cewp-sim` |
 |---|---|---|
-| `hybrid_sign` (Ed25519 + ML-DSA-65) | 466 µs | [CIRISVerify v2.8.0](https://github.com/CIRISAI/CIRISVerify/blob/main/docs/BENCHMARKS.md) |
-| `hybrid_verify` | 276 µs | same |
-| AES-GCM @ 64 KiB | 5.45 GiB/s encrypt, 5.91 GiB/s decrypt | same |
-| Persist SQLite per-row write | ~1.5 ms | [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) v3.x storage_floor bench |
-| Edge dispatch_inbound (256 B) | < 400 µs | [CIRISEdge v6.3.0](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/BENCHMARKS.md) |
-| H3ERE trace per agent decision | ~14 KB | [CIRISPersist INTEGRATION_LENS.md](https://github.com/CIRISAI/CIRISPersist/blob/main/docs/INTEGRATION_LENS.md) |
-| Scrub regex pass | 5–10 ns/byte | Edge inline_text_pipeline |
+| **`door_is_queue`** | `admits v s t = true ↔ toItem t ∈ queue v s` | An act is admitted at a node's door **if and only if** its transition item is present in the actor's `queue(held, tables, person, now)`. |
+| **`queue_sound`** | `∀ v s i, i ∈ queue v s → admits v s i.writes = true` | Every item offered to a simulated or real actor must pass `step()` / `door()`. |
+| **`queue_complete`** | `∀ v s t, t ∈ v.family.transitions → admits v s t = true → toItem t ∈ queue v s` | Every transition the door would admit for `(person, object)` must appear in `queue()`. |
+| **`preview_is_execution`** | `∀ v s i, i ∈ queue v s → execute v s i.writes = some (answer v i)` | Running `preview(held, tables, [row], now)` must produce the exact state delta that `door(held, tables, row, now)` commits. |
+| **`refused_previews_nothing`** | `∀ v s t, t ∈ v.family.transitions → toItem t ∉ queue v s → execute v s t = none` | Any transition not in `queue()` must be refused by name at `step()` / `door()` and mutate nothing. |
+| **`stranger_sees_nothing`** | `queue v ⟨[]⟩ = []` | An actor with empty standing (`roles = []`) toward a non-public object is offered zero transitions and never offered private/room rows on the wire. |
+| **`answered_item_leaves_queue`** | `i ∈ queue v s → i.writes.from_ ≠ i.writes.to → i ∉ queue (answer v i) s` | Once a state-moving transition commits, that item disappears from the next view's queue. |
+| **`widening_is_confirmed`** | `i ∈ queue v s → i.confirm = i.writes.widens` | Every transition with `widens = true` requires explicit confirmation (`P8` UX gate) prior to signing. |
 
-### 2.2 Topology inputs (real-world data)
+### 1.3 Versioned Constitutional Inputs & Parity Gate
+The simulator **must not** implement a parallel or approximate policy engine. Instead:
 
-The engine needs a globe-shaped backbone. Data sources:
+1. **Pinned Constitutional Artifacts**:
+   - [`docs/kernel/tables/VERSION`](../docs/kernel/tables/VERSION) pins the exact `CIRISConstitution` commit (currently `rc17 f267ce8`, tracking `rc17` HEAD `db0d051fe9b7b2af3edcc8b61123af33fc305599`):
+     - [`docs/kernel/tables/transitions.json`](../docs/kernel/tables/transitions.json) (`191` families, `474` transitions)
+     - [`docs/kernel/tables/governance_policy.json`](../docs/kernel/tables/governance_policy.json) (the 5-integer policy rows)
+     - [`docs/kernel/tables/mesh_story_trace.json`](../docs/kernel/tables/mesh_story_trace.json) (the 14-step, 13-row executable trace)
+     - `manifests/topology_vocabulary.json` (`156` state-table atoms in `rc17` v6 / `120` in `CIRISServer` v5)
+     - `manifests/namespace_registry.json` & `manifests/signed_object_vectors.json`
+2. **Role of [`docs/kernel/kernel.js`](../docs/kernel/kernel.js) and [`docs/kernel/kernel.test.js`](../docs/kernel/kernel.test.js)**:
+   - `kernel.js` is the zero-dependency reference harness demonstrating 100% parity with `mesh_story_trace.json`, 6-peer mesh propagation, 100-permutation partition/re-merge convergence, and mobile sleep/wake churn.
+   - **Strict Architectural Rule:** `kernel.js` is the *reference and test harness*, not by itself proof that the high-scale Rust simulation engine (`cewp-sim` / [`kernel-wasm/src/lib.rs`](../kernel-wasm/src/lib.rs)) is constitutionally faithful.
+3. **Mandatory Rust Parity Gate (`cewp-kernel` crate)**:
+   - The Rust simulation workspace must include a `cewp-kernel` crate that loads the exact JSON manifests from `docs/kernel/tables/`, implements `fold`, `standing`, `enabled_for`, `step`, `commit`, `door`, `queue`, and `preview`, and passes bit-for-bit cross-language differential fuzzing against `docs/kernel/kernel.js`, `CIRISConstitution/formal/event_lifecycle/EventLifecycle.lean`, and `CIRISServer` before any scale simulation run is accepted.
+   - **Hard Fail Gate:** Any simulation run in which a simulated node's predicted queue, preview, admission verdict, or resulting fold differs from the authoritative state processor **fails immediately with `SEMANTIC_DRIFT`**.
 
-| Dataset | What it provides | Format |
+---
+
+## 2. Layer 2: Holistic View of CSD/4 as the Scenario Contract (`T0–T19`)
+
+### 2.1 Why CSD/4 Is the Unifying Spine of the Entire CIRIS Stack
+Across traditional distributed systems, formal verification teams, backend server teams, mobile/web UI teams, and network simulation teams each invent their own synthetic test fixtures. Those fixtures inevitably drift, hiding bugs in the seams between layers.
+
+**CSD/4 (Client Surface Definition v4)** solves this by establishing **one closed vocabulary of 20 network topologies (`T0–T19`) and constitutional state atoms** shared across five repositories:
+
+```mermaid
+flowchart TD
+    subgraph CC["1. CIRISConstitution (rc17 — Normative Law & Formal Spine)"]
+        ST["formal/STATE_TABLE.tsv<br/>(242 states, 81 vars, 12 planes)<br/>formal/INVARIANTS.tsv (216 properties)"]
+        CN["formal/cewp_node/CewpNode.tla<br/>(483,840 states, Cross-Plane X1–X5)<br/>formal/event_lifecycle/EventLifecycle.lean"]
+        TV["manifests/topology_vocabulary.json<br/>& manifests/transitions.json (191 families, 474 transitions)"]
+        COV["tools/catalogue_coverage.py<br/>(Reverse coverage gate: state table ↔ T0..T19)"]
+        ST --> CN --> TV --> COV
+    end
+
+    subgraph CS["2. CIRISServer (Closed Catalogue T0–T19, Planner & Live Mesh Runner)"]
+        CAT["harness/native/topologies/catalog/<br/>T0..T19 YAML + requirements.yaml (129 CSDs)"]
+        MOD["harness/native/model.py<br/>(Step-level state windows [start, end)<br/>& subset-search cost planner)"]
+        RUN["harness/native/runner.py & mesh.py<br/>(Spawns real ciris-server nodes,<br/>checks live WITNESSES for MODEL_DRIFT,<br/>emits checkpoints/step.json & rows.jsonl)"]
+        CAT --> MOD --> RUN
+    end
+
+    subgraph CL["3. CIRISClient & CEWPOS (101 CSD Cards, 12 UX Primitives & 5-Platform Matrix)"]
+        VND["packaging/vendor_csd4.py<br/>(Sigstore cosign + SHA256SUMS,<br/>zero server code execution)"]
+        CHK["packaging/check_csd4.py<br/>(Card refusal rules R1–R5:<br/>R5_ATOMS_NEVER_COHOLD)"]
+        UX["101 Active CSD Cards (CSD-001..129)<br/>12 Closed UX Primitives (P1–P12)<br/>5 Runners: Web, Desktop, Android, iOS, TUI"]
+        VND --> CHK --> UX
+    end
+
+    subgraph CW["4. CEWP (Reference Kernel & Multi-Resolution Simulation Engine)"]
+        KRN["docs/kernel/kernel.js & cewp-kernel (Rust)<br/>(fold / standing / step / door / queue / preview)"]
+        SIM["cewp-sim Scenario Runner<br/>(Instantiates T0–T19 at 1:1 and as<br/>cohort motifs in R3–R0 with churn & attacks)"]
+        KRN --> SIM
+    end
+
+    CC -->|"topology_vocabulary.pin & PIN.tsv"| CS
+    RUN -->|"nodes/*/rows.jsonl → Trace.tla V(rows,t)"| CN
+    CS -->|"Signed release: csd4-{requirements,vocabulary,traces}"| CL
+    RUN -->|"--at-state-cmd + checkpoints/step.json"| UX
+    CC -->|"docs/kernel/tables/VERSION"| CW
+    CAT -->|"Shared T0–T19 YAML contract"| SIM
+```
+
+### 2.2 What Lives Where in the Holistic CSD/4 Architecture
+
+1. **`CIRISConstitution` (`formal/cewp_node/`, `formal/STATE_TABLE.tsv`, `manifests/topology_vocabulary.json`)**:
+   - Owns the normative state table (`242` states over `81` variables in `12` planes in `rc17`), the `216` cross-model invariants (`formal/INVARIANTS.tsv`), and the cross-plane spine model (`formal/cewp_node/CewpNode.tla`, which closes at **483,840 distinct states**).
+   - Verifies five cross-plane invariants (**`X1–X5`**):
+     - **`X1` (`Inv_X1_LatchDoesNotBlockServing`, CC 3.2 T8 (v), 4.2.1.1)**: A constitutional halt is not a trust leg; the halt latch moves no standing, stops no serving and no replication, and gates only the agent's act gate (`CewpNode_breaker.cfg` flips `LatchBlocksServe` and violates `X1` in 1 step).
+     - **`X2` (CC 3.3.6.3)**: Authority of a self-roster key ends with its eviction; any live roster key acts as the self.
+     - **`X3` (CC 3.3.7, 3.3.1)**: Replication of a peer's content requires that peer's consent; a revocation is a forward-only boundary.
+     - **`X4` (CC 5.3.2.4, 2.6.1.7)**: A local-tier row never leaves its node; a served row is a signed federation-tier row.
+     - **`X5` (CC 4.2.1)**: Leaving a root is one atomic act: subscription falls and latch lifts together while the historical record stands.
+2. **`CIRISServer` (`/home/emoore/CIRISServer/FSD/CSD4.md`, `FSD/TOPOLOGY.md`, `harness/native/`)**:
+   - Enforces the steward's ruling (`CIRISClient#179 §2`): *"do not give CSD authors an open grammar for potential topologies; define the relevant topologies up front as a catalogue for testing."*
+   - Owns the **7 realizability rules (`R1–R7`)** in `harness/native/topology.py` over the 7 top-level YAML keys (`roots`, `canonicals`, `nodes`, `persons`, `relations`, `actor`, `negatives`).
+   - Owns the **step-level state-window model and subset-search planner (`harness/native/model.py`)**:
+     - Computes exact step intervals `[start, end)` during which each state atom holds (including *transient states* like `node.unclaimed`, `device.join_requested`, `member.applicant_pending`, `root.halted`, and `self.lone_recovery_pending` that are destroyed by later steps in the same topology).
+     - Minimizes total execution cost $\text{cost} = (\text{topology builds},\; 10 \times \text{nodes} + \text{steps})$ by folding compatible tests into existing topology runs (e.g., running `T0` single-node checks at steps `0` and `3` of a `T2` pair-room build with zero extra builds).
+   - Owns the **live multi-node runner (`harness/native/runner.py`)**:
+     - Spawns real `ciris-server` processes via `NativeMesh`, pauses at each scheduled checkpoint step $s$, and probes live HTTP endpoints (`WITNESSES`) to confirm the live nodes hold every atom predicted by `model.py` (failing with **`MODEL_DRIFT`** on any discrepancy).
+     - Emits `checkpoints/<step>.json` (`values.json`) for attached client runners and exports `nodes/<node>/rows.jsonl` at teardown so `CIRISConstitution`'s TLA+ trace checker can fold `V(rows, t)` offline.
+3. **`CIRISClient` (`/home/emoore/CIRISClient/FSD/CSD4_EVALUATION.md`, `packaging/check_csd4.py`, `packaging/vendor_csd4.py`) & `CEWPOS` (`/home/emoore/CEWPOS/epistemic-ui/csd4_harness.py`)**:
+   - Consumes `CIRISServer`'s cosign-signed release artifacts (`csd4-requirements.yaml`, `csd4-topology_vocabulary.json`, `csd4-topology_vocabulary.pin`, `csd4-traces.json`) via `vendor_csd4.py` with **zero server code execution**.
+   - Enforces the **5 card-side refusal rules (`R1–R5`)** in `check_csd4.py` across all 101 active CSD cards (`CSD-001`..`CSD-129`), including **`R5_ATOMS_NEVER_COHOLD`** (proving that every test's `at: [...]` atom set co-holds simultaneously at at least one step of its topology trace).
+   - Binds all 101 cards to **12 closed UX primitives (`P1–P12`)** (`P1` Claimed Viewport, `P2` Epistemic Pill, `P3` Hash-Pinned Card, `P4` Folded Event Stream, `P5` Door Composer, `P6` Quorum Ceremony Bar, `P7` Key/Device Roster Matrix, `P8` Steward/Agent Mandate Console, `P9` Consent & Relationship Ledger, `P10` Custody & Replication Gauge, `P11` Topology & Relay Inspector, `P12` Emergency Halt Banner) and attaches 5 platform test runners (Web Playwright, Desktop Tauri, Android Compose, iOS XCUITest, TUI Ratatui) to live checkpoints (`134` resolved test instants across `74` materialized step checkpoints).
+
+### 2.3 Complete CSD/4 Closed Topology Catalogue (`T0–T19`)
+
+| ID | Constitutional / Server Topology | Entities (`roots / canonicals / nodes / persons`) | Core Relations & Dynamics Modeled | Key State Atoms Promised (`topology_vocabulary.json`) | Primary CSDs Served |
+|---|---|---|---|---|---|
+| **`T0`** | `T0-just-me-offline` / `T0_single_node` | `0R / 0C / 1N / 1P` | Single offline node; unclaimed → claimed transition; local notes & search | `root.none`, `node.unclaimed` (`[0,1)`), `node.claimed_sole`, `node.unannounced`, `self.single_device`, `values.ready` | `CSD-118` (+41 local cards) |
+| **`T1`** | `T1-one-person-two-devices` / `T1_self_room` | `1R / 1C / 2N / 1P` | One person across 2 devices (`phone`, `laptop`); `self_room` sync; 24 MiB file custody & withdrawal | `canonical.peered`, `person.multi_device`, `room.self.keyed`, `key.exchange.cascaded`, `file.held`, `file.large`, `file.withdrawn` | `CSD-096`, `CSD-107` |
+| **`T2`** | `T2-pair-room-outsider` / `T2_pair_room` | `1R / 1C / 3N / 3P` | `alice` + `bob` in keyed `pair_room`; `eve`/`carol` unannounced outsider (`cannot_list_room` / `cannot_decrypt`) | `contact.added`, `room.pair.keyed`, `member.pair_active`, `person.outsider`, `member.outsider_excluded`, `negatives.held` | `CSD-091` |
+| **`T3`** | `T3-second-device-approval` / `T3_device_join` | `1R / 1C / 3N / 3P` | Contact by code; new device requests join (`[3,4)` transient) → approved by existing device | `contact.via_code`, `device.join_requested` (`[3,4)`), `device.join_approved`, `device.joined`, `roster.visible` | `CSD-037`, `CSD-092..094` |
+| **`T4`** | `T4-household` / `T4_household` | `1R / 1C / 3N / 2–3P` | Guardian(s) + minor child in `household`; guardian co-signed bond & age assurance | `household.formed`, `child.member`, `guardian.bound`, `age.assured`, `consent.guardian_co_signed`, `gov.age_gated` | `CSD-100`, `CSD-101`, `CSD-119` |
+| **`T5`** | `T5-community-quorum` / `T5_community` | `1R / 1C / 4N / 3–4P` | Majority community `K`; pending applicant (`[4,5)`); held 2-of-2 quorum change; moderator appointment | `community.formed`, `member.applicant_pending`, `quorum_change.held`, `quorum_change.applied`, `moderator.named` | `CSD-065`, `CSD-102`, `CSD-103`, `CSD-128` |
+| **`T6`** | `T6-affiliation-delegation` / `T6_delegated` | `1R / 1C / 2–3N / 2–3P` | Licensing authority + practitioner in `affiliations` tier; depth-2 scoped delegation chain; out-of-scope refusal | `authority.licensing`, `delegation.chain`, `authority.delegated_within_scope`, `authority.out_of_scope_refused` | `CSD-120..126` |
+| **`T7`** | `T7-agent-steward-wa` / `T7_agent_steward` | `1R / 1C / 3N / 2P+1A` | Human steward + bound AI agent + Wise Authority (`wa`); WA deferral (`pending`/`approved`/`rejected`) & identity amendment | `agent.bound`, `steward.bonded`, `wa.present`, `agent.deferral.{pending,approved,rejected}`, `agent.identity.amended` | `CSD-050`, `CSD-061`, `CSD-063`, `CSD-064`, `CSD-111..117` |
+| **`T8`** | `T8-accord-halt` / `T8_threshold_root` | `1R / 1C / 4N / 4P` | $M$-of-$N$ (`2`-of-`3`) infrastructure root; lone holder halts (`[1,2)`), majority confirms (`[2,3)`), resumes (`86400s` fuse) | `root.infrastructure`, `root.halted`, `root.halt_confirmed`, `root.resumed`, `root.single_holder_insufficient` | `CSD-067..069`, `CSD-105`, `CSD-129` |
+| **`T9`** | `T9-two-roots-outsider` / `T9_federated_roots` | `2R / 2C / 3N / 3P` | Key root `R1` + infrastructure root `R2` cross-trusted via accord; third party `zed` accepting neither | `root.two`, `root.key`, `root.infrastructure`, `root.accord_cross_trusted`, `party.outside_roots` | `CSD-127` |
+| **`T10`** | `T10-stolen-device-quorum-evict` / `T10_self_recovery` | `1R / 1C / 3–4N / 1P` | Person with 3+ devices; 1 device stolen (`thief`) and evicted by 2-device quorum (`CC 3.3.6.3`) | `key.holder.{owner,thief}`, `key.membership.{proposed_add,proposed_evict,evicted}`, `self.roster_size.three_more` | `CSD-037`, `CSD-095` |
+| **`T11`** | `T11-lost-devices-lone-recovery` / `T11_root_recovery` | `1R / 1C / 3N / 1P` (or `5N` root) | 2 of 3 self keys lost; lone survivor evicts lost keys after `W_self = 86400s` window (`CC 3.3.6.3`); root stall/lapse | `key.holder.lost`, `self.lone_recovery_pending`, `self.roster_size.one` / `root.halt_stalled`, `root.halt_lapsed` | `CSD-037`, `CSD-095`, `CSD-105` |
+| **`T12`** | `T12-root-stall-recovery` / `T12_witnessed_lineage` | `1–2R / 1C / 4–5N / 4–5P` | Founder resigns below margin (`≤ M` live → `Stalled`); conferred human widens roster back to `Live` (`CC 3.2 T7`) | `root.standing.Stalled`, `root.liveness.{stalled,live}`, `seat.identity_type.human`, `root.lineage_witnessed` | `CSD-105` |
+| **`T13`** | `T13-witnessed-lineage` / `T13_consent_lifecycle` | `1R / 1C / 3N / 3P` | Stale witnessed head refuses attach; node-bearing seat excluded from human founder count (`CC 3.2 T4a/T6, 3.4.7.1`) | `root.head.stale`, `seat.identity_type.node_bearing` | `CSD-105` |
+| **`T14`** | `T14-consent-end-to-end` / `T14_community_governance` | `1R / 1C / 2–6N / 2–6P` | Full consent lifecycle: grant → revoke → expiry → 3-stage decay (`identity_severed` → `patterns_anonymized` → `complete`); replication withdrawal | `consent.state.{granted,revoked,expired}`, `consent.decay.{identity_severed,patterns_anonymized,complete}`, `consent.replication.none` | `CSD-053` |
+| **`T15`** | `T15-community-ceremony` / `T15_agent_lifecycle` | `1R / 1C / 7N / 7P` | 7-node community ceremony: proposal, `accepted_awaiting_group`, decline, removal, resignation; moderator lapses → room locks (`fail_secure`) | `member.stage.{proposed,accepted_awaiting_group,declined,removed,resigned}`, `group.moderator.{lapsed,merit_promoted,fail_secure}` | `CSD-102`, `CSD-103`, `CSD-128` |
+| **`T16`** | `T16-agent-retirement` / `T16_content_takedown` | `1R / 1C / 3N / 2P+1A` | 7-stage Agent Retirement Standard (`CC 7.5.5`): `decided` → `frozen` → `secrets_destroyed` → `handed_over` → `notified` → `custodian_minted` → `retired` | `agent.bond.{unbound,lapsed}`, `agent.retirement.{decided,frozen,secrets_destroyed,handed_over,notified,custodian_minted,retired}` | `CSD-111` |
+| **`T17`** | `T17-takedown-purge` / `T17_delegation_lifecycle` | `1R / 1C / 3–4N / 3–4P` | Content takedown & steward purge: `admitted` → `tombstoned` → dwell → `purged` across `family` and `community` scopes (`CC 2.1, 4.5.3, 5.2`) | `row.standing.{admitted,tombstoned}`, `blob.custody.purged`, `row.scope.{family,community}` | `CSD-107`, `CSD-108` |
+| **`T18`** | `T18-delegation-ends` / `T18_accord_lifecycle` | `1R / 1C / 2–3N / 2–3P` | Delegation withdrawal cascade, term expiry, held capability key grant, guardian bond creation (`CC 4.4.3.4.3, 3.3.2, 3.4.13`) | `delegation.link.{withdrawn,expired}`, `grant.state.held`, `guardian.bond.none` | `CSD-119`, `CSD-120` |
+| **`T19`** | `T19-holders-under-coercion` / `T19_holders_under_constraint` | `1R / 1C / 4–6N / 4–6P` | Root holders under coercion (holder 1), censorship (holder 2), and key loss (`revoked_after` vs `revoked_all`; `CC 4.2.6, 2.4.1.1`) | `root.holder_disposition.{honest,coerced,censored,lost}`, `key.revocation.{revoked_after,revoked_all,none}` | `CSD-105`, `CSD-129` |
+
+> [!IMPORTANT]
+> **Explicit Coverage Qualification:** CSD/4 is a **closed catalogue of 20 topologies (`T0–T19`)**, not a claim that every registered state in the Constitution is represented by `T0–T19`. In `CIRISConstitution` `rc17` (`formal/cewp_node/generated/SUMMARY.json`), `formal/STATE_TABLE.tsv` defines **242 states over 81 variables in 12 planes**, while `manifests/topology_vocabulary.json` defines **156 atoms** (`122` promised across `T0–T19`, `87` backed by a plane model, and `6` durability atoms `file.durable.*` awaiting `T20` under `CIRISServer#809`). Every simulation coverage report emitted by `cewp-cli` **must** display `(atoms_exercised / 122 promised / 156 vocabulary / 242 state_table)` so unmodeled states are never hidden.
+
+### 2.4 How CSD/4 Enables Realistic Mesh Usage Modeling in `CEWP`
+Instead of treating a planetary simulation as a sea of featureless random nodes flipping coins, CSD/4 gives `cewp-sim` a **realistic, behaviorally grounded basis of social and operational motifs**:
+
+1. **Realistic Multi-Device & Social Graph Motifs**:
+   - Real users are not isolated single keys: they operate multi-device self-rosters (`T1`, `T3`, `T10`, `T11`, averaging `2.25` devices/person), pair rooms (`T2`), households with guardians and minors (`T4`, `T18`), moderated communities with quorum ceremonies (`T5`, `T15`), professional licensing affiliations with scoped delegations (`T6`), and stewarded AI agents with Wise Authority oversight (`T7`, `T16`).
+   - In `cewp-sim`, a population of $N$ people is instantiated by **tiling and composing the `T0–T19` motifs** according to empirical demographic weights (e.g., `65%` `T0/T1/T4` self & household acts, `30%` `T2/T5/T6/T15` pair, community & affiliation acts, `4%` `T3/T10/T14` consent-free & contact-establishment rows, `1%` `T8/T9/T12/T19` federation/root acts, plus `T7/T16` stewarded agent traces).
+2. **Three-Mode Unified Scenario Runner (`cewp-cli scenario`)**:
+   Every scenario wraps one or more CSD/4 topologies (`T0–T19`) with a workload profile, duration, and fault/adversarial schedule, and executes in three comparable modes:
+   - **Mode 1 — Formal Mode (`--mode formal`)**: Translates the scenario's topology and transition trace into TLC (`formal/cewp_node/CewpNode.tla` / `Trace.tla`) and Lean (`EventLifecycle.lean` / `Tiers.lean`) to verify finite-state safety and liveness invariants (`X1–X5`, `INVARIANTS.tsv`).
+   - **Mode 2 — Simulation Mode (`--mode sim`)**: Instantiates the exact topology (either at `1:1` micro-scale `1–7` nodes or tiled across `R5–R0` populations) inside `cewp-sim` with stochastic latency, NAT reachability (`reach_home_share`), mobile churn, and adversarial injection.
+   - **Mode 3 — Real-Node + Client UI Mode (`--mode native`)**: Invokes `CIRISServer`'s `python3 -m harness.native run` (and optionally `CIRISClient` / `CEWPOS` `--at-state-cmd` UI runners) on the identical topology, captures live `checkpoints/<step>.json` and `nodes/<node>/rows.jsonl`, checks for `MODEL_DRIFT`, and compares resource & semantic outcomes against Mode 2.
+
+---
+
+## 3. Layer 3: Implementing the Actual Transport, ALM, and Storage Rules
+
+A generic P2P graph simulator (edges with static bandwidth capacities) is inadequate for CEWP. `cewp-sim` must implement the exact constitutional mechanisms and their failure modes from [`constitution/claims.tsv`](https://github.com/CIRISAI/CIRISConstitution/blob/rc17/constitution/claims.tsv), [`formal/transport_tiers/Tiers.lean`](https://github.com/CIRISAI/CIRISConstitution/blob/rc17/formal/transport_tiers/Tiers.lean), `CIRISEdge`, `CIRISPersist`, and `CIRISVerify`.
+
+### 3.1 Constitutional Transport Contract (`CC §5.4.3 & §5.4.6`, `Tiers.lean`)
+
+1. **Five Named Budget Classes (`CC §5.4.3`, `Tiers.lean`)**:
+   - `phone-cellular` (`350 B/s`, $\rho = 0.5$, $W = 3,600\text{ s}$, real share `175 B/s`, rank 1)
+   - `phone-wifi` (`1,400 B/s`, $\rho = 0.5$, $W = 600\text{ s}$, real share `700 B/s`, rank 2)
+   - `home` (`2,800 B/s`, $\rho = 0.5$, $W = 600\text{ s}$, real share `1,400 B/s`, rank 3)
+   - `server` (`7,000 B/s`, $\rho = 0.5$, $W = 600\text{ s}$, real share `3,500 B/s`, rank 4)
+   - `seat` (`33,000 B/s`, $\rho = 0.5$, $W = 600\text{ s}$ — offered **only** when both endpoints hold a `serve` seat proved from the signed roster (`seat_needs_both`); its budget sits outside the 8-link device bound per `CLM-seat-class`).
+   - Channel payload MDUs: `≈ 400 B` at the Reticulum `500 B` base MTU vs. `≈ 16 KB` (`16,272 B`) over TCP.
+2. **Shaped-Link Bound (`L ≤ 8`) and Refusal (`CLM-shaped-link-bound-refuse`)**:
+   - Each node runs at most `8` device-tier shaped links at the full class rate (`Tiers.bound = 8`).
+   - A 9th shaping peer of equal or lower rank is **refused a shaped row link**, told to home elsewhere, and offered an unshaped bulk link — never a shaped link degraded below its class rate (`ninth_is_refused`, `place_keeps_bound`).
+3. **Rank-Based Displacement (`CLM-shaped-link-displacement`)**:
+   - At a full node (`8` shaped links), an arriving higher-rank peer (e.g., `home` rank 3 arriving at a `server` holding 8 `phone` links of rank 1–2) displaces the lowest-rank shaped peer (`lowestOf`), who is moved via a sealed control message to a shaped `home` or `server` with a free slot (`movedToShapedPeer`) and keeps shaping (`home_displaces_a_phone`, `displaced_keeps_shaping`).
+   - A phone never displaces a phone (`phone_does_not_displace_a_phone`), and a lower rank never displaces a higher or equal rank (`lower_never_displaces`).
+4. **One Direct Hop (`CLM-shaped-link-one-hop`) & Reachability vs. Capacity (`reach ≠ capacity`)**:
+   - **A shaped link is one direct hop** between its two ends, never forwarded through a third node.
+   - `cewp-sim` must model **direct reachability (`has_direct_path`: IPv6 or punched UDP per `leviculum#100/#101`)** and **slot capacity (`free_shaped_slots > 0` and CPU/bandwidth headroom)** as **two separate state variables and two separate failure counters**:
+     - *Failure Mode A (`UNREACHABLE_FOR_SHAPING`)*: Node has spare CPU, disk, and free `L ≤ 8` slots, but lacks a direct path (behind symmetric NAT/CGNAT) and therefore cannot offer shaped parent slots or establish a shaped link.
+     - *Failure Mode B (`CAPACITY_EXHAUSTED`)*: Node is directly reachable, but all `8` shaped slots (or uplink/CPU gates) are full (`ninth_is_refused`).
+5. **Referral Limit (Up to 3 Sealed Referrals) & Proxy Pull (`CLM-refusal-carries-referrals`, `CLM-every-refusal-may-refer`, `CLM-referred-peer-is-proxy`)**:
+   - Every refusal at the shaped-link bound (or throttled pull / shed serve) carries **up to 3 sealed referrals** (`CIRISEdge/src/transport/shaping_referral.rs#rank_referrals`) of announced nodes that have relay offering enabled (`relay_offering = true`) and report a free shaped slot alongside their live unsolicited inbound dial count.
+   - When an asker connects to a referred peer, that referred peer serves what it holds and pulls missing federation-tier rows from the canonical seat **as its own pull (`proxy`)**, so the seat sees the proxy's pull rather than the asker's (`each_home_adds_seven` vs. `unowned_only_strands_the_73rd`).
+6. **The `64 KiB` Shaped-Link Payload Boundary (`CLM-large-file-not-shaped`, `CLM-small-images-shaped-by-size`) & Unshaped A/V / Bulk Carriage (`CC §5.3.3.2`)**:
+   - The split between the shaped row plane and the bulk plane is **strictly by total object size (`64 KiB = 65,536 B`)**, never by media MIME type:
+     - Any row or small attachment `≤ 64 KiB` may ride a shaped link.
+     - Any file `> 64 KiB` by its whole size **never** crosses a shaped link, whole or in chunks. A shaped-only node attempting to fetch a `> 64 KiB` object must receive the exact constitutional refusal (`"This file is too large to access over shaped links"`), while ordinary nodes fetch it over unshaped bulk links.
+   - **A/V and bulk traffic ride unshaped links only**, and a failed bulk dial **never** falls back onto shaped frames (`CLM-shaped-link-one-hop`). Furthermore, under **CC §5.3.3.2**, the realtime profile has **no selective-forwarding (SFU) relay role**.
+7. **Carriage Axis (`consentOnly` vs. `full`, `CLM-link-carriage-axis`, `CLM-stranger-carries-consent-free`)**:
+   - Link carriage (`consentOnly` vs. `full`) is independent of link budget class (`carriage_independent_of_class`). A stranger link carries **only** the 16 consent-free envelope kinds (`cover`, `kex`, `routeFetch`, `keyRecord`, `keyRevocation`, `occurrence`, `allegiance`, `unownedRoute`, `deviceJoin`, `contactAsk`, `contactAnswer`, `invite`, `inviteAnswer`, `groupKeyWrap`, `halt`, `tombstone`).
+8. **Anonymous Tier, Sticky Guards, and Room-Mailboxes (`CC §5.4.6`, `formal/anonymous/`, `formal/onion_layers/`)**:
+   - Anonymous mode is a dedicated, unannounced single-identity node mode from first run (`CLM-anonymous-mode-dedicated-identity`), sending end-to-end cover packets at ~1/3 of a home's shaped share (`CLM-anonymous-e2e-cover`).
+   - 3-hop X-Wing (`X25519 + ML-KEM-768`) `CONP` onion frames (`15,296 B`) ride over standing shaped links by replacing scheduled cover frames (`+0 B` extra wire bytes):
+     - **Hop 1**: Sticky guard drawn from the sender's own consented relay contacts (held 60 days; serve seat only as last resort).
+     - **Hop 2**: Pinned for long-lived mailboxes; otherwise drawn deterministically from the fold (`≤ 1` relay per owner, witnessed owner age filter).
+     - **Floor**: At least **3 answering relays per layer** (`onion_tier_unavailable_floor`); if fewer than 3 answer, the node sends chaff and waits rather than degrading to 2 hops.
+   - **Room-Mailboxes (`CLM-tier-carries-rooms`)**: Private anonymous rooms exchange rows via a **room mailbox held by two member-owned always-on nodes** chosen by the room (or a serve seat as last resort with a 2-hour both-ends-awake warning), never in a public room.
+
+### 3.2 Deterministic Application-Layer Multicast (`CC §6.1.6`, `CLM-deterministic-alm`)
+`cewp-sim` must not approximate room/broadcast fan-out as an idealized balanced $k$-ary tree. It must execute the exact integer-only algorithm from `CIRISEdge/src/holonomic/deterministic_topology.rs` (`compute_alm_topology_verified`):
+
+1. **Exact Algorithm Contract**:
+   - Pure integer arithmetic (`f32_mbps_to_millibps_u64`, zero IEEE-754 floating-point branches, `BTreeMap` lexicographic tie-breaking by `peer_id`).
+   - Inputs: `VerifiedTopologyInputSnapshot` over hybrid-signed `SignedRelayCapacity` advertisements (domain `b"CIRISALM-CAPv2\0\0"`), `trust_grants`, `reachability_observations`, and `locality`.
+   - Self-asserted uplink capacity is clamped (`clamp_self_asserted_millibps`) unless backed by a `CapacityVerification::ThroughputChallenged` receipt.
+   - Depth-0 stream offers are admitted only from the publisher bound in `StreamKeyBinding` (`CLM-av-stream-key-binding`, CC §5.3.3.2.3).
+2. **Mandatory Frozen Vector Parity**:
+   `cewp-sim`'s ALM module must pass all 15 frozen vectors from `deterministic_topology.rs`:
+   `same_input_same_output`, `wire_determinism_under_permutation`, `empty_snapshot_returns_empty_topology`, `locality_filter_excludes_out_of_locality`, `trust_chain_depth_respected`, `tie_break_by_peer_id_lex_min`, `mdc_sub_stream_emits_one_edge_per_path`, `unverified_ads_dropped_before_scoring`, `clamped_capacity_at_max_self_asserted`, `throughput_challenged_uncapped`, `sub_path_penalty_distributes_mdc` (F-4 anti-concentration), `max_subscribers_zero_blocks_parent_selection`, `substream_commitment_cap_blocks_oversubscription`, `mutual_ab_snapshot_produces_acyclic_tree`, and `distinct_subscriber_counting_under_max_subscribers_per_stream`.
+3. **Computed Tree vs. Live Operating Tree**:
+   `cewp-sim` must measure two distinct observables:
+   - **Agreement Rate**: Do all room members fold the same `AlmTopology` when gossip is delayed or out-of-order?
+   - **Live Delivery Yield**: When interior tree relays lie about capacity, advertise stale reachability, spoof locality, or drop mid-stream, how many chunks actually arrive within the playout window, and how long does tree repair / sibling promotion take?
+
+### 3.3 Symbol-Level Storage, Repair, and Noise-Floor Descent (`CC §6.1.2`, `CLM-noise-classify`)
+While the analytic binomial formula `P(Binomial(R, q) ≥ N)` in [`examples/scale_model.rs`](../examples/scale_model.rs) is preserved in `cewp-model` as a closed-form baseline, `cewp-sim` must model **actual symbol identities, matrix rank, and noise-floor state transitions**:
+
+1. **Per-Symbol Identity & Rank Tracking (`FountainManifestV1`)**:
+   - Each published object of size $S$ is segmented into `n_source` ($N = 20$ default) source symbols plus `k_repair` ($K = 6$ default) repair symbols (`min_viable_symbols = 5` default).
+   - Each holder stores specific symbol indices $s_i \in \{0, \dots, N+K-1\}$ (or linear combinations with seed IDs), not a generic scalar `"1/N"`.
+   - Reconstruction at a requester succeeds only when the set of **currently reachable, non-corrupt, non-withholding holders** supplies a set of distinct symbols of rank $\ge \text{threshold}$.
+2. **Explicit Placement, Contention, and Repair Dynamics**:
+   - Models rarest-fragment-first swarm placement (`swarm_rarity`), target-holder trimming (`should_eject_above_target` at $H \times 1.15 = 34.5$), repair-bandwidth storms after correlated regional/ASN outages, malicious holders that claim `holds_bytes` while withholding or serving corrupt symbols, and the distinction between a **load-bearing holder** (holding a rare symbol needed for rank) and a **redundant reachable node**.
+3. **Three Constitutional Noise-Floor Outcomes (`CLM-noise-classify`, `test_540_noise_floor.py`)**:
+   Every retained object in `cewp-sim` is classified at each step by its reachable symbol count `present`:
+   - **`Full`** (`present ≥ n_source`): Lossless reconstruction of all source bytes.
+   - **`Partial`** (`min_viable_symbols ≤ present < n_source`): Degraded layered-codec / summary recovery above the noise floor.
+   - **`EnvelopeOnly`** (`present < min_viable_symbols`): Below the noise floor; zero payload bytes are recoverable, **but the bound-hybrid-signed `FountainManifestV1` envelope header is never evicted** (except for prohibited content under `NcmecCsam`, `PerceptualHashCsam`, `GifctCip`, `CourtOrder` per CC §6.1.2.2, which zeroes to content-hash only).
+   - **Revocation Dominance (`CLM-noise-N5`, `CLM-noise-ejection`)**: A `withdraws` or `consent:state:revoked` row triggers `EjectHardDelete`, forcing immediate descent to `EnvelopeOnly` regardless of symbol rarity.
+   - **Aggregation Dominance & Multiplicity Gates (`CLM-neff-dominance-gate`, `CLM-multiplicity-gate`)**: `AggregationMetaV1` (v3) enforces both the Kish effective sample size gate (`n_eff * 2 >= source_count`) and the L1 similarity multiplicity gate (`max_source_multiplicity * n_min <= source_count`).
+
+---
+
+## 4. Layer 4: Workload Mathematics, Certified Multiscale Coarse-Graining (`CIRISHolon`), and Baselines
+
+### 4.1 Fixing the Workload Mathematics (Compound Poisson + Payload Distributions)
+In v0.1 of this FSD, §4 wrote `P(new content per second) = D / 86400` where $D$ is `daily_bytes_per_user`. **That was dimensionally invalid** ($\text{bytes}/\text{second}$ is a throughput rate, not a dimensionless probability, and exceeds $1.0$ whenever $D > 86.4\text{ KB/day}$).
+
+In v0.2, `cewp-sim` models event generation and content fetches as **inhomogeneous compound Poisson processes** with payload-size distributions:
+
+1. **Event Arrival Rate ($\lambda_{\text{write}}$) and Timestep Probability**:
+   For an actor in archetype/scenario $c$ with daily produced byte budget $D_{\text{write}}$ (bytes/day), payload size random variable $B \sim \mathcal{D}_{\text{payload}}^{(c)}$ with mean $\mathbb{E}[B]$ (bytes/event), and local diurnal activity multiplier $\mu_{\text{diurnal}}(t_{\text{local}}) \ge 0$ (normalized so $\frac{1}{86400}\int_0^{86400} \mu_{\text{diurnal}}(t)\,dt = 1$):
+   $$\lambda_{\text{write}}(t) = \mu_{\text{diurnal}}(t_{\text{local}}) \cdot \frac{D_{\text{write}}}{\mathbb{E}[B] \cdot 86400} \quad [\text{events / second}]$$
+   Over a discrete simulation timestep $\Delta t$ (seconds), the number of events $K_{\text{write}}$ generated by the actor is drawn from:
+   $$K_{\text{write}} \sim \text{Poisson}\!\left(\lambda_{\text{write}}(t)\,\Delta t\right), \qquad P(K_{\text{write}} \ge 1) = 1 - e^{-\lambda_{\text{write}}(t)\,\Delta t}$$
+   Each generated event $j \in \{1, \dots, K_{\text{write}}\}$ draws its byte size $B_j \sim \mathcal{D}_{\text{payload}}^{(c)}$ (using the 6-category Sandvine/Ericsson + IETF RFC 6985 IMIX mixture from `scale_model.rs`: compact signed CEG rows `256 B–1.5 KB`, H3ERE agent traces `14 KB`, inline short-form media `≤ 16 MiB`, and external VoD/bulk pointers).
+2. **Fetch Arrival Rate ($\lambda_{\text{fetch}}$)**:
+   Similarly, for daily consumed bytes $D_{\text{fetch}}$ and mean fetched object size $\mathbb{E}[B_{\text{fetch}}]$:
+   $$\lambda_{\text{fetch}}(t) = \mu_{\text{diurnal}}(t_{\text{local}}) \cdot \frac{D_{\text{fetch}}}{\mathbb{E}[B_{\text{fetch}}] \cdot 86400}, \qquad K_{\text{fetch}} \sim \text{Poisson}\!\left(\lambda_{\text{fetch}}(t)\,\Delta t\right)$$
+
+### 4.2 Replacing Naive Subsampling with Certified Coarse-Graining (`CIRISHolon` Contracts)
+In v0.1, §5 proposed running `R1` (`1:100`) and `R2` (`1:1000`) by uniformly sampling $1\%$ or $0.1\%$ of agents at $1:1$. **Naive node subsampling breaks network topology**: if every node has $R = 150$ trusted neighbors and nodes are retained independently with probability $p = 0.01$, the expected retained degree collapses from $150$ to $1.5$, shattering small-world giant components, ALM trees, and $k=2$ parent pools.
+
+To make the resolution ladder (`R5` $\to$ `R0`) scientifically defensible, `cewp-sim` adopts the formal coarse-graining certification architecture from [`/home/emoore/CIRISHolon`](file:///home/emoore/CIRISHolon/README.md) (`lean/CIRISHolon/{Object,Tier,Budget,Transport}.lean`):
+
+1. **The Commuting Square (`Closed`) and Removability Gate (`Carried`)**:
+   - A coarse simulation tier $C$ (with projection $v : X \to C$ from finer tier $X$, fine step $T : X \to X$, and coarse update $h : C \to C$) is **admitted** only when:
+     1. **Closed (`CIRISHolon.Object.Closed`)**: The square commutes within a declared closure defect budget $\beta$:
+        $$D_v^2 = \frac{\|v(T(x)) - h(v(x))\|^2}{\|v(T(x)) - v(x)\|^2} \le \beta$$
+        By `nonfactoring_iff_not_closed`, any failure of closure produces a concrete **witness pair** $(x, y)$ of fine states with $v(x) = v(y)$ whose next states diverge ($v(T(x)) \ne v(T(y))$).
+     2. **Carried (`holon-closure::removable`)**: Every retained coarse state variable in $C$ earns its keep — removing it increases the prediction error of the target observables (delivery rate, shaped slot seating, $k=2$ leaf load, tail latency, per-node disk/CPU/bandwidth) beyond $\beta$, accompanied by a **Price Certificate** (charging for dropped remainder weight) distinct from maintenance **Rent** (churn/repair flux).
+2. **Boundary-Preserving Graph Coarsening (How `R1–R4` Preserve Degree & Traffic)**:
+   Instead of dropping $99\%$ of neighbors, a coarse tier uses **hybrid micro-macro coarsening**:
+   - **Focal Subgraph at 1:1 ($X_{\text{focal}}$)**: A stratified set of complete CSD/4 motifs (`T0–T19`), metro clusters, and attack targets simulated at full `1:1` individual node/device fidelity (preserving exact degree $R = 150$, $L \le 8$ shaped slots, and `deterministic-alm` fan-out).
+   - **Boundary Cohort Holons ($C_{\text{boundary}}$)**: Omitted external peers are not deleted; they are collapsed into **metro × device-class × budget-class cohort holons** that expose exact **boundary stubs** (preserving the degree distribution, inbound/outbound Poisson request flux, referral slot supply/demand, and RaptorQ symbol availability across the boundary).
+3. **Compositional Tier Stacking & Horizon Error Budgets (`Tier.stack` & `Budget.lean`)**:
+   - By `CIRISHolon.Tiers.Tier.stack` (`closed_comp`), certifying `R4` against `R3` and `R3` against `R2` composes soundly.
+   - By `CIRISHolon.Budget.horizonBudget_le_of_nonexpansive`, `cewp-sim` enforces the **non-expansive Lipschitz gate ($K \le 1.05$)** on coarse updates so multi-step approximation errors grow at most linearly ($n \cdot \varepsilon$) rather than compounding exponentially.
+   - By `CIRISHolon.Transport.claim_transport_does_not_grant_certificate` (**Second-Square Fence**), a parameter mapping between two scenarios never transfers a validity certificate without re-verifying the certificate predicates on the target.
+
+### 4.3 Four Credible Baseline Architectures
+To prevent comparing an optimized CEWP model against a straw-man "every packet goes to one US-East datacenter" baseline, `cewp-sim` implements **four architectures** running the exact same workload, metro population, submarine cable/IXP graph, and diurnal/flash-crowd schedule:
+
+| Architecture ID | Name | How Traffic, Storage, and Fan-Out Are Modeled |
 |---|---|---|
-| **[GeoNames cities1000](https://download.geonames.org/export/dump/)** | ~150 K cities ≥ 1000 pop with lat/lon + population. The metros we drop CEWP nodes into. | Tab-separated; free; ~30 MB |
-| **[PeeringDB](https://www.peeringdb.com/)** | ~1.3 K Internet Exchange Points + ~5 K interconnection facilities with metro location, capacity, member count. The IXPs centralized internet traffic flows through. | REST JSON API |
-| **[CAIDA ITDK (2025-03)](https://www.caida.org/catalog/datasets/internet-topology-data-kit/release-2025-03/)** | AS-level topology from traceroutes (197 Ark monitors in 51 countries, March 2025). The peering graph between ~120 K ASNs. | TSV; account-gated but free |
-| **[TeleGeography Submarine Cable Map (2025)](https://www.submarinecablemap.com/)** | 597 active/planned cable systems with 1712 landings, capacity per major route. KML for routes + Points for landings. | KML; free (full geocoded dataset is licensed) |
-| **[Hurricane Electric BGP Toolkit](https://bgp.he.net/)** | AS relationships (provider / customer / peer). Refines the CAIDA peering graph. | Web; free |
+| **`A1_HYPERSCALE_CDN`** | **Centralized Origin + Edge CDN + ISP Cache** | Origin in regional hyperscale DCs (~10K facilities); 85%–95% of popular VoD/bulk served from metro IXP edge caches (~1.3K PeeringDB IXPs); uplink/API writes, social graph folds, and auth checks traverse backhaul to regional DCs. |
+| **`A2_MULTIREGION_SFU`** | **Multi-Region Active-Active Cloud + SFU Mesh** | Geo-replicated cloud databases + regional WebRTC SFU clusters (LiveKit/Teams model) for live calls/events; full server-side media selective forwarding and cloud state replication across regions. |
+| **`A3_HYBRID_P2P`** | **Hybrid P2P with Central Bootstrap / Relays** | BitTorrent / IPFS / Matrix / Nostr composite: P2P block swarming (with 10%–35% Bitswap duplicate block overhead) or federated homeserver DAGs, backed by centralized TURN/DERP relays (15%–30% fallback) and open-admission DHTs (78.2% churn lookup survival). |
+| **`A4_CEWP_RC17`** | **CEWP Constitutional Substrate (`rc17` / `Edge v44`)** | CC §4.5.13 state processor + CC §5.2 locality dividend + CC §5.4.3 1-hop shaped budget classes (`L ≤ 8`, displacement, 3 referrals) + CC §5.4.6 `CONP` onion walks & room-mailboxes + CC §6.1.6 `deterministic-alm` + CC §6.1.2 RaptorQ `(N,K)` symbol-rank storage & noise-floor pyramid. |
 
-### 2.3 Demand inputs (per the scaling model)
+### 4.4 Explicit Scenario Parameterization & Four-Regime Sensitivity Sweeps
+No assumption (`65%` local traffic, `40%` `reach_home_share`, `10%` `server` tier, `90%` relay offer) may be hardcoded as a hidden truth. Every scenario TOML parameterizes these inputs and `cewp-cli sensitivity` automatically runs **four standard regimes** plus 1D/2D parameter sweeps:
 
-The per-user activity model is the same as
-[FEDERATION_SCALING_MODEL.md §3](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_SCALING_MODEL.md):
+| Parameter | Optimistic Regime | Expected (Default) Regime | Pessimistic Regime | Adversarial / Stress Regime |
+|---|---|---|---|---|
+| **Locality Share (`self` + `family` + local `community`)** | `85%` | `65%` (`~90%` incl. local comm) | `40%` | `20%` (global flash-crowd storm) |
+| **Directly Reachable Home Share (`reach_home_share`)** | `65%` (IPv6 + PCP/UPnP) | `40%` (`leviculum#100` target) | `15%` (heavy CGNAT, no UPnP) | `0%` (100% hard CGNAT on homes/phones) |
+| **Server-Tier Share (`% server`)** | `12%` | `5%–10%` | `4%` | `2.0%` (below the `3.92%` 0%-reach floor) |
+| **Relay Offer Opt-In (`% relay_offering`)** | `95%` | `90%` | `50%` | `0%` (`unowned_only_strands_the_73rd`) |
+| **Mobile Sleep / Churn Rate ($p_{\text{offline}}$)** | `5%` | `15%` | `30%` | `50%` + correlated regional ASN cut |
 
-| Workload class | Avg envelope | Daily activity / user | Cohort distribution |
+### 4.5 Hybrid Resolution Ladder (Replacing the Raw 5B 1:1 First-Milestone Assumption)
+At `5,000,000,000` agents with $R = 150$ neighbors, storing explicit 4-byte directed neighbor IDs alone requires $5\times 10^9 \times 150 \times 4\text{ B} = 3.0\text{ TB}$ of RAM before any node state, symbol manifests, or event queues. Therefore:
+- **Discrete-event scheduling (`cewp-sim`)** updates nodes **only when an event arrives or a timer fires**, never iterating over idle agents every second.
+- **Resolution Tiers (`R5` $\to$ `R0`)**:
+
+| Tier | Scale & Representation | Certification Requirement (`CIRISHolon`) | Target Hardware & Purpose |
 |---|---|---|---|
-| `bootstrap` | 1.5 KB | 20 KB | default (65% local) |
-| `dunbar_steady` | 1.5 KB | 50 KB | default |
-| `media_heavy` | 8 KB | 500 KB | default |
-| `twitter_scale` | 0.5 KB | 5 KB | default |
-| `news_replacement` | 5 KB | 100 KB | default |
-| `full_internet_v1` | 50 KB | 50 MB | default |
-| `local_heavy` / `global_heavy` | varies | varies | local-heavy / global-heavy |
-
-The engine accepts these as scenarios; each one specifies workload
-class + trust topology + cohort distribution + tier mix. Users can
-add custom scenarios.
+| **`R5` (Micro / CSD/4 Exact)** | `1–1,000` nodes at exact `1:1` (all `T0–T19` topologies + 50–1,000 node rooms) | Ground truth (`β = 0`): bit-for-bit parity with `EventLifecycle.lean`, `CewpNode.tla`, and `CIRISServer` native runner | Laptop / CI / Browser WASM (`< 1 s`) |
+| **`R4` (Meso / Metro Cluster)** | `10,000–100,000` nodes at `1:1` focal subgraphs + boundary stubs | Certified `Closed` view of `R5` (`D_v² ≤ 0.02`, `K ≤ 1.05`) | Workstation / Browser WASM (`< 5 s`) |
+| **`R3` (Regional CI)** | `1,000,000` nodes (`100K` `1:1` focal + `900K` cohort holons) | Certified `Closed` view of `R4` (`D_v² ≤ 0.03`, `K ≤ 1.05`) | 16-core CI runner (`< 10 s`) |
+| **`R2` (Continental)** | `50,000,000` effective nodes (`1M` `1:1` focal + `181` locality holons) | Certified `Closed` view of `R3` (`D_v² ≤ 0.05`) | 64-core CPU (`< 30 s`) |
+| **`R1` / `R0` (Planetary)** | `5.0 B–8.1 B` people / `11.25 B–18.1 B` devices (`2,961` land cells × device/budget cohorts + embedded `1:1` focal subgraphs around attacks/outages) | Certified multiscale composition (`Tier.stack`) with explicit horizon error bounds (`horizonBudget`) | Multi-core CPU / GPU cluster (eventual scale demonstration after `R5–R3` gates pass) |
 
 ---
 
-## 3. The two topologies, modeled
+## 5. Layer 5: Adversarial Testing Programme & Constitutional Formal-Exclusion Suite
 
-The engine runs both topologies **simultaneously over the same
-metro graph**, on the same workload, in the same time-stepping
-loop. This is what makes the side-by-side comparison legible.
+A simulation that only models benign churn proves expected behavior, not resilience. `cewp-sim` includes a dedicated `cewp-adversary` crate organized around **8 attack classes** and **formal-exclusion regression fixtures**.
 
-### 3.1 Centralized internet topology
+### 5.1 The Eight Adversarial Campaign Classes
 
-| Element | Modeled as | Source |
-|---|---|---|
-| Hyperscale datacenters | ~10 K facilities, weighted by published capacity. Top 5 operators (AWS, Azure, GCP, Meta, Apple) hold ~70% of capacity. | PeeringDB facility data + public hyperscaler footprint |
-| IXPs | ~1.3 K nodes at metro locations, capacity per member | PeeringDB IXP data |
-| Submarine cables | 597 cable systems, 1712 landings, capacity per route | TeleGeography 2025 dataset |
-| AS-level peering | ~120 K ASNs, link weights from CAIDA topology data | CAIDA ITDK 2025-03 |
-| Terrestrial fiber | Major backbone routes inferred from BGP toolkit + ASN-to-metro adjacency | Hurricane Electric BGP toolkit |
-| End users | Aggregated to metro nodes; per-metro user population from GeoNames + ITU broadband penetration estimates | GeoNames + ITU stats |
-
-**Flow model:** every byte every user produces or consumes is routed
-through their nearest hyperscaler facility's CDN, then through the
-AS-level peering graph + submarine cables to its destination. Most
-flows fan out from a small number of hyperscale origin/sink nodes —
-that's the bottleneck the visualization makes visible.
-
-### 3.2 CEWP topology
-
-| Element | Modeled as | Source |
-|---|---|---|
-| Client nodes | Phones + tablets. Distributed by metro population. | GeoNames + ITU smartphone penetration |
-| L0 proxy nodes (256 GB) | Laptops + small home servers. Distributed by metro population. | GeoNames + estimated laptop penetration |
-| L1 server nodes (1 TB) | Home servers + small VPSes. Distributed by broadband-internet density. | GeoNames + ITU broadband stats |
-| Trust topology | Small-world graph per Watts-Strogatz, R direct trust ≈ 150 (Dunbar), depth=1 default per scaling model | Synthetic; calibrated against scaling model |
-| Transport links | Reticulum mesh (peer-to-peer over consumer ISPs) + HTTPS fallback for unreachable peers | Modeled as consumer broadband uplinks |
-| Internet backbone reused | CEWP rides on the same submarine cables + terrestrial fiber, but at the consumer-ISP edge, not the hyperscale CDN edge | TeleGeography + ASN-to-metro |
-
-**Flow model:** every byte is admitted at the recipient node's
-trust × capacity gate, then propagates along the trust graph
-according to cohort_scope (the locality dividend: 65% of traffic
-never crosses metros). Bytes that DO cross metros traverse the
-same submarine cables and terrestrial fiber as in the centralized
-case — but originate and terminate at consumer endpoints, not
-hyperscale facilities. The animation contrast: same fiber, no
-datacenters in the middle.
-
-**Holonomic substrate properties (CEG §19) the sim should
-represent.** The CEWP topology is holonomic — no center, no DNS, no
-load-bearing server. Three §19 properties refine the flow model
-above and the per-node accounting:
-
-* **Deterministic ALM multicast relay tree** (CEG §19.4) —
-  cross-metro fan-out for `cohort_scope ≥ community` content rides a
-  deterministic application-layer-multicast relay tree, not R
-  independent unicasts. The sim models multicast edges as one relay
-  tree per (publisher, subscriber-set), so popular content + live
-  broadcast don't replicate the same byte R times across the same
-  fiber.
-* **RaptorQ erasure-coded / holographic storage** (CEG §19.3) —
-  published blobs are `(N,K)` fountain-coded; holders carry
-  *fragments*, and any sufficient subset reconstructs. Per-node
-  `bytes_held` accounts for fragment shares, not whole blobs; the
-  sim shows the substrate surviving node loss down to one survivor.
-* **Noise-floor memory pyramid** (CEG §19.7, O(log T)) — retirement
-  (revocation / eviction / expiry / aging) is one monotonic descent
-  toward a noise floor; all of history costs O(log T) steady-state
-  storage. The sim models long-horizon `bytes_held` as the pyramid,
-  not flat per-source retention.
-
----
-
-## 4. The demand model
-
-Per time step (default 1 sim-second = 1 wall-clock frame), each user
-agent in the simulation:
-
-1. Generates new content with probability `D / 86400` per second
-   (where D = daily_bytes per user)
-2. Each generated envelope has cohort_scope drawn from the scenario's
-   distribution (default: 65% self/family, 15% community, 10% affiliations, 5% species, 3% planet, 2% federation)
-3. Each envelope at `cohort_scope ≥ community` flows along the trust
-   graph (fanout from author to admitting peers)
-4. With probability `daily_fetch / 86400` per second, the user requests
-   content from a random previously-generated envelope (weighted by
-   popularity)
-5. The two topologies route the flow differently (§3.1 vs §3.2)
-6. Per-node bytes-held / bandwidth / CPU update accordingly
-
-Agent decisions (the H3ERE pipeline) generate trace data at
-~14 KB/decision, with `agent_decisions_per_day` per scenario. These
-flow the same way as user-content, with the addition that LensCore
-detectors run on aggregate trace streams per cohort.
-
----
-
-## 5. Resolution gradient (single engine, many scales)
-
-The same engine code runs at multiple resolutions; quantization is
-a configuration knob, not a separate codebase.
-
-| Resolution | Target | Hardware | Use case |
+| Class | Campaign IDs | Experiments & Attack Mechanisms | Target Invariant / Observable |
 |---|---|---|---|
-| **R0 (1:1 native)** | 5 B agents at 1:1 | GPU cluster (4-8 × A100/H100 80GB), or single H100 with batched streaming | Full-scale verification of the bet |
-| **R1 (1:100 sampled)** | 50 M agents at 1:1 | Single A100 / RTX 4090 | Single-node deep simulation |
-| **R2 (1:1000 sampled)** | 5 M agents at 1:1 | 64-core workstation CPU + rayon | Researcher reproducibility |
-| **R3 (1:5000 sampled)** | 1 M agents at 1:1 | 16-core CPU | CI test loop |
-| **R4 (animation grade)** | 10 K-100 K agents | Browser (WASM) | Website team's animation source |
-| **R5 (illustrative)** | 1 K agents | Browser (WASM) | Public-facing interactive |
+| **1. Identity & Sybil** | `ADV-ID-01..04` | Mass identity minting ($10^6–10^8$ zero-trust keys), fake `SignedRelayCapacity` floods, colluding Sybil rings attempting to pass `twoPath` / `cosigned` gates, trust-graph hub capture | `Inv_HostileShareBound`, `0.00%` zero-trust guard capture, `L ≤ 8` contact-gated slot protection |
+| **2. Routing & Reachability** | `ADV-RT-01..04` | Poisoned 3-referral replies pointing to blackholes/colluders, false inbound-dial-count hints, asymmetric reachability lies, submarine cable / IXP partition cuts | Referral fallback convergence time, `proxy` pull isolation, $k=2$ leaf survival & re-home p99 |
+| **3. Deterministic ALM** | `ADV-ALM-01..05` | Self-asserted capacity inflation up to clamp ceiling, strategic interior relay drop mid-keyframe, locality spoofing to capture root-child slots, colluding relay subtree eclipse | `compute_alm_topology_verified` determinism, `sub_path_penalty_distributes_mdc` (F-4), RaptorQ + sibling promotion recovery |
+| **4. Storage & Fountain** | `ADV-ST-01..05` | `holds_bytes` liar attack (attesting custody while withholding symbols), selective symbol corruption, coordinated regional outage dropping $30\%–50\%$ of holders, rarity-manipulation Pin-DoS, Kish `n_eff` / R9 multiplicity gaming | Symbol-rank reconstructability (`Full` / `Partial` / `EnvelopeOnly`), `CLM-neff-dominance-gate`, `CLM-multiplicity-gate`, repair bandwidth spike |
+| **5. Privacy & Traffic Analysis** | `ADV-PR-01..04` | Global Passive Adversary (GPA) timing correlation across shaped vs. unshaped links, compromised sticky entry guard + layer-3 rendezvous collusion, room-mailbox wake/sleep intersection attack on sleeping phones | Anonymity set entropy, `> 64 KiB` refusal enforcement, room-mailbox 2-hour both-ends-awake warning trigger |
+| **6. Governance & State Folds** | `ADV-GV-01..05` | Equivocating signed rows delivered in opposite orders across partitions, delayed backdated revocations near window $W$, moderator disappearance during active flag flood, coerced/censored root holders (`T19`), census ballot dominance gaming | Permutation-invariant fold agreement (`100%`), `Inv_BaseRatchet`, `Inv_DominanceGate`, `T15` `fail_secure` lock & 24h ranked election |
+| **7. Resource Exhaustion** | `ADV-EX-01..04` | `F-AV-RECONSIDER-DOS` hybrid signature verification flood (`276 µs/op`), `L ≤ 8` displacement thrashing, unpinned hot-cache thrashing, `16,272 B` vs `400 B` MDU fragmentation exhaustion | Per-server `1 core` / `1 Gbps` / `1 TB` gates, M/M/1 CPU queue $W_q$, per-actor intake & eviction isolation |
+| **8. Recovery & Rejoin** | `ADV-RC-01..04` | Stolen device quorum eviction race (`T10`), lone-device recovery during `W_self = 86400s` (`T11`), stalled root recovery (`T12`), 7-stage agent retirement drain under steward loss (`T16`) | `Inv_X2` (evicted key authority ends immediately), `Inv_X1` (halt latch never blocks serving/replication), zero rollback |
 
-**Quantization is sampling, not aggregation.** R1 samples 1% of
-users at 1:1; the metros they live in are real; their behavior is
-individual. This preserves the visual distinctness the website
-team needs (each dot is an agent, not an average).
+### 5.2 Structured Threat-Model & Search-Space Schema
+Every adversarial run must declare and emit a machine-readable `AdversaryCampaignSpec`:
+- `attacker_capabilities` (e.g., `sybil_identities`, `compromised_relays_fraction`, `gpa_link_visibility`, `coerced_root_holders`)
+- `attacker_cost` (bandwidth, compute, hardware, or human social-engineering edges required)
+- `target_property` (exact `INVARIANTS.tsv` ID or operational SLO)
+- `success_condition` (exact predicate under which the attacker wins)
+- `search_space` (`seeds_tested`, `parameter_grid`, `simulated_duration_secs`, `states_explored`)
+- `mitigation_exercised` and `residual_risk` (never reporting *"attack prevented"* from a single lucky seed; reporting the exact breakdown threshold where the attack *does* succeed).
 
-**The website team consumes R4 or R5 snapshots** for the
-visualization. The engine emits snapshots in the format §6
-specifies; the team's Three.js InstancedMesh setup (already in
-`AlephScene.tsx`) consumes them directly.
+### 5.3 Turning Constitutional Formal Exclusions & Historical Counterexamples into Mandatory Tests
+The formal models in `CIRISConstitution/formal/` explicitly document both **what they exclude** and **failing twin configurations (historical counterexamples)**. `cewp-sim` and `CIRISConformance` turn every one of these into an automated test:
 
----
-
-## 6. Snapshot output format
-
-The engine emits a snapshot stream — one snapshot per simulated
-time step — that the visualization consumes. Format chosen for
-direct compatibility with the existing
-`AlephScene.tsx` rendering (InstancedMesh per group + LineSegments
-for arcs).
-
-### 6.1 Per-snapshot binary layout (R4 / R5 — WASM-friendly)
-
-Little-endian; aligned to 4-byte boundaries; suitable for direct
-ArrayBuffer view in JS.
-
-```
-SnapshotHeader (16 bytes)
-  u32 magic = 0xCE7C0501          // "CEWP snap, v1"
-  u32 sim_time_seconds            // current sim time
-  u32 node_count                  // N
-  u32 edge_count                  // E
-
-NodeArray (N × 32 bytes each)
-  u32 node_id
-  f32 lat, f32 lon                // metro location
-  u8  topology = 0 (internet) | 1 (cewp)
-  u8  tier     = 0 (client) | 1 (proxy/L0) | 2 (server/L1) | 3 (hyperscale_dc) | 4 (ixp)
-  u8  state    = 0 (idle) | 1 (sending) | 2 (receiving) | 3 (signing) | 4 (verifying)
-  u8  reserved
-  u32 bytes_held                  // current storage occupancy (saturated to u32 max for R0)
-  f32 bandwidth_in_bps            // rolling avg
-  f32 bandwidth_out_bps
-  f32 cpu_util_fraction           // 0..1
-  u32 trust_set_size              // for CEWP nodes; 0 for internet nodes
-
-EdgeArray (E × 24 bytes each)     // dynamic flows this step
-  u32 src_node_id, u32 dst_node_id
-  u8  topology = 0 (internet) | 1 (cewp)
-  u8  flow_class = 0 (content) | 1 (attestation) | 2 (fetch) | 3 (trace)
-  u16 reserved
-  f32 bytes_per_second_this_step
-  u32 cumulative_bytes_so_far
-  f32 latency_ms
-```
-
-### 6.2 R0/R1/R2 native format
-
-Same shape, but written to a memory-mapped Apache Arrow file for
-random access + columnar compression. Node + edge arrays are
-columnar; downstream tooling can query via DataFusion.
-
-### 6.3 Snapshot cadence
-
-Default: 1 snapshot per simulated minute → 1440 snapshots per
-simulated day. At animation grade (R4 / R5), this is ~10 MB total
-for a 1-day playback — easily streamable.
+1. **Consent Model Exclusions (`formal/consent/README.md` "What it does not model")**:
+   - **`EX-CONSENT-01` (Onward Peer Re-Sending)**: `CC 3.3.7` makes `consent:replication` a governance record, not an admission check; `Consent.tla` does not model a peer re-sending held bytes onward after revocation. `cewp-sim` tests multi-hop onward replication races and measures how fast `T16`/`T17` withdrawal propagation + `CLM-noise-N5` hard-delete extinguishes onward copies.
+   - **`EX-CONSENT-02` (Delegation Chains & Unarrived Owner-Binding Rows)**: Tests held rows arriving *before* their `CC 2.4.1.1` owner-binding / delegation chain rows, and verifies the consent-before-scoring admission gate on `capacity:*` (`CC 3.4.5`).
+   - **`EX-CONSENT-03` (Deletion Window D1–D4 Breach Signals)**: Simulates a controller node failing to purge within the `CC 3.3.1` D1–D4 deletion window and verifies that peers emit and fold the breach signal.
+   - **`EX-CONSENT-04` (Multi-Subject, Multi-Node, $>3$-Row Composition)**: Scales `Consent.tla`'s 1-subject, 1-node, 3-row proof to $10^3$ concurrent subjects across partitioned nodes with `consent_supersedes` audit chains.
+2. **Historical Counterexample Regression Fixtures (Must Fail When Protection Is Disabled, Pass When Enabled)**:
+   - **`REG-MESH-SCOPE` (`formal/mesh_net/MeshNet_shipped_scope.cfg`)**: Verifies that emitting a `holds_bytes` claim for community/private content at federation scope violates `Inv_Invisible` in 4 steps, and that the shipped scope-bound builder passes (`MeshNet_ruled.cfg`).
+   - **`REG-MESH-BIND` (`formal/mesh_net/MeshNet_shipped_bind.cfg`)**: Verifies that folding a live holding claim as a content binding violates `Inv_ClaimNotBinding` in 5 steps after author withdrawal, and that keeping claims distinct from bindings (`CC 2.4.1.1`) passes.
+   - **`REG-NODE-X1` (`formal/cewp_node/CewpNode_breaker.cfg`)**: Verifies that allowing an accord halt latch to block serving (`LatchBlocksServe = TRUE`) violates `Inv_X1_LatchDoesNotBlockServing` in 1 step, and that the normative spine passes.
+   - **`REG-CONSENT-TWINS` (`Consent_no_boundary.cfg`, `Consent_literal_signer.cfg`, `Consent_no_W.cfg`)**: Regression fixtures for `Inv_RevocationIsBoundary`, `Inv_OwnerCanRecant`, and `Inv_LateRevocationWithinW`.
 
 ---
 
-## 7. Workspace structure
+## 6. Layer 6: Connecting the Simulation to Real Implementations Across All 8 Repositories
 
-Rust workspace at this repo root. Each crate is independently
-testable + benchable + usable.
+### 6.1 Repository Responsibilities in the Evidence Pipeline
 
+| Repository | Role in the Simulation & Verification System | Key Interfaces & Artifacts |
+|---|---|---|
+| **[`CIRISConstitution`](https://github.com/CIRISAI/CIRISConstitution/tree/rc17)** | Normative rules, TLA+/Lean formal models (`24` directories), state processor (`CC §4.5.13`), CSD/4 state vocabulary | `manifests/{transitions,governance_policy,mesh_story_trace,topology_vocabulary}.json`, `constitution/claims.tsv`, `formal/cewp_node/CewpNode.tla` |
+| **[`CEWP`](https://github.com/CIRISAI/CEWP)** | Multi-resolution Rust simulation engine (`cewp-sim`), reference kernel (`docs/kernel`), adversarial campaigns, evidence bundles & globe/toy visualization | `crates/{cewp-kernel,cewp-model,cewp-topology,cewp-sim,cewp-adversary,cewp-evidence,cewp-cli}`, `docs/kernel/kernel.js` |
+| **[`CIRISServer`](file:///home/emoore/CIRISServer)** | Fabric-node cohabitation, closed CSD/4 catalogue (`T0–T19`), step-window planner (`model.py`), live multi-node runner (`runner.py`) | `harness/native/{model,runner,topology,mesh}.py`, `topologies/catalog/T0..T19.yaml`, `checkpoints/<step>.json`, `nodes/<n>/rows.jsonl` |
+| **[`CIRISClient`](file:///home/emoore/CIRISClient) & [`CEWPOS`](file:///home/emoore/CEWPOS)** | 101 CSD surface cards (`CSD-001..129`), 12 UX primitives (`P1–P12`), card validator (`check_csd4.py`), 5-platform UI test runners | `packaging/{check_csd4,vendor_csd4}.py`, `epistemic-ui/csd4_harness.py`, `--attach` checkpoint runners |
+| **[`CIRISConformance`](https://github.com/CIRISAI/CIRISConformance)** | Cross-component wheel cohabitation (`substrate` & `fabric` pytest lanes), freeze vectors (`test_500..583`), trace differential bridge | `tests/test_540_noise_floor.py`, `test_541_ejection_routing.py`, `test_542_dominance_gate.py`, `test_562_freeze57_vectors.py` |
+| **[`CIRISEdge`](https://github.com/CIRISAI/CIRISEdge)** | Reticulum transport, `L ≤ 8` link shaping, 3-referral ranking, `CONP` X-Wing onion routing, `compute_alm_topology_verified` | `src/transport/{link_shaping,shaping_referral}.rs`, `src/holonomic/deterministic_topology.rs` |
+| **[`CIRISPersist`](https://github.com/CIRISAI/CIRISPersist)** | Append-only signed row store, Zanzibar/SpiceDB-class graph walk, `FountainManifestV1`, noise-floor classification (`classify`) | `src/fountain/types.rs#classify`, SQLite & PostgreSQL write-path parity |
+| **[`CIRISVerify`](https://github.com/CIRISAI/CIRISVerify)** | Hybrid Ed25519 + ML-DSA-65 signatures, X-Wing KEM, RFC 6962/9162 Merkle logs, `AggregationMetaV1` dominance/multiplicity gates | `src/ciris-verify-core/src/holonomic/aggregation.rs`, `docs/BENCHMARKS.md` |
+
+### 6.2 The Trace-Based Conformance Bridge (Semantic Conformance vs. Operational Fidelity)
+For every CSD/4 scenario (`T0–T19` and multi-node stress scenarios), `cewp-cli bridge` executes a 6-step loop:
+1. **Emit Canonical Scenario Trace**: Generate a deterministic event & network schedule (`seed`, `topology: T<n>`, step arrivals).
+2. **Run in `cewp-sim` (`--mode sim`)**: Record every node's admitted/refused rows, `firstHeld` timestamps, `fold()` states, `queue()` items, shaped/unshaped link decisions, ALM edges, symbol holdings, and predicted CPU/bandwidth/disk metrics.
+3. **Run on Live Nodes (`--mode native`)**: Execute the identical schedule through `CIRISServer`'s `python3 -m harness.native run` (and `CIRISConformance` fabric runners), exporting live `checkpoints/<step>.json`, `nodes/<node>/rows.jsonl`, and OS/process resource counters.
+4. **Replay Through Independent State Processors**: Replay `rows.jsonl` through three independent implementations:
+   - `cewp-kernel` (Rust)
+   - `docs/kernel/kernel.js` (JavaScript reference kernel)
+   - `CIRISConstitution` `formal/cewp_node/Trace.tla` / `EventLifecycle.lean`
+5. **Evaluate Two Separate Gates (Never Conflated)**:
+   - **Gate A — Semantic Conformance (`0` tolerance)**: Do `cewp-sim`, `CIRISServer`, `kernel.js`, and the formal state processor make the **exact same admission, refusal, fold, and queue decisions** on every step? Any mismatch is a hard failure (`SEMANTIC_DRIFT`) and is automatically saved as a minimal regression fixture.
+   - **Gate B — Operational Fidelity (Declared Error Bounds)**: Do `cewp-sim`'s predicted CPU microseconds, wire bytes, repair traffic, and step latencies fall within the calibrated confidence interval of the real `CIRISServer` / `CIRISEdge` / `CIRISPersist` measurements? Discrepancies update the empirical cost calibration table (§2.1) with published error bars.
+
+---
+
+## 7. Layer 7: Five-Level Simulation & Verification Stack
+
+No single simulator answers every question. CEWP orchestrates five complementary levels, each certified against the level below it:
+
+| Level | Technology & Tooling | Primary Question Answered | Scale & Fidelity |
+|---|---|---|---|
+| **Level 1 — Formal Verification** | Lean 4 (`EventLifecycle.lean`, `Tiers.lean`, `CIRISHolon/*.lean`) & TLA+ (`CewpNode.tla`, `MeshNet.tla`, `Consent.tla`, `CensusBallot.tla`) | *Can a forbidden state ever occur within the model?* | `1–10` nodes; exhaustive state-space closure (`483,840` to `22.1M` states) |
+| **Level 2 — Discrete-Event Simulation (DES)** | **`cewp-sim` (Rust workspace)** with `cewp-kernel`, `cewp-adversary`, and `CIRISHolon`-certified coarsening (`R5–R0`) | *What happens under scale, churn, adversarial campaigns, and resource constraints?* | `1` node (`R5`) to `5B+` people (`R0`) |
+| **Level 3 — Packet & Syscall Emulation** | **[Shadow](https://shadow.github.io/)** (running unmodified Rust `ciris-edge` / `ciris-server` binaries) & **[ns-3](https://www.nsnam.org/)** (for `400 B` Reticulum base-MTU / LoRa / Wi-Fi MAC contention) | *Does the aggregate flow model match real socket/packet behavior under loss, jitter, and congestion?* | `100–10,000` real processes / packet links |
+| **Level 4 — Real-Node & Client Testbed** | **`CIRISServer` `harness/native/`** + **`CIRISClient` / `CEWPOS` 5-platform runners** + **`CIRISConformance`** | *Does the shipped software (server + 5 client platforms) do what the model predicts on representative hardware?* | `1–50` live multi-node processes (`T0–T19` + container clusters) |
+| **Level 5 — Production Telemetry** | Opt-in, consent-gated (`CC §3.3.1`), cohort-aggregated (`Prio3/VDAF` `k = 10` floor per `CensusBallot.tla`) operational metrics | *Do the real-world NAT mix (`leviculum#100`), churn, and hardware costs match the calibrated inputs?* | Live deployed fleet |
+
+---
+
+## 8. Layer 8: Auditable Evidence Bundles & Claim-to-Evidence Matrix
+
+### 8.1 Mandatory Machine-Readable Evidence Bundle (`evidence_bundle.json`)
+Every run of `cewp-cli` emits a content-addressed, signed or hash-pinned directory (`out/<run_id>/evidence_bundle.json` + columnar Arrow/Parquet metrics + snapshot stream) containing:
+
+```json
+{
+  "schema_version": "cewp-evidence/v0.2",
+  "run_id": "01J...",
+  "provenance": {
+    "constitution_commit": "db0d051fe9b7b2af3edcc8b61123af33fc305599",
+    "constitution_tables_pin": "rc17-f267ce8",
+    "csd4_catalogue_version": 5,
+    "csd4_vocabulary_sha256": "...",
+    "cewp_commit": "...",
+    "substrate_versions": {
+      "ciris_server": "v0.5.233",
+      "ciris_edge": "v44.0.0",
+      "ciris_persist": "v8.1.0",
+      "ciris_verify": "v5.8.0"
+    }
+  },
+  "scenario": {
+    "id": "T5_community_flash_crowd",
+    "csd4_topologies": ["T5", "T14", "T15"],
+    "architecture": "A4_CEWP_RC17",
+    "baselines_compared": ["A1_HYPERSCALE_CDN", "A2_MULTIREGION_SFU", "A3_HYBRID_P2P"],
+    "resolution_tier": "R3",
+    "holon_closure_certificate": {
+      "reference_tier": "R4",
+      "closure_defect_d2": 0.014,
+      "budget_beta": 0.030,
+      "lipschitz_k": 1.018,
+      "certified": true
+    },
+    "seed": 1598682270,
+    "parameters_regime": "pessimistic",
+    "parameters": {
+      "reach_home_share": 0.15,
+      "locality_share": 0.40,
+      "server_tier_share": 0.04,
+      "relay_offering_share": 0.50,
+      "mobile_offline_churn": 0.30
+    }
+  },
+  "adversary": {
+    "campaign_id": "ADV-ALM-02",
+    "capabilities": { "malicious_interior_relays_fraction": 0.20 },
+    "seeds_tested": 100
+  },
+  "coverage": {
+    "csd4_topologies_exercised": ["T5", "T14", "T15"],
+    "atoms_exercised_count": 38,
+    "atoms_promised_in_csd4": 122,
+    "atoms_in_vocabulary": 156,
+    "states_in_constitutional_table": 242,
+    "formal_invariants_checked": ["door_is_queue", "preview_is_execution", "refused_previews_nothing", "Inv_X1", "Inv_X3", "Inv_X4"]
+  },
+  "metrics": {
+    "hybrid_verify_us": { "value": 276.0, "epistemic_class": "MEASURED", "source": "CIRISVerify v5.8.0 bench" },
+    "alm_hop_overhead_ns": { "value": 946.0, "epistemic_class": "MEASURED", "source": "CIRISEdge v44 bench" },
+    "k2_leaf_load_fraction": { "value": 0.60, "ci95": [0.58, 0.62], "epistemic_class": "MODEL", "source": "cewp-sim R3" },
+    "planetary_5b_power_mw": { "value": 3082.0, "ci95": [2650.0, 3590.0], "epistemic_class": "PROJECTED", "source": "R3->R0 certified extrapolation" },
+    "empirical_nat_mix_global": { "value": null, "epistemic_class": "FRONTIER", "blocker": "leviculum#100 field telemetry" }
+  },
+  "verdicts": {
+    "semantic_conformance": "PASS",
+    "operational_fidelity": "PASS",
+    "counterexamples_found": []
+  }
+}
 ```
+
+### 8.2 Strict Enforcement of Epistemic Classifications (`MEASURED` / `MODEL` / `PROJECTED` / `FRONTIER`)
+Every metric in `evidence_bundle.json`, CLI tables, and visualization snapshots carries a mandatory machine-checked tag:
+- **`MEASURED`**: Directly benchmarked on real code and real hardware (`CIRISVerify`, `CIRISEdge`, `CIRISPersist`, `CIRISServer`, `kernel.test.js`), with hardware spec and commit hash.
+- **`MODEL`**: Output of a `cewp-sim` or TLA+/Lean execution at `1:1` (`R5`/`R4`) or within a `CIRISHolon`-certified coarse tier (`R3`/`R2`) under stated inputs.
+- **`PROJECTED`**: Extrapolated to planetary scale (`R1`/`R0`) from certified lower tiers; must always be rendered with its sensitivity interval (`[pessimistic, optimistic]`) and never promoted to `MEASURED`.
+- **`FRONTIER`**: Open empirical question or unimplemented capability (e.g., `leviculum#100` live NAT telemetry, `leviculum#101` PCP/UPnP, `T20` durability atoms `CIRISServer#809`).
+
+### 8.3 Claim-to-Evidence Matrix
+
+| Architectural Claim | Required Evidence to Mark `VERIFIED` | Current Status |
+|---|---|---|
+| **1. UI queue, preview, and admission door never drift (`CC §4.5.13`)** | Lean proof (`EventLifecycle.lean`) + `cewp-kernel` / `kernel.js` / `CIRISServer` 100% differential parity on `transitions.json` & `T0–T19` | `MEASURED` (Lean + `kernel.test.js`; Rust `cewp-kernel` in Phase 1) |
+| **2. Nodes converge identically after arbitrary partitions & churn** | Permutation-invariant fold proofs + 100-shuffle multi-island partition fuzzing + real-node `rows.jsonl` replay in `Trace.tla` | `MEASURED` at `R5` (`kernel.test.js` 4/4); `R4/R3` in Phase 2 |
+| **3. Privacy & `> 64 KiB` shaped-link boundaries hold under attack** | `Tiers.lean` + `formal/anonymous/` + `ADV-PR` GPA traffic-analysis & guard-capture campaigns + `REG-MESH-SCOPE` invisibility fixture | `MODEL` + partial `MEASURED`; full `ADV-PR` in Phase 4 |
+| **4. 1-hop shaped links (`L ≤ 8`) & $k=2$ leaves survive CGNAT** | `Tiers.lean` (`each_home_adds_seven`, `reach ≠ capacity`) + `reach_home_share` `[0%, 80%]` sweep + `leviculum#100` field calibration | `MODEL` (`≥ 3.92%` server floor at `0%` reach); awaiting `leviculum#100` (`FRONTIER`) |
+| **5. `CC §6.1.6 deterministic-alm` scales without SFUs (`CC §5.3.3.2`)** | All 15 frozen vectors in `deterministic_topology.rs` + `ADV-ALM` capacity-lie / relay-drop campaigns + Shadow/native multi-container bench | `MEASURED` (vectors + 50-node bench); `ADV-ALM` at scale in Phase 3–4 |
+| **6. Holographic storage survives correlated loss & respects revocation** | Symbol-rank simulation (`FountainManifestV1`) + `test_540..542` (`Full`/`Partial`/`EnvelopeOnly`, `N5` hard-delete, Kish `n_eff`) + `ADV-ST` withholding tests | `MEASURED` (unit/conformance); symbol-rank DES in Phase 3 |
+| **7. Commodity L1 home server (`1 TB / 1 Gbps / 1 core`) suffices** | Reproducible benchmarks on ARM mini-PC / home x86 under `2.5×` diurnal & `4.0×` flash-crowd workloads across `T0–T19` mixes | `MODEL` + micro-`MEASURED`; full hardware calibration in Phase 5 |
+| **8. Five-billion user scale is viable without datacenters** | `CIRISHolon`-certified multiscale ladder (`R5 → R0`) + 4-baseline comparison (`A1–A4`) + 4-regime sensitivity analysis | `PROJECTED` (analytic + `R5` kernel); certified `R3→R0` in Phase 6 |
+
+---
+
+## 9. Workspace Structure & Implementation Roadmap
+
+### 9.1 Rust Workspace Architecture (`CEWP/crates/`)
+
+```text
 CEWP/
-  Cargo.toml                       # workspace root
+  Cargo.toml                         # Workspace root
   crates/
-    cewp-model/                    # pure math: scaling model formulas
-      src/lib.rs                   #   - per-actor cost equations
-                                   #   - cohort distribution + trust depth
-                                   #   - benchmark constants
-                                   # No I/O. No allocations on hot path.
-                                   # Mirrors CIRISNodeCore/examples/scale_model.rs.
+    cewp-kernel/                     # Layer 1: Authoritative CC §4.5.13 state processor in Rust
+      src/lib.rs                     #   Loads docs/kernel/tables/{transitions,governance_policy,mesh_story_trace}.json
+                                     #   Implements fold, standing, enabled_for, step, door, queue, preview
+                                     #   Enforces door_is_queue, preview_is_execution, refused_previews_nothing
 
-    cewp-topology/                 # real-world topology ingest
-      src/lib.rs                   #   - GeoNames cities loader
-      src/sources/peeringdb.rs     #   - PeeringDB API client + cache
-      src/sources/caida.rs         #   - CAIDA ITDK loader
-      src/sources/telegeography.rs #   - submarine cable KML loader
-      src/graph.rs                 #   - metro/IXP/cable graph
-      assets/                      #   - cached snapshots (cities1000.txt etc.)
+    cewp-csd4/                       # Layer 2: Holistic CSD/4 T0–T19 scenario loader & planner
+      src/lib.rs                     #   Loads T0..T19 YAML, topology_vocabulary.json, requirements.yaml
+      src/realizability.rs           #   Enforces R1–R7 topology rules & R1–R5 card rules
+      src/windows.rs                 #   Step-interval [start, end) calculator & subset-search planner
+      src/bridge.rs                  #   Trace bridge to CIRISServer harness/native & Trace.tla rows.jsonl
 
-    cewp-sim/                      # the simulation engine
+    cewp-model/                      # Layer 3 & 4: Analytic baseline & empirical cost tables
+      src/lib.rs                     #   Port of examples/scale_model.rs + 4-regime sensitivity sweeps
+
+    cewp-topology/                   # Real-world metro, IXP, AS, and submarine cable graph ingest
+      src/lib.rs                     #   GeoNames, PeeringDB, CAIDA ITDK, TeleGeography loaders
+      src/coarsen.rs                 #   CIRISHolon-certified boundary-stub graph coarsening (Closed & Carried gates)
+
+    cewp-sim/                        # Discrete-Event Simulation (DES) engine (R5 -> R0)
       src/lib.rs
-      src/agent.rs                 #   - Agent struct (16 bytes hot path)
-      src/scheduler.rs             #   - time-stepping loop
-      src/topology_router/         #   - centralized vs CEWP routing
-      src/cpu/                     #   - rayon-parallel R1/R2/R3
-      src/gpu/                     #   - wgpu compute shaders for R0/R1 [future]
-      src/snapshot.rs              #   - §6 binary writer
+      src/event_loop.rs              #   Compound Poisson + IMIX arrival scheduler (Δt event-driven)
+      src/transport.rs               #   CC §5.4.3 L<=8 shaped links, displacement, 3 referrals, 64 KiB gate, reach!=capacity
+      src/alm.rs                     #   CC §6.1.6 integer-only compute_alm_topology_verified + 15 frozen vectors
+      src/fountain.rs                #   CC §6.1.2 symbol-rank tracker, Full/Partial/EnvelopeOnly, N5 revocation
+      src/baselines.rs               #   A1_HYPERSCALE_CDN, A2_MULTIREGION_SFU, A3_HYBRID_P2P, A4_CEWP_RC17
+      src/snapshot.rs                #   Binary & Arrow snapshot emitters (with epistemic tags)
 
-    cewp-cli/                      # scenario runner
-      src/main.rs                  #   $ cewp-cli run --scenario full_internet_v1 --resolution R3 --out snap.bin
+    cewp-adversary/                  # Layer 5: Adversarial campaigns & formal-exclusion regression suite
+      src/lib.rs                     #   ADV-ID, ADV-RT, ADV-ALM, ADV-ST, ADV-PR, ADV-GV, ADV-EX, ADV-RC
+      src/exclusions.rs              #   EX-CONSENT-01..04 & REG-MESH-SCOPE / REG-MESH-BIND / REG-NODE-X1
 
-    cewp-wasm/                     # WASM target for browser embedding [follow-up]
-      src/lib.rs                   #   Same cewp-sim, compiled to wasm32-unknown-unknown
-      Cargo.toml                   #   wasm-bindgen + js-sys
+    cewp-evidence/                   # Layer 8: Auditable evidence bundle generator & claim matrix verifier
+      src/lib.rs                     #   Emits evidence_bundle.json, enforces MEASURED/MODEL/PROJECTED/FRONTIER
 
-  scenarios/                       # YAML / TOML scenario presets
-    full_internet_v1.toml
-    dunbar_steady.toml
-    twitter_scale.toml
-    ...
+    cewp-cli/                        # Unified CLI runner
+      src/main.rs                    #   cewp-cli {parity, scenario, adversary, sensitivity, bridge, evidence}
 
-  FSD/
-    SIMULATION_ENGINE.md           # this doc
-
-  docs/                            # platform-identity docs (already shipped)
-    overview.md
-    seven-repos.md
-    ...
+  kernel-wasm/                       # Browser WebAssembly kernel for docs/index.html & docs/globe.html
+  docs/kernel/                       # Reference JS kernel, tables/, and kernel.test.js
+  FSD/SIMULATION_ENGINE.md           # This specification
 ```
 
-### 7.1 Workspace dependencies
+### 9.2 Six-Phase Implementation Sequence (Trustworthy Small System First, Then Scale)
 
-```toml
-[workspace.dependencies]
-rayon       = "1.10"
-serde       = { version = "1", features = ["derive"] }
-serde_json  = "1"
-toml        = "0.8"
-csv         = "1"
-quick-xml   = "0.36"        # for KML
-reqwest     = { version = "0.12", features = ["json"] }
-geo         = "0.28"        # for haversine + lat/lon math
-petgraph    = "0.6"         # for topology graph
-arrow       = "53"          # columnar snapshots (R0-R2)
-bytemuck    = "1"           # zero-copy binary snapshots
-thiserror   = "1"
-tracing     = "0.1"
-ulid        = "1"
-chrono      = "0.4"
-sha2        = "0.10"
-ed25519-dalek = "2"         # for realistic per-sign cost in CPU accounting
-```
-
-### 7.2 Optional / feature-gated
-
-- `wgpu = "22"` — for GPU compute (R0 / R1 target); behind `gpu` feature
-- `wasm-bindgen = "0.2"` + `js-sys = "0.3"` — for WASM target; behind `wasm` feature
-- `criterion = "0.5"` — for benches; dev-dep
+| Phase | Milestone | Concrete Deliverables | Hard Exit Gate |
+|---|---|---|---|
+| **Phase 1** | **Semantic Closure** | Pin `rc17` constitutional tables in `docs/kernel/tables/`. Build `cewp-kernel` in Rust. Run automated differential fuzzing across `cewp-kernel`, `docs/kernel/kernel.js`, `EventLifecycle.lean`, and `CIRISServer` over `mesh_story_trace.json` and 1,000 random valid/invalid transition sequences. | **Zero semantic divergence (`SEMANTIC_DRIFT = 0`)** on `queue()`, `preview()`, `door()`, and `fold()` across all four implementations. |
+| **Phase 2** | **CSD/4 Scenario Runner (`T0–T19`)** | Build `cewp-csd4`. Instantiate all 20 CSD/4 topologies (`T0–T19`) at `R5` (`1:1`). Add partition, rejoin, mobile sleep/wake churn, delayed delivery, and transient step-window probes. Connect `--mode formal`, `--mode sim`, and `--mode native` (`CIRISServer` `harness/native/` + `CIRISClient` checkpoints). | Every `T0–T19` topology runs in all 3 modes, passes `MODEL_DRIFT` and `Trace.tla` `rows.jsonl` replay, and reports exact atom coverage (`122 / 156 / 242`). |
+| **Phase 3** | **Transport, ALM & Symbol-Rank Storage Fidelity** | Implement `cewp-sim/src/{transport,alm,fountain}.rs`: `L ≤ 8` shaped bound, rank displacement, 3 sealed referrals + `proxy` pull, `64 KiB` refusal string, `reach ≠ capacity` split counters, integer-only `compute_alm_topology_verified` (passing all 15 frozen vectors), and per-symbol rank tracking (`Full` / `Partial` / `EnvelopeOnly` + `N5` hard-delete). | 100% pass on all 15 ALM frozen vectors, `Tiers.lean` theorems, and `CIRISConformance` `test_540..542` vectors. |
+| **Phase 4** | **Adversarial & Formal-Exclusion Campaigns** | Implement `cewp-adversary`: all 8 attack classes (`ADV-ID` through `ADV-RC`), the 4 consent-model exclusion tests (`EX-CONSENT-01..04`), and the historical counterexample regressions (`REG-MESH-SCOPE`, `REG-MESH-BIND`, `REG-NODE-X1`, `REG-CONSENT-TWINS`). | Every declared attack and formal exclusion has a reproducible seed grid, recorded breakdown threshold, and residual risk in `evidence_bundle.json`. |
+| **Phase 5** | **Empirical Calibration & Four-Baseline Comparison** | Fix compound-Poisson + IMIX workload generator (§4.1). Implement baselines `A1_HYPERSCALE_CDN`, `A2_MULTIREGION_SFU`, and `A3_HYBRID_P2P` (§4.3). Calibrate `cewp-sim` against real `CIRISServer` / Shadow runs on representative ARM/x86 hardware. | Published confidence intervals and error bounds for CPU, bandwidth, latency, and storage predictions; 4-regime sensitivity sweeps (`optimistic`, `expected`, `pessimistic`, `adversarial`). |
+| **Phase 6** | **Certified Multiscale (`CIRISHolon`) & Planetary Simulation** | Implement boundary-stub cohort coarsening (`cewp-topology/src/coarsen.rs`) and `CIRISHolon` closure defect (`D_v² ≤ β`) + non-expansive (`K ≤ 1.05`) certificates across `R5 → R4 → R3 → R2 → R1 → R0`. Emit visualization snapshots for `docs/index.html` and `AlephScene.tsx`. | Each coarser tier passes its `Closed` and `Carried` certification gates against the finer tier; `5B–8.1B` results are emitted with `PROJECTED` error bars in `evidence_bundle.json`. |
 
 ---
 
-## 8. Performance targets
+## 10. References
 
-| Resolution | Target wall-clock per simulated day | Hardware |
-|---|---|---|
-| R0 (5 B agents, 1:1) | < 1 minute on 4×H100 80GB | GPU cluster |
-| R1 (50 M agents) | < 30 seconds on single A100 | GPU |
-| R2 (5 M agents) | < 30 seconds on 64-core CPU | CPU + rayon |
-| R3 (1 M agents) | < 10 seconds on 16-core CPU | CI loop |
-| R4 (100 K agents) | < 5 seconds in browser | WASM |
-| R5 (1 K agents) | 60 fps in browser | WASM |
+### Normative & Formal Specifications
+- [`CIRISConstitution` (`rc17`)](https://github.com/CIRISAI/CIRISConstitution/tree/rc17) — Part 4 §4.5.13 (State Processor), Part 5 §5.3.3.2 / §5.4.3 / §5.4.6 (Transport & Anonymous Tier), Part 6 §6.1.2 / §6.1.6 (Noise Floor & Deterministic ALM), [`formal/README.md`](https://github.com/CIRISAI/CIRISConstitution/blob/rc17/formal/README.md), [`formal/event_lifecycle/EventLifecycle.lean`](https://github.com/CIRISAI/CIRISConstitution/blob/rc17/formal/event_lifecycle/EventLifecycle.lean), [`formal/transport_tiers/Tiers.lean`](https://github.com/CIRISAI/CIRISConstitution/blob/rc17/formal/transport_tiers/Tiers.lean), [`formal/cewp_node/CewpNode.tla`](https://github.com/CIRISAI/CIRISConstitution/blob/rc17/formal/cewp_node/CewpNode.tla), [`constitution/claims.tsv`](https://github.com/CIRISAI/CIRISConstitution/blob/rc17/constitution/claims.tsv).
+- [`CIRISHolon`](file:///home/emoore/CIRISHolon/README.md) — [`OBJECT.md`](file:///home/emoore/CIRISHolon/OBJECT.md), [`TIERS.md`](file:///home/emoore/CIRISHolon/TIERS.md), [`lean/CIRISHolon/Object.lean`](file:///home/emoore/CIRISHolon/lean/CIRISHolon/Object.lean), [`lean/CIRISHolon/Tier.lean`](file:///home/emoore/CIRISHolon/lean/CIRISHolon/Tier.lean), [`lean/CIRISHolon/Budget.lean`](file:///home/emoore/CIRISHolon/lean/CIRISHolon/Budget.lean), [`lean/CIRISHolon/Transport.lean`](file:///home/emoore/CIRISHolon/lean/CIRISHolon/Transport.lean).
 
-### 8.1 What makes these achievable
-
-- **Agent struct: 16 bytes hot path**. The full state per agent
-  (current_held_bytes, last_action_time, trust_set_seed, demand_state)
-  packs into 16 bytes. At 5 B × 16 = 80 GB, single H100 holds it.
-- **Time step is per-second granularity**, not per-millisecond.
-  86400 steps per simulated day; each step is a parallel reduce
-  over all agents.
-- **Trust graph is small-world, not stored per-edge**. Each agent's
-  R direct trust is generated from a deterministic seed (Watts-
-  Strogatz with metro-locality bias). No O(N²) edge storage.
-- **Topology is sparse + static**. Metro graph has ~5 K nodes; AS
-  peering graph ~120 K nodes. Both fit in memory; routing
-  precomputed.
-- **Snapshot emission is the I/O bottleneck**. At R0 we only emit
-  R4-grade quantized snapshots for visualization — the full state
-  is in GPU memory and never serialized.
-
----
-
-## 9. Scenario configuration
-
-Scenarios are TOML files in `scenarios/`. Schema:
-
-```toml
-[scenario]
-name = "full_internet_v1"
-description = "5B users, 50 MB/user/day, default cohort, depth-1 server"
-
-[population]
-n_users = 5_000_000_000
-metro_distribution = "geonames_cities500"
-broadband_penetration = "itu_2024"
-
-[tier_mix]
-client = 0.35
-proxy_l0 = 0.55
-server_l1 = 0.10
-
-[workload]
-daily_bytes_per_user = 52_428_800        # 50 MB
-avg_envelope_bytes = 51_200              # 50 KB
-agent_decisions_per_day = 200
-daily_fetch_bytes = 1_073_741_824        # 1 GB
-
-[cohort]
-self = 0.50
-family = 0.15
-community = 0.15
-affiliations = 0.10
-species = 0.05
-planet = 0.03
-federation = 0.02
-
-[trust]
-direct_radius = 250
-server_recursion_depth = 1
-trace_publishable_fraction = 0.10
-
-[disk_budgets]
-client_bytes = 274_877_906_944           # 256 GB
-proxy_l0_bytes = 274_877_906_944         # 256 GB (L0 default)
-server_l1_bytes = 1_099_511_627_776      # 1 TB
-
-[output]
-resolution = "R4"                        # snapshot grade
-snapshot_cadence_seconds = 60            # 1 per simulated minute
-output_path = "out/full_internet_v1.snap.bin"
-```
-
-CLI:
-
-```bash
-cewp-cli run --scenario scenarios/full_internet_v1.toml
-cewp-cli run --scenario scenarios/full_internet_v1.toml --resolution R3   # override
-cewp-cli compare --baseline scenarios/internet_today.toml --candidate scenarios/full_internet_v1.toml
-```
-
----
-
-## 10. Output contract with the website team
-
-The website team's existing rendering stack
-(`ciris-website/src/app/grammar/explore/AlephScene.tsx`) uses React
-Three Fiber + Three.js with `InstancedMesh` per node group +
-`LineSegments` for edges. The snapshot format §6 maps directly:
-
-| Snapshot field | RTF/Three.js consumer |
-|---|---|
-| `NodeArray.lat, lon` | InstancedMesh position via globe projection |
-| `NodeArray.tier` | InstancedMesh group selection (one mesh per tier) |
-| `NodeArray.state` | Color / material variant |
-| `NodeArray.cpu_util_fraction` | Pulse / brightness |
-| `EdgeArray.src/dst` | LineSegments endpoints |
-| `EdgeArray.bytes_per_second` | LineSegments thickness / opacity |
-| `EdgeArray.topology` | Internet edges in one LineSegments mesh; CEWP edges in another (separate animation layers) |
-
-The website team:
-
-* Loads the snapshot binary as an `ArrayBuffer`
-* Decodes via DataView (each snapshot is a fixed-size header + two flat arrays)
-* Updates InstancedMesh `instanceMatrix` + per-instance attributes
-* `invalidate()` triggers a re-render
-* Frame-loop = "demand" so the GPU isn't spinning when paused
-
-No per-frame allocations on the JS side. The Rust engine produces
-the data; the website team renders it. Clean separation.
-
----
-
-## 11. Calibration to the scaling model
-
-The engine must reproduce the scaling-model toy's per-actor numbers
-exactly. The `cewp-model` crate is a Rust port of
-[`CIRISNodeCore/examples/scale_model.rs`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/examples/scale_model.rs)
-with the same constants + the same formula structure.
-
-The calibration test: for each scaling-model scenario (bootstrap,
-dunbar_steady, media_heavy, twitter_scale, news_replacement,
-full_internet_v1, full_internet_local_heavy, full_internet_global_
-heavy, village_dense), running `cewp-sim` at R3 with the corresponding
-TOML scenario produces aggregate per-tier numbers within 5% of the
-toy's analytic output. This is the unit test that says "the
-simulation is the model, evolved over time."
-
----
-
-## 12. Roadmap
-
-| Phase | Deliverable | Target |
-|---|---|---|
-| **0** | This FSD | done |
-| **1** | `cewp-model` + `cewp-topology` skeleton + first scenario at R3 (1 M agents, CPU) | week 1-2 |
-| **2** | `cewp-sim` time-stepping + snapshot writer + the centralized internet baseline routing | week 3-4 |
-| **3** | CEWP routing (trust-graph + cohort_scope) + side-by-side comparison output | week 5 |
-| **4** | R3/R4 reproduction of all 9 scaling-model scenarios + calibration test | week 6 |
-| **5** | Website team integration: snapshot stream consumed by `AlephScene.tsx` variant | coordinated |
-| **6** | `cewp-wasm` build + R4/R5 in-browser | follow-up |
-| **7** | `gpu` feature for R1/R0 via wgpu | follow-up |
-
----
-
-## 13. Open questions
-
-These get resolved during phase 1 implementation:
-
-1. **Metro count**. 5 K (top-3% by population) vs 50 K (cities ≥ 5K
-   pop) vs 150 K (cities ≥ 1K pop). The right cut depends on what
-   the website team's visualization can carry without losing
-   legibility.
-2. **Submarine cable capacity model**. TeleGeography publishes
-   total capacity per route; modeling per-cable utilization
-   requires assumptions. Initial pass: equal share among the cable's
-   landing countries.
-3. **Trust topology calibration**. The Watts-Strogatz parameters
-   (`R = 150`, rewiring probability) reproduce Dunbar but the
-   metro-locality bias parameter affects how many cross-metro
-   edges appear. Initial pass: 30% of trust edges within own
-   metro, 50% within same time zone, 20% globally.
-4. **Diurnal patterns**. Default scenario assumes uniform 24h
-   activity. Realistic patterns (8 AM-11 PM local) shift the
-   bandwidth peaks. Initial pass: uniform; refinement: diurnal in
-   phase 4.
-5. **AS-level peering reduction**. CAIDA's 120 K ASN graph is
-   overkill for visual purposes. Initial reduction: collapse
-   ASNs to their parent organization (~10 K), then to their
-   primary metro presence.
-
----
-
-## 14. References
-
-### Internal
-
-- [CEWP.md (CIRISNodeCore)](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/CEWP.md) — the platform-identity FSD
-- [FEDERATION_SCALING_MODEL.md (CIRISNodeCore)](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_SCALING_MODEL.md) — the analytic model the simulation reproduces
-- [`examples/scale_model.rs` (CIRISNodeCore)](https://github.com/CIRISAI/CIRISNodeCore/blob/main/examples/scale_model.rs) — the analytic toy this engine generalizes
-- [`AlephScene.tsx` (ciris-website)](https://github.com/CIRISAI/ciris-website/blob/main/src/app/grammar/explore) — the rendering layer this engine feeds
-
-### External — topology data sources
-
-- [PeeringDB](https://www.peeringdb.com/) — IXPs + facilities ([API docs](https://docs.peeringdb.com/))
-- [CAIDA ITDK 2025-03](https://www.caida.org/catalog/datasets/internet-topology-data-kit/release-2025-03/) — AS-level topology
-- [TeleGeography Submarine Cable Map](https://www.submarinecablemap.com/) — 597 cable systems, 1712 landings
-- [Hurricane Electric BGP Toolkit](https://bgp.he.net/) — AS relationships
-- [GeoNames](https://download.geonames.org/export/dump/) — cities + population
-
-### External — substrate benchmarks (cost inputs)
-
-- [CIRISVerify BENCHMARKS.md](https://github.com/CIRISAI/CIRISVerify/blob/main/docs/BENCHMARKS.md)
-- [CIRISEdge BENCHMARKS.md](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/BENCHMARKS.md)
-- [CIRISPersist INTEGRATION_LENS.md](https://github.com/CIRISAI/CIRISPersist/blob/main/docs/INTEGRATION_LENS.md)
+### CSD/4 & Implementation Repositories
+- [`CIRISServer`](file:///home/emoore/CIRISServer) — [`FSD/CSD4.md`](file:///home/emoore/CIRISServer/FSD/CSD4.md), [`FSD/TOPOLOGY.md`](file:///home/emoore/CIRISServer/FSD/TOPOLOGY.md), [`harness/native/model.py`](file:///home/emoore/CIRISServer/harness/native/model.py), [`harness/native/runner.py`](file:///home/emoore/CIRISServer/harness/native/runner.py), [`harness/native/topology.py`](file:///home/emoore/CIRISServer/harness/native/topology.py), [`harness/native/topologies/catalog/`](file:///home/emoore/CIRISServer/harness/native/topologies/catalog/).
+- [`CIRISClient`](file:///home/emoore/CIRISClient) & [`CEWPOS`](file:///home/emoore/CEWPOS) — [`CSD.md`](file:///home/emoore/CIRISClient/CSD.md), [`FSD/CSD4_EVALUATION.md`](file:///home/emoore/CIRISClient/FSD/CSD4_EVALUATION.md), [`packaging/check_csd4.py`](file:///home/emoore/CIRISClient/packaging/check_csd4.py), [`packaging/vendor_csd4.py`](file:///home/emoore/CIRISClient/packaging/vendor_csd4.py), [`CSD4_CATALOGUE_AND_MIGRATION_PLAN.md`](file:///home/emoore/CEWPOS/CSD4_CATALOGUE_AND_MIGRATION_PLAN.md), [`epistemic-ui/csd4_harness.py`](file:///home/emoore/CEWPOS/epistemic-ui/csd4_harness.py).
+- [`CEWP`](file:///home/emoore/CEWP) — [`FSD/CEWP.md`](CEWP.md), [`FSD/FEDERATION_SCALING_MODEL.md`](FEDERATION_SCALING_MODEL.md), [`FSD/ANONYMOUS_TIER.md`](ANONYMOUS_TIER.md), [`docs/kernel/kernel.js`](../docs/kernel/kernel.js), [`docs/kernel/kernel.test.js`](../docs/kernel/kernel.test.js), [`examples/scale_model.rs`](../examples/scale_model.rs).
