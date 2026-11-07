@@ -657,11 +657,6 @@ function tickJs(acts){
 
   return { out:o, arcs: jsArcs.subarray(0,arcsN*2), activity: act };
 }
-    if (delivered>0){ o[17]++; if (crossed===0) o[16]++; }
-    o[1]+=delivered; o[10]+=n*ROW; o[11]+=ROW+delivered*ROW;
-  }
-  return { out:o, arcs: jsArcs.subarray(0,arcsN*2), activity: act };
-}
 // ------------------------------------------------------------------ the globe (WebGL)
 const cv=document.getElementById("c"); const gl=cv.getContext("webgl",{antialias:true,alpha:false});
 function sh(t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s); return s; }
