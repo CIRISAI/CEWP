@@ -838,11 +838,11 @@ function tickJs(acts){
 // ------------------------------------------------------------------ the globe (WebGL)
 const cv=document.getElementById("c"); const gl=cv.getContext("webgl",{antialias:true,alpha:false});
 function sh(t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s); return s; }
-function prog(v,f){ const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,v)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f)); gl.linkProgram(p); return p; }
+function prog(v,f){ const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,v)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f)); gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw gl.getProgramInfoLog(p); return p; }
 const PV=`attribute vec3 p;attribute float a;attribute float k;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float dpr;uniform float uTime;uniform float uStory;uniform float uStoryCos;uniform float uStoryDensity;uniform vec3 uSeedDir;varying float va;varying float vk;varying float vz;
-void main(){float ph=fract(sin(dot(p,vec3(12.9898,78.233,45.164)))*43758.5453);float shimmer=0.82+0.18*sin(uTime*3.1+ph*6.2831853);float effA=a;if(uStory>0.5){float c=dot(p,uSeedDir);if(c>=uStoryCos&&ph<=uStoryDensity){float wave=smoothstep(uStoryCos,uStoryCos+0.04,c);float glow=(k>0.5?0.74:0.48)*wave;if(glow>effA)effA=glow;}if(effA<0.004){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}}vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);va=effA*shimmer;vk=k;float base=(k>0.5)?3.8:(S>2.0?2.2:1.45);float storyBoost=(uStory>0.5)?(S>1.5?2.8:0.8):0.0;gl_PointSize=(base+storyBoost+va*0.85)*dpr;}`;
-const PF=`precision mediump float;uniform float uStory;varying float va;varying float vk;varying float vz;
-void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;vec2 pc=gl_PointCoord-vec2(0.5);float d2=dot(pc,pc);if(d2>0.25)discard;float circle=smoothstep(0.25,0.06,d2);vec3 base=(vk>0.5)?vec3(0.42,0.71,1.0):vec3(0.36,0.52,0.74);vec3 hot=vec3(1.0,0.69,0.36);vec3 flare=vec3(1.0,0.94,0.82);vec3 c=mix(base,hot,smoothstep(0.32,0.76,va));c=mix(c,flare,smoothstep(0.76,1.0,va));float depth=0.55+0.45*max(0.0,vz);float rawAl=(uStory>0.5)?(smoothstep(0.0,0.22,va)*(vk>0.5?0.98:0.90)):(vk>0.5?0.92:(0.40+0.55*va));float al=rawAl*edge*circle;gl_FragColor=vec4(c*depth,al);}`;
+void main(){float ph=fract(sin(dot(p,vec3(12.9898,78.233,45.164)))*43758.5453);float shimmer=0.82+0.18*sin(uTime*3.1+ph*6.2831853);float effA=a;if(uStory>0.5){float c=dot(p,uSeedDir);if(c>=uStoryCos&&ph<=uStoryDensity){float wave=smoothstep(uStoryCos,uStoryCos+0.035,c);float crest=smoothstep(uStoryCos+0.16,uStoryCos,c)*wave;float pulse=0.5+0.5*sin(uTime*3.8+ph*12.566);float glow=min(1.0,(k>0.5?0.88:0.68+0.20*pulse)*wave+0.32*crest);if(glow>effA)effA=glow;}if(effA<0.004){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}}vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);va=effA*shimmer;vk=k;float base=(k>0.5)?3.8:(S>2.0?2.2:1.45);float storyBoost=(uStory>0.5)?(S>1.5?3.0:1.0):0.0;gl_PointSize=(base+storyBoost+va*0.85)*dpr;}`;
+const PF=`precision mediump float;varying float va;varying float vk;varying float vz;
+void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;vec2 pc=gl_PointCoord-vec2(0.5);float d2=dot(pc,pc);if(d2>0.25)discard;float circle=smoothstep(0.25,0.06,d2);vec3 base=(vk>0.5)?vec3(0.42,0.71,1.0):vec3(0.36,0.52,0.74);vec3 hot=vec3(1.0,0.69,0.36);vec3 flare=vec3(1.0,0.94,0.82);vec3 c=mix(base,hot,smoothstep(0.28,0.74,va));c=mix(c,flare,smoothstep(0.74,1.0,va));float depth=0.55+0.45*max(0.0,vz);float al=(vk>0.5?0.94:(0.42+0.55*va))*edge*circle;gl_FragColor=vec4(c*depth,al);}`;
 const LV=`attribute vec3 p;attribute vec4 param;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float uTime;varying float vt;varying float vAge;varying float vz;varying float vTier;
 void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);vt=param.x;vAge=(uTime-param.y)/param.z;vTier=param.w;}`;
 const LF=`precision mediump float;varying float vt;varying float vAge;varying float vz;varying float vTier;
@@ -1694,8 +1694,10 @@ function exitStoryMode(){
   uStoryDensityVal = 1.0;
   if ($("story-hud")) $("story-hud").classList.add("panel-hidden");
   document.querySelectorAll(".nav-story-btn, .fab-story, .btn-story-main").forEach(b => b.classList.remove("active"));
-  targetZoom = 1.0;
+  targetZoom = 0.96;
   storyTargetCamDist = 3.10;
+  selectSize(5000000000);
+  lastTouchTime = performance.now() - 4000; // immediately continue smooth planetary rotation
   if (W) tick();
 }
 
@@ -1704,8 +1706,11 @@ function initStoryMode(){
   if ($("btn-story-fab")) $("btn-story-fab").onclick = startStoryMode;
   if ($("btn-story-hud")) $("btn-story-hud").onclick = startStoryMode;
   if ($("btn-story-hud-bottom")) $("btn-story-hud-bottom").onclick = startStoryMode;
-  if ($("story-btn-prev")) $("story-btn-prev").onclick = () => storySetupAct((storyCurrentAct + 4) % 5);
-  if ($("story-btn-next")) $("story-btn-next").onclick = () => storySetupAct((storyCurrentAct + 1) % 5);
+  if ($("story-btn-prev")) $("story-btn-prev").onclick = () => storySetupAct(Math.max(0, storyCurrentAct - 1));
+  if ($("story-btn-next")) $("story-btn-next").onclick = () => {
+    if (storyCurrentAct < 4) storySetupAct(storyCurrentAct + 1);
+    else exitStoryMode();
+  };
   if ($("story-btn-play")) $("story-btn-play").onclick = () => {
     storyPaused = !storyPaused;
     $("story-btn-play").textContent = storyPaused ? "▶" : "❚❚";
@@ -1749,10 +1754,14 @@ function loop(){
         $("story-progress-bar").style.width = pct.toFixed(1) + "%";
       }
       if (storyActElapsed >= curCfg.duration) {
-        storySetupAct((storyCurrentAct + 1) % 5);
+        if (storyCurrentAct < 4) {
+          storySetupAct(storyCurrentAct + 1);
+        } else {
+          exitStoryMode();
+        }
       }
     }
-    storyTickAct(storyCurrentAct, 0.016);
+    if (storyActive) storyTickAct(storyCurrentAct, 0.016);
   } else {
     if (!drag){
       velYaw*=0.93; velPitch*=0.93;
