@@ -441,7 +441,7 @@ Every run of `cewp-cli` emits a content-addressed, signed or hash-pinned directo
     "csd4_vocabulary_sha256": "c37f6f9651579932835ff700a2ec376a0c5c928545c3ed476362ec4bd4ac0769",
     "cewp_commit": "d6a0ee410d173057d32597eb2619e7186d5ee334",
     "substrate_versions": {
-      "ciris_server": "v0.5.233 (8c1dec21)",
+      "ciris_server": "v0.5.238 (8c1dec21)",
       "ciris_edge": "v44.0.0 (310aa7e)",
       "ciris_persist": "v61.0.5 (7894b39c)",
       "ciris_verify": "v22.0.0 (3c16f9c6)",

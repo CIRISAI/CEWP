@@ -1327,7 +1327,7 @@ impl EvidenceBundle {
                 csd4_vocabulary_sha256: CSD4_VOCABULARY_SHA256.to_string(),
                 cewp_commit: CEWP_COMMIT.to_string(),
                 substrate_versions: SubstrateVersions {
-                    ciris_server: "v0.5.233 (8c1dec21)".to_string(),
+                    ciris_server: "v0.5.238 (8c1dec21)".to_string(),
                     ciris_edge: "v44.0.0 (310aa7e)".to_string(),
                     ciris_persist: "v61.0.5 (7894b39c)".to_string(),
                     ciris_verify: "v22.0.0 (3c16f9c6)".to_string(),
