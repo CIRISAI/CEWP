@@ -156,266 +156,76 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
   bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
-  width: min(780px, calc(100vw - 20px));
-  background: color-mix(in srgb, var(--panel) 94%, transparent);
-  border: 1px solid color-mix(in srgb, var(--cool) 50%, var(--line));
-  border-radius: 12px;
-  padding: 12px 16px 10px;
-  backdrop-filter: blur(14px);
+  max-width: min(680px, calc(100vw - 24px));
+  width: max-content;
+  background: rgba(10, 14, 22, 0.54);
+  border: 1px solid rgba(108, 182, 255, 0.28);
+  border-radius: 999px;
+  padding: 7px 14px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   z-index: 28;
-  box-shadow: 0 16px 48px rgba(0,0,0,.7), 0 0 24px rgba(108,182,255,.18);
-  transition: all .25s ease;
+  box-shadow: 0 6px 24px rgba(0,0,0,.45);
   font-family: var(--mono);
-}
-#story-hud.minimized .story-body,
-#story-hud.minimized .story-visual-bar {
-  display: none !important;
-}
-#story-hud.minimized {
-  padding-bottom: 8px;
-}
-.story-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 10px;
-  margin-bottom: 7px;
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
-  padding-bottom: 6px;
-}
-.story-title-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  overflow: hidden;
 }
 .story-act-badge {
-  background: color-mix(in srgb, var(--ok) 22%, #141a24);
+  background: rgba(90, 211, 143, 0.18);
   color: var(--ok);
-  border: 1px solid var(--ok);
-  border-radius: 4px;
-  padding: 2px 6px;
+  border: 1px solid rgba(90, 211, 143, 0.45);
+  border-radius: 999px;
+  padding: 2px 7px;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.story-title {
-  margin: 0;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #fff;
-  letter-spacing: .01em;
+.story-line {
+  font-size: 12px;
+  line-height: 1.3;
+  color: rgba(242, 246, 252, 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.story-scenario-badge {
-  background: #18202c;
+.story-line b { color: var(--ok); font-weight: 600; }
+.story-line code {
   color: var(--cool);
-  border: 1px solid #26384f;
+  background: rgba(20, 28, 42, 0.65);
+  padding: 1px 4px;
   border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 10px;
+  font-size: 11px;
 }
-.story-cam-badge {
-  font-size: 10px;
-  color: var(--cool);
-  background: #101622;
-  border: 1px solid #1c2638;
-  border-radius: 4px;
-  padding: 2px 5px;
-  font-variant-numeric: tabular-nums;
+.story-mini-ctls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
 }
 .story-hdr-btn {
-  background: transparent;
-  border: 1px solid var(--line);
-  color: var(--mute);
-  border-radius: 6px;
-  padding: 3px 8px;
-  font-size: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(220, 228, 240, 0.85);
+  border-radius: 999px;
+  padding: 2px 7px;
+  font: 10.5px/1.2 var(--mono);
   cursor: pointer;
-  transition: all .15s ease;
 }
 .story-hdr-btn:hover {
   color: #fff;
-  border-color: var(--ink);
-}
-
-.story-stepper {
-  display: flex;
-  gap: 4px;
-  margin: 5px 0 8px;
-  background: #0d1017;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 3px;
-}
-.story-step-btn {
-  flex: 1;
-  background: transparent;
-  border: 0;
-  border-radius: 6px;
-  padding: 6px 4px;
-  font: 10.5px/1.2 var(--mono);
-  color: var(--mute);
-  cursor: pointer;
-  transition: all .18s ease;
-  text-align: center;
-  white-space: nowrap;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-.story-step-btn:hover {
-  color: var(--ink);
-  background: #181d28;
-}
-.story-step-btn.active {
-  background: color-mix(in srgb, var(--ok) 20%, #16202c);
-  color: #fff;
-  font-weight: 600;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 60%, transparent);
-}
-.story-step-btn .step-title {
-  font-weight: 600;
-}
-.story-step-btn .step-sub {
-  font-size: 9px;
-  color: var(--cool);
-  opacity: .85;
-}
-.story-step-btn.active .step-sub {
-  color: var(--ok);
-  opacity: 1;
-}
-
-.story-visual-bar {
-  background: #0b0e14;
-  border: 1px solid #1c2433;
-  border-left: 3px solid var(--cool);
-  border-radius: 6px;
-  padding: 6px 10px;
-  margin-bottom: 8px;
-  font-size: 11px;
-  line-height: 1.4;
-  color: #cbd5e1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  align-items: center;
-}
-.story-v-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.story-v-item span {
-  color: var(--mute);
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-.story-v-item b {
-  color: #fff;
-  font-weight: 600;
-}
-.story-v-item code {
-  color: var(--cool);
-  background: #141b26;
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-size: 10px;
-}
-
-.story-body {
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: #d1d7e0;
-  margin-bottom: 9px;
-  background: color-mix(in srgb, #0d1118 70%, transparent);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 8px 12px;
-}
-.story-body b {
-  color: #fff;
-}
-.story-body code {
-  color: var(--cool);
-  background: #151c27;
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-size: 10.5px;
-}
-
-.story-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.story-controls {
-  display: flex;
-  gap: 5px;
-  align-items: center;
-}
-.story-ctl-btn {
-  background: #151a24;
-  border: 1px solid var(--line);
-  color: var(--ink);
-  border-radius: 6px;
-  padding: 5px 9px;
-  font: 11px/1 var(--mono);
-  cursor: pointer;
-  transition: all .15s ease;
-}
-.story-ctl-btn:hover {
   border-color: var(--cool);
-  color: #fff;
 }
-.story-play-btn {
-  background: color-mix(in srgb, var(--ok) 18%, #141c28);
-  border-color: var(--ok);
-  color: var(--ok);
-  font-weight: 600;
-}
-.story-play-btn:hover {
-  background: var(--ok);
-  color: #0b0d12;
-}
-.story-exit-btn {
-  color: var(--mute);
-  font-size: 10.5px;
-}
-.story-exit-btn:hover {
-  color: var(--hot);
-  border-color: var(--hot);
-}
-.story-metrics-strip {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.story-m-pill {
-  background: #0d1017;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 3px 6px;
-  font-size: 10px;
-  color: var(--mute);
-}
-.story-m-pill b {
-  color: var(--ok);
-  font-weight: 600;
-}
-
 .story-progress-track {
-  height: 3px;
-  background: #121824;
-  border-radius: 2px;
-  overflow: hidden;
-  margin-top: 7px;
+  position: absolute;
+  bottom: 0;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  background: transparent;
+  pointer-events: none;
 }
 .story-progress-bar {
   height: 100%;
@@ -423,19 +233,26 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
   background: linear-gradient(90deg, var(--cool), var(--ok));
   transition: width .1s linear;
 }
-
-@media(max-width:1100px){
-  .fab-story { left: 160px; font-size: 11px; padding: 6px 10px; }
-  #story-hud { width: min(720px, calc(100vw - 20px)); bottom: 12px; }
-}
 @media(max-width:800px){
   .fab-story { display: none !important; }
-  #story-hud { bottom: 8px; width: calc(100vw - 12px); padding: 9px 11px 7px; }
-  .story-step-btn { padding: 4px 2px; font-size: 9.5px; }
-  .story-step-btn .step-sub { display: none; }
-  .story-body { font-size: 11px; padding: 6px 8px; }
-  .story-title { font-size: 12px; }
-  .story-visual-bar { font-size: 10px; gap: 4px 8px; }
+  #story-hud {
+    bottom: 12px;
+    max-width: calc(100vw - 16px);
+    width: calc(100vw - 16px);
+    border-radius: 22px;
+    padding: 6px 10px;
+    gap: 7px;
+    justify-content: space-between;
+  }
+  .story-line {
+    font-size: 11px;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    flex: 1;
+  }
+  .story-hdr-btn { padding: 2px 6px; font-size: 10px; }
 }
 
 </style>
@@ -460,54 +277,13 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
 </nav>
 
 <div id="story-hud" class="story-panel">
-  <div class="story-header">
-    <div class="story-title-group">
-      <span class="story-act-badge" id="story-act-badge">ACT I / V</span>
-      <h2 id="story-title" class="story-title">Act I: Self-Certifying First Contact (T0 → T2)</h2>
-      <span class="story-scenario-badge" id="story-scenario-badge">CSD/4 T0 → T1 → T2</span>
-    </div>
-    <div style="display:flex;gap:4px;align-items:center">
-      <span class="story-cam-badge" id="story-cam-badge">camDist 1.35</span>
-      <button id="story-btn-minimize" class="story-hdr-btn" type="button" title="Minimize / Expand Story Details">▾</button>
-      <button id="story-btn-exit" class="story-hdr-btn" type="button" title="Exit Story Mode">✕</button>
-    </div>
-  </div>
-
-  <div class="story-stepper" id="story-stepper">
-    <button class="story-step-btn active" data-act="0" type="button">
-      <span class="step-title">1. First Contact</span>
-      <span class="step-sub">2 → 12 Nodes</span>
-    </button>
-    <button class="story-step-btn" data-act="1" type="button">
-      <span class="step-title">2. Quorum &amp; Chunks</span>
-      <span class="step-sub">64 → 500 Nodes</span>
-    </button>
-    <button class="story-step-btn" data-act="2" type="button">
-      <span class="step-title">3. ALM Federation</span>
-      <span class="step-sub">10k → 250k Nodes</span>
-    </button>
-    <button class="story-step-btn" data-act="3" type="button">
-      <span class="step-title">4. 10M Super-Holons</span>
-      <span class="step-sub">10,000,000 Nodes</span>
-    </button>
-    <button class="story-step-btn" data-act="4" type="button">
-      <span class="step-title">5. Planetary Mesh</span>
-      <span class="step-sub">1,000,000,000 Nodes</span>
-    </button>
-  </div>
-
-  <div class="story-visual-bar" id="story-visual-bar"></div>
-
-  <div class="story-body" id="story-body"></div>
-
-  <div class="story-footer">
-    <div class="story-controls">
-      <button id="story-btn-prev" class="story-ctl-btn" type="button" title="Previous Act">⏮ Prev Act</button>
-      <button id="story-btn-play" class="story-ctl-btn story-play-btn" type="button" title="Pause / Resume">❚❚ Pause</button>
-      <button id="story-btn-next" class="story-ctl-btn" type="button" title="Next Act">Next Act ⏭</button>
-    </div>
-    <div class="story-metrics-strip" id="story-metrics-strip"></div>
-    <button id="story-btn-exit-bottom" class="story-ctl-btn story-exit-btn" type="button" title="Exit Story Mode">✕ Exit Story</button>
+  <span class="story-act-badge" id="story-act-badge">1/5</span>
+  <div class="story-line" id="story-line">2 nodes connect via <code>ciris://id</code> FedCode — zero central directory (X3)</div>
+  <div class="story-mini-ctls">
+    <button id="story-btn-prev" class="story-hdr-btn" type="button" title="Previous Act">‹</button>
+    <button id="story-btn-play" class="story-hdr-btn" type="button" title="Pause / Resume">❚❚</button>
+    <button id="story-btn-next" class="story-hdr-btn" type="button" title="Next Act">›</button>
+    <button id="story-btn-exit" class="story-hdr-btn" type="button" title="Exit Story">✕</button>
   </div>
   <div class="story-progress-track">
     <div class="story-progress-bar" id="story-progress-bar"></div>
@@ -1736,41 +1512,40 @@ function seedStoryNodes(){
   uploadPoints();
 }
 
+const STORY_CAPTIONS = [
+  [
+    "<b>2 → 12 Nodes:</b> Two peers exchange <code>ciris://id</code> FedCodes — zero central directory",
+    "<b>CSD-104 verified:</b> Bilateral link sealed at lower-of-offers (<b>X3 consent ✓</b>)"
+  ],
+  [
+    "<b>64 → 500 Nodes:</b> Neighbors form a community via <code>group:roster</code> quorum (&gt; num·base/den)",
+    "<b>Whole-chunk sharing:</b> Sealed chunks attested by <code>custody:ack:v1</code> reach <b>n_eff ≥ 3 ✓</b> (<b>X4</b>)"
+  ],
+  [
+    "<b>10k → 250k Nodes:</b> Communities connect; single-publisher ALM relay tree (<b>k ≤ 8</b>, 0 seat hubs)",
+    "<b>Level-1 Holons:</b> <code>L ≤ 8</code> shaped links &amp; sticky guards mask traffic at +0 extra bytes"
+  ],
+  [
+    "<b>10M Nodes (L2 Holons):</b> <code>accord_halt</code> (T8) &amp; key-evict (T10) drill contained locally (<b>X1/X2 ✓</b>)",
+    "<b>Certified Multiscale:</b> Coarsened holons hold commuting defect <b>Dv² ≤ 0.03</b> &amp; <b>K ≤ 1.05 ✓</b>"
+  ],
+  [
+    "<b>1B Planetary Mesh (L3):</b> Per-node bandwidth stays flat <b>~2.8 KB/s</b> from 100 to 1B nodes",
+    "<b>Universal Bootstrap:</b> Any web client joins via <code>ciris://r/&lt;root&gt;</code> (<b>Invariants X1–X5 ✓</b>)"
+  ]
+];
+
 function updateStoryUI(){
   const cfg = STORY_ACTS[storyCurrentAct];
-  if ($("story-act-badge")) $("story-act-badge").textContent = `ACT ${cfg.num} / V`;
-  if ($("story-title")) $("story-title").textContent = cfg.title;
-  if ($("story-scenario-badge")) $("story-scenario-badge").textContent = cfg.scenario;
-
-  document.querySelectorAll(".story-step-btn").forEach((btn, idx) => {
-    btn.classList.toggle("active", idx === storyCurrentAct);
-  });
-
-  if ($("story-visual-bar")) {
-    let html = "";
-    const ceremonyList = typeof cfg.ceremony === "function" ? cfg.ceremony(storyActElapsed) : cfg.ceremony;
-    ceremonyList.forEach(item => {
-      html += `<div class="story-v-item"><span>${item.label}:</span> ${item.val}</div>`;
-    });
-    $("story-visual-bar").innerHTML = html;
+  if ($("story-act-badge")) $("story-act-badge").textContent = `${cfg.num}/5`;
+  if ($("story-line")) {
+    const lines = STORY_CAPTIONS[storyCurrentAct] || [cfg.title];
+    const subIx = storyActElapsed < (cfg.duration * 0.5) ? 0 : Math.min(lines.length - 1, 1);
+    $("story-line").innerHTML = lines[subIx];
   }
-
-  if ($("story-body")) {
-    $("story-body").innerHTML = cfg.narrative;
-  }
-
-  if ($("story-metrics-strip")) {
-    let html = "";
-    cfg.metrics.forEach(item => {
-      html += `<div class="story-m-pill">${item.label}: <b>${item.val}</b></div>`;
-    });
-    $("story-metrics-strip").innerHTML = html;
-  }
-
   if ($("story-btn-play")) {
-    $("story-btn-play").textContent = storyPaused ? "▶ Play Story" : "❚❚ Pause";
+    $("story-btn-play").textContent = storyPaused ? "▶" : "❚❚";
   }
-
   if ($("story-progress-bar")) {
     const pct = Math.min(100, (storyActElapsed / cfg.duration) * 100);
     $("story-progress-bar").style.width = pct.toFixed(1) + "%";
@@ -1951,19 +1726,16 @@ function initStoryMode(){
   if ($("story-btn-next")) $("story-btn-next").onclick = () => storySetupAct((storyCurrentAct + 1) % 5);
   if ($("story-btn-play")) $("story-btn-play").onclick = () => {
     storyPaused = !storyPaused;
-    $("story-btn-play").textContent = storyPaused ? "▶ Play Story" : "❚❚ Pause";
+    $("story-btn-play").textContent = storyPaused ? "▶" : "❚❚";
   };
   if ($("story-btn-exit")) $("story-btn-exit").onclick = exitStoryMode;
-  if ($("story-btn-exit-bottom")) $("story-btn-exit-bottom").onclick = exitStoryMode;
-  if ($("story-btn-minimize")) $("story-btn-minimize").onclick = () => {
-    storyMinimized = !storyMinimized;
-    $("story-hud").classList.toggle("minimized", storyMinimized);
-    $("story-btn-minimize").textContent = storyMinimized ? "▴" : "▾";
-  };
-  document.querySelectorAll(".story-step-btn").forEach(btn => {
-    btn.onclick = () => storySetupAct(+btn.getAttribute("data-act"));
-  });
 
+  if (window.innerWidth <= 800) {
+    ["hud", "stats", "foot"].forEach(p => {
+      const el = $(p); if (el) el.classList.add("panel-hidden");
+      const btn = $("btn-" + p); if (btn) btn.classList.remove("open");
+    });
+  }
   document.querySelectorAll(".nav-story-btn, .fab-story, .btn-story-main").forEach(b => b.classList.add("active"));
   storySetupAct(0);
 }
@@ -1985,8 +1757,11 @@ function loop(){
     storyCamDist += (storyTargetCamDist - storyCamDist) * 0.05;
     targetZoom = storyTargetZoom;
     if (!storyPaused) {
+      const prevHalf = storyActElapsed < (STORY_ACTS[storyCurrentAct].duration * 0.5);
       storyActElapsed += 0.016;
       const curCfg = STORY_ACTS[storyCurrentAct];
+      const nowHalf = storyActElapsed < (curCfg.duration * 0.5);
+      if (prevHalf !== nowHalf) updateStoryUI();
       if ($("story-progress-bar")) {
         const pct = Math.min(100, (storyActElapsed / curCfg.duration) * 100);
         $("story-progress-bar").style.width = pct.toFixed(1) + "%";
@@ -1996,7 +1771,6 @@ function loop(){
       }
     }
     storyTickAct(storyCurrentAct, 0.016);
-    if ($("story-cam-badge")) $("story-cam-badge").textContent = "camDist " + storyCamDist.toFixed(2);
   } else if (!drag){
     velYaw*=0.93; velPitch*=0.93;
     if (Math.abs(velYaw)>0.00002) yaw+=velYaw;
