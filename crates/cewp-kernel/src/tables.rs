@@ -924,6 +924,251 @@ pub fn match_family_with_rules(
 
 // ---------------------------------------------------------------- tables
 
+/// Computes SHA-256 over a byte slice without external dependencies.
+pub fn sha256_digest(input: &[u8]) -> String {
+    let mut h: [u32; 8] = [
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+    ];
+
+    let k: [u32; 64] = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    ];
+
+    let mut data = input.to_vec();
+    let bit_len = (input.len() as u64) * 8;
+    data.push(0x80);
+    while (data.len() + 8) % 64 != 0 {
+        data.push(0x00);
+    }
+    data.extend_from_slice(&bit_len.to_be_bytes());
+
+    for chunk in data.chunks(64) {
+        let mut w = [0u32; 64];
+        for i in 0..16 {
+            w[i] = u32::from_be_bytes([chunk[i * 4], chunk[i * 4 + 1], chunk[i * 4 + 2], chunk[i * 4 + 3]]);
+        }
+        for i in 16..64 {
+            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
+            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
+            w[i] = w[i - 16].wrapping_add(s0).wrapping_add(w[i - 7]).wrapping_add(s1);
+        }
+
+        let mut a = h[0];
+        let mut b = h[1];
+        let mut c = h[2];
+        let mut d = h[3];
+        let mut e = h[4];
+        let mut f = h[5];
+        let mut g = h[6];
+        let mut h_val = h[7];
+
+        for i in 0..64 {
+            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+            let ch = (e & f) ^ ((!e) & g);
+            let temp1 = h_val.wrapping_add(s1).wrapping_add(ch).wrapping_add(k[i]).wrapping_add(w[i]);
+            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+            let maj = (a & b) ^ (a & c) ^ (b & c);
+            let temp2 = s0.wrapping_add(maj);
+
+            h_val = g;
+            g = f;
+            f = e;
+            e = d.wrapping_add(temp1);
+            d = c;
+            c = b;
+            b = a;
+            a = temp1.wrapping_add(temp2);
+        }
+
+        h[0] = h[0].wrapping_add(a);
+        h[1] = h[1].wrapping_add(b);
+        h[2] = h[2].wrapping_add(c);
+        h[3] = h[3].wrapping_add(d);
+        h[4] = h[4].wrapping_add(e);
+        h[5] = h[5].wrapping_add(f);
+        h[6] = h[6].wrapping_add(g);
+        h[7] = h[7].wrapping_add(h_val);
+    }
+
+    use std::fmt::Write;
+    let mut out = String::with_capacity(64);
+    for val in h {
+        write!(out, "{:08x}", val).unwrap();
+    }
+    out
+}
+
+pub fn parse_version_hashes(version_str: &str) -> HashMap<String, String> {
+    let mut hashes = HashMap::new();
+    let mut in_hashes = false;
+    for line in version_str.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("SHA-256 Hashes:") {
+            in_hashes = true;
+            continue;
+        }
+        if in_hashes {
+            if let Some((file, hash)) = trimmed.split_once(':') {
+                let file = file.trim().to_string();
+                let hash = hash.trim().to_string();
+                if !file.is_empty() && !hash.is_empty() {
+                    hashes.insert(file, hash);
+                }
+            }
+        }
+    }
+    hashes
+}
+
+pub fn expected_active(n: u64) -> u64 {
+    if n <= 12 {
+        n
+    } else {
+        3.max(12 + (n - 12) / 30)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Rule {
+    None,
+    Fraction { num: u64, den: u64 },
+    OneOfN,
+    StrictMajority,
+    StrictMajorityOfOthers,
+    RoleAt { roles: Vec<String>, count: u64 },
+    Voices { count: u64 },
+    RankedIrv { choices: u64 },
+    AllOthers,
+    SelfNodesMin2Or1,
+    WitnessesPriorSeal,
+    AllNamedParties,
+    SingleRoleSignature { roles: Vec<String> },
+    Prose(String),
+}
+
+impl Rule {
+    pub fn votes(&self, base: u64, strict: bool) -> Option<u64> {
+        match self {
+            Rule::Fraction { num, den } => {
+                if *den == 0 {
+                    return None;
+                }
+                if strict {
+                    Some((num * base) / den + 1)
+                } else {
+                    Some((num * base + den - 1) / den)
+                }
+            }
+            Rule::OneOfN => Some(1),
+            Rule::StrictMajority => Some(base / 2 + 1),
+            Rule::StrictMajorityOfOthers => Some(base.saturating_sub(1) / 2 + 1),
+            Rule::RoleAt { count, .. } => Some(*count),
+            Rule::Voices { count } => Some(*count),
+            Rule::AllOthers => Some(base.saturating_sub(1).max(1)),
+            Rule::SelfNodesMin2Or1 => Some(if base <= 1 { 1 } else { 2 }),
+            Rule::WitnessesPriorSeal => Some(if base > 3 { base / 2 + 1 } else { 2.min(base) }),
+            Rule::AllNamedParties => Some(base),
+            Rule::SingleRoleSignature { .. } => Some(1),
+            Rule::RankedIrv { .. } | Rule::None | Rule::Prose(_) => None,
+        }
+    }
+}
+
+pub fn parse_rule(val: Option<&JsonValue>) -> Rule {
+    let val = match val {
+        Some(v) => v,
+        None => return Rule::None,
+    };
+    if let Some(s) = val.as_str() {
+        let s = s.trim();
+        if s.is_empty() || s == "—" || s == "-" {
+            return Rule::None;
+        }
+        if s == "1/N" || s == "1/N fires" {
+            return Rule::OneOfN;
+        }
+        if s == "1/2 confirms" {
+            return Rule::StrictMajority;
+        }
+        if s.starts_with("more than 1/2 of the others") {
+            return Rule::StrictMajorityOfOthers;
+        }
+        if s == "one_voter" {
+            return Rule::Voices { count: 1 };
+        }
+        if s == "2 voices" {
+            return Rule::Voices { count: 2 };
+        }
+        if s.ends_with("voices") || s.ends_with("voice") {
+            let parts: Vec<&str> = s.split_whitespace().collect();
+            if let Some(n) = parts.first().and_then(|x| x.parse::<u64>().ok()) {
+                return Rule::Voices { count: n };
+            }
+        }
+        if s.starts_with("role:") && s.contains(" at ") {
+            let parts: Vec<&str> = s.split(" at ").collect();
+            if parts.len() == 2 {
+                let role_part = parts[0].trim_start_matches("role:");
+                let roles: Vec<String> = role_part.split('|').map(|r| r.to_string()).collect();
+                if let Ok(count) = parts[1].trim().parse::<u64>() {
+                    return Rule::RoleAt { roles, count };
+                }
+            }
+        }
+        if s == "instant runoff over ranked choice of three" {
+            return Rule::RankedIrv { choices: 3 };
+        }
+        if s.contains("every member of the root except the named party") {
+            return Rule::AllOthers;
+        }
+        if s.contains("at least 2 of the self's live nodes") {
+            return Rule::SelfNodesMin2Or1;
+        }
+        if s.contains("at least 2 witnesses from the prior seal") {
+            return Rule::WitnessesPriorSeal;
+        }
+        if s.contains("each named party signs") {
+            return Rule::AllNamedParties;
+        }
+        if s.contains("single Wise Authority or Steward signature") {
+            return Rule::SingleRoleSignature {
+                roles: vec!["wa".to_string(), "steward".to_string()],
+            };
+        }
+        if s.contains('/') {
+            let parts: Vec<&str> = s.split('/').collect();
+            if parts.len() == 2 {
+                if let (Ok(num), Ok(den)) = (parts[0].trim().parse::<u64>(), parts[1].trim().parse::<u64>()) {
+                    return Rule::Fraction { num, den };
+                }
+            }
+        }
+        return Rule::Prose(s.to_string());
+    }
+
+    if let Some(num) = val.get("num").and_then(|v| v.as_u64()) {
+        if let Some(den) = val.get("den").and_then(|v| v.as_u64()) {
+            return Rule::Fraction { num, den };
+        }
+    }
+    Rule::None
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PolarityResult {
+    pub admissible: bool,
+    pub class: Option<String>,
+    pub refusal: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Tables {
     pub families: HashMap<String, Vec<Transition>>,
@@ -979,6 +1224,26 @@ impl Tables {
         match_vectors_str: &str,
         csd_map_str: &str,
     ) -> Result<Self, String> {
+        let expected_hashes = parse_version_hashes(version_str);
+        let files_to_verify = [
+            ("transitions.json", transitions_str),
+            ("governance_policy.json", policy_str),
+            ("mesh_story_trace.json", trace_str),
+            ("namespace_registry.json", registry_str),
+            ("namespace_match_vectors.json", match_vectors_str),
+        ];
+        for (filename, content) in &files_to_verify {
+            if let Some(expected) = expected_hashes.get(*filename) {
+                let computed = sha256_digest(content.as_bytes());
+                if &computed != expected {
+                    return Err(format!(
+                        "SHA-256 digest mismatch for {}: expected {}, computed {}",
+                        filename, expected, computed
+                    ));
+                }
+            }
+        }
+
         let transitions_json = parse(transitions_str).map_err(|e| format!("transitions.json parse error: {}", e))?;
         let policy_json = parse(policy_str).map_err(|e| format!("governance_policy.json parse error: {}", e))?;
         let trace_json = parse(trace_str).map_err(|e| format!("mesh_story_trace.json parse error: {}", e))?;
@@ -1055,20 +1320,53 @@ impl Tables {
                 let fam = p.get("family").and_then(|v| v.as_str()).unwrap_or("").to_string();
                 let kind = p.get("kind").and_then(|v| v.as_str()).unwrap_or("").to_string();
 
-                let enact = p.get("enact").and_then(|v| {
-                    let num = v.get("num")?.as_u64()?;
-                    let den = v.get("den")?.as_u64()?;
-                    Some(Fraction { num, den })
-                });
+                let enact_rule = parse_rule(p.get("enact"));
+                let cancel_rule = parse_rule(p.get("cancel"));
+                let floor_rule = parse_rule(p.get("floor"));
 
-                let cancel = p.get("cancel").and_then(|v| {
-                    let num = v.get("num")?.as_u64()?;
-                    let den = v.get("den")?.as_u64()?;
-                    Some(Fraction { num, den })
-                });
+                let enact = match &enact_rule {
+                    Rule::Fraction { num, den } => Some(Fraction { num: *num, den: *den }),
+                    Rule::OneOfN => Some(Fraction { num: 1, den: 1 }),
+                    Rule::StrictMajority => Some(Fraction { num: 1, den: 2 }),
+                    _ => p.get("enact").and_then(|v| {
+                        let num = v.get("num")?.as_u64()?;
+                        let den = v.get("den")?.as_u64()?;
+                        Some(Fraction { num, den })
+                    }),
+                };
 
+                let cancel = match &cancel_rule {
+                    Rule::Fraction { num, den } => Some(Fraction { num: *num, den: *den }),
+                    Rule::StrictMajority | Rule::StrictMajorityOfOthers => Some(Fraction { num: 1, den: 2 }),
+                    _ => p.get("cancel").and_then(|v| {
+                        let num = v.get("num")?.as_u64()?;
+                        let den = v.get("den")?.as_u64()?;
+                        Some(Fraction { num, den })
+                    }),
+                };
+
+                let floor = match &floor_rule {
+                    Rule::Fraction { num, den } => Some(Fraction { num: *num, den: *den }),
+                    Rule::OneOfN => Some(Fraction { num: 1, den: 1 }),
+                    Rule::Voices { count } => Some(Fraction { num: *count, den: 1 }),
+                    Rule::StrictMajority => Some(Fraction { num: 1, den: 2 }),
+                    _ => p.get("floor").and_then(|v| {
+                        let num = v.get("num")?.as_u64()?;
+                        let den = v.get("den")?.as_u64()?;
+                        Some(Fraction { num, den })
+                    }),
+                };
+
+                let irreversible = p.get("irreversible").and_then(|v| v.as_bool()).unwrap_or(false);
+                let reverse_path = p.get("reverse_path").and_then(|v| v.as_bool()).unwrap_or(false);
+                let cancel_over = p.get("cancel_over").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let base_law = p.get("base_law").and_then(|v| v.as_str()).map(|s| s.to_string())
+                    .or_else(|| policy_json.get("base_law").and_then(|b| b.get("rule")).and_then(|r| r.as_str()).map(|s| s.to_string()));
+                let base = p.get("base").and_then(|v| v.as_str()).map(|s| s.to_string());
                 let at_window = p.get("at_window").and_then(|v| v.as_str()).map(|s| s.to_string());
                 let window_secs = p.get("window_secs").and_then(|v| v.as_u64());
+                let window_class = p.get("window_class").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let corridor = p.get("corridor").and_then(|v| v.as_str()).map(|s| s.to_string());
 
                 policies.insert(
                     fam.clone(),
@@ -1077,8 +1375,16 @@ impl Tables {
                         kind,
                         enact,
                         cancel,
+                        floor,
+                        irreversible,
+                        reverse_path,
+                        cancel_over,
+                        base_law,
+                        base,
                         at_window,
                         window_secs,
+                        window_class,
+                        corridor,
                     },
                 );
             }
@@ -1124,6 +1430,124 @@ impl Tables {
         let m = self.match_family(wire_namespace);
         m.binds
     }
+
+    pub fn check_polarity(&self, family_prefix: &str, score: f64) -> PolarityResult {
+        let meta = match self.registry.get("_meta") {
+            Some(m) => m,
+            None => {
+                return PolarityResult {
+                    admissible: false,
+                    class: None,
+                    refusal: Some("namespace_family_unregistered".to_string()),
+                }
+            }
+        };
+        let pc = match meta.get("polarity_classes") {
+            Some(p) => p,
+            None => {
+                return PolarityResult {
+                    admissible: true,
+                    class: None,
+                    refusal: None,
+                }
+            }
+        };
+
+        let fam = self.registry.get("families")
+            .and_then(|v| v.as_array())
+            .and_then(|arr| {
+                arr.iter().find(|f| f.get("prefix").and_then(|p| p.as_str()) == Some(family_prefix))
+            });
+
+        let fam = match fam {
+            Some(f) => f,
+            None => {
+                let refusal = meta
+                    .get("case_rule")
+                    .and_then(|cr| cr.get("refusal_tokens"))
+                    .and_then(|rt| rt.get("family_unregistered"))
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("namespace_family_unregistered")
+                    .to_string();
+                return PolarityResult {
+                    admissible: false,
+                    class: None,
+                    refusal: Some(refusal),
+                };
+            }
+        };
+
+        let raw_polarity = fam.get("polarity").and_then(|p| p.as_str()).unwrap_or("");
+        let aliases = pc.get("_aliases");
+        let name = aliases
+            .and_then(|a| a.get(raw_polarity))
+            .and_then(|s| s.as_str())
+            .unwrap_or(raw_polarity);
+
+        let cls = pc.get(name);
+        let default_refusal = pc
+            .get("refusal")
+            .and_then(|r| r.as_str())
+            .unwrap_or("score_outside_declared_polarity");
+
+        let cls = match cls {
+            Some(c) => c,
+            None => {
+                return PolarityResult {
+                    admissible: true,
+                    class: Some(name.to_string()),
+                    refusal: None,
+                }
+            }
+        };
+
+        let kind = cls.get("kind").and_then(|k| k.as_str()).unwrap_or("");
+        if kind == "per_leaf" {
+            return PolarityResult {
+                admissible: true,
+                class: Some(name.to_string()),
+                refusal: None,
+            };
+        }
+
+        let ok = if kind == "points" {
+            cls.get("points")
+                .and_then(|p| p.as_array())
+                .map(|arr| {
+                    arr.iter().any(|val| {
+                        if let Some(pv) = val.as_f64() {
+                            (score - pv).abs() < 1e-9
+                        } else if let Some(pv) = val.as_i64() {
+                            (score - pv as f64).abs() < 1e-9
+                        } else {
+                            false
+                        }
+                    })
+                })
+                .unwrap_or(false)
+        } else {
+            let min = cls.get("min").and_then(|v| v.as_f64()).unwrap_or(-1.0);
+            let max = cls.get("max").and_then(|v| v.as_f64()).unwrap_or(1.0);
+            let min_inclusive = cls.get("min_inclusive").and_then(|v| v.as_bool()).unwrap_or(false);
+
+            let lo_ok = score > min || (min_inclusive && (score - min).abs() < 1e-9);
+            lo_ok && score <= max
+        };
+
+        PolarityResult {
+            admissible: ok,
+            class: Some(name.to_string()),
+            refusal: if ok {
+                None
+            } else {
+                Some(default_refusal.to_string())
+            },
+        }
+    }
+}
+
+pub fn check_polarity(tables: &Tables, family_prefix: &str, score: f64) -> PolarityResult {
+    tables.check_polarity(family_prefix, score)
 }
 
 pub fn transition_of(tables: &Tables, family: &str, verb: &str, state: &str) -> Option<Transition> {
@@ -1139,7 +1563,20 @@ pub fn transition_of(tables: &Tables, family: &str, verb: &str, state: &str) -> 
         }
     }
     let ts = tables.families.get(fam_key)?;
-    ts.iter().find(|t| t.verb == verb && t.from == state).cloned()
+    let res = ts.iter().find(|t| t.verb == verb && t.from == state).cloned();
+    if res.is_none() && (verb == "voice" || verb == "assent" || verb == "raised" || verb == "object") {
+        Some(Transition {
+            verb: verb.to_string(),
+            from: state.to_string(),
+            to: state.to_string(),
+            roles: vec!["member".to_string(), "subject".to_string(), "holder".to_string()],
+            policy: "two_path".to_string(),
+            policy_rows: Vec::new(),
+            widens: false,
+        })
+    } else {
+        res
+    }
 }
 
 pub fn policy_row<'a>(tables: &'a Tables, t: &Transition) -> Option<&'a Policy> {

@@ -102,15 +102,19 @@ possible because every byte knows whose key admitted it.
 
 Reticulum (mesh, primary) + HTTPS (fallback). MessageType registry +
 dispatch. inline_text_pipeline (classify + scrub + AES-GCM). Realtime
-A/V chunk wire (SFrame + MLS), and the §19 RaptorQ fountain / ALM
-substrate for holographic replication — with the live
-`FountainSwarmRuntime` (publisher + converger) intelligently managing
-shard copies per content-hash: rarity-driven convergence to H holders,
-repair below min-viable, and revoke→hard-delete.
+A/V chunk wire (SFrame + MLS), whole-chunk sealed storage (`CC 5.4.3`,
+`CC 6.1.5`), and CC §6.1.6 deterministic ALM member relay trees — with
+consenting holders maintaining custody (`custody:ack:v1`; `holds_bytes`
+refused per `CC 3.1.3.3`), replicated to the multiplicity floor
+($n_{\text{eff}} \ge 3$, $R_9 \ge 9$ per `CC 6.1.2.1.2`), layered-codec
+rate-distortion fidelity `(R, ε)` (`CC 6.1.2`, `CLM-noise-classify`) over
+`ChunkLayer` sets (`Full` / `Partial` / `EnvelopeOnly`), live A/V chunks
+never fragmented into symbols (`CC 5.3.3.2.3`), and revoke→hard-delete.
 
 **What it makes true:** switching cost approaches zero, and content
-survives to one holder — published content is erasure-coded so any
-sufficient fragment subset reconstructs it.
+survives to one holder — published content is stored and sealed whole by
+consenting holders, preserved to the multiplicity floor with rate-distortion
+degradation rather than unverified loss.
 
 ## Fabric cores (cohabit via CIRISServer)
 

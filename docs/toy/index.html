@@ -282,7 +282,7 @@ details.adv-panel[open]>summary::before{content:"▾ Advanced — Population Opt
             <input type="range" id="optTrc" min="0" max="100" step="5" value="10">
             <div class="pro-con">
               <span class="pro">+ Contributes 14 KiB/decision scrubbed reasoning traces to cohort accountability and RATCHET evaluation.</span>
-              <span class="con">− Widens trace visibility beyond self/family and adds signing, scrubbing, and fountain replication load.</span>
+              <span class="con">− Widens trace visibility beyond self/family and adds signing, scrubbing, and chunk custody storage load.</span>
             </div>
           </div>
         </div>
@@ -348,7 +348,7 @@ details.adv-panel[open]>summary::before{content:"▾ Advanced — Population Opt
       <div style="margin-top:.7rem">
         <div class="stat"><span class="k">effective trust sources (R × depth mult)</span><span class="v" id="effR"></span></div>
         <div class="stat"><span class="k">implied retention (admitted-trust pool)</span><span class="v" id="retention"></span></div>
-        <div class="stat"><span class="k">fountain symbol per content (1/N)</span><span class="v" id="symfrac"></span></div>
+        <div class="stat"><span class="k">custody store fraction (1/N)</span><span class="v" id="symfrac"></span></div>
       </div>
       <div class="revnote" id="foreverNote" style="border-left-color:var(--accent2);background:#181428"></div>
     </div>
@@ -368,7 +368,7 @@ details.adv-panel[open]>summary::before{content:"▾ Advanced — Population Opt
     </div>
 
     <div class="panel" style="margin-top:1.1rem">
-      <h2>Holonomic shard management <span style="text-transform:none;color:var(--faint);font-weight:400">— per content-hash</span></h2>
+      <h2>Whole-chunk custody management <span style="text-transform:none;color:var(--faint);font-weight:400">— per content-hash</span></h2>
 
       <!-- 1. per content-hash anatomy -->
       <div class="shard-anatomy" id="shardAnatomy"></div>
@@ -376,15 +376,15 @@ details.adv-panel[open]>summary::before{content:"▾ Advanced — Population Opt
 
       <!-- 2. overhead comparison -->
       <div style="margin-top:1rem">
-        <div class="stat"><span class="k">fountain overhead H/N</span><span class="v" id="ohFountain"></span></div>
-        <div class="stat"><span class="k">whole-copy overhead (baseline)</span><span class="v" id="ohWhole"></span></div>
-        <div class="stat"><span class="k">distinct-content advantage</span><span class="v" style="color:var(--ok)" id="ohRatio"></span></div>
+        <div class="stat"><span class="k">target holders H (custody)</span><span class="v" id="ohCustody"></span></div>
+        <div class="stat"><span class="k">whole-copy baseline</span><span class="v" id="ohWhole"></span></div>
+        <div class="stat"><span class="k">multiplicity ratio</span><span class="v" style="color:var(--ok)" id="ohRatio"></span></div>
       </div>
 
       <!-- 3. federation distinct-content capacity -->
       <div style="margin-top:1rem">
         <div class="stat"><span class="k">fleet disk pool</span><span class="v" id="fleetDisk"></span></div>
-        <div class="stat"><span class="k">distinct content — fountain</span><span class="v" style="color:var(--accent2)" id="capFountain"></span></div>
+        <div class="stat"><span class="k">distinct content — custody</span><span class="v" style="color:var(--accent2)" id="capCustody"></span></div>
         <div class="stat"><span class="k">distinct content — whole-copy</span><span class="v" id="capWhole"></span></div>
       </div>
 
@@ -441,11 +441,16 @@ details.adv-panel[open]>summary::before{content:"▾ Advanced — Population Opt
       <li><b>Steady-state, single-pool.</b> One held-bytes pool per node scored by trust × demand × recency;
         no separate "archive vs cache" tiers, no warm-up transient. The eviction sweeper holds disk at
         <code>92%</code> full.</li>
-      <li><b>Fountain replication.</b> A holder stores one RaptorQ symbol = <code>1/N = 1/20</code> of a
-        content; the swarm converges to <code>H=30</code> holders; network overhead is <code>H/N = 1.5×</code>
-        (not whole-copy 5×). Replication count is decoupled from trust radius.</li>
+      <li><b>Whole-chunk custody replication.</b> A holder stores sealed whole chunks attested by
+        <code>custody:ack:v1</code> (while <code>holds_bytes</code> is retired and refused per CC §3.1.3.3);
+        the swarm converges to <code>H=30</code> consenting holders; governed by multiplicity and
+        dominance gates ($n_{\text{eff}} \ge 3$, root durability floor $R_9 \ge 9$ per CC §6.1.2.1.2).
+        Live A/V chunks are never fragmented into symbols (CC §5.3.3.2.3), and layered fidelity (CC §6.1.2)
+        degrades gracefully across <code>Full</code> / <code>Partial</code> / <code>EnvelopeOnly</code> layers.
+        Replication count is decoupled from trust radius.</li>
       <li><b>The locality dividend is structural.</b> <code>self</code>/<code>family</code> cohort content
-        never emits a <code>holds_bytes</code> attestation, so no peer can request it — it's free inter-host.
+        never emits a <code>custody:ack:v1</code> attestation (while <code>holds_bytes</code> is retired and
+        refused per CC §3.1.3.3), so no peer can request it — it's free inter-host.
         Only <code>publishable()</code> bytes (community + affiliations + species + planet + federation) cost
         anything to federate.</li>
       <li><b>Empirical constants</b> (sign/verify µs, scrub/canon rates, 14 KiB H3ERE trace) are baked in from
@@ -488,21 +493,20 @@ const CANONICALIZE_NS_PER_KIB = 250.0, AES_GCM_ENCRYPT_NS_PER_BYTE = 0.175;
 const AES_GCM_DECRYPT_NS_PER_BYTE = 0.161, SCRUB_NS_PER_BYTE = 10.0;
 const H3ERE_TRACE_BYTES_PER_DECISION = 14.0 * KB;
 
-// ─── Fountain replication + holonomic swarm shard management (v0.7) ──
-// Ports scale_model.rs lines ~152-274 (CIRISEdge v4.1.1 holonomic::
-// fountain_defaults + swarm_rarity; CIRISPersist FountainContentV1; CEG §19).
-const N_SOURCE = 20.0;                       // DEFAULT_N_SOURCE
-const K_REPAIR = 6.0;                        // DEFAULT_K_REPAIR (RaptorQ FEC headroom ~N/4)
+// ─── Whole-chunk custody & layered fidelity management (CC §5.3.3.2.3, §5.4.3, §6.1.2, §6.1.5) ──
+// Ports scale_model.rs lines ~133-200 (CC §5.4.3, §6.1.5 whole-chunk custody;
+// CLM-noise-classify; custody:ack:v1; holds_bytes retired per CC §3.1.3.3).
+const N_SOURCE = 20.0;                       // DEFAULT_N_SOURCE / cluster partition fraction
 const TARGET_HOLDERS = 30.0;                 // DEFAULT_TARGET_HOLDERS (H, reference @ q≈0.85)
-const MIN_VIABLE_SYMBOLS = 5.0;              // DEFAULT_MIN_VIABLE_SYMBOLS (BLINKING_DOT floor)
+const MIN_VIABLE_HOLDERS = 5.0;              // DEFAULT_MIN_VIABLE_HOLDERS (reconstruction floor)
 const EJECT_SAFETY_MARGIN_PCT = 15.0;        // swarm_rarity::EJECT_ABOVE_TARGET_SAFETY_MARGIN_PCT
-const WHOLE_COPY_OVERHEAD_BASELINE = 5.0;    // pre-v3.10.0 whole-copy overhead (comparison baseline)
-const FOUNTAIN_STORE_FRACTION = 1.0 / N_SOURCE; // a holder stores one symbol
+const WHOLE_COPY_OVERHEAD_BASELINE = 5.0;    // whole-copy overhead (comparison baseline)
+const CHUNK_CUSTODY_STORE_FRACTION = 1.0 / N_SOURCE; // a node holds its partition of active custody chunks
 
-// Port of fn fountain_overhead(h, n) — per-content network overhead = H/N.
-function fountainOverhead(h, n){ return h / n; }
-// Port of fn per_peer_symbol_fraction(n) — one symbol = 1/N of content.
-function perPeerSymbolFraction(n){ return 1.0 / n; }
+// Port of fn chunk_custody_overhead(h) — target holders H.
+function chunkCustodyOverhead(h){ return h; }
+// Port of fn per_peer_chunk_fraction(n) — one partition = 1/N of cluster chunks.
+function perPeerChunkFraction(n){ return 1.0 / n; }
 // Port of fn content_capacity(total_disk, overhead) — distinct-content capacity.
 function contentCapacity(totalDisk, overhead){ return totalDisk / overhead; }
 // Port of fn over_target_threshold() — H × (1 + S/100). Parameterized on h
@@ -531,12 +535,12 @@ function survivalProbability(holders, n_threshold, q){
 
 // Port of enum EjectionVerdict + fn should_eject_above_target.
 // consent ∈ {"live","revoked","unknown"}; returns verdict string.
-// §19.3 N5: REVOKED → hard-delete (irreversible, never tier-shed).
-function shouldEjectAboveTarget(holders_observed, consent, local_symbol_common, h){
-  if (consent === "revoked") return "EjectHardDelete";     // §19.3 N5 — dominates rarity
+// CC §6.1.2: REVOKED → hard-delete (irreversible, never tier-shed).
+function shouldEjectAboveTarget(holders_observed, consent, local_chunk_common, h){
+  if (consent === "revoked") return "EjectHardDelete";     // CC §6.1.2 — dominates rarity
   if (holders_observed <= overTargetThreshold(h)) return "Keep";
-  // Over target: a rare local symbol is kept ONLY when consent is confirmed live.
-  if (consent === "live" && !local_symbol_common) return "Keep";
+  // Over target: a rare local chunk is kept ONLY when consent is confirmed live.
+  if (consent === "live" && !local_chunk_common) return "Keep";
   return "EjectToTier"; // availability-only freeable tier (unknown ≠ revoked)
 }
 
@@ -736,10 +740,10 @@ function perActorServer(s){
   const trust_budget = remaining_budget * trust_share_of_remaining;
   const cache_budget = remaining_budget - trust_budget;
 
-  const stored_rate = daily_admitted_plus_traces * FOUNTAIN_STORE_FRACTION;
+  const stored_rate = daily_admitted_plus_traces * CHUNK_CUSTODY_STORE_FRACTION;
   const effective_days = stored_rate > 0.0 ? trust_budget / stored_rate : 0.0;
-  const admitted_trust_held = Math.min(daily_admitted * FOUNTAIN_STORE_FRACTION * effective_days, trust_budget * 0.85);
-  const replicated_traces_held = Math.min(traces_in_per_day * FOUNTAIN_STORE_FRACTION * effective_days, trust_budget * 0.15);
+  const admitted_trust_held = Math.min(daily_admitted * CHUNK_CUSTODY_STORE_FRACTION * effective_days, trust_budget * 0.85);
+  const replicated_traces_held = Math.min(traces_in_per_day * CHUNK_CUSTODY_STORE_FRACTION * effective_days, trust_budget * 0.15);
 
   const cache_hit_rate = s.cache_hit_rate;
   const inline_fetch = s.daily_fetch_bytes * (1.0 - s.external_fetch_fraction);
@@ -748,7 +752,7 @@ function perActorServer(s){
   const total_fetch_bw = s.daily_fetch_bytes * (1.0 - cache_hit_rate);
 
   const verify_envs = (stored_rate + cache_inbound) / s.avg_envelope_bytes;
-  const scrub_bytes = traces_in_per_day * FOUNTAIN_STORE_FRACTION;
+  const scrub_bytes = traces_in_per_day * CHUNK_CUSTODY_STORE_FRACTION;
   const wide = s.cohort.species + s.cohort.planet + s.cohort.federation;
   const narrow = s.cohort.community + s.cohort.affiliations;
   const fanout = 1.0 + narrow * 4.0 + wide * 64.0;
@@ -805,7 +809,7 @@ function perActorStorageTotal(tier, s){
   const daily_admitted = effective_R * s.daily_bytes * publishable(s.cohort);
   const trust_budget = remaining_budget * 0.85;
   const cache_budget = remaining_budget - trust_budget;
-  const daily_admitted_stored = daily_admitted * FOUNTAIN_STORE_FRACTION;
+  const daily_admitted_stored = daily_admitted * CHUNK_CUSTODY_STORE_FRACTION;
   const eff_days = daily_admitted_stored > 0 ? trust_budget / daily_admitted_stored : 0;
   const admitted_trust_held = Math.min(daily_admitted_stored * eff_days, trust_budget);
   const chr = Math.max(s.cache_hit_rate - 0.1, 0.1);
@@ -1010,14 +1014,14 @@ function render(){
 
   $("effR").textContent = fmtCount(srv.effective_R) + "  (R " + s.trust_radius + " × " + effectiveTrustSetMultiplier(s.trust_depth_avg).toFixed(1) + "× depth)";
   $("retention").textContent = srv.effective_retention_days.toFixed(0) + " days" + (retention_ok?"":"  ⚠");
-  $("symfrac").textContent = "1/" + N_SOURCE + " = " + (FOUNTAIN_STORE_FRACTION*100).toFixed(0) + "%  (overhead H/N = " + fountainOverhead(state.holders, N_SOURCE).toFixed(2) + "×)";
+  $("symfrac").textContent = "1/" + N_SOURCE + " = " + (CHUNK_CUSTODY_STORE_FRACTION*100).toFixed(0) + "%  (cluster partition across active custody)";
 
-  // ── forever-memory note (§19.7 fountain + aggregation memory-pyramid) ──
+  // ── forever-memory note (CC §6.1.2 layered fidelity + memory pyramid) ──
   const rd = srv.effective_retention_days;
   const retStr = rd >= 730 ? (rd/365).toFixed(1) + " years" : rd.toFixed(0) + " days";
   $("foreverNote").innerHTML =
-    `<b style="color:var(--accent2)">Forever-memory.</b> Individual items keep <b>full resolution</b> for ≈ ${retStr}, `+
-    `then <b>degrade rather than delete</b> (§19.7 fountain 1/N + aggregation memory-pyramid). The collective `+
+    `<b style="color:var(--accent2)">Forever-memory.</b> Individual items keep <b>Full resolution</b> for ≈ ${retStr}, `+
+    `then <b>degrade rather than delete</b> (CC §6.1.2 layered-codec rate-distortion + memory pyramid). The collective `+
     `gist persists below the noise floor <b>indefinitely</b> — all of history fits in budget at <code style="font-family:var(--mono);color:var(--accent2)">O(log T)</code>, `+
     `so the aggregated horizon is effectively unbounded while per-item fidelity decays gracefully.`;
 
@@ -1051,22 +1055,20 @@ function renderSwarm(s, n_srv){
   $("holdersVal").textContent = H + " holders";
   $("churnVal").textContent = q.toFixed(2);
 
-  // 1. per content-hash anatomy: N source + K repair symbols → H holders, each 1/N.
-  const symFrac = perPeerSymbolFraction(N_SOURCE);
-  let symHTML = "";
-  for (let i=0;i<N_SOURCE;i++) symHTML += '<span class="sym src"></span>';
-  for (let i=0;i<K_REPAIR;i++)  symHTML += '<span class="sym rep"></span>';
+  // 1. per content-hash anatomy: whole-chunk sealed storage across H consenting holders
+  const chunkFrac = perPeerChunkFraction(N_SOURCE);
+  let chunkHTML = "";
+  for (let i=0;i<N_SOURCE;i++) chunkHTML += '<span class="sym src"></span>';
   let holdHTML = "";
   for (let i=0;i<H;i++) holdHTML += '<span class="sym hold"></span>';
   $("shardAnatomy").innerHTML =
-    `<div class="label">RaptorQ encode: N=${N_SOURCE} source + K=${K_REPAIR} repair symbols</div>`+
-    `<div class="symbols">${symHTML}</div>`+
-    `<div class="label" style="margin-top:.6rem">swarm converges to H=${H} holders · each stores 1 symbol = 1/N = ${(symFrac*100).toFixed(0)}%</div>`+
+    `<div class="label">Whole-chunk sealed storage: CC §5.4.3, §6.1.5 · cluster partition N=${N_SOURCE} chunks</div>`+
+    `<div class="symbols">${chunkHTML}</div>`+
+    `<div class="label" style="margin-top:.6rem">swarm converges to H=${H} consenting holders · custody:ack:v1</div>`+
     `<div class="symbols">${holdHTML}</div>`+
     `<div class="legend">`+
-    `<i class="sym src" style="background:var(--accent)"></i>source &nbsp; `+
-    `<i class="sym rep" style="background:var(--accent2)"></i>repair &nbsp; `+
-    `<i class="sym hold" style="background:var(--ok)"></i>holder (1 symbol each)</div>`;
+    `<i class="sym src" style="background:var(--accent)"></i>sealed chunk &nbsp; `+
+    `<i class="sym hold" style="background:var(--ok)"></i>consenting holder (whole chunk)</div>`;
 
   $("decoupleNote").innerHTML =
     `H is <b style="color:var(--accent2)">decoupled from trust radius</b> (R=${s.trust_radius}, effective ${fmtCount(s.trust_radius*effectiveTrustSetMultiplier(s.trust_depth_avg))}): `+
@@ -1074,23 +1076,23 @@ function renderSwarm(s, n_srv){
     `(<code style="font-family:var(--mono);color:var(--accent2)">should_eject_above_target</code>) caps the <i>count</i> at H. `+
     `Eject-above threshold = H×(1+${EJECT_SAFETY_MARGIN_PCT}/100) = ${overTargetThreshold(H).toFixed(1)} holders.`;
 
-  // 2. overhead comparison: fountain H/N vs whole-copy 5×.
-  const ohF = fountainOverhead(H, N_SOURCE);
+  // 2. overhead comparison: whole-chunk custody H vs whole-copy baseline 5×.
+  const ohC = chunkCustodyOverhead(H);
   const ohW = WHOLE_COPY_OVERHEAD_BASELINE;
-  $("ohFountain").textContent = ohF.toFixed(2) + "×";
-  $("ohWhole").textContent = ohW.toFixed(2) + "×";
-  $("ohRatio").textContent = (ohW/ohF).toFixed(2) + "× more distinct content / same disk";
+  $("ohCustody").textContent = ohC.toFixed(0) + "× (" + ohC.toFixed(0) + " holders)";
+  $("ohWhole").textContent = ohW.toFixed(1) + "×";
+  $("ohRatio").textContent = (ohC/ohW).toFixed(1) + "× multiplicity";
 
   // 3. federation distinct-content capacity over the scenario's server-tier fleet disk.
   const fleetDisk = n_srv * s.disk_budget_server;
-  const capF = contentCapacity(fleetDisk, ohF);
+  const capC = contentCapacity(fleetDisk, ohC);
   const capW = contentCapacity(fleetDisk, ohW);
   $("fleetDisk").textContent = fmtBytes(fleetDisk) + "  (" + fmtCount(n_srv) + " servers × " + fmtBytes(s.disk_budget_server) + ")";
-  $("capFountain").textContent = fmtBytes(capF) + " of distinct content";
+  $("capCustody").textContent = fmtBytes(capC) + " of distinct content";
   $("capWhole").textContent = fmtBytes(capW) + " of distinct content";
 
-  // 4. survival / durability: P(reconstruct) = survival_probability(H, MIN_VIABLE, q).
-  const pSurv = survivalProbability(H, MIN_VIABLE_SYMBOLS, q);
+  // 4. survival / durability: P(reconstruct) = survival_probability(H, MIN_VIABLE_HOLDERS, q).
+  const pSurv = survivalProbability(H, MIN_VIABLE_HOLDERS, q);
   // meter: show P as a fill; redline at the "five nines" durability target reference.
   const pct = pSurv*100;
   let col = pSurv>=0.99999 ? "var(--ok)" : (pSurv>=0.999 ? "var(--warn)" : "var(--bad)");
@@ -1101,19 +1103,19 @@ function renderSwarm(s, n_srv){
     `<span class="pct" style="color:${col}">${nines} nines</span></div>`+
     `<div class="track"><div class="fill" style="width:${Math.min(pct,100)}%;background:${col}"></div>`+
     `<div class="gatelabel">${pSurv >= 0.999995 ? "≥99.999%" : (pSurv*100).toFixed(3)+"%"}</div></div>`+
-    `<div class="sub">P(Binomial(${H}, ${q.toFixed(2)}) ≥ ${MIN_VIABLE_SYMBOLS}) — min-viable reconstruction floor</div>`;
+    `<div class="sub">P(Binomial(${H}, ${q.toFixed(2)}) ≥ ${MIN_VIABLE_HOLDERS}) — min-viable reconstruction floor</div>`;
   $("survNote").innerHTML =
-    `Lower H toward min-viable (${MIN_VIABLE_SYMBOLS}) and P(reconstruct) collapses; raise q (less churn) and it recovers. `+
-    `At min-viable H=${MIN_VIABLE_SYMBOLS}, q=${q.toFixed(2)}: P=${(survivalProbability(MIN_VIABLE_SYMBOLS, MIN_VIABLE_SYMBOLS, q)*100).toFixed(2)}%.`;
+    `Lower H toward min-viable (${MIN_VIABLE_HOLDERS}) and P(reconstruct) collapses; raise q (less churn) and it recovers. `+
+    `At min-viable H=${MIN_VIABLE_HOLDERS}, q=${q.toFixed(2)}: P=${(survivalProbability(MIN_VIABLE_HOLDERS, MIN_VIABLE_HOLDERS, q)*100).toFixed(2)}%.`;
 
-  // 5. revocation / noise-floor — §19.3 N5 hard-delete path.
+  // 5. revocation / noise-floor — CC §6.1.2 / CLM-noise-N5 hard-delete path.
   const verdictLive = shouldEjectAboveTarget(overTargetThreshold(H)+1, "live", true, H);
   $("revNote").innerHTML =
-    `<b style="color:var(--bad)">Revocation = hard-delete.</b> The intelligent-by-hash management includes an `+
-    `irreversible path: a <code>Revoked</code> content is hard-deleted at every holder (§19.3 N5) — `+
+    `<b style="color:var(--bad)">Revocation = hard-delete.</b> The whole-chunk custody management includes an `+
+    `irreversible path: a <code>Revoked</code> content is hard-deleted at every holder (CC §6.1.2) — `+
     `<b>never</b> tier-shed to a refetchable tier, or revoked content would stay recoverable. This is distinct `+
-    `from availability-pressure shedding (<code>EjectToTier</code>), which only frees consent-live, common symbols `+
-    `above target. (e.g. an over-target common live symbol → <code>${verdictLive}</code>.)`;
+    `from availability-pressure shedding (<code>EjectToTier</code>), which only frees consent-live chunks `+
+    `above target. (e.g. an over-target common live chunk → <code>${verdictLive}</code>.)`;
 }
 
 // ─── Latency readout + Sphinx onion transport panel ─────────────────

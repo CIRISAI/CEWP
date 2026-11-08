@@ -2,7 +2,7 @@
 //!
 //! Enforces the normative requirement from `FSD/SIMULATION_ENGINE.md` §2.2 / §2.3:
 //! Every simulation coverage report must compute and format:
-//! `(atoms_exercised / 122 promised / 156 vocabulary / 242 constitutional_state_table)`
+//! `(atoms_exercised / 110 promised / 156 vocabulary / 242 constitutional_state_table)`
 //! and list the 6 `file.durable.*` atoms awaiting `T20` (`CIRISServer#809`).
 
 use std::collections::BTreeSet;
@@ -17,7 +17,7 @@ use crate::catalogue::{
 pub struct CoverageReport {
     /// Distinct state atoms exercised in the scenario run.
     pub exercised_atoms: BTreeSet<String>,
-    /// Number of atoms promised across T0–T19 (122).
+    /// Number of distinct atoms promised across T0–T19 (110).
     pub promised_count: usize,
     /// Total vocabulary atoms defined in CIRISConstitution (156).
     pub vocabulary_count: usize,
@@ -72,7 +72,7 @@ impl CoverageReport {
     }
 
     /// Returns the exact required qualification string:
-    /// `(atoms_exercised / 122 promised / 156 vocabulary / 242 constitutional_state_table)`
+    /// `(atoms_exercised / 110 promised / 156 vocabulary / 242 constitutional_state_table)`
     pub fn format_qualification(&self) -> String {
         format!(
             "({} / {} promised / {} vocabulary / {} constitutional_state_table)",
@@ -114,8 +114,8 @@ mod tests {
     fn test_coverage_qualification_formatting() {
         let report = CoverageReport::from_topologies(&[TopologyId::T5, TopologyId::T14, TopologyId::T15]);
         let qual = report.format_qualification();
-        assert!(qual.contains("/ 122 promised / 156 vocabulary / 242 constitutional_state_table)"));
-        assert_eq!(report.promised_count, 122);
+        assert!(qual.contains("/ 110 promised / 156 vocabulary / 242 constitutional_state_table)"));
+        assert_eq!(report.promised_count, 110);
         assert_eq!(report.vocabulary_count, 156);
         assert_eq!(report.state_table_count, 242);
 
@@ -136,7 +136,7 @@ mod tests {
         atoms.insert("node.claimed".to_string());
         let report = CoverageReport::from_atoms(atoms);
         let text = report.format_full_report();
-        assert!(text.contains("(2 / 122 promised / 156 vocabulary / 242 constitutional_state_table)"));
+        assert!(text.contains("(2 / 110 promised / 156 vocabulary / 242 constitutional_state_table)"));
         assert!(text.contains("Atoms Awaiting T20 (CIRISServer#809):"));
         assert!(text.contains("file.durable.recovered"));
     }

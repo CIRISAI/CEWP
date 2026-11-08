@@ -51,10 +51,15 @@ don't have CEWP as a tool. The web is **holonomic** (after Bohm's
 implicate order): there is no center, no nameserver, and no
 load-bearing server — you address a peer by its key, reach it over
 the mesh, and trust it through a chain you can re-root at will.
-Content is **holographic** — erasure-coded so any sufficient subset
-of fragments reconstructs it at proportional fidelity, and the
-federation re-establishes itself from any single survivor holding a
-signed witness chain. The substrate eliminates the centralized
+Content is stored as sealed whole chunks (`CC 5.4.3`, `CC 6.1.5`) across
+consenting holders (`custody:ack:v1`; `holds_bytes` is retired and refused
+per `CC 3.1.3.3`) replicated to the multiplicity floor ($n_{\text{eff}} \ge 3$
+across independent ASN/jurisdiction/signer axes, $R_9 \ge 9$ holders for
+root durability per `CC 6.1.2.1.2`). Layered-codec rate-distortion fidelity
+degrades gracefully along `Full` / `Partial` / `EnvelopeOnly` layers (`CC 6.1.2`,
+`CLM-noise-classify`), live A/V sealed chunks are never fragmented into symbols
+(`CC 5.3.3.2.3`), and the federation re-establishes itself from any single
+survivor holding a signed witness chain. The substrate eliminates the centralized
 internet's structural failure modes (surveillance, platform lock-
 in, trust collapse, content-quality regression, identity
 fragmentation) AND removes the dependency on large datacenters at
@@ -657,9 +662,13 @@ the frozen surface (§16.1 lineage):
 * **§19 holonomic (RC11–RC16, normative)** — the substrate that makes
   CEWP holonomic, absorbed from CIRISEdge with guardrails:
   **WholenessWitness** (hybrid-signed Merkle root; divergence
-  detector triggering — not replacing — quorum-merge); **RaptorQ
-  fountain storage** (`(N,K)` erasure coding, any-K reconstruction;
-  defaults `N=20,K=6,min_viable=5`); **deterministic ALM** multicast
+  detector triggering — not replacing — quorum-merge); **whole-chunk
+  sealed storage** (`CC §5.4.3, §6.1.5`, consenting holders `custody:ack:v1`;
+  `holds_bytes` retired and refused per `CC 3.1.3.3`) replicated to the
+  multiplicity floor ($n_{\text{eff}} \ge 3$, root durability floor $R_9 \ge 9$
+  per `CC 6.1.2.1.2`); layered-codec rate-distortion fidelity (`CC 6.1.2`,
+  `CLM-noise-classify`) over `ChunkLayer` sets `(R, ε)` with live A/V chunks
+  never fragmented into symbols (`CC 5.3.3.2.3`); **deterministic ALM** multicast
   topology; and the **unified retirement model** — revocation,
   eviction, expiry, and aging as *one* monotonic descent toward a
   **noise floor**, history kept as a **memory pyramid at O(log T)**.
@@ -699,9 +708,13 @@ properties:
   individual-recoverability boundary — revoked items descend below it
   (privacy); the collective gist persists below it forever
   (durability). *A million years may be a blur, but it is remembered.*
-* **Holographic replication** — published content is RaptorQ
-  fountain-coded `(N,K)`; any sufficient subset of fragments
-  reconstructs it at proportional fidelity, and the federation
+* **Whole-chunk sealed storage & multiplicity replication** — chunks are
+  sealed and stored whole by consenting holders (`CC §5.4.3, §6.1.5`,
+  `custody:ack:v1`; `holds_bytes` retired and refused per `CC 3.1.3.3`)
+  with multiplicity and dominance gates ($n_{\text{eff}} \ge 3$, root durability
+  floor $R_9 \ge 9$ per `CC 6.1.2.1.2`). Layered-codec rate-distortion fidelity
+  (`CC 6.1.2`, `CLM-noise-classify`) degrades gracefully along `Full` / `Partial` /
+  `EnvelopeOnly` layers over `ChunkLayer` sets `(R, ε)`, and the federation
   re-establishes from any single survivor holding a witness chain.
 * **L0 (256 GB) + L1 (1 TB) server gradient** — proxies are L0
   servers, full participants in replication.
@@ -827,14 +840,15 @@ this is a real running system, not a paper architecture.
   storage with `put_blob_signing` atomic admission, audit chain,
   trust admission gate, the holonomic retirement tiers
   (`AggregationMetaV1` / noise-floor descent / `EjectionVerdict`,
-  CEG §19.7) with per-symbol fountain storage + `list_held_fountain_content`
+  CEG §19.7) with whole-chunk custody storage (`custody:ack:v1`) + `list_held_chunks`
   + revoke→hard-delete, all wired + tested on Postgres & SQLite.
 * **CIRISEdge v6.3.0** — shipped: Reticulum mesh + HTTPS transports,
   dispatch, content addressing, realtime A/V chunk wire
   (`SealedAvChunk` / `ChunkLayer`, SFrame + MLS), and the §19
-  holonomic substrate **wired live**: `FountainSwarmRuntime` (publisher
-  + converger) driving swarm-rarity convergence, repair-below-min-viable,
-  and verdict-driven tier-evict / revoke→hard-delete; `FountainHoldingClaim`
+  holonomic substrate **wired live**: chunk custody runtime (publisher
+  + converger) driving multiplicity floor convergence ($n_{\text{eff}} \ge 3$,
+  $R_9 \ge 9$), repair below durability floor,
+  and verdict-driven tier-evict / revoke→hard-delete; `ChunkCustodyClaim`
   routed in dispatch (#184).
 
 ### 11.2 Fabric cores (cohabit via CIRISServer)
@@ -958,7 +972,7 @@ soup is for everyone; come participate.*
 * [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) — storage
   substrate + holonomic retirement tiers
 * [CIRISEdge](https://github.com/CIRISAI/CIRISEdge) — mesh transport +
-  realtime A/V + §19 fountain/ALM substrate
+  realtime A/V + whole-chunk sealed storage / ALM substrate
 * [CIRISRegistry](https://github.com/CIRISAI/CIRISRegistry) — CEG +
   Constitution spec authority + identity bootstrap (ciris-registry-core)
 * [CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore) —

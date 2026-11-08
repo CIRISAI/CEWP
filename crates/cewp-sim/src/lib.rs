@@ -6,24 +6,25 @@
 //!    - Budget classes (Off, PhoneCellular, PhoneWifi, Home, Server, Seat)
 //!    - Shaped-link bound (L <= 8) & rank-based displacement
 //!    - One direct hop & reach ≠ capacity separate failure counters
-//!    - Sealed referrals (up to 3) & proxy pull
+//!    - Sealed referrals (up to 3) & proxy pull with federation-tier gate
 //!    - 64 KiB shaped-link payload boundary & exact refusal string
 //!    - Carriage axis (ConsentOnly vs Full) with 16 consent-free envelope kinds
-//!    - Anonymous Tier (3-hop CONP, floor >= 3 answering relays, 2-member room-mailbox)
+//!    - Anonymous Tier (3-hop CONP, floor >= 3 answering relays, 2-member room-mailbox, sticky guards)
 //!
 //! 2. `alm` — Deterministic Application-Layer Multicast (CC §6.1.6, CLM-deterministic-alm):
 //!    - Pure integer-only `compute_alm_topology_verified` (zero float branches)
-//!    - Signed capacity verification & self-assertion clamping
-//!    - Depth-primary parent selection (v2: depth ≈ ⌈log_k N⌉)
+//!    - Single publisher root via stream key binding (publisher is only member at depth 0)
+//!    - Depth-primary parent selection via single-root BFS traversal with locality preference
 //!    - MDC sub-path diversity penalty & cycle prevention
-//!    - All 15 frozen vectors verified
+//!    - Single-publisher member relay tree (k <= 8)
 //!
-//! 3. `fountain` — Symbol-Rank Storage & Noise-Floor Descent (CC §6.1.2, CLM-noise-classify):
-//!    - `FountainManifestV1` & per-node symbol holdings with adversarial flags
+//! 3. `chunk_custody` — Whole-Chunk Storage & Layered Fidelity Model (CC §5.3.3.2.3, §5.4.3, §6.1.2, §6.1.5):
+//!    - Whole-chunk storage contract (`ChunkManifestV1`, `WholeChunkManifestV1`) with `custody:ack:v1`
+//!    - Layered-codec fidelity classification over `ChunkLayer` sets (R, ε)
 //!    - Full / Partial / EnvelopeOnly noise floor states
 //!    - Revocation dominance (CLM-noise-N5: Revoked -> EjectHardDelete)
 //!    - Proactive trimming (`should_eject_above_target`) at 15% safety margin
-//!    - Kish mass-dominance gate & R9 multiplicity gate
+//!    - Kish mass-dominance gate (N_EFF_MIN = 3) & R9 multiplicity gate (R9_HOLDER_FLOOR = 9) via integer floor
 //!    - Unit tests for test_540, test_541, and test_542
 //!
 //! 4. `workload` — Compound-Poisson Workload & 4 Baselines (FSD §4):
@@ -43,12 +44,13 @@
 
 pub mod transport;
 pub mod alm;
-pub mod fountain;
+pub mod chunk_custody;
 pub mod workload;
 pub mod holon;
 
 pub use transport::*;
 pub use alm::*;
-pub use fountain::*;
+pub use chunk_custody::*;
+pub use chunk_custody as chunk_storage;
 pub use workload::*;
 pub use holon::*;

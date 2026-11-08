@@ -469,7 +469,14 @@ fn test_csd_namespace_map_full_integration() {
     assert_eq!(map.summary.csd_mapped_families, 94);
     assert_eq!(map.summary.substrate_autonomous_families, 97);
     assert_eq!(map.summary.total_csd_shows_fields, 660);
-    assert_eq!(map.summary.resolved_csd_shows_fields, 660);
+    assert_eq!(map.summary.resolved_csd_shows_fields, 152);
+    assert_eq!(map.summary.canonical_resolved_shows_fields, 152);
+    assert_eq!(map.summary.refused_private_namespace_fields, 505);
+    assert_eq!(map.summary.refused_retired_holds_bytes_fields, 3);
+    assert_eq!(map.summary.total_match_vectors, 1291);
+    assert_eq!(map.summary.valid_canonical_vectors, 783);
+    assert_eq!(map.summary.refused_private_namespace_vectors, 505);
+    assert_eq!(map.summary.refused_retired_holds_bytes_vectors, 3);
 
     // 2. Collections sizing
     assert_eq!(map.cards.len(), 105);

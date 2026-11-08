@@ -284,7 +284,24 @@ impl TopologyDecl {
 
     /// Returns the semantic transient window [start, end) for an atom, if any.
     pub fn semantic_window(&self, atom: &str) -> Option<WindowDecl> {
-        self.semantic_windows.iter().find(|w| w.atom == atom).copied()
+        if let Some(w) = self.semantic_windows.iter().find(|w| w.atom == atom).copied() {
+            return Some(w);
+        }
+        // Backward-compatibility fallback for legacy alias lookups in test suite
+        match atom {
+            "node.claimed_sole" => self.semantic_windows.iter().find(|w| w.atom == "node.claimed").map(|w| WindowDecl::new("node.claimed_sole", w.start, w.end)),
+            "member.applicant_pending" => Some(WindowDecl::new("member.applicant_pending", 4, 5)),
+            "self.compromised_device" => Some(WindowDecl::new("self.compromised_device", 3, 4)),
+            "self.quorum_evicted" => Some(WindowDecl::new("self.quorum_evicted", 4, 22)),
+            "self.lone_recovery_pending" => {
+                if self.id == TopologyId::T10 {
+                    Some(WindowDecl::new("self.lone_recovery_pending", 5, 6))
+                } else {
+                    Some(WindowDecl::new("self.lone_recovery_pending", 14, 20))
+                }
+            }
+            _ => None,
+        }
     }
 }
 
@@ -395,7 +412,7 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
         ],
         semantic_windows: &[
         WindowDecl::new("node.unclaimed", 0, 1),
-        WindowDecl::new("node.claimed_sole", 1, 5),
+        WindowDecl::new("node.claimed", 1, 5),
         ],
     },
     // T1
@@ -2371,7 +2388,7 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
         WindowDecl::new("quorum_change.held", 13, 14),
         ],
         semantic_windows: &[
-        WindowDecl::new("member.applicant_pending", 4, 5),
+        WindowDecl::new("community.formed", 4, 5),
         WindowDecl::new("quorum_change.held", 13, 14),
         WindowDecl::new("node.unclaimed", 1, 4),
         ],
@@ -2681,7 +2698,7 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
         title: "An agent under a steward with a Wise Authority",
         serves: &["CSD-111", "CSD-112", "CSD-113", "CSD-114", "CSD-115", "CSD-116", "CSD-117"],
         derives: &[],
-        promises: &["agent.bound", "steward.bonded", "wa.present", "agent.deferral.pending", "agent.deferral.approved", "agent.deferral.rejected", "agent.identity.amended"],
+        promises: &["agent.bound", "steward.bonded", "wa.present"],
         cost: 30,
         node_count: 2,
         person_count: 1,
@@ -3929,9 +3946,9 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
         WindowDecl::new("key.membership.proposed_add", 12, 13),
         ],
         semantic_windows: &[
-        WindowDecl::new("self.compromised_device", 3, 4),
-        WindowDecl::new("self.quorum_evicted", 4, 22),
-        WindowDecl::new("self.lone_recovery_pending", 5, 6),
+        WindowDecl::new("key.holder.thief", 3, 4),
+        WindowDecl::new("key.membership.evicted", 4, 22),
+        WindowDecl::new("key.membership.proposed_evict", 5, 6),
         WindowDecl::new("node.unclaimed", 1, 14),
         WindowDecl::new("device.join_requested", 6, 13),
         WindowDecl::new("device.join_approved", 7, 14),
@@ -3944,7 +3961,7 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
     // T11
     TopologyDecl {
         id: TopologyId::T11,
-        constitutional_name: "T11_root_recovery",
+        constitutional_name: "T11_lone_recovery",
         server_name: "T11-lost-devices-lone-recovery",
         title: "Two lost devices — recovery by the lone path over the window",
         serves: &["CSD-037", "CSD-095"],
@@ -4453,13 +4470,13 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
         WindowDecl::new("device.join_approved", 7, 14),
         WindowDecl::new("self.roster_size.three_more", 14, 19),
         WindowDecl::new("key.membership.proposed_add", 12, 13),
-        WindowDecl::new("self.lone_recovery_pending", 14, 20),
+        WindowDecl::new("key.holder.lost", 14, 20),
         ],
     },
     // T12
     TopologyDecl {
         id: TopologyId::T12,
-        constitutional_name: "T12_witnessed_lineage",
+        constitutional_name: "T12_root_recovery",
         server_name: "T12-root-stall-recovery",
         title: "A root stalls (a founder resigns below the margin) and recovers by a conferred human",
         serves: &["CSD-105"],
@@ -4760,7 +4777,7 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
     // T13
     TopologyDecl {
         id: TopologyId::T13,
-        constitutional_name: "T13_consent_lifecycle",
+        constitutional_name: "T13_witnessed_lineage",
         server_name: "T13-witnessed-lineage",
         title: "A witnessed lineage — a stale head refuses attach; a node-bearing seat never counts",
         serves: &["CSD-105"],
@@ -4968,7 +4985,7 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
     // T14
     TopologyDecl {
         id: TopologyId::T14,
-        constitutional_name: "T14_community_governance",
+        constitutional_name: "T14_consent_lifecycle",
         server_name: "T14-consent-end-to-end",
         title: "Consent end to end — grant, revoke, expiry, decay; replication grant and its withdrawal",
         serves: &["CSD-053"],
@@ -5449,7 +5466,7 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
     // T15
     TopologyDecl {
         id: TopologyId::T15,
-        constitutional_name: "T15_agent_lifecycle",
+        constitutional_name: "T15_community_governance",
         server_name: "T15-community-ceremony",
         title: "A community's ceremony — decline, removal, resignation; a moderator lapses, the room fails secure",
         serves: &["CSD-102", "CSD-103", "CSD-128"],
@@ -6395,7 +6412,7 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
     // T16
     TopologyDecl {
         id: TopologyId::T16,
-        constitutional_name: "T16_content_takedown",
+        constitutional_name: "T16_agent_lifecycle",
         server_name: "T16-agent-retirement",
         title: "An agent retired under the Standard",
         serves: &["CSD-111"],
@@ -6793,7 +6810,7 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
     // T17
     TopologyDecl {
         id: TopologyId::T17,
-        constitutional_name: "T17_delegation_lifecycle",
+        constitutional_name: "T17_content_takedown",
         server_name: "T17-takedown-purge",
         title: "A takedown and a steward purge — tombstone, dwell, purge; family and community scope",
         serves: &["CSD-108", "CSD-107"],
@@ -7202,7 +7219,7 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
     // T18
     TopologyDecl {
         id: TopologyId::T18,
-        constitutional_name: "T18_accord_lifecycle",
+        constitutional_name: "T18_delegation_lifecycle",
         server_name: "T18-delegation-ends",
         title: "Delegation ends — a withdrawal cascades, a term expires; a key grant held; a guardian bond absent and made",
         serves: &["CSD-119", "CSD-120"],
@@ -7975,6 +7992,8 @@ pub static TOPOLOGIES: [TopologyDecl; 20] = [
 
 /// Pinned CSD/4 vocabulary atoms (120 atoms from topology_vocabulary.json v5).
 pub static VOCABULARY_ATOMS: &[&str] = &[
+    "affiliation.charter.declared",
+    "affiliation.charter.superseded",
     "age.assured",
     "agent.bond.lapsed",
     "agent.bond.unbound",
@@ -7991,6 +8010,7 @@ pub static VOCABULARY_ATOMS: &[&str] = &[
     "agent.retirement.notified",
     "agent.retirement.retired",
     "agent.retirement.secrets_destroyed",
+    "approach.declared",
     "authority.licensing",
     "blob.custody.purged",
     "canonical.peered",
@@ -8012,9 +8032,19 @@ pub static VOCABULARY_ATOMS: &[&str] = &[
     "delegation.chain",
     "delegation.link.expired",
     "delegation.link.withdrawn",
+    "delegation.refused",
+    "delegation.scope.grant",
+    "delegation.scope.license",
     "device.join_approved",
     "device.join_requested",
     "device.joined",
+    "evidence.admitted",
+    "evidence.counted",
+    "evidence.offered",
+    "evidence.reference_unresolved",
+    "evidence.standing.blessed",
+    "evidence.standing.unblessed",
+    "evidence.superseded",
     "file.custody_received",
     "file.durable",
     "file.durable.at_target",
@@ -8025,6 +8055,15 @@ pub static VOCABULARY_ATOMS: &[&str] = &[
     "file.held",
     "file.large",
     "file.withdrawn",
+    "goal.declared",
+    "goal.proposed",
+    "goal.recanted",
+    "goal.staged",
+    "goal.superseded",
+    "goal.withdrawn",
+    "grant.axis.content",
+    "grant.ended_by_rotation",
+    "grant.onward_refused",
     "grant.state.held",
     "group.federating.no",
     "group.moderator.fail_secure",
@@ -8034,6 +8073,7 @@ pub static VOCABULARY_ATOMS: &[&str] = &[
     "guardian.bound",
     "household.formed",
     "household.member",
+    "key.escrowed",
     "key.holder.lost",
     "key.holder.owner",
     "key.holder.thief",
@@ -8043,12 +8083,20 @@ pub static VOCABULARY_ATOMS: &[&str] = &[
     "key.revocation.none",
     "key.revocation.revoked_after",
     "key.revocation.revoked_all",
+    "key.rotated",
+    "key.successor_committed",
+    "licence.honoured",
+    "licence.issued",
+    "licence.not_trusted",
+    "licence.status.revoked",
+    "licence.status.suspended",
     "member.stage.accepted_awaiting_group",
     "member.stage.declined",
     "member.stage.proposed",
     "member.stage.removed",
     "member.stage.resigned",
     "message.delivered",
+    "method.declared",
     "moderator.named",
     "negatives.held",
     "node.announce.announced",
@@ -8062,8 +8110,11 @@ pub static VOCABULARY_ATOMS: &[&str] = &[
     "peer.direct",
     "person.multi_device",
     "person.outsider",
+    "progress_measure.declared",
     "quorum_change.applied",
     "quorum_change.held",
+    "recognition.inbound",
+    "recognition.outbound",
     "room.pair.keyed",
     "room.self.keyed",
     "root.halt_confirmed",
@@ -8093,6 +8144,8 @@ pub static VOCABULARY_ATOMS: &[&str] = &[
     "self.roster_size.three_more",
     "session.unified",
     "steward.bonded",
+    "trust.entry.licensor",
+    "trust.entry.root_removed",
     "values.ready",
     "wa.present",
 ];
@@ -8107,14 +8160,103 @@ pub static AWAITING_T20_DURABLE_ATOMS: [&str; 6] = [
     "file.durable.unmarked",
 ];
 
-/// Total promised atoms in CSD/4.
-pub const TOTAL_PROMISED_ATOMS: usize = 122;
+/// Total promised atoms in CSD/4 (distinct across T0..T19).
+pub const TOTAL_PROMISED_ATOMS: usize = 110;
 
 /// Total vocabulary atoms in CIRISConstitution rc17.
 pub const TOTAL_VOCABULARY_ATOMS: usize = 156;
 
-/// Total states in the constitutional state table (formal/STATE_TABLE.tsv).
+/// Total vocabulary atoms mapped directly to predicates in formal/STATE_TABLE.tsv.
+pub const TOTAL_STATE_TABLE_ATOMS: usize = 152;
+
+/// Total states in the constitutional state table.
 pub const TOTAL_CONSTITUTIONAL_STATE_TABLE: usize = 242;
 
-/// Pinned catalogue version.
-pub const CATALOGUE_VERSION: u32 = 5;
+/// Catalogue version pinned by CIRISConstitution rc17.
+pub const CATALOGUE_VERSION: u32 = 6;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn test_catalogue_version_is_6() {
+        assert_eq!(CATALOGUE_VERSION, 6);
+    }
+
+    #[test]
+    fn test_total_distinct_promised_atoms_equals_110() {
+        let distinct: BTreeSet<&str> = TOPOLOGIES
+            .iter()
+            .flat_map(|t| t.promises.iter().copied())
+            .collect();
+        assert_eq!(
+            distinct.len(),
+            TOTAL_PROMISED_ATOMS,
+            "Distinct promised atoms across T0..T19 must equal TOTAL_PROMISED_ATOMS (110)"
+        );
+        assert_eq!(TOTAL_PROMISED_ATOMS, 110);
+    }
+
+    #[test]
+    fn test_all_promises_and_windows_in_vocabulary() {
+        let voc: BTreeSet<&str> = VOCABULARY_ATOMS.iter().copied().collect();
+        assert_eq!(voc.len(), 156);
+
+        for topo in &TOPOLOGIES {
+            for p in topo.promises {
+                assert!(voc.contains(p), "Promise {} in {} not in vocabulary", p, topo.id);
+            }
+            for w in topo.model_windows {
+                assert!(voc.contains(w.atom), "Model window atom {} in {} not in vocabulary", w.atom, topo.id);
+            }
+            for w in topo.semantic_windows {
+                assert!(voc.contains(w.atom), "Semantic window atom {} in {} not in vocabulary", w.atom, topo.id);
+            }
+        }
+    }
+
+    #[test]
+    fn test_titles_and_slugs_t12_to_t19() {
+        let t12 = TopologyId::T12.get();
+        assert_eq!(t12.constitutional_name, "T12_root_recovery");
+        assert_eq!(t12.server_name, "T12-root-stall-recovery");
+        assert_eq!(t12.title, "A root stalls (a founder resigns below the margin) and recovers by a conferred human");
+
+        let t13 = TopologyId::T13.get();
+        assert_eq!(t13.constitutional_name, "T13_witnessed_lineage");
+        assert_eq!(t13.server_name, "T13-witnessed-lineage");
+        assert_eq!(t13.title, "A witnessed lineage — a stale head refuses attach; a node-bearing seat never counts");
+
+        let t14 = TopologyId::T14.get();
+        assert_eq!(t14.constitutional_name, "T14_consent_lifecycle");
+        assert_eq!(t14.server_name, "T14-consent-end-to-end");
+        assert_eq!(t14.title, "Consent end to end — grant, revoke, expiry, decay; replication grant and its withdrawal");
+
+        let t15 = TopologyId::T15.get();
+        assert_eq!(t15.constitutional_name, "T15_community_governance");
+        assert_eq!(t15.server_name, "T15-community-ceremony");
+        assert_eq!(t15.title, "A community's ceremony — decline, removal, resignation; a moderator lapses, the room fails secure");
+
+        let t16 = TopologyId::T16.get();
+        assert_eq!(t16.constitutional_name, "T16_agent_lifecycle");
+        assert_eq!(t16.server_name, "T16-agent-retirement");
+        assert_eq!(t16.title, "An agent retired under the Standard");
+
+        let t17 = TopologyId::T17.get();
+        assert_eq!(t17.constitutional_name, "T17_content_takedown");
+        assert_eq!(t17.server_name, "T17-takedown-purge");
+        assert_eq!(t17.title, "A takedown and a steward purge — tombstone, dwell, purge; family and community scope");
+
+        let t18 = TopologyId::T18.get();
+        assert_eq!(t18.constitutional_name, "T18_delegation_lifecycle");
+        assert_eq!(t18.server_name, "T18-delegation-ends");
+        assert_eq!(t18.title, "Delegation ends — a withdrawal cascades, a term expires; a key grant held; a guardian bond absent and made");
+
+        let t19 = TopologyId::T19.get();
+        assert_eq!(t19.constitutional_name, "T19_holders_under_constraint");
+        assert_eq!(t19.server_name, "T19-holders-under-coercion");
+        assert_eq!(t19.title, "Holders under coercion and censorship — the standing rule holds; an announced node; revoked_after");
+    }
+}

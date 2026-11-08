@@ -398,7 +398,7 @@ mod tests {
     fn test_card_check_valid() {
         let card = CsdCardDecl {
             card_id: "CSD-118".to_string(),
-            catalogue_version: Some(5),
+            catalogue_version: Some(CATALOGUE_VERSION),
             topology: Some(TopologyId::T0),
             stage: Some("sketched".to_string()),
             derives: vec!["9c".to_string()],
@@ -421,7 +421,7 @@ mod tests {
     fn test_card_check_planted_r1_unknown_atom() {
         let card = CsdCardDecl {
             card_id: "CSD-118".to_string(),
-            catalogue_version: Some(5),
+            catalogue_version: Some(CATALOGUE_VERSION),
             topology: Some(TopologyId::T0),
             stage: Some("sketched".to_string()),
             derives: vec!["9c".to_string()],
@@ -470,7 +470,7 @@ mod tests {
         // In T0, node.unclaimed and node.claimed never co-hold at the same step
         let card = CsdCardDecl {
             card_id: "CSD-118".to_string(),
-            catalogue_version: Some(5),
+            catalogue_version: Some(CATALOGUE_VERSION),
             topology: Some(TopologyId::T0),
             stage: Some("sketched".to_string()),
             derives: vec!["9c".to_string()],

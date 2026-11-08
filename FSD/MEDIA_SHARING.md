@@ -468,16 +468,19 @@ CDN topology Netflix / YouTube / Cloudflare maintain via centralized
 control, produced naturally from CEG primitives + trust topology +
 the popularity × freshness eviction sweeper.
 
-**Holonomic refinement (CEG §19, net-new since CEG 1.0).** Published
-media is RaptorQ fountain-coded `(N,K)` (holographic; any sufficient
-subset of fragments reconstructs at proportional fidelity, surviving
-to one survivor + signed witness chain), and ages via the §19.7
-noise-floor memory pyramid — the same single monotonic descent
-(revocation / eviction / expiry / aging) the popularity × freshness
-sweeper drives, where revoked items descend below the
-individual-recoverability boundary (privacy) while the collective
-gist persists below it at O(log T) storage (durability). Fragment
-fan-out replaces whole-blob fan-out; the toy does not yet bench it.
+**Holonomic refinement (CC §5.4.3, §6.1.2, §6.1.5).** Published
+media is stored as sealed whole chunks across consenting holders
+(`custody:ack:v1`; `holds_bytes` is retired and refused per `CC 3.1.3.3`),
+governed by multiplicity & dominance gates ($n_{\text{eff}} \ge 3$, root
+durability floor $R_9 \ge 9$ per `CC §6.1.2.1.2`), surviving to one survivor + signed
+witness chain. Layered-codec rate-distortion fidelity (`CC §6.1.2`, `CLM-noise-classify`)
+degrades gracefully across `Full` / `Partial` / `EnvelopeOnly` chunk classification
+over `ChunkLayer` sets `(R, ε)` without symbol fragmentation (live A/V sealed chunks
+never fragment into symbols per `CC §5.3.3.2.3`), and ages via the §19.7 noise-floor
+memory pyramid — the same single monotonic descent (revocation / eviction / expiry /
+aging) the popularity × freshness sweeper drives, where revoked items descend below
+the individual-recoverability boundary (privacy) while the collective gist persists
+below it at O(log T) storage (durability).
 
 **Implication for the toy:** the only new model knob needed is the
 fraction of fetch volume that's external_ref vs inline. External

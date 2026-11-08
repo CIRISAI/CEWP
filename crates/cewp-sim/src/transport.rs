@@ -3,14 +3,19 @@
 //! Models:
 //! - 5 Named Budget Classes + Seat class (CC §5.4.3, Tiers.lean)
 //! - Shaped-Link Bound (L ≤ 8, CLM-shaped-link-bound-refuse)
-//! - Rank-based Displacement (CLM-shaped-link-displacement)
+//! - Rank-based Displacement (CLM-shaped-link-displacement) verifying referral destination is a shaping home/server with slot
 //! - One direct hop (CLM-shaped-link-one-hop) & separate failure counters (reach ≠ capacity)
-//! - Up to 3 sealed referrals (MAX_REFERRALS = 3, CLM-refusal-carries-referrals) + proxy pull
+//! - Up to 3 sealed referrals (MAX_REFERRALS = 3, CLM-refusal-carries-referrals) ranked by inbound dials descending
 //! - 64 KiB (65,536 B) Shaped-Link Payload Boundary & unshaped bulk/AV (CC §5.3.3.2)
 //! - Carriage axis (Carriage::ConsentOnly vs Carriage::Full, CLM-link-carriage-axis) + 16 consent-free envelope kinds
 //! - Anonymous Tier (CC §5.4.6) 3-hop CONP (15,296 B, +0 B cover replacement, floor ≥ 3) and 2-member room-mailbox
+//! - Sticky guards (CC §5.4.6 item 4): kept as long as they answer (`guard_reachable: bool`), never rotated on a 60-day schedule;
+//!   if below floor, returns `OnionTierUnavailableFloor`
+//! - `proxy_pull`: checks replication tier (CC §5.4.6) — non-federation tier is refused (`RefusedNonFederationTier`)
+//! - `custody:ack:v1` vs retired `holds_bytes`: `holds_bytes` is refused (CC §3.1.3.3)
+//! - `shaped_only` node state (2026-11-06 rule): ninth peer refused only on `shaped_only` or Anonymous Tier, runs unshaped otherwise
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Maximum number of device-tier shaped links per node (Tiers.bound = 8, CC §5.4.3).
 pub const SHAPED_LINK_BOUND: usize = 8;
@@ -46,6 +51,12 @@ pub const ROOM_MAILBOX_MEMBERS: usize = 2;
 
 /// Warning threshold in seconds when both room endpoints are awake simultaneously.
 pub const ROOM_MAILBOX_AWAKE_WARNING_SECS: u64 = 7_200; // 2 hours
+
+/// Canonical holding claim token prefix (CC §3.1.3.3).
+pub const CUSTODY_ACK_V1_PREFIX: &str = "custody:ack:v1";
+
+/// Retired holding claim token prefix (CC §3.1.3.3).
+pub const RETIRED_HOLDS_BYTES_PREFIX: &str = "holds_bytes";
 
 /// Budget classes naming per-link byte rates and ranks (CC §5.4.3, Tiers.lean).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -145,7 +156,8 @@ impl BudgetClass {
         }
     }
 
-    /// Pure function resolving two offers into an agreed class.
+    /// Pure function resolving two offers into an agreed class (CC §5.4.3 item 1).
+    /// The link runs at the lower of the two offers (`local_class.min(peer_class)`).
     /// Either side offering Off leaves the link unshaped.
     /// Seat is valid ONLY if `both_hold_serve_seat` is true; otherwise degrades
     /// to the min of the non-seat class or Server.
@@ -173,43 +185,41 @@ impl BudgetClass {
     }
 }
 
-/// Link Carriage axis: independent of BudgetClass (CLM-link-carriage-axis).
+/// Carriage mode on a shaped link (CC §5.4.3 carriage axis).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Carriage {
-    /// Stranger / unconsented link: carries ONLY the 16 consent-free envelope kinds.
-    ConsentOnly,
-    /// Consented / room member link: carries all federation and private rows.
+    /// Full carriage: all constitutional envelope kinds admitted.
     Full,
+    /// Consent-only: admits ONLY the 16 consent-free control envelope kinds.
+    ConsentOnly,
 }
 
-/// The 16 consent-free envelope kinds permitted over a `ConsentOnly` stranger link
-/// (CC §5.4.3, CLM-stranger-carries-consent-free).
+/// The 19 constitutional envelope kinds classified under the carriage axis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EnvelopeKind {
-    Cover = 1,
-    Kex = 2,
-    RouteFetch = 3,
-    KeyRecord = 4,
-    KeyRevocation = 5,
-    Occurrence = 6,
-    Allegiance = 7,
-    UnownedRoute = 8,
-    DeviceJoin = 9,
-    ContactAsk = 10,
-    ContactAnswer = 11,
-    Invite = 12,
-    InviteAnswer = 13,
-    GroupKeyWrap = 14,
-    Halt = 15,
-    Tombstone = 16,
-    /// Any non-consent-free data row (requires Full carriage).
-    PrivateRoomData = 100,
-    UserProfile = 101,
-    FederationRow = 102,
+    Cover,
+    Kex,
+    RouteFetch,
+    KeyRecord,
+    KeyRevocation,
+    Occurrence,
+    Allegiance,
+    UnownedRoute,
+    DeviceJoin,
+    ContactAsk,
+    ContactAnswer,
+    Invite,
+    InviteAnswer,
+    GroupKeyWrap,
+    Halt,
+    Tombstone,
+    PrivateRoomData,
+    UserProfile,
+    FederationRow,
 }
 
 impl EnvelopeKind {
-    /// Returns true if this envelope kind is one of the 16 constitutional consent-free kinds.
+    /// Whether this envelope kind is in the 16 consent-free kinds permitted on ConsentOnly carriage.
     #[must_use]
     pub const fn is_consent_free(self) -> bool {
         match self {
@@ -252,6 +262,34 @@ pub struct NodeRelayCandidate {
     pub relay_offering: bool,
     pub free_shaped_slots: usize,
     pub inbound_dial_count: u32,
+    pub budget_class: BudgetClass,
+}
+
+impl NodeRelayCandidate {
+    #[must_use]
+    pub fn new(
+        peer_id: String,
+        relay_offering: bool,
+        free_shaped_slots: usize,
+        inbound_dial_count: u32,
+        budget_class: BudgetClass,
+    ) -> Self {
+        Self {
+            peer_id,
+            relay_offering,
+            free_shaped_slots,
+            inbound_dial_count,
+            budget_class,
+        }
+    }
+
+    /// Verify whether this candidate is a shaping home or server with an available slot (CC §5.4.3).
+    #[must_use]
+    pub fn is_shaping_home_or_server(&self) -> bool {
+        (self.budget_class == BudgetClass::Home || self.budget_class == BudgetClass::Server)
+            && self.free_shaped_slots > 0
+            && self.relay_offering
+    }
 }
 
 /// A sealed referral carried on refusal (CLM-refusal-carries-referrals).
@@ -279,6 +317,8 @@ pub enum LinkPlacement {
         displaced_peer_id: String,
         moved_notice: MovedToShapedPeer,
     },
+    /// Ninth peer accepted on unshaped tier (CC §5.4.3 / 2026-11-06 rule).
+    AdmittedUnshaped,
 }
 
 /// Refusal reason when a shaped link cannot be established.
@@ -287,7 +327,7 @@ pub enum ShapingRefusal {
     /// Failure Mode A (reach ≠ capacity): node lacks a direct IPv6 / punched UDP path.
     UnreachableForShaping,
     /// Failure Mode B (reach ≠ capacity): node is directly reachable, but all slots are full
-    /// and the candidate rank is equal to or lower than all existing peers.
+    /// and the candidate rank is equal to or lower than all existing peers on shaped_only node.
     CapacityExhausted { referrals: Vec<SealedReferral> },
     /// Offer resolved to BudgetClass::Off.
     ShapingOff,
@@ -299,14 +339,22 @@ pub enum ShapingRefusal {
 pub struct ShapedLinkManager {
     /// This node's identity.
     pub local_peer_id: String,
+    /// Local offered budget class (CC §5.4.3).
+    pub local_class: BudgetClass,
     /// Whether this node has a direct path (IPv6 or punched UDP).
     pub has_direct_path: bool,
     /// Whether this node holds a `serve` seat in the signed roster.
     pub holds_serve_seat: bool,
+    /// Whether this node is set to shaped_only (2026-11-06 rule, required by Anonymous Tier).
+    pub shaped_only: bool,
+    /// Whether this node is operating under Anonymous Tier.
+    pub is_anonymous_tier: bool,
     /// Active device-tier shaped links: peer_id -> budget class. Bound <= 8.
     pub active_device_links: BTreeMap<String, BudgetClass>,
     /// Active seat-tier shaped links: peer_id -> budget class. Outside the 8-link bound.
     pub active_seat_links: BTreeMap<String, BudgetClass>,
+    /// Active unshaped links (9th peer overflow or bulk links).
+    pub active_unshaped_links: BTreeSet<String>,
     /// Separate failure counter A: direct reachability failures.
     pub unreachable_for_shaping_count: u64,
     /// Separate failure counter B: slot capacity exhausted failures.
@@ -317,15 +365,38 @@ impl ShapedLinkManager {
     /// Create a new link manager for a node.
     #[must_use]
     pub fn new(local_peer_id: String, has_direct_path: bool, holds_serve_seat: bool) -> Self {
+        let local_class = if holds_serve_seat {
+            BudgetClass::Seat
+        } else {
+            BudgetClass::Server
+        };
         Self {
             local_peer_id,
+            local_class,
             has_direct_path,
             holds_serve_seat,
+            shaped_only: false,
+            is_anonymous_tier: false,
             active_device_links: BTreeMap::new(),
             active_seat_links: BTreeMap::new(),
+            active_unshaped_links: BTreeSet::new(),
             unreachable_for_shaping_count: 0,
             capacity_exhausted_count: 0,
         }
+    }
+
+    /// Builder setter for local class.
+    #[must_use]
+    pub fn with_local_class(mut self, local_class: BudgetClass) -> Self {
+        self.local_class = local_class;
+        self
+    }
+
+    /// Builder setter for shaped_only state.
+    #[must_use]
+    pub fn with_shaped_only(mut self, shaped_only: bool) -> Self {
+        self.shaped_only = shaped_only;
+        self
     }
 
     /// Available free device-tier shaped slots (0 ..= 8).
@@ -334,9 +405,10 @@ impl ShapedLinkManager {
         SHAPED_LINK_BOUND.saturating_sub(self.active_device_links.len())
     }
 
-    /// Rank and filter up to `MAX_REFERRALS` (3) candidate nodes.
-    /// Only announced nodes with `relay_offering == true` and `free_shaped_slots > 0`
-    /// are eligible, sorted by free slots descending, then inbound dials ascending.
+    /// Rank and filter up to `MAX_REFERRALS` (3) candidate nodes (CC §5.4.3).
+    /// Candidates are filtered by `relay_offering && free_shaped_slots > 0` and sorted by
+    /// `inbound_dial_count` descending (more is better — evidence of reachability, not load),
+    /// tie-breaking by `peer_id`.
     #[must_use]
     pub fn rank_referrals(candidates: &[NodeRelayCandidate]) -> Vec<SealedReferral> {
         let mut eligible: Vec<SealedReferral> = candidates
@@ -350,9 +422,8 @@ impl ShapedLinkManager {
             .collect();
 
         eligible.sort_by(|a, b| {
-            b.free_shaped_slots
-                .cmp(&a.free_shaped_slots)
-                .then_with(|| a.inbound_dial_count.cmp(&b.inbound_dial_count))
+            b.inbound_dial_count
+                .cmp(&a.inbound_dial_count)
                 .then_with(|| a.peer_id.cmp(&b.peer_id))
         });
 
@@ -363,9 +434,10 @@ impl ShapedLinkManager {
     /// Request establishment of a shaped link with `peer_id`.
     /// Enforces:
     /// 1. Direct reachability check (Failure Mode A vs Failure Mode B)
-    /// 2. Seat-class bypass of the 8-link bound (CLM-seat-class)
-    /// 3. Rank-based displacement if full (CLM-shaped-link-displacement)
-    /// 4. Sealed referrals on refusal
+    /// 2. Lower of offers agreement (`agree(self.local_class, peer_class)`)
+    /// 3. Seat-class bypass of the 8-link bound (CLM-seat-class)
+    /// 4. Rank-based displacement with destination home/server slot verification
+    /// 5. Ninth peer rule: refused only on `shaped_only` or Anonymous Tier; unshaped otherwise
     pub fn request_shaped_link(
         &mut self,
         peer_id: &str,
@@ -381,7 +453,8 @@ impl ShapedLinkManager {
         }
 
         let both_seats = self.holds_serve_seat && peer_holds_serve_seat;
-        let agreed_class = BudgetClass::agree(peer_class, peer_class, both_seats);
+        // Agreement takes the lower of the two offers (CC §5.4.3 item 1).
+        let agreed_class = BudgetClass::agree(self.local_class, peer_class, both_seats);
         if agreed_class == BudgetClass::Off {
             return Err(ShapingRefusal::ShapingOff);
         }
@@ -432,31 +505,51 @@ impl ShapedLinkManager {
             // Higher rank displaces lowest rank (e.g. Home displaces PhoneCellular).
             // Phone never displaces Phone; lower rank never displaces equal/higher.
             if agreed_class.rank() > lowest_class.rank() {
-                self.active_device_links.remove(&displaced_id);
-                self.active_device_links
-                    .insert(peer_id.to_string(), agreed_class);
+                // When displacing a peer to a referral, verify the referral destination
+                // is a shaping home or server with an available slot (CC §5.4.3).
+                let has_valid_dest = candidate_referrals.iter().any(|c| c.is_shaping_home_or_server());
+                if has_valid_dest {
+                    self.active_device_links.remove(&displaced_id);
+                    self.active_device_links
+                        .insert(peer_id.to_string(), agreed_class);
 
-                let referrals = Self::rank_referrals(candidate_referrals);
-                let notice = MovedToShapedPeer {
-                    displaced_peer_id: displaced_peer_id_clone(&displaced_id),
-                    referrals,
-                };
-                return Ok(LinkPlacement::Displaced {
-                    displaced_peer_id: displaced_id,
-                    moved_notice: notice,
-                });
+                    let referrals = Self::rank_referrals(candidate_referrals);
+                    let notice = MovedToShapedPeer {
+                        displaced_peer_id: displaced_peer_id_clone(&displaced_id),
+                        referrals,
+                    };
+                    return Ok(LinkPlacement::Displaced {
+                        displaced_peer_id: displaced_id,
+                        moved_notice: notice,
+                    });
+                }
             }
         }
 
-        // Ninth link of equal or lower rank is refused.
-        self.capacity_exhausted_count += 1;
-        let referrals = Self::rank_referrals(candidate_referrals);
-        Err(ShapingRefusal::CapacityExhausted { referrals })
+        // Ninth peer rule (CC §5.4.3 / 2026-11-06 rule):
+        // A 9th shaping peer is refused ONLY on a node set to shaped_only or the Anonymous Tier;
+        // on any other node the link is made and runs unshaped.
+        if self.shaped_only || self.is_anonymous_tier {
+            self.capacity_exhausted_count += 1;
+            let referrals = Self::rank_referrals(candidate_referrals);
+            Err(ShapingRefusal::CapacityExhausted { referrals })
+        } else {
+            self.active_unshaped_links.insert(peer_id.to_string());
+            Ok(LinkPlacement::AdmittedUnshaped)
+        }
     }
 }
 
 fn displaced_peer_id_clone(s: &str) -> String {
     s.to_string()
+}
+
+/// Model the 2026-11-06 rule for traffic routing over shaped links:
+/// Chat and files ride a shaped link only when one end is shaped_only;
+/// every other pair's chat crosses a direct unshaped link.
+#[must_use]
+pub fn routes_on_shaped_link(local_shaped_only: bool, peer_shaped_only: bool) -> bool {
+    local_shaped_only || peer_shaped_only
 }
 
 /// Constitutional check for payload size on shaped links (CC §5.3.3.2).
@@ -472,10 +565,44 @@ pub fn check_shaped_payload(size_bytes: usize) -> Result<(), &'static str> {
     }
 }
 
-/// Simulates a proxy pull (CLM-referred-peer-is-proxy).
+/// Validate holding claim token: `custody:ack:v1` is accepted; retired `holds_bytes` is refused (CC §3.1.3.3).
+pub fn validate_holding_claim_token(token: &str) -> Result<&'static str, &'static str> {
+    if token.starts_with(RETIRED_HOLDS_BYTES_PREFIX) {
+        Err("RefusedRetiredHoldsBytes")
+    } else if token.starts_with(CUSTODY_ACK_V1_PREFIX) {
+        Ok(CUSTODY_ACK_V1_PREFIX)
+    } else {
+        Err("UnknownHoldingClaimToken")
+    }
+}
+
+/// Replication tier of a row in the federation storage hierarchy (CC §5.4.6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ReplicationTier {
+    /// Row replicates across the federation and is eligible for proxy pull.
+    FederationTier,
+    /// Row is local to this node/host only and is NEVER proxied.
+    LocalTier,
+}
+
+/// Proxy pull refusal reason.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProxyPullRowRefusal {
+    RefusedNonFederationTier,
+}
+
+/// Request for a row through a proxy pull.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProxyRowRequest {
+    pub row_id: String,
+    pub tier: ReplicationTier,
+}
+
+/// Simulates a proxy pull (CLM-referred-peer-is-proxy, CC §5.4.6).
 /// When an asker connects to a referred peer, that referred peer serves what it holds
 /// and pulls missing federation rows from canonical seat as its own pull (`proxy`),
 /// so the seat attributes the pull to the proxy rather than the asker.
+/// A row that is not federation-tier is NEVER proxied (`RefusedNonFederationTier`).
 #[derive(Debug, Clone)]
 pub struct ProxyPullResult {
     pub asker_peer_id: String,
@@ -483,19 +610,24 @@ pub struct ProxyPullResult {
     pub canonical_seat_id: String,
     pub rows_served_local: usize,
     pub rows_proxied_from_seat: usize,
+    pub rows_refused_non_federation: usize,
 }
 
 pub fn execute_proxy_pull(
     asker: &str,
     proxy: &str,
     canonical_seat: &str,
-    requested_rows: &[String],
+    requested_rows: &[ProxyRowRequest],
     proxy_held_rows: &[String],
 ) -> ProxyPullResult {
     let mut local = 0;
     let mut proxied = 0;
+    let mut refused = 0;
     for row in requested_rows {
-        if proxy_held_rows.contains(row) {
+        // CC §5.4.6: a row that is not federation-tier is never proxied
+        if row.tier != ReplicationTier::FederationTier {
+            refused += 1;
+        } else if proxy_held_rows.contains(&row.row_id) {
             local += 1;
         } else {
             proxied += 1;
@@ -507,13 +639,32 @@ pub fn execute_proxy_pull(
         canonical_seat_id: canonical_seat.to_string(),
         rows_served_local: local,
         rows_proxied_from_seat: proxied,
+        rows_refused_non_federation: refused,
     }
+}
+
+pub fn execute_proxy_pull_simple(
+    asker: &str,
+    proxy: &str,
+    canonical_seat: &str,
+    requested_rows: &[String],
+    proxy_held_rows: &[String],
+) -> ProxyPullResult {
+    let requests: Vec<ProxyRowRequest> = requested_rows
+        .iter()
+        .map(|r| ProxyRowRequest {
+            row_id: r.clone(),
+            tier: ReplicationTier::FederationTier,
+        })
+        .collect();
+    execute_proxy_pull(asker, proxy, canonical_seat, &requests, proxy_held_rows)
 }
 
 /// Anonymous tier verification: ensures that at least 3 answering relays exist per layer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AnonymousTierError {
     BelowAnsweringFloor { answering: usize, floor: usize },
+    OnionTierUnavailableFloor { answering: usize, floor: usize },
 }
 
 pub fn check_onion_tier_availability(
@@ -522,10 +673,34 @@ pub fn check_onion_tier_availability(
     if answering_relays_per_layer >= ONION_TIER_FLOOR_RELAYS {
         Ok(())
     } else {
-        Err(AnonymousTierError::BelowAnsweringFloor {
+        Err(AnonymousTierError::OnionTierUnavailableFloor {
             answering: answering_relays_per_layer,
             floor: ONION_TIER_FLOOR_RELAYS,
         })
+    }
+}
+
+/// Sticky guard (CC §5.4.6 item 4): kept as long as it answers, never rotated on a schedule.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StickyGuard {
+    pub guard_peer_id: String,
+    pub guard_reachable: bool,
+}
+
+impl StickyGuard {
+    #[must_use]
+    pub fn new(guard_peer_id: String, guard_reachable: bool) -> Self {
+        Self {
+            guard_peer_id,
+            guard_reachable,
+        }
+    }
+
+    /// CC §5.4.6 item 4: a guard is kept as long as it answers (guard_reachable == true),
+    /// never rotated on a 60-day schedule.
+    #[must_use]
+    pub fn should_retain(&self) -> bool {
+        self.guard_reachable
     }
 }
 
@@ -574,7 +749,7 @@ mod tests {
         assert_eq!(BudgetClass::Home.real_share_bytes_per_s(), 1400);
         assert_eq!(BudgetClass::Home.window_secs(), 600);
 
-        // Agreement takes minimum rank
+        // Agreement takes minimum rank (lower of offers)
         assert_eq!(
             BudgetClass::agree(BudgetClass::Home, BudgetClass::PhoneWifi, false),
             BudgetClass::PhoneWifi
@@ -597,7 +772,9 @@ mod tests {
 
     #[test]
     fn shaped_link_bound_and_ninth_refused() {
-        let mut mgr = ShapedLinkManager::new("node-alpha".into(), true, false);
+        // Node with shaped_only = true refuses 9th peer of equal or lower rank
+        let mut mgr = ShapedLinkManager::new("node-alpha".into(), true, false)
+            .with_shaped_only(true);
 
         // Add 8 PhoneWifi links
         for i in 0..8 {
@@ -612,13 +789,30 @@ mod tests {
         }
         assert_eq!(mgr.free_device_slots(), 0);
 
-        // 9th peer of equal rank (PhoneWifi) is refused
+        // 9th peer of equal rank (PhoneWifi) is refused on shaped_only node
         let res = mgr.request_shaped_link("phone-9", BudgetClass::PhoneWifi, true, false, &[]);
         assert!(matches!(
             res,
             Err(ShapingRefusal::CapacityExhausted { .. })
         ));
         assert_eq!(mgr.capacity_exhausted_count, 1);
+
+        // Node with shaped_only = false accepts 9th peer as unshaped link
+        let mut unshaped_mgr = ShapedLinkManager::new("node-beta".into(), true, false);
+        for i in 0..8 {
+            unshaped_mgr
+                .request_shaped_link(
+                    &format!("phone-{i}"),
+                    BudgetClass::PhoneWifi,
+                    true,
+                    false,
+                    &[],
+                )
+                .unwrap();
+        }
+        let res_unshaped = unshaped_mgr.request_shaped_link("phone-9", BudgetClass::PhoneWifi, true, false, &[]);
+        assert_eq!(res_unshaped, Ok(LinkPlacement::AdmittedUnshaped));
+        assert!(unshaped_mgr.active_unshaped_links.contains("phone-9"));
     }
 
     #[test]
@@ -642,9 +836,11 @@ mod tests {
             relay_offering: true,
             free_shaped_slots: 4,
             inbound_dial_count: 10,
+            budget_class: BudgetClass::Home,
         }];
 
         // Arriving Home node (rank 3) displaces a PhoneCellular node (rank 1)
+        // when referral destination is a shaping home/server with slot.
         let res = mgr.request_shaped_link(
             "home-arriving",
             BudgetClass::Home,
@@ -673,7 +869,8 @@ mod tests {
 
     #[test]
     fn phone_does_not_displace_a_phone_and_lower_never_displaces() {
-        let mut mgr = ShapedLinkManager::new("host".into(), true, false);
+        let mut mgr = ShapedLinkManager::new("host".into(), true, false)
+            .with_shaped_only(true);
 
         // Fill with 8 PhoneWifi peers (rank 2)
         for i in 0..8 {
@@ -724,7 +921,8 @@ mod tests {
 
     #[test]
     fn reach_not_equal_capacity_separate_counters() {
-        let mut mgr = ShapedLinkManager::new("host".into(), true, false);
+        let mut mgr = ShapedLinkManager::new("host".into(), true, false)
+            .with_shaped_only(true);
 
         // Attempt from peer behind symmetric NAT (no direct path)
         let res1 = mgr.request_shaped_link("nat-peer", BudgetClass::Home, false, false, &[]);
@@ -756,38 +954,44 @@ mod tests {
                 relay_offering: true,
                 free_shaped_slots: 2,
                 inbound_dial_count: 5,
+                budget_class: BudgetClass::Home,
             },
             NodeRelayCandidate {
                 peer_id: "r2".into(),
                 relay_offering: false, // not offering
                 free_shaped_slots: 8,
                 inbound_dial_count: 0,
+                budget_class: BudgetClass::Server,
             },
             NodeRelayCandidate {
                 peer_id: "r3".into(),
                 relay_offering: true,
                 free_shaped_slots: 7,
                 inbound_dial_count: 2,
+                budget_class: BudgetClass::Home,
             },
             NodeRelayCandidate {
                 peer_id: "r4".into(),
                 relay_offering: true,
                 free_shaped_slots: 5,
                 inbound_dial_count: 1,
+                budget_class: BudgetClass::Server,
             },
             NodeRelayCandidate {
                 peer_id: "r5".into(),
                 relay_offering: true,
                 free_shaped_slots: 4,
                 inbound_dial_count: 10,
+                budget_class: BudgetClass::Home,
             },
         ];
 
+        // Sorts by inbound_dial_count descending (more is better reachability), tie-break by peer_id
         let ranked = ShapedLinkManager::rank_referrals(&candidates);
         assert_eq!(ranked.len(), 3);
-        assert_eq!(ranked[0].peer_id, "r3"); // 7 free
-        assert_eq!(ranked[1].peer_id, "r4"); // 5 free
-        assert_eq!(ranked[2].peer_id, "r5"); // 4 free
+        assert_eq!(ranked[0].peer_id, "r5"); // 10 dials
+        assert_eq!(ranked[1].peer_id, "r1"); // 5 dials
+        assert_eq!(ranked[2].peer_id, "r3"); // 2 dials
     }
 
     #[test]
@@ -852,7 +1056,7 @@ mod tests {
         assert_eq!(check_onion_tier_availability(5), Ok(()));
         assert_eq!(
             check_onion_tier_availability(2),
-            Err(AnonymousTierError::BelowAnsweringFloor {
+            Err(AnonymousTierError::OnionTierUnavailableFloor {
                 answering: 2,
                 floor: 3,
             })
@@ -871,5 +1075,34 @@ mod tests {
                 warning_secs: ROOM_MAILBOX_AWAKE_WARNING_SECS,
             }
         );
+
+        // Sticky guards: kept as long as they answer, never rotated on a schedule
+        let guard_active = StickyGuard::new("guard-1".into(), true);
+        assert!(guard_active.should_retain());
+        let guard_dead = StickyGuard::new("guard-2".into(), false);
+        assert!(!guard_dead.should_retain());
+    }
+
+    #[test]
+    fn proxy_pull_federation_tier_check() {
+        let requests = vec![
+            ProxyRowRequest {
+                row_id: "fed-row-1".into(),
+                tier: ReplicationTier::FederationTier,
+            },
+            ProxyRowRequest {
+                row_id: "local-row-2".into(),
+                tier: ReplicationTier::LocalTier,
+            },
+            ProxyRowRequest {
+                row_id: "fed-row-3".into(),
+                tier: ReplicationTier::FederationTier,
+            },
+        ];
+        let held_rows = vec!["fed-row-1".to_string()];
+        let res = execute_proxy_pull("asker", "proxy", "seat", &requests, &held_rows);
+        assert_eq!(res.rows_served_local, 1);
+        assert_eq!(res.rows_proxied_from_seat, 1);
+        assert_eq!(res.rows_refused_non_federation, 1);
     }
 }

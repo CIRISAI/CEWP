@@ -20,9 +20,9 @@ copies — the home repo stays canonical; re-pull before relying on a number.
   (the substrate does not implement join/leave rekey yet — CIRISEdge#129), and
   the 50-person-room receive cost is a **MODEL** over a stated GOP.
 - **The `bench/2` export is a subset.** It does not carry the ALM-relay and
-  fountain-reconstruction rows shown in the README; those come from the same
-  CIRISServer suite (`benches/alm_chain.rs` and the `FountainPolicy` reference
-  `N=20 / K=6 / H=30` in `src/benchmarks/scoreboard.rs`).
+  whole-chunk custody rows shown in the README; the ALM figures come from the
+  CIRISServer suite (`benches/alm_chain.rs`), while chunk storage enforces
+  the multiplicity and dominance floor ($n_{\text{eff}} \ge 3$, $R_9 \ge 9$ per `CC §6.1.2.1.2`).
 - The committed `data.json` carried `commit: "localtest"` / `date: 2026-06-16`
   — a local scoreboard run, not a tagged CI SHA. Re-pull from CIRISServer for
   the current published board.

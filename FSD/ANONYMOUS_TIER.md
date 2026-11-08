@@ -294,7 +294,7 @@ tier storage vs. v1 storage. But the *protocol* runs both.
 
 ### 6.1 Holonomic interplay — the §19 substrate is BLIND to this tier
 
-CEG 1.0-RC29 absorbed the §19 holonomic substrate (RaptorQ fountain
+CEG 1.0-RC29 absorbed the §19 holonomic substrate (whole-chunk sealed
 storage, WholenessWitness, deterministic ALM, the unified
 retirement → noise-floor model). That substrate is **load-bearing
 for the v1 identity-aware tier and structurally blind to the
@@ -303,14 +303,16 @@ mechanisms are subordinate to consent/revocation, gated by
 owner-binding, and PQC-mandatory; none of those hooks exist for a
 blinded-key record, so the holonomic layer cannot act on it:
 
-* **Exempt from swarm / fountain retention.** Anonymous-tier blobs
-  are NOT RaptorQ erasure-coded into the holographic swarm. Fountain
-  replication keys on `attesting_key_id` + the witness chain, which
+* **Exempt from swarm / chunk custody retention.** Anonymous-tier blobs
+  are NOT stored into the whole-chunk custody swarm (`CC 5.4.3`, `CC 6.1.5`). Custody
+  replication keys on `attesting_key_id` + the witness chain (`custody:ack:v1`;
+  `holds_bytes` is retired and refused per `CC 3.1.3.3`), which
   the anonymous tier deliberately lacks (`AnonymousHoldsBytes` has a
   per-blob `node_blinded_key`, not a federation identity). An
   anonymous blob lives only where its (capacity-only, LRU) holders
-  put it; it does not fan out as fragments across the fountain swarm.
-  This is intentional: holographic any-K reconstruction would
+  put it; it does not fan out across consenting holders or multiplicity
+  gates ($n_{\text{eff}} \ge 3$, $R_9 \ge 9$ per `CC 6.1.2.1.2`).
+  This is intentional: multi-holder custody replication would
   manufacture exactly the cross-holder linkage the blinding severs.
 * **Blind to the memory pyramid.** The §19.7 noise-floor descent +
   O(log T) memory pyramid operate over the identity-aware corpus.
@@ -331,7 +333,7 @@ For the totalitarian threat model this matters two ways:
 
 * For v1 content, the noise floor means revocation is durable
   against a later-coercing adversary: once an item has descended,
-  the holographic swarm cannot resurrect the individual bytes from
+  the custody swarm cannot resurrect the individual bytes from
   the surviving gist. Revocation is not "tombstone it and hope" — it
   is descent below recoverability.
 * For genuinely deniable publication (dissident / journalist /

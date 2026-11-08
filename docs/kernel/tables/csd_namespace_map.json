@@ -1,5 +1,20 @@
 {
-  "version": "rc17-csd4-v1",
+  "_meta": {
+    "title": "CEWP CSD-to-Namespace Map (Synthesis)",
+    "description": "CEWP's synthesis of CIRISClient/CEWPOS cards against CC rc17's namespace_registry.json (191 families) and csd4_chain.json (156 vocabulary atoms, 152 state-table atoms, 110 promised atoms across T0..T19, catalogue v6)",
+    "cards_provenance": "CIRISClient (101 cards across 22 files: 43 CSD/4 four-field + 58 earlier bullet cards) + CEWPOS (4 cards CSD-CEWPOS-001..004) = 105 total cards",
+    "vocabulary_catalogue_version": 6,
+    "vocabulary_atoms_total": 156,
+    "state_table_atoms": 152,
+    "promised_atoms_t0_t19": 110,
+    "namespace_match_vectors": {
+      "total": 1291,
+      "valid_canonical_vectors": 783,
+      "refused_private_namespace_vectors": 505,
+      "refused_retired_holds_bytes_vectors": 3
+    }
+  },
+  "version": "cewp-synthesis-rc17-v6",
   "summary": {
     "total_families": 191,
     "total_transitions": 474,
@@ -8,7 +23,14 @@
     "csd_mapped_families": 94,
     "substrate_autonomous_families": 97,
     "total_csd_shows_fields": 660,
-    "resolved_csd_shows_fields": 660
+    "resolved_csd_shows_fields": 152,
+    "canonical_resolved_shows_fields": 152,
+    "refused_private_namespace_fields": 505,
+    "refused_retired_holds_bytes_fields": 3,
+    "total_match_vectors": 1291,
+    "valid_canonical_vectors": 783,
+    "refused_private_namespace_vectors": 505,
+    "refused_retired_holds_bytes_vectors": 3
   },
   "aliases": {
     "consent_request": "consent",

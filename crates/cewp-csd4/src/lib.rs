@@ -1,14 +1,32 @@
 //! `cewp-csd4`: Holistic CSD/4 Scenario Contract, Step-Window Model,
 //! Realizability/Card Validator, and Cost-Minimizing Planner.
 //!
-//! Phase 2 deliverable of `FSD/SIMULATION_ENGINE.md` (v0.2):
-//! - Closed Catalogue (`T0`–`T19`) with exact metadata, steps, traces, and transient windows.
-//! - Cross-Plane Spine Invariants (`X1`–`X5`): Latch, Evicted Key Authority, Replication & Consent, Local Tier, Atomic Leave.
+//! # CSD/4 Architecture
+//! **CSD/4** stands for **Card-first Specification Design (4-field card format: `shows` / `reads` / `emits` / `checks`)**.
+//! It grounds UX and protocol interaction designs directly in executable constitutional semantics,
+//! bounded by the **Cornerstone Invariants `X1–X5`** as formal cross-plane safety properties:
+//! - `X1`: Halt is not a trust leg (`accord_halt` freezes agent operations without creating a trust edge).
+//! - `X2`: Evicted roster key's authority ends (revoked/evicted key cannot exercise authority after eviction).
+//! - `X3`: Replication needs peer's consent (no replication without bilateral consent / custody agreement).
+//! - `X4`: Local-tier row never leaves node (`local_only` / local-tier rows never cross a federation link).
+//! - `X5`: Leaving a root is one act (unilateral exit from a root requires no counter-signature).
+//!
+//! # Card Counts Provenance (101 vs 105)
+//! - `CIRISClient`: **101 CSD cards** across 22 files (**43 CSD/4 four-field cards** + **58 earlier bullet cards**).
+//! - `CEWPOS`: **4 cards** (`CSD-CEWPOS-001..004`) for node OS and runtime primitives.
+//! - **Total**: **105 cards**.
+//!
+//! # Catalogue Specifications (Catalogue Version 6)
+//! - Closed Catalogue (`T0`–`T19`) with 110 distinct promised atoms across entries.
+//! - Complete vocabulary of 156 atoms (152 mapped to `formal/STATE_TABLE.tsv`, 242 total constitutional states).
+//! - 6 replication durability atoms (`file.durable.*`) awaiting `T20` (`CIRISServer#809`).
 //! - Realizability Rules (`R1`–`R7`) & Card Refusal Rules (`R1`–`R5`, including `R5_ATOMS_NEVER_COHOLD`).
 //! - Subset-Search Cost-Minimizing Planner (`plan_tests`) with folding optimization (folding `T0` into `T2`).
-//! - Explicit Coverage Reporter (`CoverageReport`): `(atoms_exercised / 122 promised / 156 vocabulary / 242 constitutional_state_table)`.
+//! - Explicit Coverage Reporter (`CoverageReport`): `(atoms_exercised / 110 promised / 156 vocabulary / 242 constitutional_state_table)`.
 //! - Three-Mode Runner Contract (`Formal`, `Sim`, `Native`), `rows.jsonl` trace exporter, and Checkpoint `MODEL_DRIFT` witness.
 
+pub mod atoms;
+pub mod cards;
 pub mod catalogue;
 pub mod windows;
 pub mod invariants;
@@ -18,6 +36,15 @@ pub mod coverage;
 pub mod bridge;
 pub mod namespace_map;
 
+pub use atoms::{
+    is_vocabulary_atom, is_state_table_atom, is_awaiting_t20_durable_atom,
+    TOTAL_STATE_TABLE_ATOMS, NON_STATE_TABLE_ATOMS,
+};
+pub use cards::{
+    CIRIS_CLIENT_CARD_COUNT, CIRIS_CLIENT_CSD4_FOUR_FIELD_CARDS,
+    CIRIS_CLIENT_EARLIER_BULLET_CARDS, CEWPOS_CARD_COUNT, TOTAL_CSD_CARDS,
+    CornerstoneInvariant,
+};
 pub use catalogue::{
     TopologyId, TopologyDecl, WindowDecl, StepDecl, TraceStepDecl, RootDecl, CanonicalDecl,
     NodeDecl, PersonDecl, RelationDecl, NegativeDecl, ActorDecl, TOPOLOGIES, VOCABULARY_ATOMS,

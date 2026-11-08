@@ -47,10 +47,14 @@ not decoration:
 - **No DNS, no load-bearing server.** You address a peer by its key
   and re-root trust at will; there's no nameserver to capture and no
   central server to seize.
-- **Holographic survival.** Published content is RaptorQ erasure-
-  coded so any sufficient fragment subset reconstructs it; the
-  federation re-establishes from any single survivor with a signed
-  witness chain.
+- **Whole-chunk sealed survival.** Content is stored as sealed whole
+  chunks across consenting holders (`CC §5.4.3, §6.1.5`, `custody:ack:v1`;
+  `holds_bytes` retired and refused per `CC 3.1.3.3`) replicated to the
+  multiplicity floor ($n_{\text{eff}} \ge 3$, root durability floor $R_9 \ge 9$
+  per `CC 6.1.2.1.2`), layered-codec rate-distortion fidelity degrades
+  gracefully along `Full` / `Partial` / `EnvelopeOnly` layers without symbol
+  fragmentation (`CC 5.3.3.2.3`), and the federation re-establishes from any
+  single survivor with a signed witness chain.
 - **Real delete at `O(log T)`.** Revocation, eviction, expiry, and
   aging are *one* descent toward a noise floor; revoked items drop
   below individual-recoverability while the collective gist persists

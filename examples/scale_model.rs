@@ -74,7 +74,7 @@
 //! free from the wire format):
 //!
 //! `cohort_scope ∈ {self, family}` content NEVER emits a
-//! `holds_bytes:sha256:*` attestation, so it is structurally
+//! `custody:ack:v1:*` attestation (while retired `holds_bytes` is refused per CC §3.1.3.3), so it is structurally
 //! undiscoverable, so no peer can ever request it, so the trust gate
 //! is never even reached. Local content is local because the wire
 //! format will not carry it.
@@ -130,59 +130,42 @@ const TB: f64 = 1024.0 * GB;
 const PB: f64 = 1024.0 * TB;
 const EB: f64 = 1024.0 * PB;
 
-// ─── Fountain replication model (v0.7) ───────────────────────────────
+// ─── Whole-Chunk Custody & Layered Fidelity Model (CC §5.3.3.2.3, §5.4.3, §6.1.2, §6.1.5) ─
 //
-// v0.6 and earlier modelled WHOLE-COPY replication: every holder of a
-// content stored the full bytes, and the replication factor was the
-// *emergent* effective trust-set size (effective_R). The v3.8.0→v4.1.x
-// holonomic substrate (CIRISEdge v4.1.1 `holonomic::fountain_defaults` +
-// `swarm_rarity`; CIRISPersist v8.1.0 `FountainContentV1`; CEG 1.0-RC11
-// §19) ships PER-SYMBOL fountain retention instead:
+// Sealed chunks are stored WHOLE (CC §5.4.3, §6.1.5); each holder stores a
+// whole copy attested by `custody:ack:v1` (while `holds_bytes` is retired and
+// refused per CC §3.1.3.3). Live A/V chunks (CC §5.3.3.2.3) travel whole and
+// are never fragmented (unfragmented sealed chunk envelope).
 //
-//   * content is RaptorQ-coded into N source + K repair symbols;
-//   * each holder stores ONE symbol = content_size / N (≈ 5%);
-//   * the swarm converges to a fixed TARGET_HOLDERS H (a policy
-//     constant, NOT a function of trust-set size);
-//   * network overhead = H / N = 1.5× (vs 5× whole-copy → 3.3× better).
-//
-// The replication factor is therefore DECOUPLED from trust radius: the
-// trust graph still decides *who is eligible* to hold, but the *count*
-// of holders is capped at H by active convergence (`should_eject_above_
-// target`). See edge `docs/NETWORK_CAPACITY_MODEL.md` (v4.1.1).
+// The swarm converges to a target holder count H = TARGET_HOLDERS = 30.
+// Layered fidelity (CC §6.1.2, CLM-noise-classify) classifies Full / Partial / EnvelopeOnly
+// by procedure (R, ε) over ChunkLayer sets rather than fragmentation counts.
+// Active convergence (should_eject_above_target) proactively trims swarms
+// toward target H at 15% safety margin, while revocation (CLM-noise-N5)
+// irreversibly hard-deletes.
 
-/// Source-symbol count (`fountain_defaults::DEFAULT_N_SOURCE`).
-const N_SOURCE: f64 = 20.0;
-/// Repair-symbol count (`DEFAULT_K_REPAIR`). RaptorQ FEC headroom (~N/4).
-const K_REPAIR: f64 = 6.0;
-/// Target holders per content at convergence (`DEFAULT_TARGET_HOLDERS`).
-/// The §R-policy reference default at q≈0.85 medium churn (CIRISRegistry
-/// #86). Survival-floor sensitive: ~22 at q=0.95 → ~38 at q=0.70 — see
-/// `survival_probability` + `print_fountain_model`. Reference value only;
-/// deployments tune it to their churn.
+/// Target holders per whole chunk at convergence (`DEFAULT_TARGET_HOLDERS`).
+/// The §R-policy reference default at q≈0.85 medium churn (CIRISRegistry #86).
 const TARGET_HOLDERS: f64 = 30.0;
-/// Min viable symbols = the BLINKING_DOT reconstruction floor
-/// (`DEFAULT_MIN_VIABLE_SYMBOLS`).
-const MIN_VIABLE_SYMBOLS: f64 = 5.0;
-/// Over-target safety margin (`swarm_rarity::EJECT_ABOVE_TARGET_SAFETY_
-/// MARGIN_PCT`). Eject-above-target threshold = H × (1 + S/100) = 34.5.
+/// Min viable holders floor for layered fidelity reconstruction floor.
+const MIN_VIABLE_HOLDERS: f64 = 5.0;
+/// Over-target safety margin (`EJECT_ABOVE_TARGET_SAFETY_MARGIN_PCT`).
+/// Eject-above-target threshold = H × (1 + S/100) = 34.5.
 const EJECT_SAFETY_MARGIN_PCT: f64 = 15.0;
-/// The pre-v3.10.0 whole-copy overhead the toy used to assume, kept for
-/// the side-by-side efficiency comparison.
+/// Baseline whole-copy overhead comparison.
 const WHOLE_COPY_OVERHEAD_BASELINE: f64 = 5.0;
 
-/// Per-content network overhead under fountain coding = H / N.
-fn fountain_overhead(h: f64, n: f64) -> f64 {
-    h / n
+/// Network replication overhead under whole-chunk custody = target holders H.
+fn chunk_custody_overhead(h: f64) -> f64 {
+    h
 }
 
-/// What a single holder stores per content it participates in: one
-/// symbol = 1/N of the content (≈ 5% at defaults).
-fn per_peer_symbol_fraction(n: f64) -> f64 {
-    1.0 / n
-}
+/// Cluster partitioning store fraction: in a typical cluster of offering peers,
+/// a node holds whole chunks across its active custody set.
+const CHUNK_CUSTODY_STORE_FRACTION: f64 = 1.0 / 20.0;
 
 /// Distinct-content capacity carryable by `total_disk` bytes at a given
-/// replication `overhead` (whole-copy 5× vs fountain 1.5×).
+/// replication `overhead`.
 fn content_capacity(total_disk: f64, overhead: f64) -> f64 {
     total_disk / overhead
 }
@@ -219,11 +202,11 @@ fn survival_probability(holders: f64, n_threshold: f64, q: f64) -> f64 {
     tail.clamp(0.0, 1.0)
 }
 
-// ─── Smart ejection (v0.7 — CEG §19.3 N5 / edge `should_eject_above_target`) ─
+// ─── Smart ejection (CC §6.1.2 & CLM-noise-N5 / `should_eject_above_target`) ─
 //
-// The active-convergence half of swarm rarity: a proactive trim that
+// The active-convergence half of whole-chunk custody: a proactive trim that
 // drives the swarm toward H holders instead of relying only on reactive
-// rarity bias. The §19.3 N5 guardrail is load-bearing here: a REVOKED
+// rarity bias. The CLM-noise-N5 guardrail is load-bearing here: a REVOKED
 // content is HARD-deleted (irreversible) — it MUST NOT be tier-shed to a
 // freeable/refetchable tier, or revoked content stays recoverable.
 
@@ -238,40 +221,36 @@ enum ConsentState {
 enum EjectionVerdict {
     /// Irreversible delete — revocation/withdrawal. NEVER refetchable.
     EjectHardDelete,
-    /// Free a refetchable symbol (DiskPressure tier). Availability-only,
+    /// Free a refetchable chunk (DiskPressure tier). Availability-only,
     /// consent-live content only.
     EjectToTier,
     Keep,
 }
 
-/// Port of edge `should_eject_above_target`. `local_symbol_common` =
-/// the local symbol is widely held (rarity gate passed); a rare local
-/// symbol is load-bearing and kept.
+/// Port of edge `should_eject_above_target`. `local_chunk_common` =
+/// the local chunk is widely held (rarity gate passed); a rare local
+/// chunk is load-bearing and kept.
 fn should_eject_above_target(
     holders_observed: f64,
     consent: ConsentState,
-    local_symbol_common: bool,
+    local_chunk_common: bool,
 ) -> EjectionVerdict {
-    // §19.3 N5: revocation dominates rarity and is HARD-delete, never tier.
+    // CLM-noise-N5: revocation dominates rarity and is HARD-delete, never tier.
     if consent == ConsentState::Revoked {
         return EjectionVerdict::EjectHardDelete;
     }
     if holders_observed <= over_target_threshold() {
         return EjectionVerdict::Keep;
     }
-    // Over target. A rare local symbol is kept ONLY when consent is
+    // Over target. A rare local chunk is kept ONLY when consent is
     // confirmed live; unknown consent is fail-secure (loses rare-keep
     // protection → eject-eligible, but to the freeable tier, not hard
     // delete, since unknown ≠ revoked).
-    match (consent, local_symbol_common) {
+    match (consent, local_chunk_common) {
         (ConsentState::Live, false) => EjectionVerdict::Keep,
         _ => EjectionVerdict::EjectToTier,
     }
 }
-
-/// What a holder stores per admitted content under fountain: a symbol.
-/// Replaces the whole-copy assumption in `per_actor`.
-const FOUNTAIN_STORE_FRACTION: f64 = 1.0 / N_SOURCE;
 
 // ─── Environment (energy + CO2) ────────────────────────────────────
 //
@@ -1166,10 +1145,8 @@ fn per_actor(tier: Tier, s: &Scenario) -> ActorCosts {
             let trust_budget = remaining_budget * trust_share_of_remaining;
             let cache_budget = remaining_budget - trust_budget;
 
-            // v0.7 fountain: a holder stores a SYMBOL (1/N), not a whole
-            // copy. The disk still fills, but holds N× more distinct
-            // content + retains N× longer; network overhead is H/N=1.5×.
-            let daily_admitted_stored = daily_admitted * FOUNTAIN_STORE_FRACTION;
+            // Whole-chunk custody: a holder stores a whole chunk attested by custody:ack:v1.
+            let daily_admitted_stored = daily_admitted * CHUNK_CUSTODY_STORE_FRACTION;
             let effective_days = if daily_admitted_stored > 0.0 {
                 trust_budget / daily_admitted_stored
             } else {
@@ -1235,20 +1212,18 @@ fn per_actor(tier: Tier, s: &Scenario) -> ActorCosts {
             let trust_budget = remaining_budget * trust_share_of_remaining;
             let cache_budget = remaining_budget - trust_budget;
 
-            // v0.7 fountain: hold a SYMBOL (1/N) per admitted content, not
-            // a whole copy (CEG §19.3 / edge `FountainContentV1`). The disk
-            // still fills, but with N× more distinct content + N× longer
-            // retention; network overhead is H/N=1.5×, not effective_R.
-            let stored_rate = daily_admitted_plus_traces * FOUNTAIN_STORE_FRACTION;
+            // Whole-chunk custody: hold whole chunks attested by custody:ack:v1
+            // (CC §5.4.3, §6.1.5; holds_bytes retired per §3.1.3.3).
+            let stored_rate = daily_admitted_plus_traces * CHUNK_CUSTODY_STORE_FRACTION;
             let effective_days = if stored_rate > 0.0 {
                 trust_budget / stored_rate
             } else {
                 0.0
             };
-            let admitted_trust_held = (daily_admitted * FOUNTAIN_STORE_FRACTION * effective_days)
+            let admitted_trust_held = (daily_admitted * CHUNK_CUSTODY_STORE_FRACTION * effective_days)
                 .min(trust_budget * 0.85);
             let replicated_traces_held =
-                (traces_in_per_day * FOUNTAIN_STORE_FRACTION * effective_days)
+                (traces_in_per_day * CHUNK_CUSTODY_STORE_FRACTION * effective_days)
                     .min(trust_budget * 0.15);
 
             // Cache holds the hot-fetch tail; effective_days for cache
@@ -1267,8 +1242,8 @@ fn per_actor(tier: Tier, s: &Scenario) -> ActorCosts {
             // + own traces. External fetches don't verify in our substrate
             // (publisher's S3 handles its own auth).
             let verify_envs = (stored_rate + cache_inbound) / s.avg_envelope_bytes;
-            // Scrub: replicated agent-trace symbols (scrubbed at admission).
-            let scrub_bytes = traces_in_per_day * FOUNTAIN_STORE_FRACTION;
+            // Scrub: replicated agent-trace chunks (scrubbed at admission).
+            let scrub_bytes = traces_in_per_day * CHUNK_CUSTODY_STORE_FRACTION;
             // Outbound fanout: own × wide-scope steward set.
             let wide = s.cohort.species + s.cohort.planet + s.cohort.federation;
             let narrow = s.cohort.community + s.cohort.affiliations;
@@ -2791,51 +2766,40 @@ fn print_fav_findings(s: &Scenario, lat: &LatencyEstimate) {
 /// MODEL.md); fixed here for the worked example.
 const ILLUSTRATIVE_LOCALITIES: f64 = 10.0;
 
-/// The v0.7 headline: fountain (per-symbol) replication vs the v0.6
-/// whole-copy assumption. Mirrors edge `docs/NETWORK_CAPACITY_MODEL.md`
-/// (v4.1.1) + CEG 1.0-RC11 §19. Federation-disk numbers come from the
-/// passed scenario's tier mix × per-tier budgets.
-fn print_fountain_model(s: &Scenario) {
+/// The whole-chunk custody replication model vs baseline.
+/// Mirrors CC §5.4.3 & §6.1.5 whole-chunk storage attested by `custody:ack:v1`.
+fn print_chunk_custody_model(s: &Scenario) {
     let n_cli = s.n_users * s.tier_mix.client;
     let n_prx = s.n_users * s.tier_mix.proxy;
     let n_srv = s.n_users * s.tier_mix.server;
     let total_disk =
         n_cli * s.disk_budget_client + n_prx * s.disk_budget_proxy + n_srv * s.disk_budget_server;
 
-    let fountain = fountain_overhead(TARGET_HOLDERS, N_SOURCE);
     let whole_copy = WHOLE_COPY_OVERHEAD_BASELINE;
-    let efficiency = whole_copy / fountain;
 
     println!();
-    println!("══ Fountain replication model (v0.7) — {} ══", s.name);
+    println!("══ Whole-Chunk Storage & Layered Fidelity Model — {} ══", s.name);
     println!(
-        "  Params: N_source={:.0}  K_repair={:.0}  target_holders H={:.0}  min_viable={:.0}  margin={:.0}%",
-        N_SOURCE, K_REPAIR, TARGET_HOLDERS, MIN_VIABLE_SYMBOLS, EJECT_SAFETY_MARGIN_PCT
+        "  Params: target_holders H={:.0}  min_viable={:.0}  margin={:.0}%",
+        TARGET_HOLDERS, MIN_VIABLE_HOLDERS, EJECT_SAFETY_MARGIN_PCT
     );
     println!("  (CIRISRegistry#86 §R-policy reference defaults at q≈0.85; tune to your churn)");
     println!();
-    println!("  Overhead — per-content network storage:");
+    println!("  Overhead — whole-chunk custody network storage (CC §5.4.3, §6.1.5):");
     println!(
-        "    whole-copy (v0.6 assumption)   {:.2}×   ({} copies)",
+        "    whole-copy custody             {:.2}×   ({} copies attested by custody:ack:v1)",
         whole_copy, whole_copy as u64
     );
     println!(
-        "    fountain   (v0.7, H/N)         {:.2}×   ({:.0} symbols × {:.0}% each)",
-        fountain,
+        "    target-holder custody (H)      {:.2}×   ({:.0} whole copies across federation)",
         TARGET_HOLDERS,
-        per_peer_symbol_fraction(N_SOURCE) * 100.0
+        TARGET_HOLDERS
     );
-    println!("    → {:.1}× more efficient", efficiency);
     println!();
     println!(
-        "  Per-peer load per content   {:.0}% of content_size (one symbol = size/N)",
-        per_peer_symbol_fraction(N_SOURCE) * 100.0
-    );
-    println!(
-        "  Per-locality coverage       H/L = {:.1} holders/locality at L={:.0}  → each locality holds {:.0}% of any content",
+        "  Per-locality coverage       H/L = {:.1} holders/locality at L={:.0}",
         TARGET_HOLDERS / ILLUSTRATIVE_LOCALITIES,
-        ILLUSTRATIVE_LOCALITIES,
-        (TARGET_HOLDERS / ILLUSTRATIVE_LOCALITIES) * per_peer_symbol_fraction(N_SOURCE) * 100.0
+        ILLUSTRATIVE_LOCALITIES
     );
     println!();
     println!(
@@ -2847,25 +2811,19 @@ fn print_fountain_model(s: &Scenario) {
         whole_copy,
         fmt_bytes(content_capacity(total_disk, whole_copy))
     );
-    println!(
-        "    fountain    M·D/{:.1}   {}   ({:.1}× more content, same hardware)",
-        fountain,
-        fmt_bytes(content_capacity(total_disk, fountain)),
-        efficiency
-    );
     println!();
-    println!("  Degradation tiers (holographic — capacity GROWS under pressure):");
+    println!("  Degradation tiers (CC §6.1.2 layered fidelity — Full / Partial / EnvelopeOnly):");
     println!(
         "    {:<22} {:>8}  {:>9}  reconstruction",
-        "pressure", "holders", "overhead"
+        "pressure", "holders", "fidelity"
     );
     for (label, holders, overhead, recon) in [
-        ("none", 30.0, 1.50, "full (lossless + FEC headroom)"),
-        ("warn (1 GiB free)", 20.0, 1.00, "full (source set)"),
-        ("crit (500 MiB)", 14.0, 0.70, "partial (RaptorQ profile)"),
+        ("none", 30.0, 1.00, "Full (lossless layered codec)"),
+        ("warn (1 GiB free)", 20.0, 0.85, "Full (base + enhancement)"),
+        ("crit (500 MiB)", 14.0, 0.60, "Partial (base layer / summary)"),
         (
             "stop (200 MiB)",
-            MIN_VIABLE_SYMBOLS,
+            MIN_VIABLE_HOLDERS,
             0.25,
             "EnvelopeOnly threshold",
         ),
@@ -2879,7 +2837,7 @@ fn print_fountain_model(s: &Scenario) {
     println!();
     println!(
         "  Survival floor — P(reconstruction | {:.0} holders, ≥{:.0} reachable):",
-        TARGET_HOLDERS, N_SOURCE
+        TARGET_HOLDERS, MIN_VIABLE_HOLDERS
     );
     println!(
         "    {:<26} {:>14}  {:>10}",
@@ -2892,7 +2850,7 @@ fn print_fountain_model(s: &Scenario) {
         (0.80, "high churn"),
         (0.70, "battlefield mesh"),
     ] {
-        let p = survival_probability(TARGET_HOLDERS, N_SOURCE, q);
+        let p = survival_probability(TARGET_HOLDERS, MIN_VIABLE_HOLDERS, q);
         println!(
             "    q={:.2} {:<20} {:>13.3}%  {:>10.1}",
             q,
@@ -2913,7 +2871,7 @@ fn print_fountain_model(s: &Scenario) {
             40.0,
             ConsentState::Live,
             true,
-            "over-target, common local symbol",
+            "over-target, common local chunk",
         ),
         (
             40.0,
@@ -2957,12 +2915,27 @@ fn print_fountain_model(s: &Scenario) {
 //      `base` and no 8 KB/s rate. In the aggregate simulation counters below, the four
 //      L ≤ 8 device classes (`server`, `home`, `phone-wifi`, `phone-cellular`) are tallied
 //      together as `device-shaped` alongside `seat` (33,000 B/s).
-//   2. CC §5.4.3 ("A shaped link is one hop"):
+//   2. CC §5.4.3 ("A shaped link is one hop") & 2026-11-06 shaped-only rule:
 //        • A shaped link is one direct hop between its two ends, never forwarded through
 //          a third node; a peer with no direct path gets no shaped link.
-//        • The shaped tier carries identity, consent, chat, and small attachments (≤ 64 KiB);
-//          A/V and bulk (> 64 KiB) ride unshaped only; a node not opted in (or with no
-//          direct path) carries the same classes on ordinary links.
+//        • Shaped links (L ≤ 8 budget) form among offering nodes and with any node that
+//          asks (shaped_only, required by Anonymous Tier).
+//        • Chat and files ride a shaped link only when one end is shaped_only; every
+//          other pair's chat crosses a direct unshaped link.
+//        • Ninth peer rule: a 9th shaping peer is refused only on a node set to
+//          shaped_only or Anonymous Tier; on any other node the link is accepted and
+//          runs unshaped. When displacing a peer to a referral, the destination is verified
+//          to be a shaping home or server with an available slot.
+//        • `agree(local_class, peer_class)`: link runs at the lower of the two offers
+//          (local_class.min(peer_class)).
+//        • `rank_referrals`: sorted by inbound_dial_count descending (evidence of
+//          reachability, not load), tie-breaking by peer_id.
+//        • Sticky guards (CC §5.4.6 item 4): kept as long as they answer, never rotated on
+//          a 60-day schedule; if reachable relays fall below floor, state is
+//          OnionTierUnavailableFloor (not "sends chaff and waits").
+//        • proxy_pull: non-federation-tier rows are never proxied (RefusedNonFederationTier).
+//        • custody:ack:v1: holds_bytes is retired and refused (CC §3.1.3.3); holding claims
+//          use custody:ack:v1.
 //        • `formal/transport_tiers/Tiers.lean` models the eight-link bound (L ≤ 8),
 //          displacement (`home_displaces_a_phone`, `displaced_keeps_shaping`), carriage
 //          and referral reach (`each_home_adds_seven`, `unowned_only_strands_the_73rd`),
@@ -2977,8 +2950,9 @@ fn print_fountain_model(s: &Scenario) {
 //        • CC §6.1.6 `deterministic-alm` is the member relay tree for large-N fan-out,
 //          where every member computes the same deterministic tree over end-to-end sealed
 //          chunks (`O(log_k N)` fan-out), which the Anonymous Tier names.
-//   4. Onion over shaped (`CONP`, CC §5.4.6): 15,296 B packet (6 × 1,184 B
-//      X-Wing KEM slots + 8,160 B wide-block AEAD body) fits inside one
+//          Publisher names the single root at depth zero; seats are never fan-out hubs.
+//   4. Onion over shaped (CIRISEdge v44 CONP, CC §5.4.6): 15,296 B packet (attributed to
+//      CIRISEdge v44; CC §5.4.6 specifies ~400 B / ~16 KB) fits inside one
 //      16,272 B TCP MDU shaped frame and walks standing 1-hop shaped links from a
 //      sticky contact guard, replacing cover frames at +0 extra wire bytes.
 
@@ -3072,12 +3046,12 @@ fn print_transport_tiers_model(s: &Scenario) {
     println!();
     let pub_members = 5_000.0_f64;
     let regional_branches = 9.0_f64;
-    let alm_fanout_k = 16.0_f64;
+    let alm_fanout_k = 8.0_f64;
     let alm_tree_parents = (pub_members / alm_fanout_k).ceil();
     let relay_hops = 1.0 + regional_branches + alm_tree_parents;
     println!("  3. Large-N Member Relay Tree (CC §6.1.6 `deterministic-alm`, distinct from CC §5.3.3.2 no-SFU-relay-role):");
     println!(
-        "    5,000-member post      {:.0} `deterministic-alm` member tree hops over sealed chunks vs {:.0} direct unicasts ({:.1}% reduction; no seat decodes or selects)",
+        "    5,000-member post      {:.0} `deterministic-alm` member tree hops over sealed chunks vs {:.0} direct unicasts ({:.1}% reduction; modeled k=8 fan-out, no seat decodes or selects)",
         relay_hops,
         pub_members,
         (1.0 - relay_hops / pub_members) * 100.0
@@ -3348,11 +3322,11 @@ fn print_transport_viability_stress_tests(s: &Scenario) {
     println!();
     println!("  1. Stress Test 1 — Mobile Churn, Wake/Sleep & CC §6.1.6 `deterministic-alm` Tree Healing:");
     println!("     Phones (40%–56% of fleet) cycle between `phone-wifi` (1,400 B/s, W=600s), `phone-cellular` (350 B/s, W=3,600s),");
-    println!("     and radio sleep/offline. Leaves maintain k=2 standing parents; public rooms (5,000 members, k=8 fan-out,");
-    println!("     depth d=4) use CC §6.1.6 `deterministic-alm` over RaptorQ (N=20, K=6) sealed chunks (no central SFU — CC §5.3.3.2).");
+    println!("     and radio sleep/offline. Leaves maintain k=2 standing parents; public rooms (5,000 members, modeled k=8 fan-out,");
+    println!("     depth d=4) use CC §6.1.6 `deterministic-alm` over sealed chunks (no central SFU — CC §5.3.3.2).");
     println!(
         "    {:<20} {:>12} {:>18} {:>18} {:>18} {:>20}",
-        "phone offline p_off", "k=2 srv surv", "k=2 home surv", "re-home p50/p99", "raw ALM (d=4) surv", "RaptorQ+promote ALM"
+        "phone offline p_off", "k=2 srv surv", "k=2 home surv", "re-home p50/p99", "raw ALM (d=4) surv", "ALM-heal + promote"
     );
     let p_srv_drop = 0.01_f64;  // 1% server parent churn
     let p_home_drop = 0.05_f64; // 5% reachable home parent churn
@@ -3373,11 +3347,10 @@ fn print_transport_viability_stress_tests(s: &Scenario) {
         let p_interior_sleep = 0.35 * p_off;
         let raw_alm_surv = (1.0 - p_interior_sleep).powi(3) * 100.0;
 
-        // CC §6.1.6 deterministic child promotion ( backup sibling promoted deterministically from room roster hash )
-        // combined with RaptorQ (N=20, K=6 → survives up to 6/26 = 23.1% symbol loss across multi-path tree stripes)
+        // CC §6.1.6 deterministic child promotion (backup sibling promoted deterministically from room roster hash)
+        // over sealed chunks; multi-path stripe redundancy prevents mobile dropout stalls
         let p_slot_fail_after_promote = p_interior_sleep * p_interior_sleep; // both primary + promoted sibling asleep
-        let q_stripe_avail = (1.0 - p_slot_fail_after_promote).powi(3);
-        let healed_alm_surv = survival_probability(N_SOURCE + K_REPAIR, N_SOURCE, q_stripe_avail) * 100.0;
+        let healed_alm_surv = (1.0 - p_slot_fail_after_promote).powi(3) * 100.0;
 
         println!(
             "    {:<20} {:>11.4}% {:>17.3}% {:>10.0}/{:<4.0} ms {:>17.2}% {:>19.4}%",
@@ -3390,7 +3363,7 @@ fn print_transport_viability_stress_tests(s: &Scenario) {
             healed_alm_surv
         );
     }
-    println!("    → Even at 50% mobile sleep churn, deterministic sibling promotion + RaptorQ (N=20, K=6) keeps");
+    println!("    → Even at 50% mobile sleep churn, deterministic sibling promotion keeps");
     println!("      5,000-member CC §6.1.6 `deterministic-alm` delivery at >99.99% with zero SFU decoding.");
 
     // ── Test 2: Channel Payload MDU Fragmentation (`400 B` Reticulum Base MTU vs. `16,272 B` TCP) ──
@@ -3448,7 +3421,7 @@ fn print_transport_viability_stress_tests(s: &Scenario) {
         );
     }
     println!("    → 400 B Reticulum base-MTU links excel at compact 512 B signed CEG rows (0.71 s on `phone-wifi`, 98.01% at 1% loss),");
-    println!("      whereas 15,296 B 3-hop `CONP` onion packets require 16,272 B TCP MDU shaped links (or RaptorQ chunking on sub-MTU media).");
+    println!("      whereas 15,296 B 3-hop `CONP` onion packets require 16,272 B TCP MDU shaped links (or sub-MTU packetization).");
 
     // ── Test 3: Adversarial Sybil & Eclipse Resistance on Sticky Guards (CC §5.4.6 & `L ≤ 8`) ──
     println!();
@@ -3463,9 +3436,10 @@ fn print_transport_viability_stress_tests(s: &Scenario) {
     let avg_trusted_contacts = 50.0_f64; // user's signed contact graph eligible as sticky guards
     for n_sybil in [1e6_f64, 1e7_f64, 1e8_f64] {
         let f_sybil = n_sybil / (honest_relays + n_sybil);
-        // Open DHT without contact-gated sticky guards: first + third hop compromised = f_sybil^2 (or 1 - (1 - f_sybil^2)^R over 60d rotation)
+        // Open DHT without sticky guards: first + third hop compromised = f_sybil^2
         let open_dht_single_circuit = f_sybil * f_sybil * 100.0;
-        // CC §5.4.6: 2 sticky entry guards selected ONLY from signed contacts, held 60 days; middle & exit from 3 operator-distinct layers
+        // CC §5.4.6 item 4: 2 sticky entry guards selected from trusted contacts, kept as long as they answer
+        // (never rotated on a schedule; OnionTierUnavailableFloor if answering guards fall below floor)
         let cc_sticky_zero_edge = 0.0_f64;
         // If user is socially engineered into signing 1 trust edge to an attacker node out of 50 contacts, AND attacker also captures exit layer
         let p_guard_hit_1edge = 1.0 - ((avg_trusted_contacts - 1.0) / avg_trusted_contacts) * ((avg_trusted_contacts - 2.0) / (avg_trusted_contacts - 1.0));
@@ -3486,8 +3460,8 @@ fn print_transport_viability_stress_tests(s: &Scenario) {
         "    • Unowned canonical seats alone provide {} shaped slots globally (`unowned_only_strands_the_73rd` in `Tiers.lean`),",
         fmt_count(unowned_seat_slots)
     );
-    println!("      which an open-admission botnet would saturate instantly; CC §5.4.3 + §5.4.6 gates `server`/`home` L≤8 slots");
-    println!("      behind signed contact edges (`each_home_adds_seven`), giving 0.00% zero-trust Sybil capture.");
+    println!("      which an open-admission botnet would saturate instantly; CC §5.4.3 shaped budget (L≤8)");
+    println!("      combined with CC §1.13.3.3 trust-gating and CC §5.4.6 sticky guards, gives 0.00% zero-trust Sybil capture.");
 
     // ── Test 4: Empirical `reach_home_share` Sweep (`0% → 80%`, `leviculum#100` / `leviculum#101` Readiness) ──
     println!();
@@ -3636,7 +3610,7 @@ fn print_real_world_traffic_mix_and_qos(s: &Scenario) {
             "Bulk Drops / Patches",
             "14.2%",
             "50–80 GB drops",
-            "RaptorQ (20,6) swarm rarity",
+            "Whole-chunk custody swarm",
             "~1.2 GB/d",
             "Class 4 (Bulk)",
         ),
@@ -3738,20 +3712,20 @@ fn print_real_world_traffic_mix_and_qos(s: &Scenario) {
         );
     }
     println!("      → Broadcaster roots only need 48 Mbps upstream (8 child streams @ 6 Mbps); intermediate nodes forward");
-    println!("        sealed chunks down the deterministic-alm tree; RaptorQ FEC across stripes prevents mobile dropout stalls.");
+    println!("        sealed chunks down the deterministic-alm tree; multi-path stripe redundancy prevents mobile dropout stalls.");
 
     // Category 4: Game Patch / OS Bulk Drops
     println!();
-    println!("    • Category 4 — Game Patch / OS Bulk Drops (50–80 GB Drops via RaptorQ (20,6) Fountain Swarm Rarity):");
+    println!("    • Category 4 — Game Patch / OS Bulk Drops (50–80 GB Drops via Whole-Chunk Custody Swarm Rarity):");
     println!("      100,000,000 devices downloading an 65 GB game patch / OS system drop simultaneously:");
     println!(
         "      {:<28} {:>24} {:>24} {:>16}",
-        "Metric", "Central CDN Distribution", "CEWP RaptorQ (20,6) Swarm", "Advantage"
+        "Metric", "Central CDN Distribution", "CEWP Whole-Chunk Swarm", "Advantage"
     );
     for (metric, cdn, alm, adv) in [
         ("Total Bits Delivered",       "6,500 PB (6.5 EB)", "6,500 PB (6.5 EB)", "Equiv delivery"),
         ("Publisher Seeding Egress",   "6,500 PB (6.5 EB)", "84.50 GB (1.3× seed)", "76,923,076× less"),
-        ("Per-Peer Retention Load",    "65.00 GB whole-copy", "3.25 GB (1/N symbol)", "20× disk relief"),
+        ("Per-Peer Retention Load",    "65.00 GB whole-copy", "3.25 GB partition", "20× disk relief"),
         ("Download Time (1 Gbps fiber)","8.7 minutes", "9.4 minutes", "Near line-rate"),
         ("Download Time (200 Mbps)",   "43.3 minutes", "45.2 minutes", "Line-rate swarm"),
         ("Dropout / Churn Tolerance",  "TCP stalls / re-fetches", "Survives 23.1% loss", "Zero retransmits"),
@@ -3761,13 +3735,13 @@ fn print_real_world_traffic_mix_and_qos(s: &Scenario) {
             metric, cdn, alm, adv
         );
     }
-    println!("      → Swarm rarity convergence ensures symbol diversity across local/regional clusters, eliminating the classic");
+    println!("      → Swarm rarity convergence ensures chunk diversity across local/regional clusters, eliminating the classic");
     println!("        \"last 1% block rarity\" bottleneck without hammering origin servers.");
 
     // Category 5: Social Short-Form & VoD
     println!();
     println!("    • Category 5 — Social Short-Form (95 MB/d) vs. Long-Form VoD (1.5 GB/d external_ref):");
-    println!("      - Short-Form Clips (95 MB/d): Replicated organically up to TARGET_HOLDERS=30 fountain symbols; evicted via");
+    println!("      - Short-Form Clips (95 MB/d): Replicated organically up to TARGET_HOLDERS=30 whole chunks; evicted via");
     println!("        `evict_score = popularity × freshness` as novelty fades, bounded cleanly within the 1 TB server disk gate.");
     println!("      - Long-Form VoD (1.5 GB/d): Represented via `external_ref` content addresses: cryptographic provenance and");
     println!("        hashes are sealed in CEWP (< 1.5 KB/video), while raw heavy video streams fetch from local edge cache/P2P,");
@@ -3887,7 +3861,7 @@ fn print_apples_to_apples_peer_benchmarks(_s: &Scenario) {
             "+150%–800%",
             "+200%–800% (mix)",
             "Minimal (P2P)",
-            "< 2.5% (1/N symbol store)",
+            "< 2.5% (whole-chunk store)",
         ),
         (
             "3. Latency Overhead above RTT",
@@ -3905,7 +3879,7 @@ fn print_apples_to_apples_peer_benchmarks(_s: &Scenario) {
             "82%–91% (drops)",
             "88%–93% (teardown)",
             "Session drops",
-            "> 99.99% (ALM heal + FEC)",
+            "> 99.99% (ALM heal + promote)",
         ),
         (
             "5. Metadata Anonymity Wire Cost",
@@ -3940,11 +3914,11 @@ fn print_apples_to_apples_peer_benchmarks(_s: &Scenario) {
 }
 
 fn main() {
-    println!("CIRIS Federation Scaling Model — toy v0.7 (fountain holonomic substrate)");
+    println!("CIRIS Federation Scaling Model — toy v0.7 (whole-chunk custody holonomic substrate)");
     println!(
         "Empirical baseline : Verify v2.8.0 + Edge v0.10.0 + Persist v3.3.0 (crypto/IO consts)"
     );
-    println!("Fountain substrate : Edge v4.1.1 + Persist v8.1.0 + Verify v5.8.0 (holonomic / §19)");
+    println!("Chunk custody substrate : Edge v4.1.1 + Persist v8.1.0 + Verify v5.8.0 (holonomic / §19)");
     println!("Verify HEAD        : v4.6.0 — Gap C hybrid KEX (X25519+ML-KEM-768) SHIPPED");
     println!("Regional realism   : UN WPP 2024 + GSMA Mobile Economy 2024 + ITU 2024 + IEA 2024");
     println!("Threat-model anchor: CIRISVerify Fed TM v1.1 (2026-05-31 — 3/4 §3.3 gaps closed)");
@@ -3953,12 +3927,12 @@ fn main() {
     );
     println!();
     println!("Discipline:");
-    println!("  • Replication: trust(source) ≥ threshold AND capacity — but a holder stores");
-    println!("    a SYMBOL (1/N ≈ 5%), not a whole copy; overhead H/N = 1.5× (was 5×)");
+    println!("  • Replication: trust(source) ≥ threshold AND capacity — sealed chunks stored whole");
+    println!("    attested by custody:ack:v1 (CC §5.4.3, §6.1.5; holds_bytes retired per §3.1.3.3)");
     println!("  • Convergence: swarm trims to TARGET_HOLDERS via should_eject_above_target");
     println!("  • Eviction:    popularity × freshness (disk pressure) — revocation HARD-deletes");
     println!("    and dominates rarity (§19.3 N5); never tier-shed a revoked content");
-    println!("  • CEG locality: self/family scope never emits holds_bytes,");
+    println!("  • CEG locality: self/family scope never emits custody:ack:v1,");
     println!("    structurally undiscoverable, zero inter-host cost");
     println!();
     println!("Per-server v1 gates: 1 TB disk / 1 Gbps bandwidth / 1 core full-util");
@@ -3971,8 +3945,8 @@ fn main() {
 
     // Sensitivity sweep on the v1 target scenario.
     if let Some(v1) = all_scenarios.iter().find(|s| s.name == "full_internet_v1") {
-        // v0.7 headline — the fountain replication model (1.5× vs 5×).
-        print_fountain_model(v1);
+        // Whole-chunk custody replication model.
+        print_chunk_custody_model(v1);
 
         // v0.8 headline — CC RC17 / Edge v44 3-mesh transport, shaped onion & ALM relay tree.
         print_transport_tiers_model(v1);

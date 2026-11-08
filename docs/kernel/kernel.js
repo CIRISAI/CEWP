@@ -297,6 +297,40 @@ export function matchFamily(wireNamespace, tables = null) {
   return { family: prefix, binds, refusal: null, ok: true };
 }
 
+export function checkPolarity(tables, familyPrefix, score) {
+  const meta = tables?.registry?._meta;
+  if (!meta) return { admissible: false, class: null, refusal: "namespace_family_unregistered" };
+  const pc = meta.polarity_classes;
+  if (!pc) return { admissible: true, class: null, refusal: null };
+  const fam = (tables?.registry?.families || []).find((f) => f.prefix === familyPrefix);
+  if (!fam) {
+    const refusal = meta.case_rule?.refusal_tokens?.family_unregistered || "namespace_family_unregistered";
+    return { admissible: false, class: null, refusal };
+  }
+  const rawPolarity = fam.polarity || "";
+  const aliases = pc._aliases || {};
+  const name = aliases[rawPolarity] || rawPolarity;
+  const cls = pc[name];
+  const defaultRefusal = pc.refusal || "score_outside_declared_polarity";
+  if (!cls) return { admissible: true, class: name, refusal: null };
+  if (cls.kind === "per_leaf") return { admissible: true, class: name, refusal: null };
+  let ok = false;
+  if (cls.kind === "points") {
+    ok = (cls.points || []).some((pv) => Math.abs(score - pv) < 1e-9);
+  } else {
+    const min = cls.min ?? -1.0;
+    const max = cls.max ?? 1.0;
+    const minInclusive = cls.min_inclusive ?? false;
+    const loOk = score > min || (minInclusive && Math.abs(score - min) < 1e-9);
+    ok = loOk && score <= max;
+  }
+  return {
+    admissible: ok,
+    class: name,
+    refusal: ok ? null : defaultRefusal,
+  };
+}
+
 export function extractDimensions(wireNamespace, tables = null) {
   const m = matchFamily(wireNamespace, tables);
   return m ? m.binds : {};
@@ -326,6 +360,7 @@ export function loadTables(transitions, policies, registry = null, aliases = nul
   const tbl = { families, policy, defaults, registry: reg, aliases: aliasMap, rules };
   tbl.matchFamily = (wire) => matchFamily(wire, tbl);
   tbl.extractDimensions = (wire) => extractDimensions(wire, tbl);
+  tbl.checkPolarity = (familyPrefix, score) => checkPolarity(tbl, familyPrefix, score);
   return tbl;
 }
 
@@ -381,6 +416,14 @@ export function fold(held, tables, now) {
 
   const room = (id) => { if (!rooms.has(id)) rooms.set(id, { id, founders: new Set(), members: new Set(), removed: new Set(), moderators: new Set() }); return rooms.get(id); };
 
+  const deviceToFedId = new Map();
+  for (const h of rows) {
+    if (h.row.family.startsWith("self:delegates_to") || h.row.family.startsWith("self:roster")) {
+      if (h.row.subject) deviceToFedId.set(h.row.signer, h.row.subject);
+    }
+  }
+  const getFed = (signer) => deviceToFedId.get(signer) || signer;
+
   for (const h of rows) {
     const { row } = h;
     let famKey = row.family;
@@ -396,7 +439,11 @@ export function fold(held, tables, now) {
       objects.set(o.id, o);
     }
     o.rows.push(h);
-    const t = transitionOf(tables, famKey, row.verb, o.state);
+    const isVote = Boolean(row.stance || row.ranking || row.verb === "voice" || row.verb === "assent" || row.verb === "raised" || row.verb === "object");
+    let t = transitionOf(tables, famKey, row.verb, o.state);
+    if (o.state === "none" && isVote) {
+      t = null;
+    }
     if (!t) {
       // a vote-shaped row on an object already admitted: counted by the policy fold below
       continue;
@@ -410,35 +457,115 @@ export function fold(held, tables, now) {
   for (const o of objects.values()) {
     if (!o.pending) continue;
     const p = o.pending.policy;
-    const voices = { for: new Set([o.pending.opener]), against: new Set(), ballots: [] };
+    const opener = o.pending.opener;
+    const openerFed = getFed(opener);
+
+    const fedFor = new Set([openerFed]);
+    const fedAgainst = new Set();
+    const fedDisagree = new Set();
+    const ballots = [];
+
     for (const { row } of o.rows) {
-      if (row.stance === "for") voices.for.add(row.signer);
-      if (row.stance === "against") { voices.against.add(row.signer); voices.for.delete(row.signer); }
-      if (row.ranking) voices.ballots.push({ signer: row.signer, ranking: row.ranking });
+      const fed = getFed(row.signer);
+      const isApproval = row.stance === "for" || (row.family.startsWith("objection") && row.verb === "assent");
+      const isObjection = row.stance === "against" || row.family === "objection" || (row.family.startsWith("objection") && (row.verb === "raised" || row.verb === "object"));
+
+      if (isApproval && isObjection) {
+        fedDisagree.add(fed);
+      } else if (isApproval) {
+        if (fedAgainst.has(fed)) fedDisagree.add(fed);
+        fedFor.add(fed);
+      } else if (isObjection) {
+        if (fedFor.has(fed)) fedDisagree.add(fed);
+        fedAgainst.add(fed);
+      }
+      if (row.ranking) ballots.push({ signer: row.signer, ranking: row.ranking });
     }
-    const roomId = o.scope.room;
-    const base = roomId && rooms.has(roomId) ? Math.max(2, rooms.get(roomId).members.size + rooms.get(roomId).founders.size) : 2;
-    const windowEnd = o.pending.since + (p.window_secs || 0) * 1000;
-    const met = (frac, n) => frac && n * frac.den >= frac.num * base;
+
+    // CC Rule: Disagreeing live rows remove a fedID from both for and against tallies (no voice)
+    for (const fed of fedDisagree) {
+      fedFor.delete(fed);
+      fedAgainst.delete(fed);
+    }
+
+    const forCount = fedFor.size;
+    const againstCount = fedAgainst.size;
+
+    // Base law: compute base from policy domain
+    let base = 2;
+    if (p.corridor === "self" || p.family?.startsWith("self_roster")) {
+      let count = 0;
+      for (const [d, fId] of deviceToFedId) {
+        if (fId === openerFed) count++;
+      }
+      base = Math.max(1, count);
+    } else if (o.scope?.room && rooms.has(o.scope.room)) {
+      const rm = rooms.get(o.scope.room);
+      const rawB = Math.max(2, rm.members.size + rm.founders.size);
+      base = p.base === "active" ? Math.max(2, Math.floor((rawB * 2) / 3)) : rawB;
+    } else if (p.family === "accord_halt") {
+      base = Math.max(1, holders.size);
+    }
+
+    const minCount = (p.corridor === "self" || p.family?.startsWith("self_roster") || p.family === "accord_halt") ? 1 : 2;
+    const windowSecs = p.window_secs || 0;
+    const windowEnd = o.pending.since + windowSecs * 1000;
+
+    const parseFrac = (f) => {
+      if (!f) return null;
+      if (typeof f === "object" && f.num !== undefined && f.den !== undefined) return f;
+      if (typeof f === "string") {
+        if (f === "1/N fires") return { num: 1, den: 1 };
+        if (f === "1/2 confirms") return { num: 1, den: 2 };
+        const parts = f.split("/");
+        if (parts.length === 2) {
+          const num = parseInt(parts[0], 10);
+          const den = parseInt(parts[1], 10);
+          if (!isNaN(num) && !isNaN(den)) return { num, den };
+        }
+      }
+      return null;
+    };
+
+    const enactFrac = parseFrac(p.enact);
+    const cancelFrac = parseFrac(p.cancel);
+    const floorFrac = parseFrac(p.floor);
+
+    // Enact threshold is strictly more: Math.floor((num * base) / den) + 1
+    const ev = enactFrac ? Math.floor((enactFrac.num * base) / enactFrac.den) + 1 : 1;
+    const cv = cancelFrac ? Math.max(minCount, Math.ceil((cancelFrac.num * base) / cancelFrac.den)) : null;
+    const fv = floorFrac ? Math.max(minCount, Math.ceil((floorFrac.num * base) / floorFrac.den)) : null;
+
     let outcome = null, missing = null;
     if (p.kind === "two_path") {
-      if (met(p.enact, voices.for.size)) outcome = "enacted";
-      else if (met(p.cancel, voices.against.size)) outcome = "cancelled";
-      else if (now >= windowEnd) outcome = p.at_window || "cancelled";
-      else missing = { voices: Math.ceil((p.enact.num * base) / p.enact.den) - voices.for.size, until: windowEnd };
+      if (forCount >= ev && !p.irreversible) {
+        outcome = "enacted";
+      } else if (now < windowEnd) {
+        outcome = null;
+        missing = { voices: ev - forCount, until: windowEnd };
+      } else if (cv !== null && againstCount >= cv) {
+        outcome = "cancelled";
+      } else if (forCount >= ev) {
+        outcome = p.irreversible ? "enacted_irreversible" : "enacted";
+      } else if (p.reverse_path && fv !== null && forCount >= fv && againstCount === 0) {
+        outcome = "enacted";
+      } else {
+        outcome = "cancelled";
+      }
     } else if (p.kind === "mirror") {
-      // one acts at once; the window decides whether it stands
-      if (met(p.cancel, voices.against.size)) outcome = "reversed";
+      if (cv !== null && againstCount >= cv) outcome = "reversed";
       else if (now >= windowEnd) outcome = "stands";
       else { outcome = "acting"; missing = { until: windowEnd }; }
     } else if (p.kind === "cosigned") {
-      if (met(p.enact || { num: 1, den: 2 }, voices.for.size)) outcome = "enacted";
-      else missing = { voices: Math.ceil(((p.enact || { num: 1, den: 2 }).num * base) / (p.enact || { num: 1, den: 2 }).den) - voices.for.size };
+      const frac = enactFrac || { num: 1, den: 2 };
+      const required = Math.floor((frac.num * base) / frac.den) + 1;
+      if (forCount >= required) outcome = "enacted";
+      else missing = { voices: required - forCount };
     } else if (p.kind === "ranked") {
-      if (now >= windowEnd) outcome = { seated: irv(voices.ballots) };
-      else missing = { until: windowEnd, ballots: voices.ballots.length };
+      if (now >= windowEnd) outcome = { seated: irv(ballots) };
+      else missing = { until: windowEnd, ballots: ballots.length };
     }
-    o.outcome = outcome; o.missing = missing; o.voices = { for: [...voices.for], against: [...voices.against] };
+    o.outcome = outcome; o.missing = missing; o.voices = { for: [...fedFor].sort(), against: [...fedAgainst].sort() };
   }
 
   // standing folds across families
@@ -451,6 +578,14 @@ export function fold(held, tables, now) {
       holders.add(o.author);
       for (const { row } of o.rows) if (row.stance === "for") holders.add(row.signer);
       let job = o.binds?.job;
+      if (!job || job.includes("{")) {
+        const parts = (o.id || "").split(":");
+        if (parts.length >= 3) {
+          job = parts.slice(1, parts.length - 1).join(":");
+        } else if (parts.length === 2) {
+          job = parts[1];
+        }
+      }
       if (!job || job.includes("{")) {
         const p1 = (o.rawFamily || "").split(":")[1];
         if (p1 && !p1.includes("{")) job = p1;
@@ -496,7 +631,9 @@ export function fold(held, tables, now) {
     for (const d of duties) if (d.room === r.id) r.moderators.add(d.to);
     r.locked = r.moderators.size === 0;
   }
-  if (halt.latched && !halt.confirmed && now - halt.since > 86400 * 1000) halt.latched = false; // a lone latch lapses after a day
+  const haltPolicy = tables?.policy?.get("accord_halt");
+  const haltDuration = ((haltPolicy && haltPolicy.window_secs) ? haltPolicy.window_secs : 86400) * 1000;
+  if (halt.latched && !halt.confirmed && now - halt.since > haltDuration) halt.latched = false;
 
   return { objects, registered, rooms, holders, nodesOf, halt, rolesOf, systemIdentities, ownersOf, attesters, now };
 }
@@ -553,21 +690,145 @@ export function standing(f, person, object) {
     roles.add("attest");
   }
 
-  // steward, wa, takedown, review, slash
-  const personRoles = f.rolesOf?.get(person);
-  for (const job of ["steward", "wa", "takedown", "review", "slash"]) {
-    if (personRoles?.has(job)) roles.add(job);
+  // group:roster founding bootstrap:
+  // When target/object is group:roster or starts with room: and state is none:
+  // registered person has founder + member standing.
+  const isGroupRoster = (o && o.family === "group:roster") ||
+                        (targetId && targetId.startsWith("room:")) ||
+                        (object && (object.family === "group:roster" || (object.id && object.id.startsWith("room:"))));
+  if (isGroupRoster && f.registered.has(person)) {
+    roles.add("founder");
+    roles.add("member");
   }
 
-  // system identities: identity:lenscore_detector, identity:substrate_persist
-  if (person === "identity:lenscore_detector" || f.systemIdentities?.has("identity:lenscore_detector") || personRoles?.has("identity:lenscore_detector") || personRoles?.has("lenscore_detector")) {
-    roles.add("identity:lenscore_detector");
-  }
-  if (person === "identity:substrate_persist" || f.systemIdentities?.has("identity:substrate_persist") || personRoles?.has("identity:substrate_persist") || personRoles?.has("substrate_persist")) {
-    roles.add("identity:substrate_persist");
+  // Dynamic roles authorized to this person via trust or role declarations
+  const personRoles = f.rolesOf?.get(person);
+  if (personRoles) {
+    for (const r of personRoles) roles.add(r);
   }
 
   return roles;
+}
+
+export function enabled(f, tables, person, target, familyFilter = null) {
+  // 1. Halt Gate:
+  const isAgent = (target?.signerType === "agent" || target?.signer_type === "agent")
+    || f.rolesOf?.get(person)?.has("agent")
+    || [...f.objects.values()].some(obj => obj.family.startsWith("agent:charter") && obj.subject === person && obj.state === "admitted");
+
+  if (f.halt.latched && isAgent) {
+    return [];
+  }
+
+  // 2. Registration Gate:
+  const isReg = f.registered.has(person);
+  const targetId = target?.id || target?.object || null;
+  const o = targetId ? f.objects.get(targetId) : null;
+  const out = [];
+
+  if (o) {
+    if (familyFilter) {
+      const m = tables.matchFamily ? tables.matchFamily(familyFilter) : matchFamily(familyFilter, tables);
+      const famKey = m?.family || familyFilter;
+      if (o.family !== famKey) return [];
+    }
+
+    const isRoomAudience = o.scope?.tier === "room" || target?.tier === "room";
+    if (isRoomAudience) {
+      const roomId = o.scope?.room || target?.room;
+      if (roomId) {
+        const r = f.rooms.get(roomId);
+        if (!r && o.family !== "group:roster") return [];
+        if (r) {
+          const inRoom = r.members.has(person) || r.founders.has(person);
+          const invitee = o.family === "membership:{stage}" && o.subject === person;
+          if (!inRoom && !invitee) return [];
+          if (target?.subject) {
+            const subjInRoom = r.members.has(target.subject) || r.founders.has(target.subject);
+            if (!subjInRoom && o.family !== "membership:{stage}") return [];
+          }
+        }
+      }
+    }
+
+    const roles = standing(f, person, target || o);
+    if (!isReg && o.family !== "key:record") return [];
+
+    const ts = tables.families.get(o.family) || [];
+    for (const t of ts) {
+      if (t.from === o.state && t.roles.length > 0 && t.roles.some(r => roles.has(r))) {
+        out.push(t);
+      }
+    }
+
+    if (o.pending && (roles.has("member") || roles.has("subject") || roles.has("holder"))) {
+      const pol = o.pending.policy?.kind || "two_path";
+      for (const vVerb of ["voice", "assent", "raised", "object"]) {
+        out.push({
+          verb: vVerb,
+          from: o.state,
+          to: o.state,
+          roles: ["member", "subject", "holder"],
+          policy: pol,
+          policyRows: [],
+          widens: false,
+        });
+      }
+    }
+  } else {
+    // Starts (from "none")
+    const isRoomAudience = target?.tier === "room";
+    if (isRoomAudience) {
+      const roomId = target?.room;
+      if (roomId) {
+        const r = f.rooms.get(roomId);
+        const m = familyFilter ? (tables.matchFamily ? tables.matchFamily(familyFilter) : matchFamily(familyFilter, tables)) : null;
+        const isRoster = m?.family === "group:roster";
+        if (!r && !isRoster) return [];
+        if (r) {
+          const inRoom = r.members.has(person) || r.founders.has(person);
+          const invitee = m?.family === "membership:{stage}" && target?.subject === person;
+          if (!inRoom && !invitee && !isRoster) return [];
+        }
+      }
+    }
+
+    const roles = standing(f, person, target);
+    let familiesToCheck = [];
+    if (familyFilter) {
+      const m = tables.matchFamily ? tables.matchFamily(familyFilter) : matchFamily(familyFilter, tables);
+      familiesToCheck.push(m?.family || familyFilter);
+    } else {
+      familiesToCheck = [...tables.families.keys()];
+    }
+
+    for (const fam of familiesToCheck) {
+      if (!isReg && fam !== "key:record") continue;
+      const ts = tables.families.get(fam) || [];
+      for (const t of ts) {
+        if (t.from === "none" && t.roles.length > 0 && t.roles.some(r => roles.has(r))) {
+          out.push(t);
+        }
+      }
+    }
+
+    // Out-of-order votes on uncreated objects (CC CIRISPersist#1198)
+    if (isReg && targetId) {
+      for (const vVerb of ["voice", "assent", "raised", "object"]) {
+        out.push({
+          verb: vVerb,
+          from: "none",
+          to: "none",
+          roles: ["member", "subject", "holder"],
+          policy: "two_path",
+          policyRows: [],
+          widens: false,
+        });
+      }
+    }
+  }
+
+  return out;
 }
 
 export function enabledFor(tables, family, state, roles) {
@@ -597,26 +858,38 @@ export function step(held, tables, row, now) {
   }
 
   const o = f.objects.get(row.object);
-  const state = o ? o.state : "none";
-  const family = o ? o.family : famKey;
   if (o && o.family !== famKey) return { ok: false, refusal: "family_mismatch" };
 
-  const roles = standing(f, row.signer, o || { room: row.scope && row.scope.room, subject: row.subject, id: row.object, author: row.signer });
-  
-  // founding: a roster's first version seats a listed member iff that member signed it, no owner gate
-  if (!o && (famKey === "group:roster" || row.family === "group:roster") && row.verb === "attest" && f.registered.has(row.signer)) { roles.add("founder"); roles.add("member"); }
-  
-  let t = transitionOf(tables, famKey, row.verb, state);
-  if (!t && o && o.pending && (row.stance || row.ranking)) {
-    // a voice on an object under a policy: a row the fold counts, moving nothing by itself
-    t = { verb: "voice", from: state, to: state, roles: ["member", "subject", "holder"], policy: o.pending.policy.kind, policyRows: [], widens: false };
+  const target = {
+    id: row.object,
+    object: row.object,
+    subject: row.subject || null,
+    author: row.signer,
+    room: row.scope?.room || null,
+    signerType: row.signerType || row.signer_type || null,
+    tier: row.scope?.tier || "self",
+  };
+
+  const isVote = Boolean(row.stance || row.ranking || row.verb === "voice" || row.verb === "assent" || row.verb === "raised" || row.verb === "object");
+
+  const enabledTransitions = enabled(f, tables, row.signer, target, row.family);
+  const t = enabledTransitions.find((x) => x.verb === row.verb || (x.verb === "voice" && isVote));
+
+  if (t) {
+    return { ok: true, plan: { row, transition: t, firstHeld: now, policy: policyRow(tables, t) } };
   }
-  if (!t) return { ok: false, refusal: "no_transition" };
-  if (t.roles.length === 0) return { ok: false, refusal: "closed" };
-  if (!t.roles.some((r) => roles.has(r))) return { ok: false, refusal: "no_standing" };
+
+  // Refusal determination:
+  const isAgent = (row.signerType === "agent" || row.signer_type === "agent")
+    || f.rolesOf?.get(row.signer)?.has("agent")
+    || [...f.objects.values()].some(obj => obj.family.startsWith("agent:charter") && obj.subject === row.signer && obj.state === "admitted");
+  if (f.halt.latched && isAgent) return { ok: false, refusal: "halted" };
+
+  if (o && o.family !== famKey) return { ok: false, refusal: "family_mismatch" };
+
   const selfKey = (famKey === "key:record" || row.family === "key:record") && row.verb === "attest";
-  const isSystem = row.signer === "identity:substrate_persist" || row.signer === "identity:lenscore_detector";
-  if (!selfKey && !isSystem && !f.registered.has(row.signer)) return { ok: false, refusal: "unregistered" };
+  if (!selfKey && !f.registered.has(row.signer)) return { ok: false, refusal: "unregistered" };
+
   if (row.scope && row.scope.tier === "room") {
     const r = f.rooms.get(row.scope.room);
     const inRoom = r && (r.members.has(row.signer) || r.founders.has(row.signer));
@@ -625,8 +898,12 @@ export function step(held, tables, row, now) {
     if (r && !inRoom && !invitee) return { ok: false, refusal: "subject_outside_audience" };
     if (row.subject && r && !(r.members.has(row.subject) || r.founders.has(row.subject)) && famKey !== "membership:{stage}" && row.family !== "membership:{stage}") return { ok: false, refusal: "subject_outside_audience" };
   }
-  if (f.halt.latched && row.signerType === "agent") return { ok: false, refusal: "halted" };
-  return { ok: true, plan: { row, transition: t, firstHeld: now, policy: policyRow(tables, t) } };
+
+  const rawT = transitionOf(tables, famKey, row.verb, o ? o.state : "none");
+  if (!rawT) return { ok: false, refusal: "no_transition" };
+  if (rawT.roles.length === 0) return { ok: false, refusal: "closed" };
+
+  return { ok: false, refusal: "no_standing" };
 }
 
 export function commit(held, plan) { held.set(plan.row.id, { row: plan.row, firstHeld: plan.firstHeld }); return plan; }

@@ -36,7 +36,7 @@ the pointer map.
   delegates_to + supersedes + withdraws + recants). §5 dimension
   namespace. §9 humanity_accord. New §18 interop ("speak CEG inside,
   standards at the edge"; C2PA via `evidence_refs[]`) and §19
-  holonomic (RaptorQ fountain / ALM / noise-floor retirement,
+  holonomic (whole-chunk sealed storage / ALM / noise-floor retirement,
   normative). Implementers pin against RC29; after 1.0 SemVer binds
   strictly (MAJOR only for wire-incompatible change).
 
@@ -88,7 +88,7 @@ the pointer map.
 
 - [docs/BENCHMARKS.md](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/BENCHMARKS.md) — dispatch_inbound, outbound_enqueue, content_fetch_roundtrip, inline_text_pipeline costs
 - [docs/STANDARDS_COMPARISON.md](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/STANDARDS_COMPARISON.md) — comparison to libp2p, NATS, iroh
-- realtime A/V chunk wire (SFrame + MLS) + the §19 RaptorQ fountain / ALM substrate, with the live `FountainSwarmRuntime` (publisher + converger) driving swarm-rarity convergence, repair, and revoke→hard-delete for holographic replication
+- realtime A/V chunk wire (SFrame + MLS), whole-chunk sealed storage (`CC §5.4.3, §6.1.5`), and CC §6.1.6 deterministic ALM member relay trees — with consenting holders maintaining custody (`custody:ack:v1`; `holds_bytes` refused per `CC 3.1.3.3`), multiplicity floor convergence ($n_{\text{eff}} \ge 3$, $R_9 \ge 9$ per `CC 6.1.2.1.2`), layered-codec rate-distortion fidelity `(R, ε)` (`CC 6.1.2`, `CLM-noise-classify`) over `ChunkLayer` sets without symbol fragmentation (`CC 5.3.3.2.3`), and revoke→hard-delete
 - [docs/THREAT_MODEL.md](https://github.com/CIRISAI/CIRISEdge/blob/main/docs/THREAT_MODEL.md)
 
 ### CIRISNodeCore — consensus core (ciris-node-core; folds in at Server 1.0)

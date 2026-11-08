@@ -1,12 +1,21 @@
-# CIRIS consolidated analysis set
+# CIRIS Consolidated Analysis Set — Historical Archive
 
-This directory gathers the **load-bearing documents** of the CIRIS system,
-pulled from their home repositories into one place so the whole stack can be
-reviewed as a single philosophical–technical system rather than a pile of
-independent software projects. The architecture's correctness depends less on
-the Rust code than on whether the constitutional, epistemic, and governance
-layers stay mutually consistent — these are the documents that let you check
-that.
+> [!IMPORTANT]
+> **Historical Archive Notice (Superseded Pre-rc10 Working Papers)**  
+> This directory (`analysis/`) is a **historical archive of superseded pre-rc10 working papers, early architectural notes, and pre-rc17 transport drafts**.  
+> The documents in this archive are preserved verbatim for provenance, research continuity, and retrospective analysis only.
+>
+> In particular:
+> - **RaptorQ / rateless / fountain coding**: Dropped for storage at `CIRISConstitution@rc10` (2026-10-22) and excluded from the live A/V path by `CC 5.3.3.2.3` (a sealed chunk *"is never fragmented into symbols. No symbol envelope"*). The normative Constitution has zero occurrences of `raptorq`, `rateless`, or `fountain` in its Parts. Authentic storage is whole-chunk sealed storage (`CC 5.4.3`, `CC 6.1.5`) with layered-codec rate-distortion fidelity `(R, ε)` (`CC 6.1.2`, `CLM-noise-classify`) and multiplicity floors (`n_eff >= 3`, `R9 >= 9` per `CC 6.1.2.1.2`).
+> - **Transport and ALM drafts**: Pre-rc17 transport models in this archive were superseded by `CIRISConstitution@rc10..rc17` (`CC §5.4.3`, `§5.4.6`, `§6.1.6`) and `CIRISEdge v44`. Normative transport rules include lower-of-offers link agreement (`min(local, peer)`), referral ranking by inbound dial count descending, the `shaped_only` rule (2026-11-06), trust-gated Sybil resistance (`CC 1.13.3.3`), sticky guards held while answering (`onion_tier_unavailable_floor`), and member-only relay trees pinned to a single publisher at depth 0.
+>
+> **Do not cite or rely on the working papers in `analysis/` for authoritative constitutional semantics, storage designs, or network contracts.** The canonical authority is [`CIRISConstitution`](https://github.com/CIRISAI/CIRISConstitution) (`rc17`).
+
+---
+
+This directory gathers historical working papers of the CIRIS system,
+pulled from their home repositories into one place so the progression of the stack can be
+reviewed as a single philosophical–technical system.
 
 Layout follows the four-layer / eight-tier review frame:
 **philosophy → constitution → governance → implementation.**
@@ -15,8 +24,7 @@ Layout follows the four-layer / eight-tier review frame:
 - Threat models are taken from each repo's **canonical** `docs/THREAT_MODEL.md`,
   not the stale vendored copies in RATCHET — see `SOURCES.md` for the staleness table.
 
-> Everything here is a verbatim copy. The home repo stays canonical; re-pull
-> before relying on any document for a decision.
+> Everything here is an archival copy. The home repos and normative constitution (`CIRISConstitution@rc17`) stay canonical.
 
 ---
 
@@ -127,7 +135,7 @@ documents.
 
 ---
 
-## The contradictions worth testing once it's all in one place
+## Archival Contradictions Tested During Stack Synthesis
 
 1. **Constitutional** — can humanity-accord authority coexist with federation sovereignty? (T1 + CEG §9)
 2. **Epistemic** — can Lens stay observational if it is grounded in Accord-defined values? (T3 + T1)

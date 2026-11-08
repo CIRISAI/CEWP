@@ -167,7 +167,7 @@ per-`stream_id` STH + epoch-key cascade) is net-new and not yet
 benched here. **Also net-new since CEG 1.0 / §19 and NOT YET BENCHED
 here** — the holonomic substrate (§2.5 below): the unified
 retirement → noise-floor descent, the memory pyramid at O(log T),
-RaptorQ fountain/holographic replication, and deterministic ALM
+whole-chunk sealed storage replication, and deterministic ALM
 multicast. Refresh cadence is per
 substrate release per [NodeCore#23](https://github.com/CIRISAI/CIRISNodeCore/issues/23)
 living-document audit.
@@ -196,14 +196,27 @@ multimedia was net-new since CEG 0.3). They refine, not replace, the
   the §5 scenarios derive — they currently model a flat per-source
   retention, not the pyramid; re-deriving implied retention against
   the pyramid is open bench work.
-* **RaptorQ fountain / holographic replication** (CEG §19.3) —
-  published content is `(N,K)` erasure-coded (defaults
-  `N=20,K=6,min_viable=5`); any sufficient subset of fragments
-  reconstructs it at proportional fidelity, and the federation
-  re-establishes from one survivor holding a signed witness chain
-  (WholenessWitness). The §2.7-style demand-driven holder fan-out
-  becomes fragment fan-out; per-fragment cost is unbenched here.
-* **Deterministic ALM member relay tree & CC §5.4.3 Budget Classes** (CEG §19.4, CC RC17 §5.3.3.2 / §5.4.3 / §5.4.6 / §6.1.6, Edge v44) — the **CC §6.1.6 `deterministic-alm` member relay tree** (`k = 8` fan-out over sealed chunks, computed deterministically by every member; distinct from **CC §5.3.3.2**, where the realtime profile has no selective-forwarding relay role) replaces point-to-point fan-out so a `5,000`-member room post costs member relay tree fan-out (`O(log_k N)`, ~43 hops) rather than `5,000` unicasts. This is modeled alongside the **CC §5.4.3 budget classes** (`server` `7,000 B/s`, `home` `2,800 B/s`, `phone-wifi` `1,400 B/s`, `phone-cellular` `350 B/s`, and `seat` `33,000 B/s`, each at $\rho = 0.5$, 1 direct hop per shaped link) and `reach_home_share` / $k=2$ homed leaf accounting (`formal/transport_tiers/Tiers.lean` proves `reach ≠ capacity`) in [`examples/scale_model.rs`](../examples/scale_model.rs), [`toy/index.html`](../toy/index.html), and [`docs/index.html`](../docs/index.html).
+* **Whole-chunk sealed storage & multiplicity replication** (`CC §5.4.3`, `CC §6.1.5`) —
+  published content is stored as sealed whole chunks across consenting holders
+  (`custody:ack:v1`; the retired `holds_bytes` token is refused per `CC §3.1.3.3`)
+  replicated to the multiplicity floor ($n_{\text{eff}} \ge 3$ across independent ASN/jurisdiction/signer
+  axes via integer floor over fixed-point masses, and $R_9 \ge 9$ holders for root durability per `CC §6.1.2.1.2`).
+  Layered-codec fidelity (`CC §6.1.2`, `CLM-noise-classify`) defines `Full` / `Partial` / `EnvelopeOnly`
+  chunk classification by rate-distortion $(R, \varepsilon)$ over `ChunkLayer` sets rather than symbol counts.
+  In live A/V (`CC §5.3.3.2.3`), sealed chunks are never fragmented into symbols ("No symbol envelope").
+  The federation re-establishes from any single survivor holding a signed witness chain (WholenessWitness).
+* **Deterministic ALM member relay tree & CC §5.4.3 Transport Rules** (CC RC17 §5.3.3.2 / §5.4.3 / §5.4.6 / §6.1.6, Edge v44) —
+  in ALM (`CC §6.1.6`), the stream key pins the single publisher at depth 0, and the tree is strictly
+  a **member relay tree** (seats/forwarders are never fan-out hubs per `CC §5.4.6`). Fan-out $k=8$ and
+  50M-viewer broadcast figures are **CEWP scaling model assumptions** (`MODEL`), while `CLM-alm-live-tree-verified`
+  is `staged` (`CIRISEdge#945`). Transport rules conform to CC §5.4.3 and §5.4.6:
+  - **Lower of two offers**: Link class agreement runs at the lower of the two offers (`min(local, peer)`).
+  - **Referral ranking**: Unsolicited referrals are ranked by inbound dial count **descending** (higher count is evidence of reachability, not load).
+  - **`shaped_only` rule (2026-11-06)**: Shaped links (`L ≤ 8`) form with offering nodes and any node that asks (`shaped_only` / Anonymous Tier). Chat and files ride a shaped link **only when one end is `shaped_only`**; the 9th peer is refused only on `shaped_only` / Anonymous Tier nodes (otherwise made and runs unshaped).
+  - **Sybil resistance**: $L \le 8$ is link-rate shaping, **not** "contact-gated Sybil resistance". Sybil resistance in CC is trust gating (`CC §1.13.3.3`) and stated residual under flood (`CC §5.4.6`).
+  - **Sticky guards & tier floor**: Sticky guards (`CC §5.4.6` item 4) are held as long as they answer (never rotated on a schedule); below the relay floor the tier is unavailable (`onion_tier_unavailable_floor`).
+  - **Proxy pull tier check**: Proxy pull only proxies federation-tier rows (`CC §5.4.6`).
+  - **CONP attribution**: `CONP` frame sizing (`15,296 B`), `3 × 1,264 B` onion headers, and TCP channel payload MDU (`16,272 B / 500`) are attributed to **`CIRISEdge v44`** (CC §5.4.6 pins the functional onion contract and general bounds "about 400 bytes ... about 16 KB").
 
 Holonomic mechanisms are blind to the anonymous tier
 ([ANONYMOUS_TIER.md](ANONYMOUS_TIER.md)), subordinate to
@@ -215,8 +228,9 @@ property — they sit underneath it.
 
 `implied retention` is the full-fidelity dwell time before content
 begins to degrade — `trust_budget_share / daily_admitted_stored`
-(§7), where the fountain `1/N` symbol store (≈5%, `H/N=1.5×` overhead
-vs the old whole-copy 5×) is what stretches it ~3.3×. Run
+(§7), where whole-chunk sealed storage with multiplicity floor $n_{\text{eff}} \ge 3$,
+$R_9 \ge 9$ and layered-codec rate-distortion $(R, \varepsilon)$ degradation balances
+durability with storage efficiency. Run
 `cargo run --example scale_model` (toy v0.7, single **1 TB / 1 core**
 v1 server, default cohort, depth 1):
 

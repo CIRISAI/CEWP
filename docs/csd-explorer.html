@@ -428,7 +428,8 @@ table.data-tbl tr:hover td {
     <h1 class="title">CSD/4 Architecture &amp; CC RC17 Namespace Explorer</h1>
     <p class="subtitle">
       A unified, interactive reference bridging <b>CIRISConstitution@rc17</b>, <b>CIRISServer</b>, <b>CIRISClient</b>, <b>CEWPOS</b>, and <b>CEWP</b>:
-      the closed catalogue of <b>20 topologies (T0–T19)</b>, <b>105 CSD UI cards</b>, <b>191 namespace families</b>, <b>474 constitutional transitions</b>, <b>17 role tokens</b>, and <b>12 governance policies</b> running live against the browser-executable CEWP kernel.
+      the closed catalogue of <b>20 topologies (T0–T19)</b>, <b>105 CSD cards (101 in CIRISClient across 22 files [43 CSD/4 four-field + 58 earlier bullet cards] + 4 CEWPOS cards CSD-CEWPOS-001..004)</b>, <b>191 namespace families</b>, <b>474 constitutional transitions</b>, <b>17 role tokens</b>, and <b>12 governance policies</b> running live against the browser-executable CEWP kernel.
+      The CSD-to-namespace mapping is <b>CEWP's synthesis of CIRISClient/CEWPOS cards against CC rc17's namespace_registry.json (191 families) and csd4_chain.json (156 vocabulary atoms, 152 state-table atoms, 110 promised atoms across T0..T19, catalogue v6)</b>.
     </p>
   </header>
 
@@ -447,16 +448,16 @@ table.data-tbl tr:hover td {
       <div class="stat-label">Closed Topologies</div>
     </div>
     <div class="stat-card">
-      <div class="stat-val violet" id="stat-cards">105</div>
-      <div class="stat-label">CSD UI Cards</div>
+      <div class="stat-val violet" id="stat-cards">105 Cards</div>
+      <div class="stat-label">101 CIRISClient + 4 CEWPOS</div>
     </div>
     <div class="stat-card">
       <div class="stat-val ok" id="stat-roles">17 Roles</div>
       <div class="stat-label">8 Base + 9 Specialized</div>
     </div>
     <div class="stat-card">
-      <div class="stat-val cool" id="stat-shows">660 / 660</div>
-      <div class="stat-label">Resolved csd:shows (100%)</div>
+      <div class="stat-val cool" id="stat-shows">783 / 1,291</div>
+      <div class="stat-label">Valid Vectors (505 Private + 3 Retired Refused)</div>
     </div>
   </div>
 
@@ -477,7 +478,7 @@ table.data-tbl tr:hover td {
         Client developers build UI screens with ad-hoc assumptions; server teams invent unconstrained RPC APIs; and formal rulebooks exist only as abstract mathematical proofs disconnected from what a user actually clicks.
       </p>
       <p>
-        <b>CSD/4 (Constitutional Scenario &amp; Screen Definition, v4)</b> completely eliminates this drift. It bridges five core repositories into an unbroken formal loop:
+        <b>CSD/4 (Card-first Specification Design, 4-field card format: <code>shows</code> / <code>reads</code> / <code>emits</code> / <code>checks</code>)</b>, grounded by Cornerstone Invariants <code>X1–X5</code>, completely eliminates this drift. It bridges five core repositories into an unbroken formal loop:
       </p>
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 14px 0 18px;">
         <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
@@ -486,11 +487,11 @@ table.data-tbl tr:hover td {
         </div>
         <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
           <div style="color:var(--cool); font-weight:700; margin-bottom:4px;">2. CIRISServer</div>
-          <div style="font-size:12px; color:var(--mute);">State machine model, 120 vocabulary atoms, and execution traces for all 20 canonical topologies.</div>
+          <div style="font-size:12px; color:var(--mute);">State machine model, 156 vocabulary atoms (152 in state table, catalogue version 6, 110 distinct promised atoms across T0–T19), and execution traces for all 20 canonical topologies.</div>
         </div>
         <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
           <div style="color:var(--warm); font-weight:700; margin-bottom:4px;">3. CIRISClient</div>
-          <div style="font-size:12px; color:var(--mute);">Epistemic UI, 105 CSD cards (CSD-001..132), rendering queues directly from admission folds.</div>
+          <div style="font-size:12px; color:var(--mute);">Epistemic UI: 101 CSD cards across 22 files in CIRISClient (43 CSD/4 four-field cards + 58 earlier bullet cards), plus 4 CEWPOS cards (CSD-CEWPOS-001..004), for 105 total cards.</div>
         </div>
         <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
           <div style="color:var(--violet); font-weight:700; margin-bottom:4px;">4. CEWPOS</div>
@@ -539,33 +540,36 @@ table.data-tbl tr:hover td {
         <li><code>T3</code> <b><code>device.join_requested [3, 4)</code></b>: Ephemeral pairing negotiation window. Admits <code>approve</code> or <code>refuse</code> from an existing authenticated device.</li>
         <li><code>T5</code> <b><code>member.applicant_pending [4, 5)</code></b>: Applicant waiting on community quorum threshold voting before admission or decline.</li>
         <li><code>T8</code> <b><code>root.halted [1, 2)</code></b>: Emergency brake suspension window where standard mutations are refused until quorum confirmation resumes or revokes the root.</li>
-        <li><code>T10</code> <b><code>self.compromised_device [3, 4)</code></b>: Isolation window before key revocation and quorum eviction of compromised hardware.</li>
+        <li><code>T10</code> <b><code>key.membership.proposed_evict [18, 19)</code></b>: Isolation window before key revocation and quorum eviction of compromised hardware (<code>key.membership.evicted</code>).</li>
       </ul>
     </div>
 
     <!-- The 5 Cross-Plane Spine Invariants -->
     <div class="card-box">
-      <h2>The 5 Cross-Plane Spine Invariants (X1–X5)</h2>
+      <h2>The 5 Cornerstone Cross-Plane Spine Invariants (X1–X5)</h2>
+      <p style="font-size:13px; color:var(--ink); margin-bottom:12px;">
+        Formal cross-plane safety properties verified by <code>CewpNode.tla</code> (CIRISConstitution rc17 <code>formal/cewp_node/README.md:54-58</code>) over the normalized state table:
+      </p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 10px;">
         <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:12px;">
-          <div style="color:var(--ok); font-weight:700; margin-bottom:4px;">X1: Identity &amp; Key Anchoring</div>
-          <div style="font-size:12px; color:var(--ink);">No state atom or row exists without a verifiable root or key-holder authority anchor. Unanchored signals are dropped at the physical door.</div>
+          <div style="color:var(--ok); font-weight:700; margin-bottom:4px;">X1: Halt is not a trust leg <span style="font-size:11px; color:var(--mute); font-weight:normal;">(CC 3.2 T8 (v), 4.2.1.1)</span></div>
+          <div style="font-size:12px; color:var(--ink);">A constitutional halt (<code>accord_halt</code>) freezes agent operations without creating a trust edge. The latch moves no standing, stops no serving and no replication, and moves exactly the agent's act gate; a latched node can still serve and replicate (<code>ENABLED</code>).</div>
         </div>
         <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:12px;">
-          <div style="color:var(--cool); font-weight:700; margin-bottom:4px;">X2: Monotonic Audit Spine</div>
-          <div style="font-size:12px; color:var(--ink);">Append-only signal log. Every valid mutation has a non-decreasing causal timestamp and immutable parent hash chain.</div>
+          <div style="color:var(--cool); font-weight:700; margin-bottom:4px;">X2: Evicted roster key's authority ends <span style="font-size:11px; color:var(--mute); font-weight:normal;">(CC 3.3.6.3)</span></div>
+          <div style="font-size:12px; color:var(--ink);">The authority of a roster key ends with its eviction; a revoked/evicted key cannot exercise authority after eviction, and any live roster key acts as the self.</div>
         </div>
         <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:12px;">
-          <div style="color:var(--warm); font-weight:700; margin-bottom:4px;">X3: Bounded Visibility &amp; Privacy</div>
-          <div style="font-size:12px; color:var(--ink);">Rows propagate strictly along admissible links to holders whose standing grants visibility. Stranger sets carry strictly zero non-consent data.</div>
+          <div style="color:var(--warm); font-weight:700; margin-bottom:4px;">X3: Replication needs peer's consent <span style="font-size:11px; color:var(--mute); font-weight:normal;">(CC 3.3.7, 3.3.1)</span></div>
+          <div style="font-size:12px; color:var(--ink);">Replication of a peer's content needs that peer's bilateral consent / custody agreement; a revocation is an immediate boundary.</div>
         </div>
         <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:12px;">
-          <div style="color:var(--violet); font-weight:700; margin-bottom:4px;">X4: Door, Queue &amp; Preview Equivalence</div>
-          <div style="font-size:12px; color:var(--ink);"><code>door(s, r) === admit(s, r)</code>, <code>preview(s, r) === fold(s, r)</code>, and <code>preview(s, refused) === s</code>. The queue is the door run forwards.</div>
+          <div style="color:var(--violet); font-weight:700; margin-bottom:4px;">X4: Local-tier row never leaves node <span style="font-size:11px; color:var(--mute); font-weight:normal;">(CC 5.3.2.4, 2.6.1.7)</span></div>
+          <div style="font-size:12px; color:var(--ink);">A local-tier row (<code>local_only</code>) never leaves its node and never crosses a federation link; a served row is always a signed federation-tier row.</div>
         </div>
         <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:12px;">
-          <div style="color:var(--hot); font-weight:700; margin-bottom:4px;">X5: Finite Convergence &amp; Re-Merge</div>
-          <div style="font-size:12px; color:var(--ink);">Under arbitrary partitions and message permutations, merging held sets converges deterministically to identical folded state.</div>
+          <div style="color:var(--hot); font-weight:700; margin-bottom:4px;">X5: Leaving a root is one act <span style="font-size:11px; color:var(--mute); font-weight:normal;">(CC 4.2.1)</span></div>
+          <div style="font-size:12px; color:var(--ink);">Leaving the root is a single unilateral act: the subscription falls and the latch lifts together without requiring counter-signature; the historical record stands.</div>
         </div>
       </div>
     </div>
@@ -577,15 +581,21 @@ table.data-tbl tr:hover td {
         The CSD/4 simulator does not brute-force mesh states. It runs a <b>subset-search cost-minimizing planner</b> that finds the optimal sequence of actions folding an initial topology into a destination topology (e.g., folding <code>T0</code> into <code>T2</code> at steps 1 &amp; 2: claim node, key holder, pair room) with zero redundant round trips.
       </p>
       <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:14px; margin-top:12px;">
-        <div style="font-weight:700; color:#fff; margin-bottom:6px;">Formal State Coverage Report:</div>
+        <div style="font-weight:700; color:#fff; margin-bottom:6px;">Formal State Coverage Report (Catalogue Version 6):</div>
         <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:var(--ink);">
-          <div><b style="color:var(--ok);">116</b> in Formal State Table (<code>formal/STATE_TABLE.tsv</code>)</div>
-          <div><b style="color:var(--cool);">122</b> Promised Atoms across T0–T19</div>
-          <div><b style="color:var(--warm);">156</b> Total Vocabulary Atoms</div>
-          <div><b style="color:var(--violet);">242</b> Theoretical Constitutional States</div>
+          <div><b style="color:var(--ok);">152</b> Atoms in State Table (<code>formal/STATE_TABLE.tsv</code>)</div>
+          <div><b style="color:var(--cool);">110</b> Distinct Promised Atoms across T0–T19</div>
+          <div><b style="color:var(--warm);">156</b> Total Vocabulary Atoms (CC rc17)</div>
+          <div><b style="color:var(--violet);">242</b> Theoretical Constitutional States (81 vars, 12 planes)</div>
+        </div>
+        <div style="margin-top:10px; font-size:12.5px; color:var(--ink);">
+          <b>Namespace Match Vectors (1,291 Total in CC rc17):</b>
+          <span style="color:var(--ok); margin-left:6px;"><b>783</b> valid canonical vectors</span> ·
+          <span style="color:var(--warm); margin-left:6px;"><b>505</b> <code>x_private:*</code> refusal vectors (<code>RefusedPrivateNamespace</code>)</span> ·
+          <span style="color:var(--hot); margin-left:6px;"><b>3</b> retired <code>holds_bytes</code> refusal vectors (<code>RefusedRetiredHoldingClaim</code>)</span>
         </div>
         <p style="margin:10px 0 0; font-size:12px; color:var(--mute);">
-          <b>Note on Remaining Atoms:</b> The 6 <code>file.durable.*</code> atoms (<code>file.durable.held</code>, <code>file.durable.replicating</code>, <code>file.durable.replicated</code>, <code>file.durable.below_quorum</code>, <code>file.durable.target_reached</code>, <code>file.durable.tombstoned</code>) correspond to the target-holder replication durability tier (CC 6.1.5) and await the planned <code>T20</code> durability topology.
+          <b>Note on Remaining Atoms:</b> The 6 <code>file.durable.*</code> atoms (<code>file.durable</code>, <code>file.durable.at_target</code>, <code>file.durable.below_floor</code>, <code>file.durable.descending</code>, <code>file.durable.recovered</code>, <code>file.durable.unmarked</code>) correspond to the target-holder replication durability tier (CC 6.1.5) and await the planned <code>T20</code> durability topology.
         </p>
       </div>
     </div>
@@ -776,14 +786,14 @@ const TOPOLOGY_TITLES = {
   "T9": "Two roots and a party outside both",
   "T10": "A stolen device — the owner evicts it by the quorum path",
   "T11": "Two lost devices — recovery by the lone path over the window",
-  "T12": "A root stalls and recovers by a conferred human",
-  "T13": "A witnessed lineage — stale head refuses attach",
-  "T14": "Consent end to end — grant, revoke, expiry, decay",
-  "T15": "A community's ceremony — decline, removal, resignation",
+  "T12": "A root stalls (a founder resigns below the margin) and recovers by a conferred human",
+  "T13": "A witnessed lineage — a stale head refuses attach; a node-bearing seat never counts",
+  "T14": "Consent end to end — grant, revoke, expiry, decay; replication grant and its withdrawal",
+  "T15": "A community's ceremony — decline, removal, resignation; a moderator lapses, the room fails secure",
   "T16": "An agent retired under the Standard",
-  "T17": "A takedown and a steward purge — tombstone, dwell, purge",
-  "T18": "Delegation ends — withdrawal cascades, term expires",
-  "T19": "Holders under coercion and censorship"
+  "T17": "A takedown and a steward purge — tombstone, dwell, purge; family and community scope",
+  "T18": "Delegation ends — a withdrawal cascades, a term expires; a key grant held; a guardian bond absent and made",
+  "T19": "Holders under coercion and censorship — the standing rule holds; an announced node; revoked_after"
 };
 
 async function init() {

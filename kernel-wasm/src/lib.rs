@@ -8,13 +8,13 @@
 //!   - IMIX 6-category payloads & longitude-aware diurnal wave (diurnal_multiplier)
 //!   - Constitutional 64 KiB shaped-link gate (check_shaped_payload)
 //!   - Rank-based L <= 8 displacements & 3-referral proxy pulls
-//!   - RaptorQ fountain symbol-rank storage & noise-floor descent (NoiseFloorState)
+//!   - Whole-chunk custody & layered-fidelity noise-floor descent (NoiseFloorState)
 //!   - CIRISHolon commuting-square closure defect D_v^2, budget beta=0.030, Lipschitz K, maintenance rent G_inf, witness pairs
 //!   - Credible baselines: A1_HYPERSCALE_CDN, A2_MULTIREGION_SFU, A3_HYBRID_P2P wire bytes
 
 use std::alloc::{alloc as sys_alloc, Layout};
 use cewp_sim::transport::check_shaped_payload;
-use cewp_sim::fountain::{classify, NoiseFloorState};
+use cewp_sim::chunk_custody::{classify, NoiseFloorState};
 use cewp_sim::holon::{ClosureCertificate, MaintenanceRent};
 use cewp_sim::workload::diurnal_multiplier;
 
@@ -68,8 +68,8 @@ unsafe fn push_arc(arcs: *mut u32, arcs_n: &mut u32, arc_cap: u32, from: u32, to
 /// 22 onion-routed acts (0 extra wire bytes over rho=0.5 cover), 23 direct IPv6/punched-path hops,
 /// 24 count of > 64 KiB acts refused on shaped links (check_shaped_payload refusal),
 /// 25 count of L <= 8 rank-based displacements & 3-referral proxy pulls,
-/// 26 fountain symbol-rank NoiseFloorState::Full reconstruction percentage (0.0..100.0),
-/// 27 count of fountain objects in Partial / EnvelopeOnly or hard-deleted via CLM-noise-N5,
+/// 26 whole-chunk custody / layered fidelity NoiseFloorState::Full reconstruction percentage (0.0..100.0),
+/// 27 count of whole-chunk objects in Partial / EnvelopeOnly or hard-deleted via CLM-noise-N5,
 /// 28 CIRISHolon commuting-square closure defect D_v^2,
 /// 29 CIRISHolon closure budget beta (0.030),
 /// 30 CIRISHolon empirical Lipschitz constant K,
@@ -93,8 +93,8 @@ pub extern "C" fn tick(
     let mut o = [0f64; OUT_SLOTS];
     let mut arcs_n = 0u32;
     let mut locality_acts = [0u32; 181];
-    let mut fountain_full = 0u32;
-    let mut fountain_total = 0u32;
+    let mut chunk_custody_full = 0u32;
+    let mut chunk_custody_total = 0u32;
     let mut baseline_a1 = 0.0f64;
     let mut baseline_a2 = 0.0f64;
     let mut baseline_a3 = 0.0f64;
@@ -188,16 +188,18 @@ pub extern "C" fn tick(
             // Constitutional 64 KiB Payload Boundary (CC §5.4.3 & §6.1.6, CLM-large-file-not-shaped)
             let payload_shaped_allowed = check_shaped_payload(payload_bytes as usize).is_ok();
             if !payload_shaped_allowed {
-                o[24] += 1.0; // Refused on shaped links, carried on unshaped RaptorQ / deterministic-alm
+                o[24] += 1.0; // Refused on shaped links, carried on unshaped bulk / deterministic-alm
             }
 
             let bytes_broadcast = (n as f64) * payload_bytes;
 
             if kind == 3 {
                 // Public room / CC 6.1.6 `deterministic-alm` member relay tree over sealed chunks:
+                // Per CC 5.4.6: "a forwarder or seat is never a fan-out node of the member relay tree;
+                // the tree is the members'". Publisher is the signer (root of the member relay tree).
                 let mut touched_metros = [0xFFFFu16; 32];
                 let mut touched_n = 0usize;
-                let mut prev_hub = local_seat;
+                let mut prev_member = signer;
 
                 for i in 0..count {
                     let m = *members.add(i) as usize;
@@ -220,20 +222,18 @@ pub extern "C" fn tick(
                         if !seen && touched_n < 32 {
                             touched_metros[touched_n] = mm16;
                             touched_n += 1;
-                            let ma0 = *seats_off.add(mm) as usize;
-                            let ma1 = *seats_off.add(mm + 1) as usize;
-                            let target_seat = if ma1 > ma0 { *seats.add(ma0) as usize } else { m };
-                            o[8] += km(lat[prev_hub], lon[prev_hub], lat[target_seat], lon[target_seat]);
+                            let target_member = m;
+                            o[8] += km(lat[prev_member], lon[prev_member], lat[target_member], lon[target_member]);
                             // CC 6.1.6 `deterministic-alm` member relay tree hops over sealed chunks
                             o[20] += 1.0;
                             let tier = 2;
                             if below(&mut s, 3) == 0 {
-                                push_arc(arcs, &mut arcs_n, arc_cap, prev_hub as u32, target_seat as u32, tier);
+                                push_arc(arcs, &mut arcs_n, arc_cap, prev_member as u32, target_member as u32, tier);
                             }
-                            let a_seat = activity.get_unchecked_mut(target_seat);
-                            *a_seat = a_seat.saturating_add(70);
+                            let a_mem = activity.get_unchecked_mut(target_member);
+                            *a_mem = a_mem.saturating_add(70);
                             if (touched_n & 3) == 0 {
-                                prev_hub = target_seat;
+                                prev_member = target_member;
                             }
                         }
                     }
@@ -248,11 +248,11 @@ pub extern "C" fn tick(
                 o[21] += saved as f64;
                 o[9] += (tree_hops as f64) * payload_bytes;
 
-                // Fountain symbol-rank evaluation for public room
-                fountain_total += 1;
-                let sym_reach = ((delivered * 28) / (count.max(1) as u32)).min(30);
-                if classify(sym_reach, 20, 6) == NoiseFloorState::Full {
-                    fountain_full += 1;
+                // Whole-chunk custody evaluation for public room
+                chunk_custody_total += 1;
+                let chunk_reach = ((delivered * 28) / (count.max(1) as u32)).min(30);
+                if classify(chunk_reach, 20, 6) == NoiseFloorState::Full {
+                    chunk_custody_full += 1;
                 } else {
                     o[27] += 1.0;
                 }
@@ -270,8 +270,11 @@ pub extern "C" fn tick(
                     let direct_nat = below(&mut s, 1000) < direct_nat_pm;
                     if direct_nat { o[23] += 1.0; }
 
-                    // CC 5.4.3 ("A shaped link is one hop"): direct 1-hop only; payload <= 64 KiB
-                    let shaped_hop = direct_nat && payload_shaped_allowed && (is_onion || (!is_live_alm && below(&mut s, 1000) < shaping_pm));
+                    // CC 5.4.3 & 2026-11-06 shaped-only rule:
+                    // Chat and files ride a shaped link only when one end is shaped_only;
+                    // every other pair's chat crosses a direct unshaped link.
+                    let one_end_shaped_only = below(&mut s, 1000) < shaping_pm;
+                    let shaped_hop = direct_nat && payload_shaped_allowed && (is_onion || (!is_live_alm && one_end_shaped_only));
 
                     // Rank-based L <= 8 link displacement & 3-referral proxy pull (CC §5.4.3)
                     if shaped_hop && below(&mut s, 25) == 0 {
@@ -333,13 +336,13 @@ pub extern "C" fn tick(
                     o[9] += (wire_hops.min(delivered) as f64) * payload_bytes;
                 }
 
-                // Fountain symbol-rank evaluation for community room (kind == 1)
+                // Whole-chunk custody evaluation for community room (kind == 1)
                 if kind == 1 {
-                    fountain_total += 1;
-                    let sym_reach = ((delivered * 28) / (count.max(1) as u32)).min(30);
+                    chunk_custody_total += 1;
+                    let chunk_reach = ((delivered * 28) / (count.max(1) as u32)).min(30);
                     let is_revoked = below(&mut s, 250) == 0; // CLM-noise-N5 revocation hard-delete
-                    if !is_revoked && classify(sym_reach, 20, 6) == NoiseFloorState::Full {
-                        fountain_full += 1;
+                    if !is_revoked && classify(chunk_reach, 20, 6) == NoiseFloorState::Full {
+                        chunk_custody_full += 1;
                     } else {
                         o[27] += 1.0;
                     }
@@ -370,9 +373,9 @@ pub extern "C" fn tick(
             baseline_a3 += payload_bytes * (1.0 + p2p_eff);
         }
 
-        // o[26]: Fountain symbol-rank Full reconstruction percentage (0.0..100.0)
-        o[26] = if fountain_total > 0 {
-            (fountain_full as f64 / fountain_total as f64) * 100.0
+        // o[26]: Whole-chunk custody / layered fidelity NoiseFloorState::Full reconstruction percentage (0.0..100.0)
+        o[26] = if chunk_custody_total > 0 {
+            (chunk_custody_full as f64 / chunk_custody_total as f64) * 100.0
         } else {
             95.0
         };

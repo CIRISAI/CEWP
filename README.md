@@ -26,7 +26,7 @@ is what *governs* the system in real time.
 
 Nothing here relies on uninvented cryptography. Hybrid post-quantum
 signatures (`Ed25519 + ML-DSA-65`), hybrid KEMs (`X-Wing`), CBOR/COSE
-statements, RFC 9162 Merkle trees, RaptorQ fountain codes, and
+statements, RFC 9162 Merkle trees, whole-chunk sealed storage (`CC §5.4.3, §6.1.5`), and
 Poisson-timed cover traffic all exist today. **What is new is the
 arrangement** — five load-bearing properties that make decentralization,
 privacy, and AI accountability reinforce each other instead of trading off:
@@ -96,9 +96,15 @@ privacy, and AI accountability reinforce each other instead of trading off:
 
 **No center, no DNS, no load-bearing server.** You address a peer by
 its key, reach it over the mesh, and trust it through a chain you can
-re-root at will. Content is **holographic** — RaptorQ erasure-coded so
-each holder stores one symbol (`1/N ≈ 5%`, `H/N = 1.5×` network overhead)
-and any sufficient subset reconstructs it. Memory is forever but still
+re-root at will. Content is stored as sealed whole chunks (`CC 5.4.3`,
+`CC 6.1.5`) across consenting holders (`custody:ack:v1`; `holds_bytes` is
+retired and refused per `CC 3.1.3.3`) replicated to the multiplicity floor
+($n_{\text{eff}} \ge 3$ across independent ASN/jurisdiction/signer axes, $R_9 \ge 9$
+holders for root durability per `CC 6.1.2.1.2`). Layered-codec fidelity (`CC 6.1.2`,
+`CLM-noise-classify`) defines `Full` / `Partial` / `EnvelopeOnly` chunk classification
+by rate-distortion $(R, \varepsilon)$ over `ChunkLayer` sets rather than symbol counts,
+while live A/V sealed chunks are never fragmented into symbols (`CC 5.3.3.2.3`).
+Memory is forever but still
 forgets: revocation, eviction, expiry, and aging are *one* descent toward
 a **noise floor**, keeping all of history as a memory pyramid at `O(log T)`.
 
@@ -169,7 +175,7 @@ X25519+ML-KEM-768 KEM, no classical-only path; receivers charged open-only):
 | Shared-inner-seal fan-out (N=50) | **2.07×** vs naive per-recipient seal | MEASURED | 1:N multicast amortizes |
 | Membership-change rekey (tree, N=50) | **0.41 ms** (8.3× vs flat rewrap) | PROJECTED | Churn cost stays sublinear (CIRISEdge#129) |
 | ALM relay per-hop overhead | **~946 ns** (~0.96 µs/tier, `O(log N)` tree) | MEASURED | Mesh transport scales without datacenters |
-| Holographic storage (N=20, K=6, H=30) | **99.6%** reconstruction at 33% fragment loss; 100% at 30% | MODEL | Erasure-coded survival is real, not theoretical |
+| Whole-chunk sealed storage custody | **Multiplicity floor** ($n_{\text{eff}} \ge 3$, $R_9 \ge 9$, CC §6.1.2.1.2) | MODEL | Consented whole-chunk survival without fragmentation |
 | Hybrid trace ingest | **230.6 µs** (~**4,336** traces/sec/core; dedup 205.8 µs) | MEASURED | Signed-artifact governance throughput |
 
 The scoreboard labels every row `MEASURED` vs. `MODEL` vs. `PROJECTED` vs.
@@ -177,8 +183,10 @@ The scoreboard labels every row `MEASURED` vs. `MODEL` vs. `PROJECTED` vs.
 what is not yet built** (e.g. full symmetric M>2 MDC video is `FRONTIER`;
 membership rekey is `PROJECTED` from the real hybrid-KEM primitive against
 [CIRISEdge#129](https://github.com/CIRISAI/CIRISEdge/issues/129)). The ALM
-and fountain-reconstruction figures come from the same suite
-(`benches/alm_chain.rs` + the `FountainPolicy` reference N=20/K=6/H=30).
+figures come from the benchmark suite (`benches/alm_chain.rs`), where ALM fan-out
+$k = 8$ and 50M-viewer numbers are CEWP scaling model assumptions (`MODEL`),
+while `CLM-alm-live-tree-verified` is staged (`CIRISEdge#945`), and chunk storage
+enforces the $n_{\text{eff}} \ge 3$ and $R_9 \ge 9$ multiplicity floor (`CC §6.1.2.1.2`).
 
 ### Conformance — [CIRISConformance](https://github.com/CIRISAI/CIRISConformance)
 
@@ -220,7 +228,7 @@ are mirrored for easy cross-reference.
 | [`FSD/FEDERATION_SCALING_MODEL.md`](FSD/FEDERATION_SCALING_MODEL.md) | Quantitative model. Single-pool storage. Trust × capacity intake + popularity × freshness eviction. L0 / L1 tier model. 13 scenarios up to full-internet-with-video; identity-aware-storage thesis with prior-art comparison. |
 | [`FSD/MEDIA_SHARING.md`](FSD/MEDIA_SHARING.md) | **Multimedia tier — YouTube / TikTok / Netflix / OnlyFans / AdultHUB replacement.** Five new external_content sub_kinds (image / audio / video / film / model_3d); content classification + multi-scheme rating (MPAA / BBFC / PEGI / etc.); operator-managed age gate; takedown_notice + key_grant CEG-native subject_kinds; content encryption (DEK / KEK / X25519+AES-GCM HPKE base mode); international standards mapping (DMCA / DSA / OSA / TVEC / NCMEC / AVMSD / KOSA / EU AI Act). |
 | [`FSD/ANONYMOUS_TIER.md`](FSD/ANONYMOUS_TIER.md) | The opt-in GPA-unobservability tier — CC RC17 §5.4.6 / Edge v44 cover-replaced 3-hop X-Wing `CONP` onion routing (`15,296 B` fixed frame riding inside a `16 KiB` / `16,272 B` TCP shaped slot at **`+0 B` extra wire bytes**) + Ed25519 key blinding + AEAD + rendezvous discoverability. **Cohort-scoped anonymity is already the default (CC 1.13.3.4);** this is the residual federation-scope opt-in, whose 1-hop shaped cover capacity and latency cost both the [globe landing page](https://cirisai.github.io/CEWP/) and [toy](toy/index.html) model. |
-| [`FSD/SIMULATION_ENGINE.md`](FSD/SIMULATION_ENGINE.md) | **v0.2 Simulation, Verification & Evidence Engine spec** — 9-layer architecture uniting **CC RC17 §4.5.13 executable state-processor authority** (`door_is_queue`, `preview_is_execution`, `refused_previews_nothing`), the **holistic CSD/4 topology contract (`T0–T19`)** across `CIRISConstitution`, `CIRISServer`, `CIRISClient`, `CEWPOS`, and `CEWP`, exact **transport (`CC §5.4.3 / §5.4.6`), integer-only `deterministic-alm` (`CC §6.1.6`), and symbol-rank noise-floor storage (`CC §6.1.2`)**, compound-Poisson + IMIX workload math, **`CIRISHolon`-certified multiscale coarse-graining (`R5 → R0`)**, an **8-class adversarial & formal-exclusion test programme**, and machine-checkable **`evidence_bundle.json`** (`MEASURED` / `MODEL` / `PROJECTED` / `FRONTIER`). |
+| [`FSD/SIMULATION_ENGINE.md`](FSD/SIMULATION_ENGINE.md) | **v0.2 Simulation, Verification & Evidence Engine spec** — 9-layer architecture uniting **CC RC17 §4.5.13 executable state-processor authority** (`door_is_queue`, `preview_is_execution`, `refused_previews_nothing`), the **holistic CSD/4 (Card-first Specification Design) topology contract (`T0–T19`, catalogue version 6, 156 vocabulary atoms, 152 in state table, 110 promised across T0–T19, X1–X5 Cornerstone Invariants)** across `CIRISConstitution`, `CIRISServer`, `CIRISClient` (`101` cards = `43` CSD/4 + `58` bullet), `CEWPOS` (`4` cards = `105` total; `csd_namespace_map.json` is CEWP's synthesis), and `CEWP`, exact **transport (`CC §5.4.3 / §5.4.6`), integer-only member-relay `deterministic-alm` (`CC §6.1.6`), and whole-chunk sealed storage with layered-codec rate-distortion noise-floor descent (`CC §6.1.2`, CLM-noise-classify)**, compound-Poisson + IMIX workload math, **`CIRISHolon`-certified multiscale coarse-graining (`R5 → R0`)**, an **8-class adversarial & formal-exclusion test programme**, and machine-checkable **`evidence_bundle.json`** (`MEASURED` / `MODEL` / `PROJECTED` / `FRONTIER`). |
 
 ### Working toy
 
@@ -277,7 +285,7 @@ reviewed as a single philosophical-technical whole. See
 | Misinformation amplification | No engagement-optimization layer; consumer-controlled trust depth |
 | Platform lock-in | Federation key portable across deployments; content SHA-addressed |
 | DNS / nameserver capture | No DNS, no forced root — address by key, discover via signed `transport_destination` chain, re-root trust at will |
-| Single-point data loss | Holographic erasure coding — any sufficient fragment subset reconstructs; federation survives to one survivor |
+| Single-point data loss | Whole-chunk sealed storage & multiplicity floor ($n_{\text{eff}} \ge 3$, $R_9 \ge 9$) across consenting holders; federation survives to one survivor |
 | The unforgettable internet (no real delete) | One descent operator → noise floor: revoked content drops below individual-recoverability; collective gist ages into an `O(log T)` memory pyramid |
 | Identity fragmentation | One federation key works across the substrate |
 | Content moderation conflicts | Per-cohort moderation; operator chooses trust threshold + recursion depth |
@@ -298,7 +306,7 @@ At "full internet replacement" — 5 billion users, 50 MB/user/day:
 | Per-user disk owned | ~0 (your data lives on their servers) | Yours, on your hardware |
 | Per-user trust signal | Platform-controlled "verified" checkmark | Cryptographic attestation graph, locally computable |
 | Switching cost | Network-effects lock-in (Facebook holds your graph) | ~Zero (federation key portable) |
-| Storage duration | Platform-decided; deletion is a promise | **Effectively indefinite** — full-fidelity for centuries-to-millennia on one commodity server (the fountain `1/N` store); the hardest "entire internet *with video* on one home server" run still holds ~1–2 yr at full fidelity, then degrades-not-deletes into the O(log T) memory pyramid forever ([scaling model §2.6](FSD/FEDERATION_SCALING_MODEL.md)) |
+| Storage duration | Platform-decided; deletion is a promise | **Effectively indefinite** — full-fidelity for centuries-to-millennia on one commodity server (replicated whole-chunk sealed storage with multiplicity floor $n_{\text{eff}} \ge 3$, $R_9 \ge 9$); the hardest "entire internet *with video* on one home server" run still holds ~1–2 yr at full fidelity, then degrades-not-deletes into the O(log T) memory pyramid forever ([scaling model §2.6](FSD/FEDERATION_SCALING_MODEL.md)) |
 
 The simulation engine ([`FSD/SIMULATION_ENGINE.md`](FSD/SIMULATION_ENGINE.md)) is what produces
 these numbers in animation-ready form — modeled at 1:1 over the
@@ -310,8 +318,8 @@ peering points).
 Per **CIRISConstitution RC17** (§4.5.13, §5.3.3.2, §5.4.3, §5.4.6, §6.1.6, and [`formal/transport_tiers/Tiers.lean`](https://github.com/CIRISAI/CIRISConstitution)) and **CIRISEdge v44**, transport separates into the Constitution's named budget classes and fan-out rules:
 1. **Device-tier 1-hop shaped links (`L ≤ 8`, CC §5.4.3)**: `server` (`7,000 B/s` = `605 MB/day`), `home` (`2,800 B/s` = `242 MB/day`), `phone-wifi` (`1,400 B/s` = `121 MB/day`), and `phone-cellular` (`350 B/s` = `30 MB/day`), each at cover fraction $\rho = 0.5$ (`W = 600 s`, or `3,600 s` on cellular; channel payload MDU `≈ 400 B` at the Reticulum `500 B` base MTU or `≈ 16 KB` / `16,272 B` over TCP). **A shaped link is 1 direct hop** between its two ends, never forwarded through a third node; a peer with no direct path gets no shaped link (and carries identity, consent, chat, and small attachments on ordinary links; A/V and bulk unshaped only).
 2. **Serve-tier shaped (`seat`, CC §5.4.3)**: `33,000 B/s` (`2.85 GB/day/slot`, $\rho = 0.5$, `W = 600 s`) — canonical serve seats (`serve_max = 8`).
-3. **Ordinary links & CC §6.1.6 `deterministic-alm` member relay tree**: Reticulum direct IPv6 / UDP-punched links (`leviculum#100` first empirical NAT-mix measurement; `leviculum#101` notes neither PCP/NAT-PMP nor UPnP is implemented) + $O(\log_k N)$ **CC §6.1.6 `deterministic-alm` member relay tree** (`k = 8`) over sealed chunks for large-$N$ rooms (distinct from **CC §5.3.3.2**, where the realtime transport profile has **no selective-forwarding relay role** — no seat or third party decodes or selects).
-4. **Cover-Replaced X-Wing Onion (`CONP`, `15,296 B`, CC §5.4.6)**: 3-hop hybrid X25519 + ML-KEM-768 onion packets (`3 × 1,264 B` headers + `11,488 B` body) replace scheduled chaff frames on TCP shaped links (**`+0 B` extra wire bytes**; latency-only cost).
+3. **Ordinary links & CC §6.1.6 `deterministic-alm` member relay tree**: Reticulum direct IPv6 / UDP-punched links (`leviculum#100` first empirical NAT-mix measurement; `leviculum#101` notes neither PCP/NAT-PMP nor UPnP is implemented) + $O(\log_k N)$ **CC §6.1.6 `deterministic-alm` member relay tree** (`k = 8`) over sealed chunks for large-$N$ rooms. The stream key pins the single publisher at depth 0; the relay tree is strictly a **member relay tree** (seats/forwarders are never fan-out hubs per `CC §5.4.6`). Fan-out $k=8$ and 50M-viewer broadcast figures are **CEWP scaling model assumptions** (`MODEL`), and `CLM-alm-live-tree-verified` is `staged` (`CIRISEdge#945`). Distinct from **CC §5.3.3.2**, where the realtime transport profile has **no selective-forwarding relay role** — no seat or third party decodes or selects.
+4. **Cover-Replaced X-Wing Onion (`CONP`, `15,296 B`, CIRISEdge v44)**: 3-hop hybrid X25519 + ML-KEM-768 onion packets (`3 × 1,264 B` headers + `11,488 B` body) replace scheduled chaff frames on TCP shaped links (**`+0 B` extra wire bytes**; latency-only cost). Note: `CONP` frame sizing (`15,296 B`), `3 × 1,264 B` onion headers, and TCP channel payload MDU (`16,272 B / 500`) are attributed to **CIRISEdge v44** (CC §5.4.6 pins the functional onion contract and general bounds "about 400 bytes ... about 16 KB"). Sticky guards (`CC §5.4.6` item 4) are held as long as they answer (not rotated on a schedule); below the relay floor the tier is `onion_tier_unavailable_floor`. Proxy pull only proxies federation-tier rows (`CC §5.4.6`). Referral ranking is by inbound dial count descending (reachability), and link class agreement is the lower of the two offers (`min(local, peer)` per `CC §5.4.3`). Sybil resistance in CC is trust gating (`CC §1.13.3.3`) and stated residual (`CC §5.4.6`), not link-count shaping. Shaped links (`L ≤ 8`) form with offering nodes and any node that asks (`shaped_only` / Anonymous Tier), chat and files ride a shaped link only when one end is `shaped_only`, and the 9th peer is refused only on `shaped_only` nodes (running unshaped otherwise).
 
 Note: [`formal/transport_tiers/Tiers.lean`](https://github.com/CIRISAI/CIRISConstitution) proves the 8-link bound (`L ≤ 8`), displacement (`unowned_only_strands_the_73rd`), carriage/referral reach (`each_home_adds_seven`), and the **`reach ≠ capacity`** theorem — it has no reachability term. Both [`docs/index.html`](docs/index.html), [`toy/index.html`](toy/index.html), and [`examples/scale_model.rs`](examples/scale_model.rs) therefore take **directly reachable home share (`reach_home_share`)** as an explicit scenario input alongside the 8 Constitutional opt-in choices at full-internet scale (**`5.00 B` people · `11.25 B` devices** at `2.25` devices/person across `self` rosters · `50,000` canonical serve seats):
 

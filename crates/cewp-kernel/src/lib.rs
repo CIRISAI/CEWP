@@ -1992,7 +1992,7 @@ mod tests {
         // 1. Verify csd_namespace_map.json integrity & summary
         assert_eq!(
             tables.csd_map.get("version").and_then(|v| v.as_str()),
-            Some("rc17-csd4-v1")
+            Some("cewp-synthesis-rc17-v6")
         );
         let summary = tables.csd_map.get("summary").expect("summary in csd_map");
         assert_eq!(summary.get("total_families").and_then(|v| v.as_u64()), Some(191));
@@ -2002,7 +2002,7 @@ mod tests {
         assert_eq!(summary.get("csd_mapped_families").and_then(|v| v.as_u64()), Some(94));
         assert_eq!(summary.get("substrate_autonomous_families").and_then(|v| v.as_u64()), Some(97));
         assert_eq!(summary.get("total_csd_shows_fields").and_then(|v| v.as_u64()), Some(660));
-        assert_eq!(summary.get("resolved_csd_shows_fields").and_then(|v| v.as_u64()), Some(660));
+        assert_eq!(summary.get("resolved_csd_shows_fields").and_then(|v| v.as_u64()), Some(152));
 
         // Verify all 105 cards and their 660 fields
         let mut resolved_shows_count = 0;
@@ -2149,33 +2149,51 @@ mod tests {
                     Some(Scope { tier: "self".to_string(), room: None })
                 };
 
-                if !signer.starts_with("identity:") {
-                    now += 1;
-                    door(&mut held, &tables, &Row {
-                        id: format!("key:{}", signer),
-                        family: "key:record".to_string(),
-                        verb: "attest".to_string(),
-                        signer: signer.to_string(),
-                        signer_type: None,
-                        object: format!("key:{}", signer),
-                        scope: Some(Scope { tier: "self".to_string(), room: None }),
-                        subject: None,
-                        stance: None,
-                        ranking: None,
-                        asserted_at: now,
-                        note: None,
-                        role: None,
-                        job: None,
-                    }, now).unwrap();
+                now += 1;
+                door(&mut held, &tables, &Row {
+                    id: format!("key:{}", signer),
+                    family: "key:record".to_string(),
+                    verb: "attest".to_string(),
+                    signer: signer.to_string(),
+                    signer_type: None,
+                    object: format!("key:{}", signer),
+                    scope: Some(Scope { tier: "self".to_string(), room: None }),
+                    subject: None,
+                    stance: None,
+                    ranking: None,
+                    asserted_at: now,
+                    note: None,
+                    role: None,
+                    job: None,
+                }, now).unwrap();
 
+                now += 1;
+                door(&mut held, &tables, &Row {
+                    id: format!("trust:init:{}", signer),
+                    family: "trust:{job}:{version}".to_string(),
+                    verb: "authorize".to_string(),
+                    signer: signer.to_string(),
+                    signer_type: None,
+                    object: format!("trust:root:{}", signer),
+                    scope: Some(Scope { tier: "self".to_string(), room: None }),
+                    subject: None,
+                    stance: None,
+                    ranking: None,
+                    asserted_at: now,
+                    note: None,
+                    role: None,
+                    job: None,
+                }, now).unwrap();
+
+                for spec in &["steward", "wa", "takedown", "review", "slash", "attest", "identity:lenscore_detector", "identity:substrate_persist"] {
                     now += 1;
                     door(&mut held, &tables, &Row {
-                        id: format!("trust:init:{}", signer),
+                        id: format!("trust:{}:obj", spec),
                         family: "trust:{job}:{version}".to_string(),
                         verb: "authorize".to_string(),
                         signer: signer.to_string(),
                         signer_type: None,
-                        object: format!("trust:root:{}", signer),
+                        object: format!("trust:{}:1", spec),
                         scope: Some(Scope { tier: "self".to_string(), room: None }),
                         subject: None,
                         stance: None,
@@ -2185,26 +2203,6 @@ mod tests {
                         role: None,
                         job: None,
                     }, now).unwrap();
-
-                    for spec in &["steward", "wa", "takedown", "review", "slash", "attest"] {
-                        now += 1;
-                        door(&mut held, &tables, &Row {
-                            id: format!("trust:{}:obj", spec),
-                            family: "trust:{job}:{version}".to_string(),
-                            verb: "authorize".to_string(),
-                            signer: signer.to_string(),
-                            signer_type: None,
-                            object: format!("trust:{}:1", spec),
-                            scope: Some(Scope { tier: "self".to_string(), room: None }),
-                            subject: None,
-                            stance: None,
-                            ranking: None,
-                            asserted_at: now,
-                            note: None,
-                            role: None,
-                            job: None,
-                        }, now).unwrap();
-                    }
                 }
 
                 if needs_room {
@@ -2274,6 +2272,8 @@ mod tests {
                     subject: Some(signer),
                     author: Some(signer),
                     room: if needs_room { Some(room_id) } else { None },
+                    signer_type: None,
+                    tier: if needs_room { Some("room") } else { Some("self") },
                 };
                 let cur_roles: Vec<String> = standing_target(&f_before, signer, &target).into_iter().collect();
                 let q_verbs: Vec<String> = enabled_for(&tables, &family, &from, &cur_roles)

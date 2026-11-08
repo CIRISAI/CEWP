@@ -1,8 +1,8 @@
-//! The CC §4.5.13 state processor: fold, standing, enabled_for, step, door, queue, preview.
+//! The CC §4.5.13 state processor: fold, standing, enabled_for, enabled, step, door, queue, preview.
 
-use crate::tables::{policy_row, transition_of, Tables};
+use crate::tables::{expected_active, policy_row, transition_of, Tables};
 use crate::types::{
-    Ballot, ChangedObject, FoldState, HaltState, HeldRow, Missing, ObjectState, Outcome, Pending,
+    Ballot, ChangedObject, FoldState, Fraction, HaltState, HeldRow, Missing, ObjectState, Outcome, Pending,
     Plan, PreviewImpact, PreviewResult, PreviewVerdict, Queue, QueueItem, QueueStart, Refusal, RoomDiff,
     RoomState, Row, Scope, StepResult, TargetRef, Transition, Voices,
 };
@@ -104,6 +104,7 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
     let mut system_identities: HashSet<String> = HashSet::new();
     let mut owners_of: HashMap<String, HashSet<String>> = HashMap::new();
     let mut attesters: HashSet<String> = HashSet::new();
+    let mut device_to_fed_id: HashMap<String, String> = HashMap::new();
 
     let mut add_role = |person: &str, role: &str| {
         if !person.is_empty() && !role.is_empty() {
@@ -120,6 +121,13 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
             if let Some(ref fam) = m.family {
                 fam_key = fam.clone();
                 binds = m.binds;
+            }
+        }
+
+        // Fold self:roster rows so device keys map to their fedID (CC §4.5.13)
+        if row.family.starts_with("self:roster") || row.family == "self:roster" || fam_key.starts_with("self_roster") {
+            if let Some(fed) = &row.subject {
+                device_to_fed_id.insert(row.signer.clone(), fed.clone());
             }
         }
 
@@ -153,8 +161,27 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
         let o = objects.get_mut(&row.object).unwrap();
         o.rows.push(h.clone());
 
-        let t = transition_of(tables, &fam_key, &row.verb, &o.state);
+        let is_vote = row.stance.is_some()
+            || row.ranking.is_some()
+            || row.verb == "voice"
+            || row.verb == "assent"
+            || row.verb == "raised"
+            || row.verb == "object";
+
+        let t = if o.state == "none" && is_vote {
+            None
+        } else {
+            transition_of(tables, &fam_key, &row.verb, &o.state)
+        };
+
         if let Some(t) = t {
+            if o.state == "none" {
+                o.author = row.signer.clone();
+                o.subject = row.subject.clone();
+                if let Some(s) = &row.scope {
+                    o.scope = s.clone();
+                }
+            }
             let p = policy_row(tables, &t);
             match p {
                 None => {
@@ -184,20 +211,42 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
 
         let p = o.pending.as_ref().unwrap().policy.clone();
         let opener = o.pending.as_ref().unwrap().opener.clone();
-        let mut for_voices: HashSet<String> = HashSet::new();
-        for_voices.insert(opener);
-        let mut against_voices: HashSet<String> = HashSet::new();
         let mut ballots: Vec<Ballot> = Vec::new();
+
+        let get_fed = |signer: &str| -> String {
+            device_to_fed_id.get(signer).cloned().unwrap_or_else(|| signer.to_string())
+        };
+
+        let opener_fed = get_fed(&opener);
+        let mut fed_for: HashSet<String> = HashSet::new();
+        let mut fed_against: HashSet<String> = HashSet::new();
+        let mut fed_disagree: HashSet<String> = HashSet::new();
+
+        fed_for.insert(opener_fed);
 
         for h in &o.rows {
             let r = &h.row;
-            if r.stance.as_deref() == Some("for") {
-                for_voices.insert(r.signer.clone());
+            let fed = get_fed(&r.signer);
+            let is_approval = r.stance.as_deref() == Some("for")
+                || (r.family.starts_with("objection") && r.verb == "assent");
+            let is_objection = r.stance.as_deref() == Some("against")
+                || r.family == "objection"
+                || (r.family.starts_with("objection") && (r.verb == "raised" || r.verb == "object"));
+
+            if is_approval && is_objection {
+                fed_disagree.insert(fed.clone());
+            } else if is_approval {
+                if fed_against.contains(&fed) {
+                    fed_disagree.insert(fed.clone());
+                }
+                fed_for.insert(fed.clone());
+            } else if is_objection {
+                if fed_for.contains(&fed) {
+                    fed_disagree.insert(fed.clone());
+                }
+                fed_against.insert(fed.clone());
             }
-            if r.stance.as_deref() == Some("against") {
-                against_voices.insert(r.signer.clone());
-                for_voices.remove(&r.signer);
-            }
+
             if let Some(ranking) = &r.ranking {
                 ballots.push(Ballot {
                     signer: r.signer.clone(),
@@ -206,57 +255,84 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
             }
         }
 
-        let base: u64 = if let Some(rid) = &o.scope.room {
+        // CC Rule: Disagreeing live rows remove a fedID from both for and against tallies (no voice)
+        for fed in &fed_disagree {
+            fed_for.remove(fed);
+            fed_against.remove(fed);
+        }
+
+        let for_count = fed_for.len() as u64;
+        let against_count = fed_against.len() as u64;
+
+        // Base law: compute base from policy domain
+        let base: u64 = if p.corridor.as_deref() == Some("self") || p.family.starts_with("self_roster") {
+            let fed = get_fed(&opener);
+            let live_keys = device_to_fed_id.iter().filter(|(_, f_id)| *f_id == &fed).count().max(1) as u64;
+            live_keys
+        } else if let Some(rid) = &o.scope.room {
             if let Some(rm) = rooms.get(rid) {
-                (rm.members.len() + rm.founders.len()).max(2) as u64
+                let raw_b = (rm.members.len() + rm.founders.len()).max(2) as u64;
+                if p.base.as_deref() == Some("active") {
+                    expected_active(raw_b)
+                } else {
+                    raw_b
+                }
             } else {
                 2
             }
+        } else if p.family == "accord_halt" {
+            holders.len().max(1) as u64
         } else {
             2
+        };
+
+        // Minimum voice rule (CC 1.13.3)
+        let min_count = if p.corridor.as_deref() == Some("self") || p.family.starts_with("self_roster") || p.family == "accord_halt" {
+            1u64
+        } else {
+            2u64
         };
 
         let window_secs = p.window_secs.unwrap_or(0);
         let window_end = o.pending.as_ref().unwrap().since + window_secs * 1000;
 
-        let met = |frac: Option<crate::types::Fraction>, n: usize| -> bool {
-            if let Some(f) = frac {
-                (n as u64) * f.den >= f.num * base
-            } else {
-                false
-            }
-        };
+        // Thresholds
+        // Enact is strictly more: (num * base) / den + 1
+        let ev = p.enact.map(|e| (e.num * base) / e.den + 1).unwrap_or(1);
+        let cv = p.cancel.map(|c| min_count.max((c.num * base + c.den - 1) / c.den));
+        let fv = p.floor.map(|f| min_count.max((f.num * base + f.den - 1) / f.den));
 
         let mut outcome: Option<Outcome> = None;
         let mut missing: Option<Missing> = None;
 
         match p.kind.as_str() {
             "two_path" => {
-                if met(p.enact, for_voices.len()) {
+                if for_count >= ev && !p.irreversible {
                     outcome = Some(Outcome::Enacted);
-                } else if met(p.cancel, against_voices.len()) {
-                    outcome = Some(Outcome::Cancelled);
-                } else if now >= window_end {
-                    outcome = Some(match p.at_window.as_deref() {
-                        Some("enacted") => Outcome::Enacted,
-                        _ => Outcome::Cancelled,
-                    });
-                } else {
-                    let needed = if let Some(enact) = p.enact {
-                        let num_val = (enact.num * base + enact.den - 1) / enact.den;
-                        (num_val as i64) - (for_voices.len() as i64)
-                    } else {
-                        0
-                    };
+                } else if now < window_end {
+                    outcome = None;
+                    let needed = (ev as i64) - (for_count as i64);
                     missing = Some(Missing {
                         voices: Some(needed),
                         until: Some(window_end),
                         ballots: None,
                     });
+                } else if cv.is_some() && against_count >= cv.unwrap() {
+                    outcome = Some(Outcome::Cancelled);
+                } else if for_count >= ev {
+                    outcome = Some(if p.irreversible {
+                        Outcome::EnactedIrreversible
+                    } else {
+                        Outcome::Enacted
+                    });
+                } else if p.reverse_path && fv.is_some() && for_count >= fv.unwrap() {
+                    outcome = Some(Outcome::Enacted);
+                } else {
+                    outcome = Some(Outcome::Cancelled);
                 }
             }
             "mirror" => {
-                if met(p.cancel, against_voices.len()) {
+                if cv.is_some() && against_count >= cv.unwrap() {
                     outcome = Some(Outcome::Reversed);
                 } else if now >= window_end {
                     outcome = Some(Outcome::Stands);
@@ -270,12 +346,12 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
                 }
             }
             "cosigned" => {
-                let frac = p.enact.unwrap_or(crate::types::Fraction { num: 1, den: 2 });
-                if met(Some(frac), for_voices.len()) {
+                let frac = p.enact.unwrap_or(Fraction { num: 1, den: 2 });
+                let required = (frac.num * base) / frac.den + 1;
+                if for_count >= required {
                     outcome = Some(Outcome::Enacted);
                 } else {
-                    let num_val = (frac.num * base + frac.den - 1) / frac.den;
-                    let needed = (num_val as i64) - (for_voices.len() as i64);
+                    let needed = (required as i64) - (for_count as i64);
                     missing = Some(Missing {
                         voices: Some(needed),
                         until: None,
@@ -297,9 +373,9 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
             _ => {}
         }
 
-        let mut sorted_for: Vec<String> = for_voices.into_iter().collect();
+        let mut sorted_for: Vec<String> = fed_for.into_iter().collect();
         sorted_for.sort();
-        let mut sorted_against: Vec<String> = against_voices.into_iter().collect();
+        let mut sorted_against: Vec<String> = fed_against.into_iter().collect();
         sorted_against.sort();
 
         o.outcome = outcome;
@@ -339,7 +415,9 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
             }
             if job.as_ref().map(|j| j.contains('{')).unwrap_or(true) {
                 let parts: Vec<&str> = o.id.split(':').collect();
-                if parts.len() > 1 && !parts[1].contains('{') {
+                if parts.len() > 2 && !parts[1].contains('{') {
+                    job = Some(parts[1..parts.len() - 1].join(":"));
+                } else if parts.len() > 1 && !parts[1].contains('{') {
                     job = Some(parts[1].to_string());
                 }
             }
@@ -479,9 +557,17 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
         r.locked = r.moderators.is_empty();
     }
 
+    // Halt duration read from policy table window_secs
+    let halt_window_ms = tables
+        .policies
+        .get("accord_halt")
+        .and_then(|p| p.window_secs)
+        .unwrap_or(86400)
+        * 1000;
+
     if halt.latched && !halt.confirmed {
         if let Some(since) = halt.since {
-            if now.saturating_sub(since) > 86400 * 1000 {
+            if now.saturating_sub(since) > halt_window_ms {
                 halt.latched = false;
             }
         }
@@ -527,8 +613,10 @@ pub fn standing_target(
         if let Some(r) = f.rooms.get(rid) {
             if r.founders.contains(person) {
                 roles.insert("founder".to_string());
+                roles.insert("member".to_string());
+                roles.insert("moderate".to_string());
             }
-            if r.founders.contains(person) || r.members.contains(person) {
+            if r.members.contains(person) {
                 roles.insert("member".to_string());
             }
             if r.moderators.contains(person) {
@@ -553,7 +641,17 @@ pub fn standing_target(
         roles.insert("self".to_string());
     }
 
-    // --- Specialized Roles (Deriving all 17 constitutional role tokens) ---
+    // group:roster founding bootstrap:
+    // When target/object is group:roster and state is none:
+    // registered person has founder + member standing.
+    let is_group_roster = o.map(|obj| obj.family == "group:roster").unwrap_or(false)
+        || target.id.map(|id| id.starts_with("room:")).unwrap_or(false);
+    if is_group_roster && f.registered.contains(person) {
+        roles.insert("founder".to_string());
+        roles.insert("member".to_string());
+    }
+
+    // --- Specialized Roles (Deriving constitutional role tokens from held rows, no hard-coded authority roster) ---
     let target_id = o.map(|obj| obj.id.as_str()).or(target.id).or(target.object);
     let is_target_owner = target_id
         .and_then(|tid| f.owners_of.get(tid))
@@ -580,28 +678,11 @@ pub fn standing_target(
         roles.insert("attest".to_string());
     }
 
-    // steward, wa, takedown, review, slash
+    // roles from held trust / role rows
     if let Some(person_roles) = f.roles_of.get(person) {
-        for job in &["steward", "wa", "takedown", "review", "slash"] {
-            if person_roles.contains(*job) {
-                roles.insert(job.to_string());
-            }
+        for r in person_roles {
+            roles.insert(r.clone());
         }
-    }
-
-    // system identities: identity:lenscore_detector, identity:substrate_persist
-    let person_roles = f.roles_of.get(person);
-    if person == "identity:lenscore_detector"
-        || f.system_identities.contains("identity:lenscore_detector")
-        || person_roles.map(|r| r.contains("identity:lenscore_detector") || r.contains("lenscore_detector")).unwrap_or(false)
-    {
-        roles.insert("identity:lenscore_detector".to_string());
-    }
-    if person == "identity:substrate_persist"
-        || f.system_identities.contains("identity:substrate_persist")
-        || person_roles.map(|r| r.contains("identity:substrate_persist") || r.contains("substrate_persist")).unwrap_or(false)
-    {
-        roles.insert("identity:substrate_persist".to_string());
     }
 
     roles
@@ -619,6 +700,7 @@ pub fn standing(f: &FoldState, person: &str, object: &str) -> Vec<String> {
     } else if f.rooms.contains_key(object) || object.starts_with("room:") {
         TargetRef {
             room: Some(object),
+            tier: Some("room"),
             ..Default::default()
         }
     } else {
@@ -662,6 +744,168 @@ pub fn enabled_for(tables: &Tables, family: &str, state: &str, roles: &[String])
         .collect()
 }
 
+/// Unified enablement checking: the single gate for both the queue and the door (Queue == Door).
+pub fn enabled(
+    f: &FoldState,
+    tables: &Tables,
+    person: &str,
+    target: &TargetRef,
+    family_filter: Option<&str>,
+) -> Vec<Transition> {
+    // 1. Halt Gate: checked against role state / charter rather than self-declared only
+    let is_agent = target.signer_type == Some("agent")
+        || f.roles_of.get(person).map(|r| r.contains("agent")).unwrap_or(false)
+        || f.objects.values().any(|o| {
+            o.family.starts_with("agent:charter")
+                && o.subject.as_deref() == Some(person)
+                && o.state == "admitted"
+        });
+
+    if f.halt.latched && is_agent {
+        return Vec::new();
+    }
+
+    // 2. Registration Gate:
+    let is_reg = f.registered.contains(person);
+
+    let target_id = target.id.or(target.object);
+    let o = target_id.and_then(|id| f.objects.get(id));
+
+    let mut out = Vec::new();
+
+    if let Some(o) = o {
+        // Family mismatch check:
+        if let Some(req_fam) = family_filter {
+            let m = tables.match_family(req_fam);
+            let fam_key = m.family.as_deref().unwrap_or(req_fam);
+            if o.family != fam_key {
+                return Vec::new();
+            }
+        }
+
+        // Room audience check:
+        let is_room_audience = o.scope.tier == "room" || target.tier == Some("room");
+        if is_room_audience {
+            let room_id = o.scope.room.as_deref().or(target.room);
+            if let Some(rid) = room_id {
+                let r = f.rooms.get(rid);
+                if r.is_none() && o.family != "group:roster" {
+                    return Vec::new();
+                }
+                if let Some(rm) = r {
+                    let in_room = rm.members.contains(person) || rm.founders.contains(person);
+                    let invitee = o.family == "membership:{stage}" && o.subject.as_deref() == Some(person);
+                    if !in_room && !invitee {
+                        return Vec::new();
+                    }
+                    if let Some(subj) = target.subject {
+                        let subj_in_room = rm.members.contains(subj) || rm.founders.contains(subj);
+                        if !subj_in_room && o.family != "membership:{stage}" {
+                            return Vec::new();
+                        }
+                    }
+                }
+            }
+        }
+
+        let roles = standing_target(f, person, target);
+        if !is_reg && o.family != "key:record" {
+            return Vec::new();
+        }
+
+        if let Some(ts) = tables.families.get(&o.family) {
+            for t in ts {
+                if t.from == o.state && !t.roles.is_empty() && t.roles.iter().any(|r| roles.contains(r)) {
+                    out.push(t.clone());
+                }
+            }
+        }
+
+        // Synthesized vote transition for pending policy objects
+        if o.pending.is_some() && (roles.contains("member") || roles.contains("subject") || roles.contains("holder")) {
+            let pol = o.pending.as_ref().unwrap().policy.kind.clone();
+            let vote_roles = vec!["member".to_string(), "subject".to_string(), "holder".to_string()];
+            for v_verb in &["voice", "assent", "raised", "object"] {
+                out.push(Transition {
+                    verb: v_verb.to_string(),
+                    from: o.state.clone(),
+                    to: o.state.clone(),
+                    roles: vote_roles.clone(),
+                    policy: pol.clone(),
+                    policy_rows: Vec::new(),
+                    widens: false,
+                });
+            }
+        }
+    } else {
+        // Starts (transitions from "none")
+        let is_room_audience = target.tier == Some("room");
+        if is_room_audience {
+            if let Some(rid) = target.room {
+                let r = f.rooms.get(rid);
+                let is_roster = family_filter
+                    .map(|f| tables.match_family(f).family.as_deref() == Some("group:roster"))
+                    .unwrap_or(false);
+                if r.is_none() && !is_roster {
+                    return Vec::new();
+                }
+                if let Some(rm) = r {
+                    let in_room = rm.members.contains(person) || rm.founders.contains(person);
+                    let invitee = family_filter
+                        .map(|f| tables.match_family(f).family.as_deref() == Some("membership:{stage}"))
+                        .unwrap_or(false)
+                        && target.subject == Some(person);
+                    if !in_room && !invitee && !is_roster {
+                        return Vec::new();
+                    }
+                }
+            }
+        }
+
+        let roles = standing_target(f, person, target);
+
+        let resolved_fam = family_filter.map(|req_fam| {
+            tables.match_family(req_fam).family.unwrap_or_else(|| req_fam.to_string())
+        });
+        let families_to_check: Vec<&str> = if let Some(ref fam) = resolved_fam {
+            vec![fam.as_str()]
+        } else {
+            tables.family_order.iter().map(|s| s.as_str()).collect()
+        };
+
+        for fam in families_to_check {
+            if !is_reg && fam != "key:record" {
+                continue;
+            }
+            if let Some(ts) = tables.families.get(fam) {
+                for t in ts {
+                    if t.from == "none" && !t.roles.is_empty() && t.roles.iter().any(|r| roles.contains(r)) {
+                        out.push(t.clone());
+                    }
+                }
+            }
+        }
+
+        // Out-of-order votes on uncreated objects (CC CIRISPersist#1198)
+        if is_reg && target.id.is_some() {
+            let vote_roles = vec!["member".to_string(), "subject".to_string(), "holder".to_string()];
+            for v_verb in &["voice", "assent", "raised", "object"] {
+                out.push(Transition {
+                    verb: v_verb.to_string(),
+                    from: "none".to_string(),
+                    to: "none".to_string(),
+                    roles: vote_roles.clone(),
+                    policy: "two_path".to_string(),
+                    policy_rows: Vec::new(),
+                    widens: false,
+                });
+            }
+        }
+    }
+
+    out
+}
+
 pub fn step(held: &[HeldRow], tables: &Tables, row: &Row, now: u64) -> StepResult {
     if held.iter().any(|h| h.row.id == row.id) {
         return Err(Refusal::AlreadyHeld);
@@ -682,7 +926,6 @@ pub fn step(held: &[HeldRow], tables: &Tables, row: &Row, now: u64) -> StepResul
     }
 
     let o = f.objects.get(&row.object);
-    let state = o.map(|x| x.state.as_str()).unwrap_or("none");
     if let Some(o) = o {
         if o.family != fam_key {
             return Err(Refusal::FamilyMismatch);
@@ -695,90 +938,81 @@ pub fn step(held: &[HeldRow], tables: &Tables, row: &Row, now: u64) -> StepResul
         subject: row.subject.as_deref(),
         author: Some(&row.signer),
         room: row.scope.as_ref().and_then(|s| s.room.as_deref()),
+        signer_type: row.signer_type.as_deref(),
+        tier: row.scope.as_ref().map(|s| s.tier.as_str()),
     };
-    let mut roles = standing_target(&f, &row.signer, &target);
 
-    // founding: a roster's first version seats a listed member iff that member signed it, no owner gate
-    if o.is_none()
-        && (fam_key == "group:roster" || row.family == "group:roster")
-        && row.verb == "attest"
-        && f.registered.contains(&row.signer)
-    {
-        roles.insert("founder".to_string());
-        roles.insert("member".to_string());
-    }
+    let is_vote = row.stance.is_some()
+        || row.ranking.is_some()
+        || row.verb == "voice"
+        || row.verb == "assent"
+        || row.verb == "raised"
+        || row.verb == "object";
 
-    let mut t = transition_of(tables, &fam_key, &row.verb, state);
-    if t.is_none() && o.is_some() && o.unwrap().pending.is_some() && (row.stance.is_some() || row.ranking.is_some()) {
-        t = Some(Transition {
-            verb: "voice".to_string(),
-            from: state.to_string(),
-            to: state.to_string(),
-            roles: vec!["member".to_string(), "subject".to_string(), "holder".to_string()],
-            policy: o.unwrap().pending.as_ref().unwrap().policy.kind.clone(),
-            policy_rows: Vec::new(),
-            widens: false,
+    let enabled_transitions = enabled(&f, tables, &row.signer, &target, Some(&row.family));
+    let t = enabled_transitions.into_iter().find(|x| x.verb == row.verb || (x.verb == "voice" && is_vote));
+
+    if let Some(t) = t {
+        let policy = policy_row(tables, &t).cloned();
+        return Ok(Plan {
+            row: row.clone(),
+            transition: t,
+            first_held: now,
+            policy,
         });
     }
 
-    let t = match t {
-        Some(t) => t,
-        None => return Err(Refusal::NoTransition),
-    };
-
-    if t.roles.is_empty() {
-        return Err(Refusal::Closed);
+    // Determine exact refusal:
+    let is_agent = row.signer_type.as_deref() == Some("agent")
+        || f.roles_of.get(&row.signer).map(|r| r.contains("agent")).unwrap_or(false)
+        || f.objects.values().any(|obj| {
+            obj.family.starts_with("agent:charter")
+                && obj.subject.as_deref() == Some(&row.signer)
+                && obj.state == "admitted"
+        });
+    if f.halt.latched && is_agent {
+        return Err(Refusal::Halted);
     }
-    if !t.roles.iter().any(|r| roles.contains(r)) {
-        return Err(Refusal::NoStanding);
+    if let Some(o) = o {
+        if o.family != fam_key {
+            return Err(Refusal::FamilyMismatch);
+        }
     }
-
-    let self_key = (fam_key == "key:record" || row.family == "key:record") && row.verb == "attest";
-    let is_system = row.signer == "identity:substrate_persist" || row.signer == "identity:lenscore_detector";
-    if !self_key && !is_system && !f.registered.contains(&row.signer) {
+    let is_reg = f.registered.contains(&row.signer);
+    if !is_reg && fam_key != "key:record" {
         return Err(Refusal::Unregistered);
     }
-
-    if let Some(scope) = &row.scope {
-        if scope.tier == "room" {
-            let room_id = scope.room.as_deref().unwrap_or("");
-            let r = f.rooms.get(room_id);
-            let in_room = r
-                .map(|rm| rm.members.contains(&row.signer) || rm.founders.contains(&row.signer))
-                .unwrap_or(false);
-            let invitee = (fam_key == "membership:{stage}" || row.family == "membership:{stage}")
-                && row.subject.as_deref() == Some(&row.signer);
-
-            if r.is_none() && fam_key != "group:roster" && row.family != "group:roster" {
+    let is_room_tier = row.scope.as_ref().map(|s| s.tier.as_str()) == Some("room");
+    if is_room_tier {
+        if let Some(rid) = row.scope.as_ref().and_then(|s| s.room.as_deref()) {
+            let r = f.rooms.get(rid);
+            if r.is_none() && fam_key != "group:roster" {
                 return Err(Refusal::NoSuchRoom);
             }
-            if r.is_some() && !in_room && !invitee {
-                return Err(Refusal::SubjectOutsideAudience);
-            }
-            if let Some(subject) = &row.subject {
-                if let Some(rm) = r {
-                    if !(rm.members.contains(subject) || rm.founders.contains(subject))
-                        && fam_key != "membership:{stage}"
-                        && row.family != "membership:{stage}"
-                    {
+            if let Some(rm) = r {
+                let in_room = rm.members.contains(&row.signer) || rm.founders.contains(&row.signer);
+                let invitee = fam_key == "membership:{stage}" && row.subject.as_deref() == Some(&row.signer);
+                if !in_room && !invitee {
+                    return Err(Refusal::SubjectOutsideAudience);
+                }
+                if let Some(subj) = &row.subject {
+                    let subj_in = rm.members.contains(subj) || rm.founders.contains(subj);
+                    if !subj_in && fam_key != "membership:{stage}" {
                         return Err(Refusal::SubjectOutsideAudience);
                     }
                 }
             }
         }
     }
-
-    if f.halt.latched && row.signer_type.as_deref() == Some("agent") {
-        return Err(Refusal::Halted);
+    let all_ts = tables.families.get(&fam_key);
+    let trans_by_verb = all_ts.map(|ts| ts.iter().filter(|x| x.verb == row.verb).collect::<Vec<_>>()).unwrap_or_default();
+    if trans_by_verb.is_empty() && !is_vote {
+        return Err(Refusal::NoTransition);
     }
-
-    let policy = policy_row(tables, &t).cloned();
-    Ok(Plan {
-        row: row.clone(),
-        transition: t,
-        first_held: now,
-        policy,
-    })
+    if trans_by_verb.iter().any(|x| x.roles.is_empty()) {
+        return Err(Refusal::Closed);
+    }
+    Err(Refusal::NoStanding)
 }
 
 pub fn commit(held: &mut Vec<HeldRow>, plan: Plan) {
@@ -815,9 +1049,10 @@ pub fn queue(held: &[HeldRow], tables: &Tables, person: &str, now: u64) -> Queue
             subject: o.subject.as_deref(),
             author: Some(&o.author),
             room: o.scope.room.as_deref(),
+            signer_type: None,
+            tier: Some(&o.scope.tier),
         };
-        let roles: Vec<String> = standing_target(&f, person, &target).into_iter().collect();
-        for t in enabled_for(tables, &o.family, &o.state, &roles) {
+        for t in enabled(&f, tables, person, &target, None) {
             items.push(QueueItem {
                 kind: "choice".to_string(),
                 object: o.id.clone(),
@@ -832,28 +1067,23 @@ pub fn queue(held: &[HeldRow], tables: &Tables, person: &str, now: u64) -> Queue
 
     let mut starts = Vec::new();
     let target_none = TargetRef::default();
-    let global_roles: HashSet<String> = standing_target(&f, person, &target_none);
 
     for family in &tables.family_order {
-        if let Some(ts) = tables.families.get(family) {
-            for t in ts {
-                if t.from == "none" && !t.roles.is_empty() && t.roles.iter().any(|r| global_roles.contains(r)) {
-                    starts.push(QueueStart {
-                        kind: "choice".to_string(),
-                        family: family.clone(),
-                        verb: t.verb.clone(),
-                        to: t.to.clone(),
-                        policy: t.policy.clone(),
-                        confirm: t.widens,
-                        found: None,
-                        room: None,
-                    });
-                }
-            }
+        for t in enabled(&f, tables, person, &target_none, Some(family)) {
+            starts.push(QueueStart {
+                kind: "choice".to_string(),
+                family: family.clone(),
+                verb: t.verb,
+                to: t.to,
+                policy: t.policy,
+                confirm: t.widens,
+                found: None,
+                room: None,
+            });
         }
     }
 
-    if global_roles.contains("registered") {
+    if f.registered.contains(person) {
         if let Some(t) = transition_of(tables, "group:roster", "attest", "none") {
             starts.push(QueueStart {
                 kind: "choice".to_string(),
@@ -871,28 +1101,21 @@ pub fn queue(held: &[HeldRow], tables: &Tables, person: &str, now: u64) -> Queue
     for room_id in &f.room_order {
         let target_room = TargetRef {
             room: Some(room_id),
+            tier: Some("room"),
             ..Default::default()
         };
-        let roles: HashSet<String> = standing_target(&f, person, &target_room);
-        if !roles.contains("member") {
-            continue;
-        }
         for family in &tables.family_order {
-            if let Some(ts) = tables.families.get(family) {
-                for t in ts {
-                    if t.from == "none" && !t.roles.is_empty() && t.roles.iter().any(|x| roles.contains(x)) {
-                        starts.push(QueueStart {
-                            kind: "choice".to_string(),
-                            family: family.clone(),
-                            verb: t.verb.clone(),
-                            to: t.to.clone(),
-                            policy: t.policy.clone(),
-                            confirm: t.widens,
-                            found: None,
-                            room: Some(room_id.clone()),
-                        });
-                    }
-                }
+            for t in enabled(&f, tables, person, &target_room, Some(family)) {
+                starts.push(QueueStart {
+                    kind: "choice".to_string(),
+                    family: family.clone(),
+                    verb: t.verb,
+                    to: t.to,
+                    policy: t.policy,
+                    confirm: t.widens,
+                    found: None,
+                    room: Some(room_id.clone()),
+                });
             }
         }
     }
@@ -926,63 +1149,67 @@ pub fn preview(held: &[HeldRow], tables: &Tables, rows: &[Row], now: u64) -> Pre
     }
 
     let after = fold(&copy, tables, now);
-    let mut changed = Vec::new();
 
+    let mut changed = Vec::new();
     for obj_id in &after.object_order {
-        let o = &after.objects[obj_id];
-        let b = before.objects.get(obj_id);
-        match b {
+        let o_after = &after.objects[obj_id];
+        let o_before = before.objects.get(obj_id);
+        match o_before {
             None => {
                 changed.push(ChangedObject {
                     object: obj_id.clone(),
-                    family: o.family.clone(),
+                    family: o_after.family.clone(),
                     from: "none".to_string(),
-                    to: o.state.clone(),
-                    outcome: o.outcome.clone(),
-                    pending: o.missing.clone(),
+                    to: o_after.state.clone(),
+                    outcome: o_after.outcome.clone(),
+                    pending: o_after.missing.clone(),
                 });
             }
-            Some(before_o) => {
-                if before_o.state != o.state || before_o.outcome != o.outcome {
+            Some(o_prev) => {
+                if o_prev.state != o_after.state || o_prev.outcome != o_after.outcome {
                     changed.push(ChangedObject {
                         object: obj_id.clone(),
-                        family: o.family.clone(),
-                        from: before_o.state.clone(),
-                        to: o.state.clone(),
-                        outcome: o.outcome.clone(),
-                        pending: o.missing.clone(),
+                        family: o_after.family.clone(),
+                        from: o_prev.state.clone(),
+                        to: o_after.state.clone(),
+                        outcome: o_after.outcome.clone(),
+                        pending: o_after.missing.clone(),
                     });
                 }
             }
         }
     }
 
-    let mut rooms = Vec::new();
-    for (id, r) in &after.rooms {
-        let b = before.rooms.get(id);
-        let joined: Vec<String> = r
-            .members
-            .iter()
-            .filter(|m| b.map(|prev| !prev.members.contains(*m)).unwrap_or(true))
-            .cloned()
-            .collect();
-        let left: Vec<String> = b
-            .map(|prev| {
-                prev.members
-                    .iter()
-                    .filter(|m| !r.members.contains(*m))
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default();
-        let locked = r.locked && !b.map(|prev| prev.locked).unwrap_or(false);
+    let mut room_diffs = Vec::new();
+    for room_id in &after.room_order {
+        let r_after = &after.rooms[room_id];
+        let r_before = before.rooms.get(room_id);
 
-        if !joined.is_empty() || !left.is_empty() || locked {
-            rooms.push(RoomDiff {
-                room: id.clone(),
+        let mut joined = Vec::new();
+        let mut left = Vec::new();
+
+        for m in &r_after.members {
+            if !r_before.map(|b| b.members.contains(m)).unwrap_or(false) {
+                joined.push(m.clone());
+            }
+        }
+        if let Some(rb) = r_before {
+            for m in &rb.members {
+                if !r_after.members.contains(m) {
+                    left.push(m.clone());
+                }
+            }
+        }
+
+        joined.sort();
+        left.sort();
+
+        if !joined.is_empty() || !left.is_empty() || r_before.map(|b| b.locked != r_after.locked).unwrap_or(true) {
+            room_diffs.push(RoomDiff {
+                room: room_id.clone(),
                 joined,
                 left,
-                locked,
+                locked: r_after.locked,
             });
         }
     }
@@ -1015,7 +1242,7 @@ pub fn preview(held: &[HeldRow], tables: &Tables, rows: &[Row], now: u64) -> Pre
     PreviewResult {
         verdicts,
         changed,
-        rooms,
+        rooms: room_diffs,
         impact: PreviewImpact {
             direction: if widens {
                 "widens".to_string()

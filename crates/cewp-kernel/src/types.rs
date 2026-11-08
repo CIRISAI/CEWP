@@ -56,8 +56,16 @@ pub struct Policy {
     pub kind: String,
     pub enact: Option<Fraction>,
     pub cancel: Option<Fraction>,
+    pub floor: Option<Fraction>,
+    pub irreversible: bool,
+    pub reverse_path: bool,
+    pub cancel_over: Option<String>,
+    pub base_law: Option<String>,
+    pub base: Option<String>,
     pub at_window: Option<String>,
     pub window_secs: Option<u64>,
+    pub window_class: Option<String>,
+    pub corridor: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -83,6 +91,7 @@ pub enum Refusal {
     NotEnabled,
     SelfLoop,
     PolicyRefused,
+    ScoreOutsideDeclaredPolarity,
     Other(String),
 }
 
@@ -102,6 +111,7 @@ impl Refusal {
             Refusal::NotEnabled => "not_enabled",
             Refusal::SelfLoop => "self_loop",
             Refusal::PolicyRefused => "policy_refused",
+            Refusal::ScoreOutsideDeclaredPolarity => "score_outside_declared_polarity",
             Refusal::Other(s) => s.as_str(),
         }
     }
@@ -141,6 +151,7 @@ impl From<&str> for Refusal {
             "not_enabled" => Refusal::NotEnabled,
             "self_loop" => Refusal::SelfLoop,
             "policy_refused" => Refusal::PolicyRefused,
+            "score_outside_declared_polarity" => Refusal::ScoreOutsideDeclaredPolarity,
             other => Refusal::Other(other.to_string()),
         }
     }
@@ -169,6 +180,8 @@ pub struct TargetRef<'a> {
     pub subject: Option<&'a str>,
     pub author: Option<&'a str>,
     pub room: Option<&'a str>,
+    pub signer_type: Option<&'a str>,
+    pub tier: Option<&'a str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -187,6 +200,7 @@ pub struct Missing {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Outcome {
     Enacted,
+    EnactedIrreversible,
     Cancelled,
     Reversed,
     Stands,
@@ -198,6 +212,7 @@ impl Outcome {
     pub fn as_str(&self) -> &str {
         match self {
             Outcome::Enacted => "enacted",
+            Outcome::EnactedIrreversible => "enacted_irreversible",
             Outcome::Cancelled => "cancelled",
             Outcome::Reversed => "reversed",
             Outcome::Stands => "stands",

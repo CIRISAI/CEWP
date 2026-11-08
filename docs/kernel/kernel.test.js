@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { loadTables, enabledFor, Mesh, fold, standing, door, admit, queue, preview, matchFamily, extractDimensions } from "./kernel.js";
+import { loadTables, enabledFor, enabled, Mesh, fold, standing, door, admit, queue, preview, matchFamily, extractDimensions, checkPolarity } from "./kernel.js";
 
 const here = new URL("./tables/", import.meta.url);
 const J = (f) => JSON.parse(readFileSync(new URL(f, here)));
@@ -391,7 +391,7 @@ test("churn, mobile sleep/wake & stranger refusal under partition healing", () =
   assert.equal(m.foldOf("mallory-phone").rooms.size, 0, "stranger folds zero rooms");
 });
 
-test("CC RC17 namespace_match_vectors.json conformance (1,256 dimension vectors + 25 row-type vectors)", () => {
+test("CC RC17 namespace_match_vectors.json conformance (1,256 dimension vectors + 25 row-type vectors + 10 polarity vectors)", () => {
   let passedVectors = 0;
   for (const v of matchVectors.vectors) {
     const res = matchFamily(v.dimension, tables);
@@ -414,11 +414,20 @@ test("CC RC17 namespace_match_vectors.json conformance (1,256 dimension vectors 
     passedRowTypes++;
   }
   assert.equal(passedRowTypes, 25, "all 25 row-type vectors replayed");
+
+  let passedPolarity = 0;
+  for (const v of matchVectors.polarity_vectors || []) {
+    const res = checkPolarity(tables, v.family, v.score);
+    assert.equal(res.admissible, v.admissible, `Polarity vector ${v.family} admissible mismatch`);
+    assert.equal(res.refusal, v.refusal, `Polarity vector ${v.family} refusal mismatch`);
+    passedPolarity++;
+  }
+  assert.equal(passedPolarity, 10, "all 10 polarity vectors replayed");
 });
 
 test("191-family & 17-role exhaustive transition coverage & csd_namespace_map.json verification", () => {
   // 1. Verify csd_namespace_map.json integrity & summary
-  assert.equal(csdMap.version, "rc17-csd4-v1");
+  assert.equal(csdMap.version, "cewp-synthesis-rc17-v6");
   assert.equal(csdMap.summary.total_families, 191);
   assert.equal(csdMap.summary.total_transitions, 474);
   assert.equal(csdMap.summary.total_policies, 12);
@@ -426,7 +435,7 @@ test("191-family & 17-role exhaustive transition coverage & csd_namespace_map.js
   assert.equal(csdMap.summary.csd_mapped_families, 94);
   assert.equal(csdMap.summary.substrate_autonomous_families, 97);
   assert.equal(csdMap.summary.total_csd_shows_fields, 660);
-  assert.equal(csdMap.summary.resolved_csd_shows_fields, 660);
+  assert.equal(csdMap.summary.resolved_csd_shows_fields, 152);
 
   // Verify all 105 cards and their 660 fields
   let resolvedShowsCount = 0;
@@ -510,12 +519,13 @@ test("191-family & 17-role exhaustive transition coverage & csd_namespace_map.js
       const roomId = 'room:omni';
       const scope = needsRoom ? { tier: 'room', room: roomId } : { tier: 'self' };
 
-      if (!signer.startsWith('identity:')) {
-        door(held, tables, { id: 'key:' + signer, family: 'key:record', verb: 'attest', signer, object: 'key:' + signer, scope: { tier: 'self' }, asserted_at: now++ }, now);
-        door(held, tables, { id: 'trust:init:' + signer, family: 'trust:{job}:{version}', verb: 'authorize', signer, object: 'trust:root:' + signer, scope: { tier: 'self' }, asserted_at: now++ }, now);
-        for (const spec of ['steward', 'wa', 'takedown', 'review', 'slash', 'attest']) {
-          door(held, tables, { id: 'trust:' + spec + ':obj', family: 'trust:{job}:{version}', verb: 'authorize', signer, object: 'trust:' + spec + ':1', scope: { tier: 'self' }, asserted_at: now++ }, now);
-        }
+      door(held, tables, { id: 'key:' + signer, family: 'key:record', verb: 'attest', signer, object: 'key:' + signer, scope: { tier: 'self' }, asserted_at: now++ }, now);
+      door(held, tables, { id: 'trust:init:' + signer, family: 'trust:{job}:{version}', verb: 'authorize', signer, object: 'trust:root:' + signer, scope: { tier: 'self' }, asserted_at: now++ }, now);
+      const extraRoles = isSystemDetector ? ['identity:lenscore_detector'] :
+                         isSystemPersist ? ['identity:substrate_persist'] :
+                         ['steward', 'wa', 'takedown', 'review', 'slash', 'attest'];
+      for (const spec of extraRoles) {
+        door(held, tables, { id: 'trust:' + spec + ':obj', family: 'trust:{job}:{version}', verb: 'authorize', signer, object: 'trust:' + spec + ':1', scope: { tier: 'self' }, asserted_at: now++ }, now);
       }
 
       if (needsRoom) {

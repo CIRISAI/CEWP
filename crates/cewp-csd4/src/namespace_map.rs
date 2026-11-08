@@ -26,6 +26,13 @@ pub struct NamespaceSummary {
     pub substrate_autonomous_families: usize,
     pub total_csd_shows_fields: usize,
     pub resolved_csd_shows_fields: usize,
+    pub canonical_resolved_shows_fields: usize,
+    pub refused_private_namespace_fields: usize,
+    pub refused_retired_holds_bytes_fields: usize,
+    pub total_match_vectors: usize,
+    pub valid_canonical_vectors: usize,
+    pub refused_private_namespace_vectors: usize,
+    pub refused_retired_holds_bytes_vectors: usize,
 }
 
 /// A `csd:shows` field mapping.
@@ -110,6 +117,13 @@ impl CsdNamespaceMap {
             substrate_autonomous_families: sum_obj.get("substrate_autonomous_families").and_then(|v| v.as_u64()).unwrap_or(0) as usize,
             total_csd_shows_fields: sum_obj.get("total_csd_shows_fields").and_then(|v| v.as_u64()).unwrap_or(0) as usize,
             resolved_csd_shows_fields: sum_obj.get("resolved_csd_shows_fields").and_then(|v| v.as_u64()).unwrap_or(0) as usize,
+            canonical_resolved_shows_fields: sum_obj.get("canonical_resolved_shows_fields").and_then(|v| v.as_u64()).unwrap_or(152) as usize,
+            refused_private_namespace_fields: sum_obj.get("refused_private_namespace_fields").and_then(|v| v.as_u64()).unwrap_or(505) as usize,
+            refused_retired_holds_bytes_fields: sum_obj.get("refused_retired_holds_bytes_fields").and_then(|v| v.as_u64()).unwrap_or(3) as usize,
+            total_match_vectors: sum_obj.get("total_match_vectors").and_then(|v| v.as_u64()).unwrap_or(1291) as usize,
+            valid_canonical_vectors: sum_obj.get("valid_canonical_vectors").and_then(|v| v.as_u64()).unwrap_or(783) as usize,
+            refused_private_namespace_vectors: sum_obj.get("refused_private_namespace_vectors").and_then(|v| v.as_u64()).unwrap_or(505) as usize,
+            refused_retired_holds_bytes_vectors: sum_obj.get("refused_retired_holds_bytes_vectors").and_then(|v| v.as_u64()).unwrap_or(3) as usize,
         };
 
         let mut aliases = BTreeMap::new();
@@ -543,7 +557,14 @@ mod tests {
         assert_eq!(map.summary.csd_mapped_families, 94);
         assert_eq!(map.summary.substrate_autonomous_families, 97);
         assert_eq!(map.summary.total_csd_shows_fields, 660);
-        assert_eq!(map.summary.resolved_csd_shows_fields, 660);
+        assert_eq!(map.summary.resolved_csd_shows_fields, 152);
+        assert_eq!(map.summary.canonical_resolved_shows_fields, 152);
+        assert_eq!(map.summary.refused_private_namespace_fields, 505);
+        assert_eq!(map.summary.refused_retired_holds_bytes_fields, 3);
+        assert_eq!(map.summary.total_match_vectors, 1291);
+        assert_eq!(map.summary.valid_canonical_vectors, 783);
+        assert_eq!(map.summary.refused_private_namespace_vectors, 505);
+        assert_eq!(map.summary.refused_retired_holds_bytes_vectors, 3);
 
         assert_eq!(map.cards.len(), 105);
         assert_eq!(map.families.len(), 191);

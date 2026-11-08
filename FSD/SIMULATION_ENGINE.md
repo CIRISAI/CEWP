@@ -1,7 +1,7 @@
 # FSD: CEWP Simulation, Verification, and Evidence Engine
 
 **Status:** v0.2 architecture & verification specification (supersedes v0.1).  
-**Scope:** A multi-resolution, event-driven Rust simulation and conformance system that executes the **authoritative semantics of the CIRIS Constitution (`rc17`)**, instantiates the **holistic CSD/4 topology and state-atom contract (`T0–T19`)** across formal models, simulated meshes, real `CIRISServer` nodes, and `CIRISClient` / `CEWPOS` surfaces, enforces the exact **transport (`CC §5.4.3 / §5.4.6`), deterministic ALM (`CC §6.1.6`), and fountain noise-floor storage (`CC §6.1.2`)** rules, and emits **auditable, machine-checkable evidence bundles**.  
+**Scope:** A multi-resolution, event-driven Rust simulation and conformance system that executes the **authoritative semantics of the CIRIS Constitution (`rc17`)**, instantiates the **holistic CSD/4 topology and state-atom contract (`T0–T19`)** across formal models, simulated meshes, real `CIRISServer` nodes, and `CIRISClient` / `CEWPOS` surfaces, enforces the exact **transport (`CC §5.4.3 / §5.4.6`), deterministic ALM (`CC §6.1.6`), and whole-chunk sealed noise-floor storage (`CC §6.1.2`, `CC §6.1.5`)** rules, and emits **auditable, machine-checkable evidence bundles**.  
 **Audience:** Simulation engine implementers (`CEWP`), substrate & server engineers (`CIRISServer`, `CIRISEdge`, `CIRISPersist`, `CIRISVerify`, `CIRISConformance`), client & UX engineers (`CIRISClient`, `CEWPOS`), formal verification engineers (`CIRISConstitution`, `CIRISHolon`), and the visualization team (`ciris-website`).
 
 ---
@@ -16,7 +16,7 @@ This FSD organizes the system into **nine architectural layers**:
 
 1. **Constitutional Executable Authority (`CC §4.5.13`)** — One state processor, zero rule drift.
 2. **Holistic CSD/4 Scenario Contract (`T0–T19`)** — One shared topology and state-atom vocabulary across `CIRISConstitution`, `CIRISServer`, `CIRISClient`, `CEWPOS`, and `CEWP`.
-3. **Exact Transport, Deterministic ALM, and Storage Fidelity (`CC §5.4.3`, `§5.4.6`, `§6.1.2`, `§6.1.6`)** — Modeling the actual constitutional constraints, frozen vectors, and symbol ranks rather than idealized graphs.
+3. **Exact Transport, Deterministic ALM, and Whole-Chunk Storage Fidelity (`CC §5.4.3`, `§5.4.6`, `§6.1.2`, `§6.1.5`, `§6.1.6`)** — Modeling the actual constitutional constraints, frozen vectors, and layered-codec rate-distortion states rather than idealized graphs.
 4. **Workload Mathematics, Certified Multiscale Coarse-Graining (`CIRISHolon`), and Credible Baselines** — Dimensional correctness, mathematically certified resolution tiers (`R0–R5`), and fair four-way architectural comparisons.
 5. **Adversarial Testing Programme & Formal-Exclusion Regression Suite** — Actively searching for failure boundaries and testing what the formal models explicitly exclude.
 6. **Real-Implementation Conformance Bridge & Independent Checkers** — Separating *semantic conformance* from *operational fidelity* across all 8 repositories.
@@ -57,7 +57,7 @@ The simulator **must not** implement a parallel or approximate policy engine. In
      - [`docs/kernel/tables/transitions.json`](../docs/kernel/tables/transitions.json) (`191` families, `474` transitions)
      - [`docs/kernel/tables/governance_policy.json`](../docs/kernel/tables/governance_policy.json) (the 5-integer policy rows)
      - [`docs/kernel/tables/mesh_story_trace.json`](../docs/kernel/tables/mesh_story_trace.json) (the 14-step, 13-row executable trace)
-     - `manifests/topology_vocabulary.json` (`156` state-table atoms in `rc17` v6 / `120` in `CIRISServer` v5)
+     - `manifests/topology_vocabulary.json` (`156` atoms, `152` in the state table, `110` promised atoms across `T0–T19` in `manifests/csd4_chain.json`, catalogue version `6`)
      - `manifests/namespace_registry.json` & `manifests/signed_object_vectors.json`
 2. **Role of [`docs/kernel/kernel.js`](../docs/kernel/kernel.js) and [`docs/kernel/kernel.test.js`](../docs/kernel/kernel.test.js)**:
    - `kernel.js` is the zero-dependency reference harness demonstrating 100% parity with `mesh_story_trace.json`, 6-peer mesh propagation, 100-permutation partition/re-merge convergence, and mobile sleep/wake churn.
@@ -73,7 +73,7 @@ The simulator **must not** implement a parallel or approximate policy engine. In
 ### 2.1 Why CSD/4 Is the Unifying Spine of the Entire CIRIS Stack
 Across traditional distributed systems, formal verification teams, backend server teams, mobile/web UI teams, and network simulation teams each invent their own synthetic test fixtures. Those fixtures inevitably drift, hiding bugs in the seams between layers.
 
-**CSD/4 (Client Surface Definition v4)** solves this by establishing **one closed vocabulary of 20 network topologies (`T0–T19`) and constitutional state atoms** shared across five repositories:
+**CSD/4 (Card-first Specification Design v4)** solves this by establishing **one closed vocabulary of 20 network topologies (`T0–T19`, catalogue version 6), 156 vocabulary atoms (`topology_vocabulary.json`), 152 in the state table, and 110 promised atoms across `T0–T19` in CC's `manifests/csd4_chain.json`**, framed by a 4-field card format (`shows` / `reads` / `emits` / `checks`) and verified against the five cross-plane Cornerstone Invariants (`X1–X5`) shared across five repositories:
 
 ```mermaid
 flowchart TD
@@ -92,10 +92,10 @@ flowchart TD
         CAT --> MOD --> RUN
     end
 
-    subgraph CL["3. CIRISClient & CEWPOS (101 CSD Cards, 12 UX Primitives & 5-Platform Matrix)"]
+    subgraph CL["3. CIRISClient & CEWPOS (101 CIRISClient cards [43 CSD/4 + 58 bullet] + 4 CEWPOS = 105 total; 12 UX Primitives & 5-Platform Matrix)"]
         VND["packaging/vendor_csd4.py<br/>(Sigstore cosign + SHA256SUMS,<br/>zero server code execution)"]
         CHK["packaging/check_csd4.py<br/>(Card refusal rules R1–R5:<br/>R5_ATOMS_NEVER_COHOLD)"]
-        UX["101 Active CSD Cards (CSD-001..129)<br/>12 Closed UX Primitives (P1–P12)<br/>5 Runners: Web, Desktop, Android, iOS, TUI"]
+        UX["101 Active CIRISClient Cards + 4 CEWPOS Cards (105 Total)<br/>csd_namespace_map.json is CEWP synthesis<br/>12 Closed UX Primitives (P1–P12)<br/>5 Runners: Web, Desktop, Android, iOS, TUI"]
         VND --> CHK --> UX
     end
 
@@ -134,36 +134,36 @@ flowchart TD
      - Emits `checkpoints/<step>.json` (`values.json`) for attached client runners and exports `nodes/<node>/rows.jsonl` at teardown so `CIRISConstitution`'s TLA+ trace checker can fold `V(rows, t)` offline.
 3. **`CIRISClient` (`/home/emoore/CIRISClient/FSD/CSD4_EVALUATION.md`, `packaging/check_csd4.py`, `packaging/vendor_csd4.py`) & `CEWPOS` (`/home/emoore/CEWPOS/epistemic-ui/csd4_harness.py`)**:
    - Consumes `CIRISServer`'s cosign-signed release artifacts (`csd4-requirements.yaml`, `csd4-topology_vocabulary.json`, `csd4-topology_vocabulary.pin`, `csd4-traces.json`) via `vendor_csd4.py` with **zero server code execution**.
-   - Enforces the **5 card-side refusal rules (`R1–R5`)** in `check_csd4.py` across all 101 active CSD cards (`CSD-001`..`CSD-129`), including **`R5_ATOMS_NEVER_COHOLD`** (proving that every test's `at: [...]` atom set co-holds simultaneously at at least one step of its topology trace).
+   - Enforces the **5 card-side refusal rules (`R1–R5`)** in `check_csd4.py` across all 101 active cards in `CIRISClient` (`43` CSD/4 + `58` bullet cards, plus `4` CEWPOS cards = `105` total; and `csd_namespace_map.json` is CEWP's synthesis of `CIRISClient`/`CEWPOS`), including **`R5_ATOMS_NEVER_COHOLD`** (proving that every test's `at: [...]` atom set co-holds simultaneously at at least one step of its topology trace).
    - Binds all 101 cards to **12 closed UX primitives (`P1–P12`)** (`P1` Claimed Viewport, `P2` Epistemic Pill, `P3` Hash-Pinned Card, `P4` Folded Event Stream, `P5` Door Composer, `P6` Quorum Ceremony Bar, `P7` Key/Device Roster Matrix, `P8` Steward/Agent Mandate Console, `P9` Consent & Relationship Ledger, `P10` Custody & Replication Gauge, `P11` Topology & Relay Inspector, `P12` Emergency Halt Banner) and attaches 5 platform test runners (Web Playwright, Desktop Tauri, Android Compose, iOS XCUITest, TUI Ratatui) to live checkpoints (`134` resolved test instants across `74` materialized step checkpoints).
 
 ### 2.3 Complete CSD/4 Closed Topology Catalogue (`T0–T19`)
 
 | ID | Constitutional / Server Topology | Entities (`roots / canonicals / nodes / persons`) | Core Relations & Dynamics Modeled | Key State Atoms Promised (`topology_vocabulary.json`) | Primary CSDs Served |
 |---|---|---|---|---|---|
-| **`T0`** | `T0-just-me-offline` / `T0_single_node` | `0R / 0C / 1N / 1P` | Single offline node; unclaimed → claimed transition; local notes & search | `root.none`, `node.unclaimed` (`[0,1)`), `node.claimed_sole`, `node.unannounced`, `self.single_device`, `values.ready` | `CSD-118` (+41 local cards) |
-| **`T1`** | `T1-one-person-two-devices` / `T1_self_room` | `1R / 1C / 2N / 1P` | One person across 2 devices (`phone`, `laptop`); `self_room` sync; 24 MiB file custody & withdrawal | `canonical.peered`, `person.multi_device`, `room.self.keyed`, `key.exchange.cascaded`, `file.held`, `file.large`, `file.withdrawn` | `CSD-096`, `CSD-107` |
-| **`T2`** | `T2-pair-room-outsider` / `T2_pair_room` | `1R / 1C / 3N / 3P` | `alice` + `bob` in keyed `pair_room`; `eve`/`carol` unannounced outsider (`cannot_list_room` / `cannot_decrypt`) | `contact.added`, `room.pair.keyed`, `member.pair_active`, `person.outsider`, `member.outsider_excluded`, `negatives.held` | `CSD-091` |
-| **`T3`** | `T3-second-device-approval` / `T3_device_join` | `1R / 1C / 3N / 3P` | Contact by code; new device requests join (`[3,4)` transient) → approved by existing device | `contact.via_code`, `device.join_requested` (`[3,4)`), `device.join_approved`, `device.joined`, `roster.visible` | `CSD-037`, `CSD-092..094` |
-| **`T4`** | `T4-household` / `T4_household` | `1R / 1C / 3N / 2–3P` | Guardian(s) + minor child in `household`; guardian co-signed bond & age assurance | `household.formed`, `child.member`, `guardian.bound`, `age.assured`, `consent.guardian_co_signed`, `gov.age_gated` | `CSD-100`, `CSD-101`, `CSD-119` |
-| **`T5`** | `T5-community-quorum` / `T5_community` | `1R / 1C / 4N / 3–4P` | Majority community `K`; pending applicant (`[4,5)`); held 2-of-2 quorum change; moderator appointment | `community.formed`, `member.applicant_pending`, `quorum_change.held`, `quorum_change.applied`, `moderator.named` | `CSD-065`, `CSD-102`, `CSD-103`, `CSD-128` |
-| **`T6`** | `T6-affiliation-delegation` / `T6_delegated` | `1R / 1C / 2–3N / 2–3P` | Licensing authority + practitioner in `affiliations` tier; depth-2 scoped delegation chain; out-of-scope refusal | `authority.licensing`, `delegation.chain`, `authority.delegated_within_scope`, `authority.out_of_scope_refused` | `CSD-120..126` |
-| **`T7`** | `T7-agent-steward-wa` / `T7_agent_steward` | `1R / 1C / 3N / 2P+1A` | Human steward + bound AI agent + Wise Authority (`wa`); WA deferral (`pending`/`approved`/`rejected`) & identity amendment | `agent.bound`, `steward.bonded`, `wa.present`, `agent.deferral.{pending,approved,rejected}`, `agent.identity.amended` | `CSD-050`, `CSD-061`, `CSD-063`, `CSD-064`, `CSD-111..117` |
-| **`T8`** | `T8-accord-halt` / `T8_threshold_root` | `1R / 1C / 4N / 4P` | $M$-of-$N$ (`2`-of-`3`) infrastructure root; lone holder halts (`[1,2)`), majority confirms (`[2,3)`), resumes (`86400s` fuse) | `root.infrastructure`, `root.halted`, `root.halt_confirmed`, `root.resumed`, `root.single_holder_insufficient` | `CSD-067..069`, `CSD-105`, `CSD-129` |
-| **`T9`** | `T9-two-roots-outsider` / `T9_federated_roots` | `2R / 2C / 3N / 3P` | Key root `R1` + infrastructure root `R2` cross-trusted via accord; third party `zed` accepting neither | `root.two`, `root.key`, `root.infrastructure`, `root.accord_cross_trusted`, `party.outside_roots` | `CSD-127` |
-| **`T10`** | `T10-stolen-device-quorum-evict` / `T10_self_recovery` | `1R / 1C / 3–4N / 1P` | Person with 3+ devices; 1 device stolen (`thief`) and evicted by 2-device quorum (`CC 3.3.6.3`) | `key.holder.{owner,thief}`, `key.membership.{proposed_add,proposed_evict,evicted}`, `self.roster_size.three_more` | `CSD-037`, `CSD-095` |
-| **`T11`** | `T11-lost-devices-lone-recovery` / `T11_root_recovery` | `1R / 1C / 3N / 1P` (or `5N` root) | 2 of 3 self keys lost; lone survivor evicts lost keys after `W_self = 86400s` window (`CC 3.3.6.3`); root stall/lapse | `key.holder.lost`, `self.lone_recovery_pending`, `self.roster_size.one` / `root.halt_stalled`, `root.halt_lapsed` | `CSD-037`, `CSD-095`, `CSD-105` |
-| **`T12`** | `T12-root-stall-recovery` / `T12_witnessed_lineage` | `1–2R / 1C / 4–5N / 4–5P` | Founder resigns below margin (`≤ M` live → `Stalled`); conferred human widens roster back to `Live` (`CC 3.2 T7`) | `root.standing.Stalled`, `root.liveness.{stalled,live}`, `seat.identity_type.human`, `root.lineage_witnessed` | `CSD-105` |
-| **`T13`** | `T13-witnessed-lineage` / `T13_consent_lifecycle` | `1R / 1C / 3N / 3P` | Stale witnessed head refuses attach; node-bearing seat excluded from human founder count (`CC 3.2 T4a/T6, 3.4.7.1`) | `root.head.stale`, `seat.identity_type.node_bearing` | `CSD-105` |
-| **`T14`** | `T14-consent-end-to-end` / `T14_community_governance` | `1R / 1C / 2–6N / 2–6P` | Full consent lifecycle: grant → revoke → expiry → 3-stage decay (`identity_severed` → `patterns_anonymized` → `complete`); replication withdrawal | `consent.state.{granted,revoked,expired}`, `consent.decay.{identity_severed,patterns_anonymized,complete}`, `consent.replication.none` | `CSD-053` |
-| **`T15`** | `T15-community-ceremony` / `T15_agent_lifecycle` | `1R / 1C / 7N / 7P` | 7-node community ceremony: proposal, `accepted_awaiting_group`, decline, removal, resignation; moderator lapses → room locks (`fail_secure`) | `member.stage.{proposed,accepted_awaiting_group,declined,removed,resigned}`, `group.moderator.{lapsed,merit_promoted,fail_secure}` | `CSD-102`, `CSD-103`, `CSD-128` |
-| **`T16`** | `T16-agent-retirement` / `T16_content_takedown` | `1R / 1C / 3N / 2P+1A` | 7-stage Agent Retirement Standard (`CC 7.5.5`): `decided` → `frozen` → `secrets_destroyed` → `handed_over` → `notified` → `custodian_minted` → `retired` | `agent.bond.{unbound,lapsed}`, `agent.retirement.{decided,frozen,secrets_destroyed,handed_over,notified,custodian_minted,retired}` | `CSD-111` |
-| **`T17`** | `T17-takedown-purge` / `T17_delegation_lifecycle` | `1R / 1C / 3–4N / 3–4P` | Content takedown & steward purge: `admitted` → `tombstoned` → dwell → `purged` across `family` and `community` scopes (`CC 2.1, 4.5.3, 5.2`) | `row.standing.{admitted,tombstoned}`, `blob.custody.purged`, `row.scope.{family,community}` | `CSD-107`, `CSD-108` |
-| **`T18`** | `T18-delegation-ends` / `T18_accord_lifecycle` | `1R / 1C / 2–3N / 2–3P` | Delegation withdrawal cascade, term expiry, held capability key grant, guardian bond creation (`CC 4.4.3.4.3, 3.3.2, 3.4.13`) | `delegation.link.{withdrawn,expired}`, `grant.state.held`, `guardian.bond.none` | `CSD-119`, `CSD-120` |
-| **`T19`** | `T19-holders-under-coercion` / `T19_holders_under_constraint` | `1R / 1C / 4–6N / 4–6P` | Root holders under coercion (holder 1), censorship (holder 2), and key loss (`revoked_after` vs `revoked_all`; `CC 4.2.6, 2.4.1.1`) | `root.holder_disposition.{honest,coerced,censored,lost}`, `key.revocation.{revoked_after,revoked_all,none}` | `CSD-105`, `CSD-129` |
+| **`T0`** | `T0-just-me-offline` / `T0_single_node` | `0R / 0C / 1N / 1P` | Single offline node; unclaimed → claimed transition; local notes & search | `root.none`, `node.unclaimed`, `node.claimed`, `node.unannounced`, `values.ready` | `CSD-118` (+41 local cards) |
+| **`T1`** | `T1-one-person-two-devices` / `T1_self_room` | `1R / 1C / 2N / 1P` | One person across 2 devices (`phone`, `laptop`); `self_room` sync; 24 MiB file custody & withdrawal | `canonical.peered`, `node.announced`, `peer.direct`, `person.multi_device`, `room.self.keyed`, `note.synced`, `session.unified`, `file.held`, `file.large`, `file.custody_received`, `file.withdrawn` | `CSD-096`, `CSD-107` |
+| **`T2`** | `T2-pair-room-outsider` / `T2_pair_room` | `1R / 1C / 3N / 3P` | `alice` + `bob` in keyed `pair_room`; `eve`/`carol` unannounced outsider (`cannot_list_room` / `cannot_decrypt`) | `contact.reachable`, `contact.added`, `room.pair.keyed`, `message.delivered`, `person.outsider`, `node.unannounced`, `negatives.held` | `CSD-091` |
+| **`T3`** | `T3-second-device-approval` / `T3_device_join` | `1R / 1C / 3N / 3P` | Contact by code; new device requests join (`[3,4)` transient) → approved by existing device | `contact.via_code`, `device.join_requested`, `device.join_approved`, `device.joined`, `person.multi_device`, `room.self.keyed`, `file.held`, `roster.visible`, `negatives.held` | `CSD-037`, `CSD-092..094` |
+| **`T4`** | `T4-household` / `T4_household` | `1R / 1C / 3N / 2–3P` | Guardian(s) + minor child in `household`; guardian co-signed bond & age assurance | `household.formed`, `household.member`, `child.member`, `guardian.bound`, `age.assured`, `person.multi_device`, `room.self.keyed` | `CSD-100`, `CSD-101`, `CSD-119` |
+| **`T5`** | `T5-community-quorum` / `T5_community` | `1R / 1C / 4N / 3–4P` | Majority community `K`; pending applicant; held 2-of-2 quorum change; moderator appointment | `community.formed`, `community.member`, `quorum_change.held`, `quorum_change.applied`, `moderator.named` | `CSD-065`, `CSD-102`, `CSD-103`, `CSD-128` |
+| **`T6`** | `T6-affiliation-delegation` / `T6_delegated` | `1R / 1C / 2–3N / 2–3P` | Licensing authority + practitioner in `affiliations` tier; depth-2 scoped delegation chain; out-of-scope refusal | `community.formed`, `community.member`, `authority.licensing`, `delegation.chain` | `CSD-120..126` |
+| **`T7`** | `T7-agent-steward-wa` / `T7_agent_steward` | `1R / 1C / 3N / 2P+1A` | Human steward + bound AI agent + Wise Authority (`wa`) | `agent.bound`, `steward.bonded`, `wa.present` | `CSD-050`, `CSD-061`, `CSD-063`, `CSD-064`, `CSD-111..117` |
+| **`T8`** | `T8-accord-halt` / `T8_threshold_root` | `1R / 1C / 4N / 4P` | $M$-of-$N$ (`2`-of-`3`) infrastructure root; lone holder halts (`[1,2)`), majority confirms (`[2,3)`), resumes (`86400s` fuse) | `root.infrastructure`, `root.rooted`, `pair.rooted`, `root.halted`, `root.halt_confirmed`, `root.resumed` | `CSD-067..069`, `CSD-105`, `CSD-129` |
+| **`T9`** | `T9-two-roots-outsider` / `T9_federated_roots` | `2R / 2C / 3N / 3P` | Key root `R1` + infrastructure root `R2` cross-trusted via accord; third party `zed` accepting neither | `root.two`, `root.key`, `root.infrastructure`, `party.outside_roots` | `CSD-127` |
+| **`T10`** | `T10-stolen-device-quorum-evict` / `T10_self_recovery` | `1R / 1C / 3–4N / 1P` | Person with 3+ devices; 1 device stolen (`thief`) and evicted by 2-device quorum (`CC 3.3.6.3`) | `key.membership.proposed_add`, `key.holder.owner`, `key.holder.thief`, `key.membership.proposed_evict`, `key.membership.evicted`, `self.roster_size.three_more` | `CSD-037`, `CSD-095` |
+| **`T11`** | `T11-lost-devices-lone-recovery` / `T11_root_recovery` | `1R / 1C / 3N / 1P` (or `5N` root) | 2 of 3 self keys lost; lone survivor evicts lost keys after `W_self = 86400s` window (`CC 3.3.6.3`); root stall/lapse | `key.membership.proposed_add`, `key.holder.lost`, `key.membership.evicted`, `self.roster_size.one` | `CSD-037`, `CSD-095`, `CSD-105` |
+| **`T12`** | `T12-root-stall-recovery` / `T12_root_stall_recovery` | `1–2R / 1C / 4–5N / 4–5P` | A root stalls (a founder resigns below the margin) and recovers by a conferred human | `root.standing.Stalled`, `root.liveness.stalled`, `root.liveness.live`, `seat.identity_type.human` | `CSD-105` |
+| **`T13`** | `T13-witnessed-lineage` / `T13_witnessed_lineage` | `1R / 1C / 3N / 3P` | A witnessed lineage — a stale head refuses attach; a node-bearing seat never counts | `root.head.stale`, `seat.identity_type.node_bearing` | `CSD-105` |
+| **`T14`** | `T14-consent-end-to-end` / `T14_consent_end_to_end` | `1R / 1C / 2–6N / 2–6P` | Consent end to end — grant, revoke, expiry, decay; replication grant and its withdrawal | `consent.state.granted`, `consent.state.revoked`, `consent.state.expired`, `consent.decay.identity_severed`, `consent.decay.patterns_anonymized`, `consent.decay.complete`, `consent.community_trust.granted`, `consent.community_trust.bounded`, `consent.replication.none` | `CSD-053` |
+| **`T15`** | `T15-community-ceremony` / `T15_community_ceremony` | `1R / 1C / 7N / 7P` | A community's ceremony — decline, removal, resignation; a moderator lapses, the room fails secure | `member.stage.proposed`, `member.stage.accepted_awaiting_group`, `member.stage.declined`, `member.stage.removed`, `member.stage.resigned`, `group.moderator.lapsed`, `group.moderator.merit_promoted`, `group.moderator.fail_secure`, `group.federating.no` | `CSD-102`, `CSD-103`, `CSD-128` |
+| **`T16`** | `T16-agent-retirement` / `T16_agent_retirement` | `1R / 1C / 3N / 2P+1A` | An agent retired under the Standard (`CC 7.5.5`): `decided` → `frozen` → `secrets_destroyed` → `handed_over` → `notified` → `custodian_minted` → `retired` | `agent.bond.unbound`, `agent.bond.lapsed`, `agent.retirement.decided`, `agent.retirement.frozen`, `agent.retirement.secrets_destroyed`, `agent.retirement.handed_over`, `agent.retirement.notified`, `agent.retirement.custodian_minted`, `agent.retirement.retired`, `agent.halt_gate.acting` | `CSD-111` |
+| **`T17`** | `T17-takedown-purge` / `T17_takedown_purge` | `1R / 1C / 3–4N / 3–4P` | A takedown and a steward purge — tombstone, dwell, purge; family and community scope (`CC 2.1, 4.5.3, 5.2`) | `row.standing.admitted`, `row.standing.tombstoned`, `blob.custody.purged`, `row.scope.family`, `row.scope.community` | `CSD-107`, `CSD-108` |
+| **`T18`** | `T18-delegation-ends` / `T18_delegation_ends` | `1R / 1C / 2–3N / 2–3P` | Delegation ends — a withdrawal cascades, a term expires; a key grant held; a guardian bond absent and made (`CC 4.4.3.4.3, 3.3.2, 3.4.13`) | `delegation.link.withdrawn`, `delegation.link.expired`, `grant.state.held`, `guardian.bond.none` | `CSD-119`, `CSD-120` |
+| **`T19`** | `T19-holders-under-coercion` / `T19_holders_under_coercion` | `1R / 1C / 4–6N / 4–6P` | Holders under coercion and censorship — the standing rule holds; an announced node; revoked_after (`CC 4.2.6, 2.4.1.1`) | `root.holder_disposition.honest`, `root.holder_disposition.coerced`, `root.holder_disposition.censored`, `root.holder_disposition.lost`, `node.announce.announced`, `key.revocation.revoked_after`, `key.revocation.revoked_all`, `key.revocation.none` | `CSD-105`, `CSD-129` |
 
 > [!IMPORTANT]
-> **Explicit Coverage Qualification:** CSD/4 is a **closed catalogue of 20 topologies (`T0–T19`)**, not a claim that every registered state in the Constitution is represented by `T0–T19`. In `CIRISConstitution` `rc17` (`formal/cewp_node/generated/SUMMARY.json`), `formal/STATE_TABLE.tsv` defines **242 states over 81 variables in 12 planes**, while `manifests/topology_vocabulary.json` defines **156 atoms** (`122` promised across `T0–T19`, `87` backed by a plane model, and `6` durability atoms `file.durable.*` awaiting `T20` under `CIRISServer#809`). Every simulation coverage report emitted by `cewp-cli` **must** display `(atoms_exercised / 122 promised / 156 vocabulary / 242 state_table)` so unmodeled states are never hidden.
+> **Explicit Coverage Qualification:** CSD/4 is a **closed catalogue of 20 topologies (`T0–T19`, catalogue version 6)**, not a claim that every registered state in the Constitution is represented by `T0–T19`. In `CIRISConstitution` `rc17` (`formal/cewp_node/generated/SUMMARY.json`), `formal/STATE_TABLE.tsv` defines **242 states over 81 variables in 12 planes**, while `manifests/topology_vocabulary.json` defines **156 atoms** (`110` promised atoms across `T0–T19` in `manifests/csd4_chain.json`, `152` in the state table, `87` backed by a plane model, and `6` durability atoms `file.durable.*` awaiting `T20` under `CIRISServer#809`). Every simulation coverage report emitted by `cewp-cli` **must** display `(atoms_exercised / 110 promised / 156 vocabulary / 152 state_table)` so unmodeled states are never hidden.
 
 ### 2.4 How CSD/4 Enables Realistic Mesh Usage Modeling in `CEWP`
 Instead of treating a planetary simulation as a sea of featureless random nodes flipping coins, CSD/4 gives `cewp-sim` a **realistic, behaviorally grounded basis of social and operational motifs**:
@@ -185,27 +185,32 @@ A generic P2P graph simulator (edges with static bandwidth capacities) is inadeq
 
 ### 3.1 Constitutional Transport Contract (`CC §5.4.3 & §5.4.6`, `Tiers.lean`)
 
-1. **Five Named Budget Classes (`CC §5.4.3`, `Tiers.lean`)**:
+1. **Five Named Budget Classes (`CC §5.4.3`, `Tiers.lean`) & Link Class Agreement**:
    - `phone-cellular` (`350 B/s`, $\rho = 0.5$, $W = 3,600\text{ s}$, real share `175 B/s`, rank 1)
    - `phone-wifi` (`1,400 B/s`, $\rho = 0.5$, $W = 600\text{ s}$, real share `700 B/s`, rank 2)
    - `home` (`2,800 B/s`, $\rho = 0.5$, $W = 600\text{ s}$, real share `1,400 B/s`, rank 3)
    - `server` (`7,000 B/s`, $\rho = 0.5$, $W = 600\text{ s}$, real share `3,500 B/s`, rank 4)
    - `seat` (`33,000 B/s`, $\rho = 0.5$, $W = 600\text{ s}$ — offered **only** when both endpoints hold a `serve` seat proved from the signed roster (`seat_needs_both`); its budget sits outside the 8-link device bound per `CLM-seat-class`).
-   - Channel payload MDUs: `≈ 400 B` at the Reticulum `500 B` base MTU vs. `≈ 16 KB` (`16,272 B`) over TCP.
-2. **Shaped-Link Bound (`L ≤ 8`) and Refusal (`CLM-shaped-link-bound-refuse`)**:
+   - **Link Class Agreement (`min(local, peer)`)**: Under `CC §5.4.3 item 1`, the agreed link budget class is the **lower of the two offers** (`agree(local_class, peer_class)`). Each node offers its own class, and the link runs at the lower rate.
+   - Channel payload MDUs: `≈ 400 B` at the Reticulum `500 B` base MTU vs. `≈ 16 KB` (`16,272 B`) over TCP (packet layout attributed to `CIRISEdge v44`).
+2. **Shaped-Link Bound (`L ≤ 8`), `shaped_only` Rule (2026-11-06), and Ninth Peer**:
    - Each node runs at most `8` device-tier shaped links at the full class rate (`Tiers.bound = 8`).
-   - A 9th shaping peer of equal or lower rank is **refused a shaped row link**, told to home elsewhere, and offered an unshaped bulk link — never a shaped link degraded below its class rate (`ninth_is_refused`, `place_keeps_bound`).
+   - Under the ruling of **2026-11-06**, shaped links (`L ≤ 8`) form among offering nodes and with any node that asks (`shaped_only`, which the Anonymous Tier requires).
+   - Chat and files ride a shaped link **only when one end is `shaped_only`**; every other pair's chat and ordinary transactions cross direct unshaped links.
+   - **The Ninth Peer (`CC §5.4.3`)**: An arriving 9th shaping peer is refused **only on a node set to `shaped_only` or the Anonymous Tier** (`ninth_is_refused`). On any other node, the link is made and runs unshaped.
+   - **Sybil Resistance Clarification**: $L \le 8$ is link-rate shaping, **not** "contact-gated Sybil resistance". Sybil resistance in the Constitution is trust gating (`CC §1.13.3.3`) and a stated residual under flood (`CC §5.4.6`).
 3. **Rank-Based Displacement (`CLM-shaped-link-displacement`)**:
-   - At a full node (`8` shaped links), an arriving higher-rank peer (e.g., `home` rank 3 arriving at a `server` holding 8 `phone` links of rank 1–2) displaces the lowest-rank shaped peer (`lowestOf`), who is moved via a sealed control message to a shaped `home` or `server` with a free slot (`movedToShapedPeer`) and keeps shaping (`home_displaces_a_phone`, `displaced_keeps_shaping`).
+   - At a full node (`8` shaped links), an arriving higher-rank peer (e.g., `home` rank 3 arriving at a `server` holding 8 `phone` links of rank 1–2) displaces the lowest-rank shaped peer (`lowestOf`), who is moved via a sealed control message to a shaped `home` or `server` with an available slot (`movedToShapedPeer`) and keeps shaping (`home_displaces_a_phone`, `displaced_keeps_shaping`).
    - A phone never displaces a phone (`phone_does_not_displace_a_phone`), and a lower rank never displaces a higher or equal rank (`lower_never_displaces`).
 4. **One Direct Hop (`CLM-shaped-link-one-hop`) & Reachability vs. Capacity (`reach ≠ capacity`)**:
    - **A shaped link is one direct hop** between its two ends, never forwarded through a third node.
    - `cewp-sim` must model **direct reachability (`has_direct_path`: IPv6 or punched UDP per `leviculum#100/#101`)** and **slot capacity (`free_shaped_slots > 0` and CPU/bandwidth headroom)** as **two separate state variables and two separate failure counters**:
      - *Failure Mode A (`UNREACHABLE_FOR_SHAPING`)*: Node has spare CPU, disk, and free `L ≤ 8` slots, but lacks a direct path (behind symmetric NAT/CGNAT) and therefore cannot offer shaped parent slots or establish a shaped link.
-     - *Failure Mode B (`CAPACITY_EXHAUSTED`)*: Node is directly reachable, but all `8` shaped slots (or uplink/CPU gates) are full (`ninth_is_refused`).
-5. **Referral Limit (Up to 3 Sealed Referrals) & Proxy Pull (`CLM-refusal-carries-referrals`, `CLM-every-refusal-may-refer`, `CLM-referred-peer-is-proxy`)**:
-   - Every refusal at the shaped-link bound (or throttled pull / shed serve) carries **up to 3 sealed referrals** (`CIRISEdge/src/transport/shaping_referral.rs#rank_referrals`) of announced nodes that have relay offering enabled (`relay_offering = true`) and report a free shaped slot alongside their live unsolicited inbound dial count.
-   - When an asker connects to a referred peer, that referred peer serves what it holds and pulls missing federation-tier rows from the canonical seat **as its own pull (`proxy`)**, so the seat sees the proxy's pull rather than the asker's (`each_home_adds_seven` vs. `unowned_only_strands_the_73rd`).
+     - *Failure Mode B (`CAPACITY_EXHAUSTED`)*: Node is directly reachable, but all `8` shaped slots (or uplink/CPU gates) are full.
+5. **Referral Ranking & Proxy Pull (`CLM-refusal-carries-referrals`, `CLM-every-refusal-may-refer`, `CLM-referred-peer-is-proxy`)**:
+   - Every refusal at the shaped-link bound (or throttled pull / shed serve) carries **up to 3 sealed referrals** (`CIRISEdge/src/transport/shaping_referral.rs#rank_referrals`) of announced nodes with relay offering enabled (`relay_offering = true`).
+   - **Referral Ranking (`CC §5.4.3`)**: Referrals are ranked by unsolicited inbound dial count **descending** (reachability: higher dial count is evidence that the node can actually be reached, not load).
+   - **Proxy Pull Tier Check (`CC §5.4.6`)**: When an asker connects to a referred peer, that referred peer serves what it holds and pulls missing rows from the canonical seat as its own pull (`proxy`). **Only federation-tier rows are proxied**; a row that is not federation-tier is never proxied (`CC §5.4.6`).
 6. **The `64 KiB` Shaped-Link Payload Boundary (`CLM-large-file-not-shaped`, `CLM-small-images-shaped-by-size`) & Unshaped A/V / Bulk Carriage (`CC §5.3.3.2`)**:
    - The split between the shaped row plane and the bulk plane is **strictly by total object size (`64 KiB = 65,536 B`)**, never by media MIME type:
      - Any row or small attachment `≤ 64 KiB` may ride a shaped link.
@@ -215,20 +220,22 @@ A generic P2P graph simulator (edges with static bandwidth capacities) is inadeq
    - Link carriage (`consentOnly` vs. `full`) is independent of link budget class (`carriage_independent_of_class`). A stranger link carries **only** the 16 consent-free envelope kinds (`cover`, `kex`, `routeFetch`, `keyRecord`, `keyRevocation`, `occurrence`, `allegiance`, `unownedRoute`, `deviceJoin`, `contactAsk`, `contactAnswer`, `invite`, `inviteAnswer`, `groupKeyWrap`, `halt`, `tombstone`).
 8. **Anonymous Tier, Sticky Guards, and Room-Mailboxes (`CC §5.4.6`, `formal/anonymous/`, `formal/onion_layers/`)**:
    - Anonymous mode is a dedicated, unannounced single-identity node mode from first run (`CLM-anonymous-mode-dedicated-identity`), sending end-to-end cover packets at ~1/3 of a home's shaped share (`CLM-anonymous-e2e-cover`).
-   - 3-hop X-Wing (`X25519 + ML-KEM-768`) `CONP` onion frames (`15,296 B`) ride over standing shaped links by replacing scheduled cover frames (`+0 B` extra wire bytes):
-     - **Hop 1**: Sticky guard drawn from the sender's own consented relay contacts (held 60 days; serve seat only as last resort).
+   - 3-hop X-Wing (`X25519 + ML-KEM-768`) `CONP` onion frames (`15,296 B`, `3 × 1,264 B` headers, MDU `16,272 B / 500` attributed to **`CIRISEdge v44`**) ride over standing shaped links by replacing scheduled cover frames (`+0 B` extra wire bytes):
+     - **Hop 1 (Sticky Guard, `CC §5.4.6 item 4`)**: Kept **as long as it answers**, never rotated on a schedule (not rotated every 60 days); serve seat only as last resort.
      - **Hop 2**: Pinned for long-lived mailboxes; otherwise drawn deterministically from the fold (`≤ 1` relay per owner, witnessed owner age filter).
-     - **Floor**: At least **3 answering relays per layer** (`onion_tier_unavailable_floor`); if fewer than 3 answer, the node sends chaff and waits rather than degrading to 2 hops.
+     - **Relay Floor (`CC §5.4.6`)**: At least **3 answering relays per layer**; below this floor the tier is unavailable (`onion_tier_unavailable_floor`).
    - **Room-Mailboxes (`CLM-tier-carries-rooms`)**: Private anonymous rooms exchange rows via a **room mailbox held by two member-owned always-on nodes** chosen by the room (or a serve seat as last resort with a 2-hour both-ends-awake warning), never in a public room.
 
 ### 3.2 Deterministic Application-Layer Multicast (`CC §6.1.6`, `CLM-deterministic-alm`)
 `cewp-sim` must not approximate room/broadcast fan-out as an idealized balanced $k$-ary tree. It must execute the exact integer-only algorithm from `CIRISEdge/src/holonomic/deterministic_topology.rs` (`compute_alm_topology_verified`):
 
-1. **Exact Algorithm Contract**:
+1. **Exact Algorithm Contract & Single Publisher Root**:
    - Pure integer arithmetic (`f32_mbps_to_millibps_u64`, zero IEEE-754 floating-point branches, `BTreeMap` lexicographic tie-breaking by `peer_id`).
    - Inputs: `VerifiedTopologyInputSnapshot` over hybrid-signed `SignedRelayCapacity` advertisements (domain `b"CIRISALM-CAPv2\0\0"`), `trust_grants`, `reachability_observations`, and `locality`.
    - Self-asserted uplink capacity is clamped (`clamp_self_asserted_millibps`) unless backed by a `CapacityVerification::ThroughputChallenged` receipt.
-   - Depth-0 stream offers are admitted only from the publisher bound in `StreamKeyBinding` (`CLM-av-stream-key-binding`, CC §5.3.3.2.3).
+   - **Single Publisher Root (`CC §5.4.6`, `CC §5.3.3.2.3`)**: The stream key binding pins the single publisher at depth 0; offers at depth 0 from any other key are dropped.
+   - **Strict Member Relay Tree (`CC §5.4.6`)**: Forwarders and serve seats are never fan-out hubs; the relay tree is strictly a **member relay tree** owned by members.
+   - **Scaling Model Assumptions (`MODEL`)**: Fan-out $k=8$ and 50M-viewer broadcast figures are CEWP scaling model assumptions (`MODEL`), while `CLM-alm-live-tree-verified` is `staged` (`CIRISEdge#945`).
 2. **Mandatory Frozen Vector Parity**:
    `cewp-sim`'s ALM module must pass all 15 frozen vectors from `deterministic_topology.rs`:
    `same_input_same_output`, `wire_determinism_under_permutation`, `empty_snapshot_returns_empty_topology`, `locality_filter_excludes_out_of_locality`, `trust_chain_depth_respected`, `tie_break_by_peer_id_lex_min`, `mdc_sub_stream_emits_one_edge_per_path`, `unverified_ads_dropped_before_scoring`, `clamped_capacity_at_max_self_asserted`, `throughput_challenged_uncapped`, `sub_path_penalty_distributes_mdc` (F-4 anti-concentration), `max_subscribers_zero_blocks_parent_selection`, `substream_commitment_cap_blocks_oversubscription`, `mutual_ab_snapshot_produces_acyclic_tree`, and `distinct_subscriber_counting_under_max_subscribers_per_stream`.
@@ -237,22 +244,25 @@ A generic P2P graph simulator (edges with static bandwidth capacities) is inadeq
    - **Agreement Rate**: Do all room members fold the same `AlmTopology` when gossip is delayed or out-of-order?
    - **Live Delivery Yield**: When interior tree relays lie about capacity, advertise stale reachability, spoof locality, or drop mid-stream, how many chunks actually arrive within the playout window, and how long does tree repair / sibling promotion take?
 
-### 3.3 Symbol-Level Storage, Repair, and Noise-Floor Descent (`CC §6.1.2`, `CLM-noise-classify`)
-While the analytic binomial formula `P(Binomial(R, q) ≥ N)` in [`examples/scale_model.rs`](../examples/scale_model.rs) is preserved in `cewp-model` as a closed-form baseline, `cewp-sim` must model **actual symbol identities, matrix rank, and noise-floor state transitions**:
+### 3.3 Whole-Chunk Sealed Storage, Multiplicity Floors, and Layered Noise-Floor Descent (`CC §5.4.3`, `§6.1.2`, `§6.1.5`)
 
-1. **Per-Symbol Identity & Rank Tracking (`FountainManifestV1`)**:
-   - Each published object of size $S$ is segmented into `n_source` ($N = 20$ default) source symbols plus `k_repair` ($K = 6$ default) repair symbols (`min_viable_symbols = 5` default).
-   - Each holder stores specific symbol indices $s_i \in \{0, \dots, N+K-1\}$ (or linear combinations with seed IDs), not a generic scalar `"1/N"`.
-   - Reconstruction at a requester succeeds only when the set of **currently reachable, non-corrupt, non-withholding holders** supplies a set of distinct symbols of rank $\ge \text{threshold}$.
-2. **Explicit Placement, Contention, and Repair Dynamics**:
-   - Models rarest-fragment-first swarm placement (`swarm_rarity`), target-holder trimming (`should_eject_above_target` at $H \times 1.15 = 34.5$), repair-bandwidth storms after correlated regional/ASN outages, malicious holders that claim `holds_bytes` while withholding or serving corrupt symbols, and the distinction between a **load-bearing holder** (holding a rare symbol needed for rank) and a **redundant reachable node**.
-3. **Three Constitutional Noise-Floor Outcomes (`CLM-noise-classify`, `test_540_noise_floor.py`)**:
-   Every retained object in `cewp-sim` is classified at each step by its reachable symbol count `present`:
-   - **`Full`** (`present ≥ n_source`): Lossless reconstruction of all source bytes.
-   - **`Partial`** (`min_viable_symbols ≤ present < n_source`): Degraded layered-codec / summary recovery above the noise floor.
-   - **`EnvelopeOnly`** (`present < min_viable_symbols`): Below the noise floor; zero payload bytes are recoverable, **but the bound-hybrid-signed `FountainManifestV1` envelope header is never evicted** (except for prohibited content under `NcmecCsam`, `PerceptualHashCsam`, `GifctCip`, `CourtOrder` per CC §6.1.2.2, which zeroes to content-hash only).
-   - **Revocation Dominance (`CLM-noise-N5`, `CLM-noise-ejection`)**: A `withdraws` or `consent:state:revoked` row triggers `EjectHardDelete`, forcing immediate descent to `EnvelopeOnly` regardless of symbol rarity.
-   - **Aggregation Dominance & Multiplicity Gates (`CLM-neff-dominance-gate`, `CLM-multiplicity-gate`)**: `AggregationMetaV1` (v3) enforces both the Kish effective sample size gate (`n_eff * 2 >= source_count`) and the L1 similarity multiplicity gate (`max_source_multiplicity * n_min <= source_count`).
+In authentic constitutional design (`CC §5.4.3`, `CC §6.1.5`), published content is stored as sealed whole chunks (`CC §5.3.3.2.3` establishes that a sealed chunk "is never fragmented into symbols. No symbol envelope"). `cewp-sim` models **whole-chunk custody, multiplicity floors, and layered-codec rate-distortion state transitions**:
+
+1. **Whole-Chunk Sealed Storage (`CC §5.4.3`, `CC §6.1.5`)**:
+   - Published content is sealed and stored whole by consenting holders acknowledging custody (`custody:ack:v1`).
+   - The legacy `holds_bytes` token is retired and refused per `CC §3.1.3.3`.
+   - Content is never split or fragmented into symbols; each consenting holder retains a complete sealed chunk.
+2. **Multiplicity Floor & Root Durability Gates (`CC §6.1.2.1.2`)**:
+   - Replicated to the multiplicity floor ($n_{\text{eff}} \ge 3$) across independent ASN, jurisdiction, and signer axes, calculated via **integer floor over fixed-point masses** (`CLM-neff-dominance-gate`).
+   - Root durability requires at least $R_9 \ge 9$ independent holders (`CLM-multiplicity-gate`).
+   - Reconstruction succeeds when reachable, non-withholding holders provide the verified sealed chunk.
+3. **Layered-Codec Fidelity & Three Noise-Floor Outcomes (`CC §6.1.2`, `CLM-noise-classify`)**:
+   Every retained object in `cewp-sim` is classified at each step by its reachable `ChunkLayer` sets under layered-codec rate-distortion $(R, \varepsilon)$:
+   - **`Full`**: All codec layers present; lossless reconstruction of source media.
+   - **`Partial`**: Base and essential layers present above the rate-distortion noise floor; degraded / summary representation recovered.
+   - **`EnvelopeOnly`**: Below the noise floor; payload zeroed, but the bound-hybrid-signed envelope header is never evicted (except for prohibited content under `NcmecCsam`, `PerceptualHashCsam`, `GifctCip`, `CourtOrder` per CC §6.1.2.2, which zeroes to content-hash only).
+   - **Revocation Dominance (`CLM-noise-N5`, `CLM-noise-ejection`)**: A `withdraws` or `consent:state:revoked` row triggers `EjectHardDelete`, forcing immediate descent to `EnvelopeOnly` dominating any retention policy.
+   - **Multiplicity Dominance (`CLM-neff-dominance-gate`, `CLM-multiplicity-gate`)**: Integer floor over fixed-point masses protects against Sybil and correlated-holder gaming.
 
 ---
 
@@ -287,7 +297,7 @@ To make the resolution ladder (`R5` $\to$ `R0`) scientifically defensible, `cewp
 2. **Boundary-Preserving Graph Coarsening (How `R1–R4` Preserve Degree & Traffic)**:
    Instead of dropping $99\%$ of neighbors, a coarse tier uses **hybrid micro-macro coarsening**:
    - **Focal Subgraph at 1:1 ($X_{\text{focal}}$)**: A stratified set of complete CSD/4 motifs (`T0–T19`), metro clusters, and attack targets simulated at full `1:1` individual node/device fidelity (preserving exact degree $R = 150$, $L \le 8$ shaped slots, and `deterministic-alm` fan-out).
-   - **Boundary Cohort Holons ($C_{\text{boundary}}$)**: Omitted external peers are not deleted; they are collapsed into **metro × device-class × budget-class cohort holons** that expose exact **boundary stubs** (preserving the degree distribution, inbound/outbound Poisson request flux, referral slot supply/demand, and RaptorQ symbol availability across the boundary).
+   - **Boundary Cohort Holons ($C_{\text{boundary}}$)**: Omitted external peers are not deleted; they are collapsed into **metro × device-class × budget-class cohort holons** that expose exact **boundary stubs** (preserving the degree distribution, inbound/outbound Poisson request flux, referral slot supply/demand, and chunk custody availability across the boundary).
 3. **Compositional Tier Stacking & Horizon Error Budgets (`Tier.stack` & `Budget.lean`)**:
    - By `CIRISHolon.Tiers.Tier.stack` (`closed_comp`), certifying `R4` against `R3` and `R3` against `R2` composes soundly.
    - By `CIRISHolon.Budget.horizonBudget_le_of_nonexpansive`, `cewp-sim` enforces the **non-expansive Lipschitz gate ($K \le 1.05$)** on coarse updates so multi-step approximation errors grow at most linearly ($n \cdot \varepsilon$) rather than compounding exponentially.
@@ -301,7 +311,7 @@ To prevent comparing an optimized CEWP model against a straw-man "every packet g
 | **`A1_HYPERSCALE_CDN`** | **Centralized Origin + Edge CDN + ISP Cache** | Origin in regional hyperscale DCs (~10K facilities); 85%–95% of popular VoD/bulk served from metro IXP edge caches (~1.3K PeeringDB IXPs); uplink/API writes, social graph folds, and auth checks traverse backhaul to regional DCs. |
 | **`A2_MULTIREGION_SFU`** | **Multi-Region Active-Active Cloud + SFU Mesh** | Geo-replicated cloud databases + regional WebRTC SFU clusters (LiveKit/Teams model) for live calls/events; full server-side media selective forwarding and cloud state replication across regions. |
 | **`A3_HYBRID_P2P`** | **Hybrid P2P with Central Bootstrap / Relays** | BitTorrent / IPFS / Matrix / Nostr composite: P2P block swarming (with 10%–35% Bitswap duplicate block overhead) or federated homeserver DAGs, backed by centralized TURN/DERP relays (15%–30% fallback) and open-admission DHTs (78.2% churn lookup survival). |
-| **`A4_CEWP_RC17`** | **CEWP Constitutional Substrate (`rc17` / `Edge v44`)** | CC §4.5.13 state processor + CC §5.2 locality dividend + CC §5.4.3 1-hop shaped budget classes (`L ≤ 8`, displacement, 3 referrals) + CC §5.4.6 `CONP` onion walks & room-mailboxes + CC §6.1.6 `deterministic-alm` + CC §6.1.2 RaptorQ `(N,K)` symbol-rank storage & noise-floor pyramid. |
+| **`A4_CEWP_RC17`** | **CEWP Constitutional Substrate (`rc17` / `Edge v44`)** | CC §4.5.13 state processor + CC §5.2 locality dividend + CC §5.4.3 1-hop shaped budget classes (`L ≤ 8`, displacement, 3 referrals) + CC §5.4.6 `CONP` onion walks & room-mailboxes + CC §6.1.6 `deterministic-alm` + CC §6.1.2 whole-chunk sealed storage & layered-codec rate-distortion noise-floor pyramid. |
 
 ### 4.4 Explicit Scenario Parameterization & Four-Regime Sensitivity Sweeps
 No assumption (`65%` local traffic, `40%` `reach_home_share`, `10%` `server` tier, `90%` relay offer) may be hardcoded as a hidden truth. Every scenario TOML parameterizes these inputs and `cewp-cli sensitivity` automatically runs **four standard regimes** plus 1D/2D parameter sweeps:
@@ -315,7 +325,7 @@ No assumption (`65%` local traffic, `40%` `reach_home_share`, `10%` `server` tie
 | **Mobile Sleep / Churn Rate ($p_{\text{offline}}$)** | `5%` | `15%` | `30%` | `50%` + correlated regional ASN cut |
 
 ### 4.5 Hybrid Resolution Ladder (Replacing the Raw 5B 1:1 First-Milestone Assumption)
-At `5,000,000,000` agents with $R = 150$ neighbors, storing explicit 4-byte directed neighbor IDs alone requires $5\times 10^9 \times 150 \times 4\text{ B} = 3.0\text{ TB}$ of RAM before any node state, symbol manifests, or event queues. Therefore:
+At `5,000,000,000` agents with $R = 150$ neighbors, storing explicit 4-byte directed neighbor IDs alone requires $5\times 10^9 \times 150 \times 4\text{ B} = 3.0\text{ TB}$ of RAM before any node state, chunk custody manifests, or event queues. Therefore:
 - **Discrete-event scheduling (`cewp-sim`)** updates nodes **only when an event arrives or a timer fires**, never iterating over idle agents every second.
 - **Resolution Tiers (`R5` $\to$ `R0`)**:
 
@@ -337,10 +347,10 @@ A simulation that only models benign churn proves expected behavior, not resilie
 
 | Class | Campaign IDs | Experiments & Attack Mechanisms | Target Invariant / Observable |
 |---|---|---|---|
-| **1. Identity & Sybil** | `ADV-ID-01..04` | Mass identity minting ($10^6–10^8$ zero-trust keys), fake `SignedRelayCapacity` floods, colluding Sybil rings attempting to pass `twoPath` / `cosigned` gates, trust-graph hub capture | `Inv_HostileShareBound`, `0.00%` zero-trust guard capture, `L ≤ 8` contact-gated slot protection |
+| **1. Identity & Sybil** | `ADV-ID-01..04` | Mass identity minting ($10^6–10^8$ zero-trust keys), fake `SignedRelayCapacity` floods, colluding Sybil rings attempting to pass `twoPath` / `cosigned` gates, trust-graph hub capture | `Inv_HostileShareBound`, `0.00%` zero-trust guard capture, trust gating (CC 1.13.3.3) and stated residual (CC 5.4.6) |
 | **2. Routing & Reachability** | `ADV-RT-01..04` | Poisoned 3-referral replies pointing to blackholes/colluders, false inbound-dial-count hints, asymmetric reachability lies, submarine cable / IXP partition cuts | Referral fallback convergence time, `proxy` pull isolation, $k=2$ leaf survival & re-home p99 |
-| **3. Deterministic ALM** | `ADV-ALM-01..05` | Self-asserted capacity inflation up to clamp ceiling, strategic interior relay drop mid-keyframe, locality spoofing to capture root-child slots, colluding relay subtree eclipse | `compute_alm_topology_verified` determinism, `sub_path_penalty_distributes_mdc` (F-4), RaptorQ + sibling promotion recovery |
-| **4. Storage & Fountain** | `ADV-ST-01..05` | `holds_bytes` liar attack (attesting custody while withholding symbols), selective symbol corruption, coordinated regional outage dropping $30\%–50\%$ of holders, rarity-manipulation Pin-DoS, Kish `n_eff` / R9 multiplicity gaming | Symbol-rank reconstructability (`Full` / `Partial` / `EnvelopeOnly`), `CLM-neff-dominance-gate`, `CLM-multiplicity-gate`, repair bandwidth spike |
+| **3. Deterministic ALM** | `ADV-ALM-01..05` | Self-asserted capacity inflation up to clamp ceiling, strategic interior relay drop mid-keyframe, locality spoofing to capture root-child slots, colluding relay subtree eclipse | `compute_alm_topology_verified` determinism, `sub_path_penalty_distributes_mdc` (F-4), sibling promotion and chunk refetch recovery |
+| **4. Storage & Custody** | `ADV-ST-01..05` | Retired `holds_bytes` token refusal (`CC 3.1.3.3`) and false custody claims, selective chunk corruption, coordinated regional outage dropping $30\%–50\%$ of holders, rarity-manipulation Pin-DoS, Kish `n_eff` / R9 multiplicity gaming | Layered-codec reconstructability (`Full` / `Partial` / `EnvelopeOnly`), `CLM-neff-dominance-gate`, `CLM-multiplicity-gate`, repair bandwidth spike |
 | **5. Privacy & Traffic Analysis** | `ADV-PR-01..04` | Global Passive Adversary (GPA) timing correlation across shaped vs. unshaped links, compromised sticky entry guard + layer-3 rendezvous collusion, room-mailbox wake/sleep intersection attack on sleeping phones | Anonymity set entropy, `> 64 KiB` refusal enforcement, room-mailbox 2-hour both-ends-awake warning trigger |
 | **6. Governance & State Folds** | `ADV-GV-01..05` | Equivocating signed rows delivered in opposite orders across partitions, delayed backdated revocations near window $W$, moderator disappearance during active flag flood, coerced/censored root holders (`T19`), census ballot dominance gaming | Permutation-invariant fold agreement (`100%`), `Inv_BaseRatchet`, `Inv_DominanceGate`, `T15` `fail_secure` lock & 24h ranked election |
 | **7. Resource Exhaustion** | `ADV-EX-01..04` | `F-AV-RECONSIDER-DOS` hybrid signature verification flood (`276 µs/op`), `L ≤ 8` displacement thrashing, unpinned hot-cache thrashing, `16,272 B` vs `400 B` MDU fragmentation exhaustion | Per-server `1 core` / `1 Gbps` / `1 TB` gates, M/M/1 CPU queue $W_q$, per-actor intake & eviction isolation |
@@ -383,13 +393,13 @@ The formal models in `CIRISConstitution/formal/` explicitly document both **what
 | **[`CIRISClient`](file:///home/emoore/CIRISClient) & [`CEWPOS`](file:///home/emoore/CEWPOS)** | 101 CSD surface cards (`CSD-001..129`), 12 UX primitives (`P1–P12`), card validator (`check_csd4.py`), 5-platform UI test runners | `packaging/{check_csd4,vendor_csd4}.py`, `epistemic-ui/csd4_harness.py`, `--attach` checkpoint runners |
 | **[`CIRISConformance`](https://github.com/CIRISAI/CIRISConformance)** | Cross-component wheel cohabitation (`substrate` & `fabric` pytest lanes), freeze vectors (`test_500..583`), trace differential bridge | `tests/test_540_noise_floor.py`, `test_541_ejection_routing.py`, `test_542_dominance_gate.py`, `test_562_freeze57_vectors.py` |
 | **[`CIRISEdge`](https://github.com/CIRISAI/CIRISEdge)** | Reticulum transport, `L ≤ 8` link shaping, 3-referral ranking, `CONP` X-Wing onion routing, `compute_alm_topology_verified` | `src/transport/{link_shaping,shaping_referral}.rs`, `src/holonomic/deterministic_topology.rs` |
-| **[`CIRISPersist`](https://github.com/CIRISAI/CIRISPersist)** | Append-only signed row store, Zanzibar/SpiceDB-class graph walk, `FountainManifestV1`, noise-floor classification (`classify`) | `src/fountain/types.rs#classify`, SQLite & PostgreSQL write-path parity |
+| **[`CIRISPersist`](https://github.com/CIRISAI/CIRISPersist)** | Append-only signed row store, Zanzibar/SpiceDB-class graph walk, whole-chunk sealed storage, noise-floor classification (`classify`) | `src/storage/types.rs#classify`, SQLite & PostgreSQL write-path parity |
 | **[`CIRISVerify`](https://github.com/CIRISAI/CIRISVerify)** | Hybrid Ed25519 + ML-DSA-65 signatures, X-Wing KEM, RFC 6962/9162 Merkle logs, `AggregationMetaV1` dominance/multiplicity gates | `src/ciris-verify-core/src/holonomic/aggregation.rs`, `docs/BENCHMARKS.md` |
 
 ### 6.2 The Trace-Based Conformance Bridge (Semantic Conformance vs. Operational Fidelity)
 For every CSD/4 scenario (`T0–T19` and multi-node stress scenarios), `cewp-cli bridge` executes a 6-step loop:
 1. **Emit Canonical Scenario Trace**: Generate a deterministic event & network schedule (`seed`, `topology: T<n>`, step arrivals).
-2. **Run in `cewp-sim` (`--mode sim`)**: Record every node's admitted/refused rows, `firstHeld` timestamps, `fold()` states, `queue()` items, shaped/unshaped link decisions, ALM edges, symbol holdings, and predicted CPU/bandwidth/disk metrics.
+2. **Run in `cewp-sim` (`--mode sim`)**: Record every node's admitted/refused rows, `firstHeld` timestamps, `fold()` states, `queue()` items, shaped/unshaped link decisions, ALM edges, chunk custody holdings, and predicted CPU/bandwidth/disk metrics.
 3. **Run on Live Nodes (`--mode native`)**: Execute the identical schedule through `CIRISServer`'s `python3 -m harness.native run` (and `CIRISConformance` fabric runners), exporting live `checkpoints/<step>.json`, `nodes/<node>/rows.jsonl`, and OS/process resource counters.
 4. **Replay Through Independent State Processors**: Replay `rows.jsonl` through three independent implementations:
    - `cewp-kernel` (Rust)
@@ -504,7 +514,7 @@ Every metric in `evidence_bundle.json`, CLI tables, and visualization snapshots 
 | **3. Privacy & `> 64 KiB` shaped-link boundaries hold under attack** | `Tiers.lean` + `formal/anonymous/` + `ADV-PR` GPA traffic-analysis & guard-capture campaigns + `REG-MESH-SCOPE` invisibility fixture | `MODEL` + partial `MEASURED`; full `ADV-PR` in Phase 4 |
 | **4. 1-hop shaped links (`L ≤ 8`) & $k=2$ leaves survive CGNAT** | `Tiers.lean` (`each_home_adds_seven`, `reach ≠ capacity`) + `reach_home_share` `[0%, 80%]` sweep + `leviculum#100` field calibration | `MODEL` (`≥ 3.92%` server floor at `0%` reach); awaiting `leviculum#100` (`FRONTIER`) |
 | **5. `CC §6.1.6 deterministic-alm` scales without SFUs (`CC §5.3.3.2`)** | All 15 frozen vectors in `deterministic_topology.rs` + `ADV-ALM` capacity-lie / relay-drop campaigns + Shadow/native multi-container bench | `MEASURED` (vectors + 50-node bench); `ADV-ALM` at scale in Phase 3–4 |
-| **6. Holographic storage survives correlated loss & respects revocation** | Symbol-rank simulation (`FountainManifestV1`) + `test_540..542` (`Full`/`Partial`/`EnvelopeOnly`, `N5` hard-delete, Kish `n_eff`) + `ADV-ST` withholding tests | `MEASURED` (unit/conformance); symbol-rank DES in Phase 3 |
+| **6. Whole-chunk sealed storage survives correlated loss & respects revocation** | Whole-chunk custody simulation (`ChunkCustodyManifestV1`) + `test_540..542` (`Full`/`Partial`/`EnvelopeOnly`, `N5` hard-delete, Kish `n_eff`) + `ADV-ST` withholding tests | `MEASURED` (unit/conformance); whole-chunk custody DES in Phase 3 |
 | **7. Commodity L1 home server (`1 TB / 1 Gbps / 1 core`) suffices** | Reproducible benchmarks on ARM mini-PC / home x86 under `2.5×` diurnal & `4.0×` flash-crowd workloads across `T0–T19` mixes | `MODEL` + micro-`MEASURED`; full hardware calibration in Phase 5 |
 | **8. Five-billion user scale is viable without datacenters** | `CIRISHolon`-certified multiscale ladder (`R5 → R0`) + 4-baseline comparison (`A1–A4`) + 4-regime sensitivity analysis | `PROJECTED` (analytic + `R5` kernel); certified `R3→R0` in Phase 6 |
 
@@ -541,7 +551,7 @@ CEWP/
       src/event_loop.rs              #   Compound Poisson + IMIX arrival scheduler (Δt event-driven)
       src/transport.rs               #   CC §5.4.3 L<=8 shaped links, displacement, 3 referrals, 64 KiB gate, reach!=capacity
       src/alm.rs                     #   CC §6.1.6 integer-only compute_alm_topology_verified + 15 frozen vectors
-      src/fountain.rs                #   CC §6.1.2 symbol-rank tracker, Full/Partial/EnvelopeOnly, N5 revocation
+      src/storage.rs                 #   CC §6.1.2 whole-chunk sealed storage & layered-codec fidelity, Full/Partial/EnvelopeOnly, N5 revocation
       src/baselines.rs               #   A1_HYPERSCALE_CDN, A2_MULTIREGION_SFU, A3_HYBRID_P2P, A4_CEWP_RC17
       src/snapshot.rs                #   Binary & Arrow snapshot emitters (with epistemic tags)
 
@@ -566,7 +576,7 @@ CEWP/
 |---|---|---|---|
 | **Phase 1** | **Semantic Closure** | Pin `rc17` constitutional tables in `docs/kernel/tables/`. Build `cewp-kernel` in Rust. Run automated differential fuzzing across `cewp-kernel`, `docs/kernel/kernel.js`, `EventLifecycle.lean`, and `CIRISServer` over `mesh_story_trace.json` and 1,000 random valid/invalid transition sequences. | **Zero semantic divergence (`SEMANTIC_DRIFT = 0`)** on `queue()`, `preview()`, `door()`, and `fold()` across all four implementations. |
 | **Phase 2** | **CSD/4 Scenario Runner (`T0–T19`)** | Build `cewp-csd4`. Instantiate all 20 CSD/4 topologies (`T0–T19`) at `R5` (`1:1`). Add partition, rejoin, mobile sleep/wake churn, delayed delivery, and transient step-window probes. Connect `--mode formal`, `--mode sim`, and `--mode native` (`CIRISServer` `harness/native/` + `CIRISClient` checkpoints). | Every `T0–T19` topology runs in all 3 modes, passes `MODEL_DRIFT` and `Trace.tla` `rows.jsonl` replay, and reports exact atom coverage (`122 / 156 / 242`). |
-| **Phase 3** | **Transport, ALM & Symbol-Rank Storage Fidelity** | Implement `cewp-sim/src/{transport,alm,fountain}.rs`: `L ≤ 8` shaped bound, rank displacement, 3 sealed referrals + `proxy` pull, `64 KiB` refusal string, `reach ≠ capacity` split counters, integer-only `compute_alm_topology_verified` (passing all 15 frozen vectors), and per-symbol rank tracking (`Full` / `Partial` / `EnvelopeOnly` + `N5` hard-delete). | 100% pass on all 15 ALM frozen vectors, `Tiers.lean` theorems, and `CIRISConformance` `test_540..542` vectors. |
+| **Phase 3** | **Transport, ALM & Whole-Chunk Storage Fidelity** | Implement `cewp-sim/src/{transport,alm,storage}.rs`: `L ≤ 8` shaped bound, rank displacement, 3 sealed referrals + `proxy` pull, `64 KiB` refusal string, `reach ≠ capacity` split counters, integer-only `compute_alm_topology_verified` (passing all 15 frozen vectors), and layered-codec rate-distortion tracking (`Full` / `Partial` / `EnvelopeOnly` + `N5` hard-delete). | 100% pass on all 15 ALM frozen vectors, `Tiers.lean` theorems, and `CIRISConformance` `test_540..542` vectors. |
 | **Phase 4** | **Adversarial & Formal-Exclusion Campaigns** | Implement `cewp-adversary`: all 8 attack classes (`ADV-ID` through `ADV-RC`), the 4 consent-model exclusion tests (`EX-CONSENT-01..04`), and the historical counterexample regressions (`REG-MESH-SCOPE`, `REG-MESH-BIND`, `REG-NODE-X1`, `REG-CONSENT-TWINS`). | Every declared attack and formal exclusion has a reproducible seed grid, recorded breakdown threshold, and residual risk in `evidence_bundle.json`. |
 | **Phase 5** | **Empirical Calibration & Four-Baseline Comparison** | Fix compound-Poisson + IMIX workload generator (§4.1). Implement baselines `A1_HYPERSCALE_CDN`, `A2_MULTIREGION_SFU`, and `A3_HYBRID_P2P` (§4.3). Calibrate `cewp-sim` against real `CIRISServer` / Shadow runs on representative ARM/x86 hardware. | Published confidence intervals and error bounds for CPU, bandwidth, latency, and storage predictions; 4-regime sensitivity sweeps (`optimistic`, `expected`, `pessimistic`, `adversarial`). |
 | **Phase 6** | **Certified Multiscale (`CIRISHolon`) & Planetary Simulation** | Implement boundary-stub cohort coarsening (`cewp-topology/src/coarsen.rs`) and `CIRISHolon` closure defect (`D_v² ≤ β`) + non-expansive (`K ≤ 1.05`) certificates across `R5 → R4 → R3 → R2 → R1 → R0`. Emit visualization snapshots for `docs/index.html` and `AlephScene.tsx`. | Each coarser tier passes its `Closed` and `Carried` certification gates against the finer tier; `5B–8.1B` results are emitted with `PROJECTED` error bars in `evidence_bundle.json`. |

@@ -4,11 +4,12 @@
 //! 1. `cewp-kernel`: Table audit (191 transition families, 12 governance policies),
 //!    mesh story trace parity, and 8 `EventLifecycle` theorems.
 //! 2. `cewp-csd4`: 20 CSD/4 scenarios (`T0–T19`), cross-plane spine invariants (`X1–X5`),
-//!    `T0 -> T2` planner folding optimization, and `(116 / 122 / 156 / 242)` coverage report.
+//!    `T0 -> T2` planner folding optimization, and `(110 / 110 / 156 / 242)` coverage report.
 //! 3. `cewp-sim`: Transport contract (`L <= 8`, budget classes, 64 KiB refusal boundary,
 //!    16 consent-free envelope kinds) and 15 deterministic ALM frozen vectors.
-//! 4. `cewp-sim`: Symbol-rank storage, noise-floor ladder (`Full` -> `Partial` -> `EnvelopeOnly`),
-//!    `N5` hard-delete revocation, 15% proactive trim margin, and Kish `n_eff` dominance gates.
+//! 4. `cewp-sim`: Whole-chunk storage (`CC §5.4.3`, `CC §6.1.5` `custody:ack:v1`),
+//!    layered-codec fidelity `(R, ε)` (`CC §6.1.2`), noise-floor ladder (`Full` -> `Partial` -> `EnvelopeOnly`),
+//!    `N5` hard-delete revocation, 15% proactive trim margin, and Kish `n_eff` integer-floor dominance gates.
 //! 5. `cewp-sim`: Compound-Poisson workload across 4 baselines (`A1–A4`) and 4 parameter regimes,
 //!    and `CIRISHolon` multiscale coarsening contracts (`Closed` & `Carried` certificates).
 //! 6. `cewp-adversary`: 8 adversarial campaigns (`ADV-ID-01`..`ADV-RC-01`), 4 constitutional
@@ -47,14 +48,16 @@ use cewp_kernel::{
     door, enabled_for, fold, irv, preview, queue, standing, step, Ballot,
     HeldRow, Mesh, Row, Scope, Tables,
 };
+use cewp_sim::transport::LinkPlacement;
 use cewp_sim::{
     check_shaped_payload, classify, compute_alm_topology_verified, compute_arrival_rate,
     diurnal_multiplier, ejection_verdict, evaluate_removability_gate,
     passes_dominance_gate, passes_multiplicity_gate, should_eject_above_target,
-    timestep_arrival_probability, AggregationMetaV1, BaselineArchitecture, BudgetClass,
-    ClosureCertificate, ConsentState, EjectionVerdict, EnvelopeKind, FountainPolicy,
-    NoiseFloorState, ParameterRegime, RegimeParameters, RemovabilityVerdict,
-    SecondSquareFence, ShapedLinkManager, VerifiedTopologyInputSnapshot, WitnessPair,
+    timestep_arrival_probability, validate_holding_claim_token, AggregationMetaV1,
+    BaselineArchitecture, BudgetClass, ChunkStoragePolicy, ClosureCertificate,
+    ConsentState, EjectionVerdict, EnvelopeKind, NoiseFloorState, ParameterRegime,
+    RegimeParameters, RemovabilityVerdict, SecondSquareFence, ShapedLinkManager,
+    VerifiedTopologyInputSnapshot, WitnessPair,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,9 +109,11 @@ pub struct Phase3Result {
     pub success: bool,
 }
 
-/// Results from Phase 4 (`cewp-sim` Fountain Storage).
+/// Results from Phase 4 (`cewp-sim` Whole-Chunk Custody & Storage).
 #[derive(Debug, Clone)]
 pub struct Phase4Result {
+    /// Whole-chunk custody token verification (`custody:ack:v1` valid, retired `holds_bytes` rejected).
+    pub whole_chunk_custody_verified: bool,
     /// Full/Partial/EnvelopeOnly ladder verified.
     pub noise_floor_ladder_verified: bool,
     /// N5 hard-delete revocation verified.
@@ -466,8 +471,8 @@ pub fn run_phase2_csd4() -> Result<Phase2Result, String> {
     let coverage_qualification = cov.format_qualification();
     let atoms_exercised = cov.exercised_atoms.len();
 
-    // Must match "(atoms_exercised / 122 promised / 156 vocabulary / 242 constitutional_state_table)"
-    if !coverage_qualification.contains("/ 122 promised / 156 vocabulary / 242 constitutional_state_table") {
+    // Must match "(atoms_exercised / 110 promised / 156 vocabulary / 242 constitutional_state_table)"
+    if !coverage_qualification.contains("/ 110 promised / 156 vocabulary / 242 constitutional_state_table") {
         return Err(format!("Coverage qualification mismatch: {}", coverage_qualification));
     }
 
@@ -520,7 +525,9 @@ pub fn run_phase3_sim_transport_alm() -> Result<Phase3Result, String> {
     let payload_boundary_verified = small_ok && oversize_refused;
 
     // 3. Shaped-link manager L <= 8 enforcement
-    let mut manager = ShapedLinkManager::new("local_node".to_string(), true, false);
+    // Test that on a shaped_only node, 9th link is refused:
+    let mut manager = ShapedLinkManager::new("local_node".to_string(), true, false)
+        .with_shaped_only(true);
     for i in 0..8 {
         let res = manager.request_shaped_link(
             &format!("peer_{}", i),
@@ -541,7 +548,29 @@ pub fn run_phase3_sim_transport_alm() -> Result<Phase3Result, String> {
         &[],
     );
     if ninth_res.is_ok() {
-        return Err("Ninth link of equal rank was not refused!".to_string());
+        return Err("Ninth link of equal rank was not refused on shaped_only node!".to_string());
+    }
+
+    // Also verify that without shaped_only, 9th link is admitted unshaped:
+    let mut unshaped_mgr = ShapedLinkManager::new("unshaped_node".to_string(), true, false);
+    for i in 0..8 {
+        let _ = unshaped_mgr.request_shaped_link(
+            &format!("peer_{}", i),
+            BudgetClass::PhoneWifi,
+            true,
+            false,
+            &[],
+        );
+    }
+    let ninth_unshaped = unshaped_mgr.request_shaped_link(
+        "peer_9",
+        BudgetClass::PhoneWifi,
+        true,
+        false,
+        &[],
+    );
+    if ninth_unshaped != Ok(LinkPlacement::AdmittedUnshaped) {
+        return Err("Ninth link without shaped_only was not admitted unshaped!".to_string());
     }
 
     // 4. Deterministic ALM verification
@@ -563,8 +592,13 @@ pub fn run_phase3_sim_transport_alm() -> Result<Phase3Result, String> {
     })
 }
 
-/// Runs Phase 4: `cewp-sim` Symbol-Rank Fountain Storage & Noise-Floor Descent.
-pub fn run_phase4_sim_fountain() -> Result<Phase4Result, String> {
+/// Runs Phase 4: `cewp-sim` Whole-Chunk Custody & Storage & Noise-Floor Descent.
+pub fn run_phase4_sim_chunk_custody() -> Result<Phase4Result, String> {
+    // 0. Whole-chunk custody token validation (`custody:ack:v1`)
+    let token_ok = validate_holding_claim_token("custody:ack:v1").is_ok();
+    let token_retired_rejected = validate_holding_claim_token("holds_bytes").is_err();
+    let whole_chunk_custody_verified = token_ok && token_retired_rejected;
+
     // 1. Noise-floor ladder (Full -> Partial -> EnvelopeOnly)
     let full = classify(10, 10, 8);
     let partial = classify(8, 10, 8);
@@ -580,8 +614,8 @@ pub fn run_phase4_sim_fountain() -> Result<Phase4Result, String> {
     // 3. Proactive trimming at 15% safety margin:
     // With target_holders = 30, 30 * 1.15 = 34.5 -> threshold 34.
     // At 34 holders, still under threshold -> Keep even if common.
-    // At 35 holders (> 34): common symbol (rarity 15 >= 30/2) -> EjectToTier.
-    let policy = FountainPolicy { target_holders: 30 };
+    // At 35 holders (> 34): common chunk (rarity 15 >= 30/2) -> EjectToTier.
+    let policy = ChunkStoragePolicy { target_holders: 30 };
     let trim_needed = should_eject_above_target(35, &policy, ConsentState::Active, 15) == EjectionVerdict::EjectToTier;
     let trim_not_needed = should_eject_above_target(34, &policy, ConsentState::Active, 20) == EjectionVerdict::Keep;
     let trim_margin_verified = trim_needed && trim_not_needed;
@@ -592,7 +626,7 @@ pub fn run_phase4_sim_fountain() -> Result<Phase4Result, String> {
         content_id: "agg-meta-1".into(),
         corpus_kind: "trace".into(),
         tier: 1,
-        aggregation_algorithm_id: "raptorq-pyramid-v1".into(),
+        aggregation_algorithm_id: "chunk-layered-v1".into(),
         source_count: 1000,
         n_eff: 600,
         max_source_multiplicity: 100,
@@ -602,11 +636,16 @@ pub fn run_phase4_sim_fountain() -> Result<Phase4Result, String> {
     let dominance_gates_verified = passes_dominance_gate(&meta) && passes_multiplicity_gate(&meta, 2);
 
     Ok(Phase4Result {
+        whole_chunk_custody_verified,
         noise_floor_ladder_verified,
         n5_revocation_verified,
         trim_margin_verified,
         dominance_gates_verified,
-        success: noise_floor_ladder_verified && n5_revocation_verified && trim_margin_verified && dominance_gates_verified,
+        success: whole_chunk_custody_verified
+            && noise_floor_ladder_verified
+            && n5_revocation_verified
+            && trim_margin_verified
+            && dominance_gates_verified,
     })
 }
 
@@ -760,11 +799,11 @@ pub fn assemble_evidence_bundle(
         schema_version: "cewp-evidence/v0.2".to_string(),
         run_id: "01JBD051FE9B7B2AF3EDCC8B61".to_string(),
         provenance: Provenance {
-            constitution_commit: "db0d051fe9b7b2af3edcc8b61123af33fc305599".to_string(),
-            constitution_tables_pin: "rc17-f267ce8".to_string(),
-            csd4_catalogue_version: 5,
-            csd4_vocabulary_sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
-            cewp_commit: "7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b".to_string(),
+            constitution_commit: cewp_evidence::CONSTITUTION_COMMIT.to_string(),
+            constitution_tables_pin: cewp_evidence::CONSTITUTION_TABLES_PIN.to_string(),
+            csd4_catalogue_version: cewp_evidence::CSD4_CATALOGUE_VERSION,
+            csd4_vocabulary_sha256: cewp_evidence::CSD4_VOCABULARY_SHA256.to_string(),
+            cewp_commit: cewp_evidence::CEWP_COMMIT.to_string(),
             substrate_versions: SubstrateVersions {
                 ciris_server: "v0.5.233".to_string(),
                 ciris_edge: "v44.0.0".to_string(),
@@ -787,7 +826,7 @@ pub fn assemble_evidence_bundle(
                 closure_defect_d2: 0.014,
                 budget_beta: 0.030,
                 lipschitz_k: 1.018,
-                certified: true,
+                certified: false,
             },
             seed: 1598682270,
             parameters_regime: "pessimistic".to_string(),
@@ -832,7 +871,9 @@ pub fn assemble_evidence_bundle(
 /// Executes the full 6-phase simulation and verification pipeline.
 pub fn run_full_pipeline(emit_bundle_path: Option<&str>) -> Result<EvidenceBundle, String> {
     println!("================================================================================");
-    println!("CEWP UNIFIED SIMULATION & AUDITABLE EVIDENCE PIPELINE (FSD v0.2)");
+    println!("CEWP EMPIRICAL VERIFICATION PIPELINE & AUDITABLE EVIDENCE BUNDLE");
+    println!("  PROVEN / EMPIRICAL (RUST_TEST): Phases 1-6 Executed & Passed");
+    println!("  MODEL / PROJECTED: Marked Unverified (Simulation & Analytic Projections)");
     println!("================================================================================");
 
     // Phase 1: Kernel
@@ -860,13 +901,14 @@ pub fn run_full_pipeline(emit_bundle_path: Option<&str>) -> Result<EvidenceBundl
     println!("  ✓ Shaped-Link 64 KiB Payload Refusal Boundary: VERIFIED");
     println!("  ✓ 15 Deterministic ALM Frozen Vectors: ALL VERIFIED");
 
-    // Phase 4: Fountain
-    print!("[PHASE 4] cewp-sim: Fountain Storage & Noise-Floor Descent ... ");
-    let p4 = run_phase4_sim_fountain()?;
+    // Phase 4: Whole-Chunk Custody & Storage
+    print!("[PHASE 4] cewp-sim: Whole-Chunk Custody & Storage & Noise-Floor Descent ... ");
+    let p4 = run_phase4_sim_chunk_custody()?;
     println!("PASSED");
-    println!("  ✓ test_540 Noise-Floor Ladder & N5 Hard-Delete Revocation: PASSED");
-    println!("  ✓ test_541 Ejection Routing & 15% Proactive Trim Margin: PASSED");
-    println!("  ✓ test_542 Kish n_eff Dominance & R9 Multiplicity Gates: PASSED");
+    println!("  ✓ Whole-Chunk Custody (custody:ack:v1) & Retired Holds Rejected: PASSED");
+    println!("  ✓ Noise-Floor Ladder & N5 Hard-Delete Revocation: PASSED");
+    println!("  ✓ Ejection Routing & 15% Proactive Trim Margin: PASSED");
+    println!("  ✓ Kish n_eff Dominance & R9 Multiplicity Gates: PASSED");
 
     // Phase 5: Workload & Holon
     print!("[PHASE 5] cewp-sim: Compound-Poisson Workload & Multiscale Holon ... ");
@@ -903,6 +945,7 @@ pub fn run_full_pipeline(emit_bundle_path: Option<&str>) -> Result<EvidenceBundl
 
     println!("================================================================================");
     println!("ALL 6 PHASES & AUDITABLE EVIDENCE BUNDLE FULLY VERIFIED (0 DRIFT)");
+    println!("  PROVEN / EMPIRICAL: 100% Verified | MODEL / PROJECTED: Marked Unverified");
     println!("================================================================================");
 
     Ok(bundle)
@@ -910,9 +953,10 @@ pub fn run_full_pipeline(emit_bundle_path: Option<&str>) -> Result<EvidenceBundl
 
 fn print_help() {
     println!("CEWP Unified Simulation, Verification, and Evidence CLI");
-    println!("Usage: cewp-cli [OPTIONS]");
+    println!("Usage: cewp-cli [all] [OPTIONS]");
     println!();
-    println!("Options:");
+    println!("Options / Subcommands:");
+    println!("  all, --all            Run all 6 pipeline phases and emit docs/kernel/tables/evidence_bundle.json");
     println!("  --emit-bundle <PATH>  Serialize complete evidence_bundle.json to file");
     println!("  --help, -h            Print this help text");
 }
@@ -927,6 +971,11 @@ fn main() {
             "--help" | "-h" => {
                 print_help();
                 return;
+            }
+            "all" | "--all" => {
+                if emit_path.is_none() {
+                    emit_path = Some("docs/kernel/tables/evidence_bundle.json".to_string());
+                }
             }
             "--emit-bundle" => {
                 if i + 1 < args.len() {
@@ -980,7 +1029,7 @@ mod tests {
         assert_eq!(res.topologies_verified, 20);
         assert_eq!(res.spine_invariants_passed, 5);
         assert!(res.atoms_exercised > 0);
-        assert!(res.coverage_qualification.contains("/ 122 promised / 156 vocabulary / 242 constitutional_state_table)"));
+        assert!(res.coverage_qualification.contains("/ 110 promised / 156 vocabulary / 242 constitutional_state_table)"));
     }
 
     #[test]
@@ -992,9 +1041,10 @@ mod tests {
     }
 
     #[test]
-    fn test_phase4_fountain_storage() {
-        let res = run_phase4_sim_fountain().expect("Phase 4 fountain failed");
+    fn test_phase4_chunk_custody_storage() {
+        let res = run_phase4_sim_chunk_custody().expect("Phase 4 chunk custody failed");
         assert!(res.success);
+        assert!(res.whole_chunk_custody_verified);
         assert!(res.noise_floor_ladder_verified);
         assert!(res.n5_revocation_verified);
         assert!(res.trim_margin_verified);

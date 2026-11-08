@@ -153,11 +153,16 @@ Centralized storage means a takedown, a seizure, or a bankruptcy can
 erase content for everyone at once. The bytes live in one place that
 one party controls.
 
-**CEWP's mechanism:** content is **holographic** — RaptorQ erasure-
-coded `(N,K)` so any sufficient subset of fragments reconstructs it
-at proportional fidelity, and the federation re-establishes from any
-single survivor holding a signed witness chain (CEG §19). The
-federation survives down to one node.
+**CEWP's mechanism:** content is stored as sealed whole chunks (`CC 5.4.3`,
+`CC 6.1.5`) across consenting holders (`custody:ack:v1`; `holds_bytes` is
+retired and refused per `CC 3.1.3.3`) replicated to the multiplicity floor
+($n_{\text{eff}} \ge 3$ across independent ASN/jurisdiction/signer axes, $R_9 \ge 9$
+for root durability per `CC 6.1.2.1.2`). Layered-codec fidelity (`CC 6.1.2`,
+`CLM-noise-classify`) governs rate-distortion $(R, \varepsilon)$ degradation across
+`Full` / `Partial` / `EnvelopeOnly` layer sets rather than symbol counts, while
+live A/V sealed chunks are never fragmented into symbols (`CC 5.3.3.2.3`).
+The federation re-establishes from any single survivor holding a signed witness chain.
+The federation survives down to one node.
 
 ### 14. The unforgettable internet (no real delete)
 
@@ -183,7 +188,7 @@ CEWP changes the structural choice. Once you have:
 - Federation directory + identity-aware storage (Persist)
 - Trust × capacity intake gate (Persist + Edge)
 - Unified retirement → noise floor: real delete at `O(log T)` (Persist)
-- Holographic erasure-coded replication (Edge, CEG §19)
+- Whole-chunk sealed storage & multiplicity replication (CC §5.4.3, §6.1.5, Edge)
 - DNS-free addressing — address by key, no nameserver (CEG §0.10)
 - Wire-format authoritative spec (Registry / CEG 1.0-RC29, 1+4 FROZEN)
 - Ethical apex — the CIRIS Constitution / M-1 (Registry)
@@ -202,7 +207,7 @@ lock-in on a substrate where identity is wire-portable. You can't
 have a content moderation oligopoly on a substrate where moderation
 is a federation-wide primitive each operator runs locally. You can't
 seize a substrate with no nameserver and no load-bearing server, and
-you can't erase one that survives to a single holographic survivor.
+you can't erase one that survives to a single surviving consenting holder.
 
 The substrate doesn't address the problems. The substrate makes them
 impossible.

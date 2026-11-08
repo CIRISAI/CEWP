@@ -6,3 +6,6 @@ description = "Auditable evidence bundles, claim-to-evidence matrix, and epistem
 license = "Apache-2.0"
 
 [dependencies]
+cewp-kernel = { path = "../cewp-kernel" }
+cewp-csd4 = { path = "../cewp-csd4" }
+cewp-sim = { path = "../cewp-sim" }
