@@ -260,11 +260,11 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
 <body>
 <canvas id="c"></canvas>
 <button id="btn-hud" class="fab" type="button" title="Toggle controls &amp; population opt-ins">☰ Controls · <span class="badge" id="badge-scale">5.00 B</span></button>
-<button id="btn-story-fab" class="fab fab-story" type="button" title="Play animated 5-act scaling story: 2 Nodes → 1 Billion Mesh">▶ Play Story: 2 Nodes → 1B Mesh</button>
+<button id="btn-story-fab" class="fab fab-story" type="button" title="Watch two people connect and grow into a global network">▶ Play Story</button>
 <button id="btn-stats" class="fab" type="button" title="Toggle live telemetry &amp; sustainability metrics">☰ Metrics · <span class="badge" id="badge-local">– local</span></button>
 <button id="btn-foot" class="fab" type="button" title="Toggle architecture legend &amp; links">? Info</button>
 <nav class="nav-strip" aria-label="Architecture &amp; navigation links">
-  <button id="btn-story-nav" class="nav-pill nav-story-btn" type="button" title="Play animated 5-act mesh scaling story: 2 Nodes → 1B Mesh">▶ Story: 2 Nodes → 1B</button>
+  <button id="btn-story-nav" class="nav-pill nav-story-btn" type="button" title="Watch two people connect and grow into a global network">▶ Story</button>
   <a class="nav-pill active" href="index.html">🌍 Globe</a>
   <a class="nav-pill" href="csd-explorer.html">🧭 CSD/4 &amp; Namespace Browser</a>
   <a class="nav-pill" href="how-it-works.html#peers">⚖️ vs. Other Meshes</a>
@@ -278,12 +278,12 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
 
 <div id="story-hud" class="story-panel">
   <span class="story-act-badge" id="story-act-badge">1/5</span>
-  <div class="story-line" id="story-line">2 nodes connect via <code>ciris://id</code> FedCode — zero central directory (X3)</div>
+  <div class="story-line" id="story-line">Two people share a contact link and connect directly — no central server</div>
   <div class="story-mini-ctls">
-    <button id="story-btn-prev" class="story-hdr-btn" type="button" title="Previous Act">‹</button>
+    <button id="story-btn-prev" class="story-hdr-btn" type="button" title="Previous">‹</button>
     <button id="story-btn-play" class="story-hdr-btn" type="button" title="Pause / Resume">❚❚</button>
-    <button id="story-btn-next" class="story-hdr-btn" type="button" title="Next Act">›</button>
-    <button id="story-btn-exit" class="story-hdr-btn" type="button" title="Exit Story">✕</button>
+    <button id="story-btn-next" class="story-hdr-btn" type="button" title="Next">›</button>
+    <button id="story-btn-exit" class="story-hdr-btn" type="button" title="Close story">✕</button>
   </div>
   <div class="story-progress-track">
     <div class="story-progress-bar" id="story-progress-bar"></div>
@@ -304,7 +304,7 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     <button id="eng" class="on">engine: WASM</button>
     <button id="arcsb" class="on">arcs</button>
   </div>
-  <button id="btn-story-hud" class="btn-primary btn-story-main" type="button" style="width:100%;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:6px"><span>▶</span> Play Story: 2 Nodes → 1B Mesh</button>
+  <button id="btn-story-hud" class="btn-primary btn-story-main" type="button" style="width:100%;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:6px"><span>▶</span> Play Story</button>
   <div class="sust-strip">
     <div class="sust-pill"><span>Reachable home</span><b id="pill-nat">–</b></div>
     <div class="sust-pill"><span>1-hop shaped slots</span><b id="pill-shape">–</b></div>
@@ -469,7 +469,7 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
           </div>
         </div>
       </div>
-      <button id="btn-story-hud-bottom" class="btn-primary btn-story-main" type="button" style="width:100%;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:6px"><span>▶</span> Play Story: 2 Nodes → 1B Mesh</button>
+      <button id="btn-story-hud-bottom" class="btn-primary btn-story-main" type="button" style="width:100%;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:6px"><span>▶</span> Play Story</button>
     </div>
   </details>
 </div>
@@ -1334,72 +1334,57 @@ const REGIONAL_CLUSTER = [
 const STORY_ACTS = [
   {
     num: 1,
-    title: "Act I: Self-Certifying First Contact (T0 → T2)",
-    scenario: "CSD/4 T0 → T1 → T2 · CC 2.6.8 · CSD-104",
+    title: "First Contact",
     camDist: 1.35,
     targetZoom: 2.25,
     yaw: 8.54 * Math.PI / 180,
     pitch: 47.37 * Math.PI / 180,
-    scaleNodes: "0 → 2 → 12 Nodes",
     pop: 100,
     holonRes: "R4",
-    holonLevel: "L0 Device Peer",
     duration: 14
   },
   {
     num: 2,
-    title: "Act II: Community Quorum & Whole-Chunk Custody (T4 → T5)",
-    scenario: "CSD/4 T4 → T5 · CC 6.1.5 · CC 6.1.2.1.2",
+    title: "A Local Community Forms",
     camDist: 1.75,
     targetZoom: 1.78,
     yaw: 9.5 * Math.PI / 180,
     pitch: 47.5 * Math.PI / 180,
-    scaleNodes: "64 → 500 Nodes",
     pop: 5000,
     holonRes: "R4",
-    holonLevel: "L0 Community Cluster",
     duration: 14
   },
   {
     num: 3,
-    title: "Act III: Member Relay Trees & Level-1 Holons (T9 → T15)",
-    scenario: "CSD/4 T6 → T9 → T15 · CC 6.1.6 · CC 5.4.6",
+    title: "Communities Connect Across Cities",
     camDist: 2.25,
     targetZoom: 1.36,
     yaw: 12.0 * Math.PI / 180,
     pitch: 41.0 * Math.PI / 180,
-    scaleNodes: "10k → 250k Nodes",
     pop: 250000,
     holonRes: "R3",
-    holonLevel: "L1 Community Holon",
     duration: 14
   },
   {
     num: 4,
-    title: "Act IV: 10M Nodes & Constitutional Containment (T8 / T10 / X1–X2)",
-    scenario: "CSD/4 T8 / T10 / T19 · CIRISHolon L2 · X1–X2",
+    title: "Continents Link Across Oceans",
     camDist: 2.65,
     targetZoom: 1.08,
     yaw: -16.0 * Math.PI / 180,
     pitch: 26.0 * Math.PI / 180,
-    scaleNodes: "10,000,000 Nodes",
     pop: 10000000,
     holonRes: "R1",
-    holonLevel: "L2 Regional Super-Holon",
     duration: 14
   },
   {
     num: 5,
-    title: "Act V: 1 Billion Nodes — Flat Per-Node Cost (CIRISHolon L3)",
-    scenario: "CSD/4 T0..T19 · CIRISHolon L3 · CC 4.5.13",
+    title: "A Worldwide Network of People",
     camDist: 3.10,
     targetZoom: 0.96,
     yaw: 0.0,
     pitch: 16.0 * Math.PI / 180,
-    scaleNodes: "1,000,000,000 Nodes",
     pop: 1000000000,
     holonRes: "R0",
-    holonLevel: "L3 Planetary Super-Holon",
     duration: 16
   }
 ];
@@ -1456,24 +1441,24 @@ function pickRingNode(minDeg, maxDeg) {
 
 const STORY_CAPTIONS = [
   [
-    "<b>Silent globe → First Contact:</b> Two peers exchange <code>ciris://id</code> FedCodes",
-    "<b>2 → 12 Nodes (CSD-104):</b> First neighbors &amp; self-rosters (<b>CC 3.3.6.3</b>) light up"
+    "Two people share a contact link and connect directly — no central server",
+    "Their phones and home computers link up, and nearby friends join in"
   ],
   [
-    "<b>64 → 500 Nodes:</b> A community lights up via <code>group:roster</code> quorum (&gt; num·base/den)",
-    "<b>Whole-chunk sharing:</b> Sealed chunks attested by <code>custody:ack:v1</code> reach <b>n_eff ≥ 3 ✓</b>"
+    "Neighbors form a local community and agree on shared rules together",
+    "Members back up each other's shared files and media across the neighborhood"
   ],
   [
-    "<b>10k → 250k Nodes:</b> Communities connect; single-publisher ALM relay trees fan out",
-    "<b>Level-1 Holons:</b> <code>L ≤ 8</code> shaped links &amp; 2 sticky guards mask traffic at +0 extra bytes"
+    "Communities connect across cities, relaying live streams from member to member",
+    "Traffic is paced smoothly on direct links so private conversations blend in"
   ],
   [
-    "<b>10M Nodes (L2 Holons):</b> Continents bridge; <code>accord_halt</code> contained locally (<b>X1/X2 ✓</b>)",
-    "<b>Certified Multiscale:</b> Coarsened holons hold commuting defect <b>Dv² ≤ 0.03</b> &amp; <b>K ≤ 1.05 ✓</b>"
+    "Regions link across oceans while local disputes stay contained where they happen",
+    "Every community governs itself without any single company or gatekeeper"
   ],
   [
-    "<b>1B Planetary Mesh (L3):</b> The whole Earth lights up at flat <b>~2.8 KB/s</b> per node",
-    "<b>Universal Bootstrap:</b> Any client joins via <code>ciris://r/&lt;root&gt;</code> (<b>Invariants X1–X5 ✓</b>)"
+    "A billion people connected worldwide — yet each person's data use stays tiny",
+    "Anyone can join from a phone or browser with a single invite link"
   ]
 ];
 
