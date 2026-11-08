@@ -2,16 +2,17 @@
   "schema_version": "cewp-evidence/v0.2",
   "run_id": "01JBD051FE9B7B2AF3EDCC8B61",
   "provenance": {
-    "constitution_commit": "f267ce8",
-    "constitution_tables_pin": "rc17-f267ce8",
+    "constitution_commit": "b363b6e54dcd2efc7a8df16a335cb84f42869366",
+    "constitution_tables_pin": "rc17-b363b6e",
     "csd4_catalogue_version": 6,
     "csd4_vocabulary_sha256": "c37f6f9651579932835ff700a2ec376a0c5c928545c3ed476362ec4bd4ac0769",
     "cewp_commit": "d6a0ee410d173057d32597eb2619e7186d5ee334",
     "substrate_versions": {
-      "ciris_server": "v0.5.233",
-      "ciris_edge": "v44.0.0",
-      "ciris_persist": "v8.1.0",
-      "ciris_verify": "v5.8.0"
+      "ciris_server": "v0.5.233 (8c1dec21)",
+      "ciris_edge": "v44.0.0 (310aa7e)",
+      "ciris_persist": "v61.0.5 (7894b39c)",
+      "ciris_verify": "v22.0.0 (3c16f9c6)",
+      "ciris_holon": "v0.2.0"
     }
   },
   "scenario": {
@@ -67,7 +68,7 @@
     "hybrid_verify_us": {
       "value": 276.0,
       "epistemic_class": "MEASURED",
-      "source": "CIRISVerify v5.8.0 bench",
+      "source": "CIRISVerify v22.0.0 bench",
       "hardware_provenance": "AMD EPYC 7763 64-Core"
     },
     "k2_leaf_load_fraction": {
@@ -85,18 +86,18 @@
   },
   "claim_matrix": [
     {
-      "claim_id": "CLAIM-1",
+      "claim_id": "CLM-queue-is-the-door",
       "decimal_id": "4.5.13",
       "title": "UI queue, preview, and admission door never drift (CC §4.5.13)",
       "required_evidence": "Lean proof (EventLifecycle.lean) + cewp-kernel / kernel.js / CIRISServer 100% differential parity on transitions.json & T0–T19",
       "current_status": "MEASURED (Lean + kernel.test.js; Rust cewp-kernel in Phase 1)",
-      "cc_status": "established",
+      "cc_status": "normative",
       "method": "RUST_TEST",
       "epistemic_class": "MEASURED",
       "verified": true
     },
     {
-      "claim_id": "CLAIM-2",
+      "claim_id": "CLM-halt-authority",
       "decimal_id": "4.2",
       "title": "Nodes converge identically after arbitrary partitions & churn",
       "required_evidence": "Permutation-invariant fold proofs + 100-shuffle multi-island partition fuzzing + real-node rows.jsonl replay in Trace.tla",
@@ -107,7 +108,7 @@
       "verified": true
     },
     {
-      "claim_id": "CLAIM-3",
+      "claim_id": "CLM-link-shaping",
       "decimal_id": "5.4.3",
       "title": "Privacy & > 64 KiB shaped-link boundaries hold under attack",
       "required_evidence": "Tiers.lean + formal/anonymous/ + ADV-PR local passive observer & refusal boundary campaigns + CLM-link-shaping",
@@ -118,7 +119,7 @@
       "verified": false
     },
     {
-      "claim_id": "CLAIM-4",
+      "claim_id": "CLM-shaped-link-one-hop",
       "decimal_id": "5.4.3",
       "title": "1-hop shaped links (L <= 8) & k=2 leaves survive CGNAT",
       "required_evidence": "CLM-shaped-link-one-hop (CC 5.4.3) + reach_home_share [0%, 80%] sweep + awaiting leviculum#100 field calibration",
@@ -129,7 +130,7 @@
       "verified": false
     },
     {
-      "claim_id": "CLAIM-5",
+      "claim_id": "CLM-alm-live-tree-verified",
       "decimal_id": "6.1.6",
       "title": "CC §6.1.6 deterministic-alm scales without SFUs (CC §5.3.3.2)",
       "required_evidence": "All 15 frozen vectors in deterministic_topology.rs + CLM-alm-live-tree-verified (staged:CIRISEdge#945) + ADV-ALM capacity clamp & relay drop suite",
@@ -140,7 +141,7 @@
       "verified": true
     },
     {
-      "claim_id": "CLAIM-6",
+      "claim_id": "CLM-noise-classify",
       "decimal_id": "6.1.2",
       "title": "Whole-chunk storage survives correlated loss & respects revocation",
       "required_evidence": "Whole-chunk custody simulation (ChunkManifestV1) + test_540..542 (Full/Partial/EnvelopeOnly, N5 hard-delete, Kish n_eff integer-floor gate) + ADV-ST custody withholding tests",
@@ -151,7 +152,7 @@
       "verified": true
     },
     {
-      "claim_id": "CLAIM-7",
+      "claim_id": "CLM-shaping-offered-never-refused",
       "decimal_id": "5.4.3",
       "title": "Commodity L1 home server (1 TB / 1 Gbps / 1 core) suffices",
       "required_evidence": "Reproducible benchmarks on ARM mini-PC / home x86 under 2.5x diurnal & 4.0x flash-crowd workloads across T0–T19 mixes",
@@ -162,7 +163,7 @@
       "verified": false
     },
     {
-      "claim_id": "CLAIM-8",
+      "claim_id": "CLM-node-inventory",
       "decimal_id": "6.1",
       "title": "Five-billion user scale is viable without datacenters",
       "required_evidence": "CIRISHolon multiscale ladder (R5 -> R0) + 4-baseline comparison (A1–A4) + 4-regime sensitivity analysis",

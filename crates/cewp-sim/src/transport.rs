@@ -20,6 +20,9 @@ use std::collections::{BTreeMap, BTreeSet};
 /// Maximum number of device-tier shaped links per node (Tiers.bound = 8, CC §5.4.3).
 pub const SHAPED_LINK_BOUND: usize = 8;
 
+/// Idle timeout in seconds for an asked shaped link on an off node (10 minutes = 600 s, CC §5.4.3 / §5.4.6).
+pub const SHAPED_ASK_IDLE_TIMEOUT_SECS: u64 = 600;
+
 /// Maximum number of sealed referrals returned on a refusal or displacement (CC §5.4.3).
 pub const MAX_REFERRALS: usize = 3;
 
@@ -182,6 +185,56 @@ impl BudgetClass {
         } else {
             b_eff
         }
+    }
+
+    /// Whether shaping is offered by default for this class (CC §5.4.3 / §5.4.6).
+    /// Offered by default on Server (true); off by default elsewhere (Home, PhoneWifi, PhoneCellular).
+    #[must_use]
+    pub const fn shaping_offered_by_default(self) -> bool {
+        shaping_offered_by_default(self)
+    }
+
+    /// Relay is offered by default on every owned node, except a phone only offers relay
+    /// while charging AND on an unmetered link (is_charging && is_unmetered_wifi) (CC §5.4.6).
+    #[must_use]
+    pub fn relay_offered_by_default(self, is_charging: bool, is_unmetered_wifi: bool) -> bool {
+        relay_offered_by_default(self, is_charging, is_unmetered_wifi)
+    }
+}
+
+/// Pure function determining whether shaping is offered by default for a budget class (CC §5.4.3 / §5.4.6).
+/// True for Server (and Seat); false (off by default) elsewhere (Home, PhoneWifi, PhoneCellular).
+#[must_use]
+pub const fn shaping_offered_by_default(class: BudgetClass) -> bool {
+    matches!(class, BudgetClass::Server | BudgetClass::Seat)
+}
+
+/// Relay is offered by default on every owned node, except a phone only offers relay
+/// while charging AND on an unmetered link (is_charging && is_unmetered_wifi) (CC §5.4.6).
+#[must_use]
+pub fn relay_offered_by_default(
+    device_class: BudgetClass,
+    is_charging: bool,
+    is_unmetered_wifi: bool,
+) -> bool {
+    match device_class {
+        BudgetClass::PhoneCellular | BudgetClass::PhoneWifi => is_charging && is_unmetered_wifi,
+        BudgetClass::Home | BudgetClass::Server | BudgetClass::Seat => true,
+        BudgetClass::Off => false,
+    }
+}
+
+/// Relay offer gate for a device given phone flag, charging state, and unmetered Wi-Fi.
+#[must_use]
+pub fn relay_offered_for_device(
+    is_phone: bool,
+    is_charging: bool,
+    is_unmetered_wifi: bool,
+) -> bool {
+    if is_phone {
+        is_charging && is_unmetered_wifi
+    } else {
+        true
     }
 }
 
@@ -359,16 +412,28 @@ pub struct ShapedLinkManager {
     pub unreachable_for_shaping_count: u64,
     /// Separate failure counter B: slot capacity exhausted failures.
     pub capacity_exhausted_count: u64,
+    /// Device hardware tier class (e.g. Server, Home, PhoneWifi, PhoneCellular).
+    pub device_class: BudgetClass,
+    /// Whether shaping offer is enabled by default or overridden (CC §5.4.3 / §5.4.6).
+    pub shaping_offer_enabled: bool,
+    /// Tracks asked shaped links on off nodes: peer_id -> last_real_frame_unix_secs.
+    pub asked_links: BTreeMap<String, u64>,
 }
 
 impl ShapedLinkManager {
     /// Create a new link manager for a node.
     #[must_use]
     pub fn new(local_peer_id: String, has_direct_path: bool, holds_serve_seat: bool) -> Self {
-        let local_class = if holds_serve_seat {
+        let device_class = if holds_serve_seat {
             BudgetClass::Seat
         } else {
             BudgetClass::Server
+        };
+        let shaping_offer_enabled = shaping_offered_by_default(device_class);
+        let local_class = if shaping_offer_enabled {
+            device_class
+        } else {
+            BudgetClass::Off
         };
         Self {
             local_peer_id,
@@ -382,6 +447,9 @@ impl ShapedLinkManager {
             active_unshaped_links: BTreeSet::new(),
             unreachable_for_shaping_count: 0,
             capacity_exhausted_count: 0,
+            device_class,
+            shaping_offer_enabled,
+            asked_links: BTreeMap::new(),
         }
     }
 
@@ -389,6 +457,33 @@ impl ShapedLinkManager {
     #[must_use]
     pub fn with_local_class(mut self, local_class: BudgetClass) -> Self {
         self.local_class = local_class;
+        self.device_class = local_class;
+        self.shaping_offer_enabled = local_class != BudgetClass::Off;
+        self
+    }
+
+    /// Builder setter for device hardware class.
+    #[must_use]
+    pub fn with_device_class(mut self, device_class: BudgetClass) -> Self {
+        self.device_class = device_class;
+        self.shaping_offer_enabled = shaping_offered_by_default(device_class);
+        self.local_class = if self.shaping_offer_enabled {
+            device_class
+        } else {
+            BudgetClass::Off
+        };
+        self
+    }
+
+    /// Builder setter for shaping offer enabled state.
+    #[must_use]
+    pub fn with_shaping_offer_enabled(mut self, enabled: bool) -> Self {
+        self.shaping_offer_enabled = enabled;
+        self.local_class = if enabled {
+            self.device_class
+        } else {
+            BudgetClass::Off
+        };
         self
     }
 
@@ -431,34 +526,13 @@ impl ShapedLinkManager {
         eligible
     }
 
-    /// Request establishment of a shaped link with `peer_id`.
-    /// Enforces:
-    /// 1. Direct reachability check (Failure Mode A vs Failure Mode B)
-    /// 2. Lower of offers agreement (`agree(self.local_class, peer_class)`)
-    /// 3. Seat-class bypass of the 8-link bound (CLM-seat-class)
-    /// 4. Rank-based displacement with destination home/server slot verification
-    /// 5. Ninth peer rule: refused only on `shaped_only` or Anonymous Tier; unshaped otherwise
-    pub fn request_shaped_link(
+    fn place_shaped_link_internal(
         &mut self,
         peer_id: &str,
-        peer_class: BudgetClass,
-        peer_has_direct_path: bool,
-        peer_holds_serve_seat: bool,
+        agreed_class: BudgetClass,
+        both_seats: bool,
         candidate_referrals: &[NodeRelayCandidate],
     ) -> Result<LinkPlacement, ShapingRefusal> {
-        // One direct hop check: both ends must have direct reachability.
-        if !self.has_direct_path || !peer_has_direct_path {
-            self.unreachable_for_shaping_count += 1;
-            return Err(ShapingRefusal::UnreachableForShaping);
-        }
-
-        let both_seats = self.holds_serve_seat && peer_holds_serve_seat;
-        // Agreement takes the lower of the two offers (CC §5.4.3 item 1).
-        let agreed_class = BudgetClass::agree(self.local_class, peer_class, both_seats);
-        if agreed_class == BudgetClass::Off {
-            return Err(ShapingRefusal::ShapingOff);
-        }
-
         // Seat class bypasses 8-link device bound (CLM-seat-class).
         if agreed_class == BudgetClass::Seat {
             if both_seats {
@@ -538,6 +612,114 @@ impl ShapedLinkManager {
             Ok(LinkPlacement::AdmittedUnshaped)
         }
     }
+
+    /// Request establishment of a shaped link with `peer_id`.
+    /// Enforces:
+    /// 1. Direct reachability check (Failure Mode A vs Failure Mode B)
+    /// 2. Lower of offers agreement (`agree(self.local_class, peer_class)`)
+    /// 3. Seat-class bypass of the 8-link bound (CLM-seat-class)
+    /// 4. Rank-based displacement with destination home/server slot verification
+    /// 5. Ninth peer rule: refused only on `shaped_only` or Anonymous Tier; unshaped otherwise
+    pub fn request_shaped_link(
+        &mut self,
+        peer_id: &str,
+        peer_class: BudgetClass,
+        peer_has_direct_path: bool,
+        peer_holds_serve_seat: bool,
+        candidate_referrals: &[NodeRelayCandidate],
+    ) -> Result<LinkPlacement, ShapingRefusal> {
+        // One direct hop check: both ends must have direct reachability.
+        if !self.has_direct_path || !peer_has_direct_path {
+            self.unreachable_for_shaping_count += 1;
+            return Err(ShapingRefusal::UnreachableForShaping);
+        }
+
+        let both_seats = self.holds_serve_seat && peer_holds_serve_seat;
+        // Agreement takes the lower of the two offers (CC §5.4.3 item 1).
+        let agreed_class = BudgetClass::agree(self.local_class, peer_class, both_seats);
+        if agreed_class == BudgetClass::Off {
+            return Err(ShapingRefusal::ShapingOff);
+        }
+
+        self.place_shaped_link_internal(peer_id, agreed_class, both_seats, candidate_referrals)
+    }
+
+    /// Request establishment of a shaped link via the ask path (CC §5.4.3 / §5.4.6).
+    ///
+    /// A node with the shaping offer off still gives a shaped link to any peer that asks,
+    /// at its device class, and drops the shaped link 10 minutes (600 seconds) after the
+    /// last real frame (`SHAPED_ASK_IDLE_TIMEOUT_SECS = 600`).
+    pub fn request_shaped_link_asked(
+        &mut self,
+        peer_id: &str,
+        peer_class: BudgetClass,
+        peer_has_direct_path: bool,
+        peer_holds_serve_seat: bool,
+        candidate_referrals: &[NodeRelayCandidate],
+        current_unix_secs: u64,
+    ) -> Result<LinkPlacement, ShapingRefusal> {
+        if !self.has_direct_path || !peer_has_direct_path {
+            self.unreachable_for_shaping_count += 1;
+            return Err(ShapingRefusal::UnreachableForShaping);
+        }
+
+        // When shaping offer is off, the node gives a shaped link at its device class
+        let effective_local_class = if self.local_class == BudgetClass::Off || !self.shaping_offer_enabled {
+            self.device_class
+        } else {
+            self.local_class
+        };
+
+        let both_seats = self.holds_serve_seat && peer_holds_serve_seat;
+        let agreed_class = BudgetClass::agree(effective_local_class, peer_class, both_seats);
+        if agreed_class == BudgetClass::Off {
+            return Err(ShapingRefusal::ShapingOff);
+        }
+
+        let placement = self.place_shaped_link_internal(peer_id, agreed_class, both_seats, candidate_referrals)?;
+        if self.local_class == BudgetClass::Off || !self.shaping_offer_enabled {
+            self.asked_links.insert(peer_id.to_string(), current_unix_secs);
+        }
+        Ok(placement)
+    }
+
+    /// Record receipt or departure of a real payload frame on an asked shaped link,
+    /// resetting its 10-minute idle countdown (CC §5.4.3 / §5.4.6).
+    pub fn record_real_frame(&mut self, peer_id: &str, current_unix_secs: u64) {
+        if self.asked_links.contains_key(peer_id) {
+            self.asked_links.insert(peer_id.to_string(), current_unix_secs);
+        }
+    }
+
+    /// Check and drop all asked shaped links that have been idle for >= 10 minutes (600 seconds)
+    /// since their last real frame (CC §5.4.3 / §5.4.6, `SHAPED_ASK_IDLE_TIMEOUT_SECS = 600`).
+    /// Returns the list of peer IDs whose shaped links were dropped due to idle timeout.
+    pub fn check_idle_drops(&mut self, current_unix_secs: u64) -> Vec<String> {
+        let mut dropped = Vec::new();
+        for (peer_id, last_secs) in &self.asked_links {
+            if current_unix_secs.saturating_sub(*last_secs) >= SHAPED_ASK_IDLE_TIMEOUT_SECS {
+                dropped.push(peer_id.clone());
+            }
+        }
+
+        for peer_id in &dropped {
+            self.active_device_links.remove(peer_id);
+            self.asked_links.remove(peer_id);
+        }
+
+        dropped
+    }
+
+    /// Alias for `check_idle_drops`.
+    pub fn check_idle_timeout(&mut self, current_unix_secs: u64) -> Vec<String> {
+        self.check_idle_drops(current_unix_secs)
+    }
+}
+
+/// Predicate checking if an asked link is expired after 10 minutes (600s) of inactivity (CC §5.4.3 / §5.4.6).
+#[must_use]
+pub fn is_asked_link_expired(last_frame_unix_secs: u64, current_unix_secs: u64) -> bool {
+    current_unix_secs.saturating_sub(last_frame_unix_secs) >= SHAPED_ASK_IDLE_TIMEOUT_SECS
 }
 
 fn displaced_peer_id_clone(s: &str) -> String {
@@ -680,27 +862,218 @@ pub fn check_onion_tier_availability(
     }
 }
 
+/// Fallback guard of last resort when the sender has no consented contact offering relay (CC §5.4.6).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GuardFallback {
+    ServeSeat(String),
+}
+
+/// A guard slot tracking one contact or fallback serving as hop-one guard (CC §5.4.6).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuardSlot {
+    pub peer_id: String,
+    pub reachable: bool,
+    pub is_consented_contact: bool,
+    pub offers_relay: bool,
+}
+
+/// Candidate contact for sticky guard selection (CC §5.4.6).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConsentedContactGuardCandidate {
+    pub peer_id: String,
+    pub is_consented: bool,
+    pub offers_relay: bool,
+    pub reachable: bool,
+}
+
+impl ConsentedContactGuardCandidate {
+    #[must_use]
+    pub fn new(peer_id: impl Into<String>, is_consented: bool, offers_relay: bool, reachable: bool) -> Self {
+        Self {
+            peer_id: peer_id.into(),
+            is_consented,
+            offers_relay,
+            reachable,
+        }
+    }
+}
+
 /// Sticky guard (CC §5.4.6 item 4): kept as long as it answers, never rotated on a schedule.
+///
+/// Per CC §5.4.6: hop one is a sticky guard chosen from the sender's own consented contacts
+/// that offer relay, two of them for reach (`primary_guard_peer_id` and `secondary_guard_peer_id`);
+/// a sender with no such contact uses a serve seat as its guard of last resort (`GuardFallback::ServeSeat`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StickyGuard {
+    /// Active / legacy primary guard peer ID.
     pub guard_peer_id: String,
+    /// Active / legacy primary guard reachability.
     pub guard_reachable: bool,
+    /// Primary consented-contact guard peer ID for reach (CC §5.4.6).
+    pub primary_guard_peer_id: Option<String>,
+    /// Secondary consented-contact guard peer ID for reach (CC §5.4.6).
+    pub secondary_guard_peer_id: Option<String>,
+    /// Guard fallback of last resort if sender has no consented contact offering relay (CC §5.4.6).
+    pub fallback: Option<GuardFallback>,
+    /// Guard slots (up to 2 consented-contact guards for reach, or serve-seat fallback).
+    pub guard_slots: Vec<GuardSlot>,
 }
 
 impl StickyGuard {
+    /// Backward-compatible constructor with single guard peer.
     #[must_use]
     pub fn new(guard_peer_id: String, guard_reachable: bool) -> Self {
         Self {
-            guard_peer_id,
+            guard_peer_id: guard_peer_id.clone(),
             guard_reachable,
+            primary_guard_peer_id: Some(guard_peer_id.clone()),
+            secondary_guard_peer_id: None,
+            fallback: None,
+            guard_slots: vec![GuardSlot {
+                peer_id: guard_peer_id,
+                reachable: guard_reachable,
+                is_consented_contact: true,
+                offers_relay: true,
+            }],
         }
     }
 
-    /// CC §5.4.6 item 4: a guard is kept as long as it answers (guard_reachable == true),
-    /// never rotated on a 60-day schedule.
+    /// Construct with two consented-contact guards for reach (CC §5.4.6).
+    #[must_use]
+    pub fn two_guards(
+        primary_peer_id: String,
+        secondary_peer_id: String,
+        primary_reachable: bool,
+        secondary_reachable: bool,
+    ) -> Self {
+        let any_reachable = primary_reachable || secondary_reachable;
+        let active = if primary_reachable {
+            primary_peer_id.clone()
+        } else if secondary_reachable {
+            secondary_peer_id.clone()
+        } else {
+            primary_peer_id.clone()
+        };
+        Self {
+            guard_peer_id: active,
+            guard_reachable: any_reachable,
+            primary_guard_peer_id: Some(primary_peer_id.clone()),
+            secondary_guard_peer_id: Some(secondary_peer_id.clone()),
+            fallback: None,
+            guard_slots: vec![
+                GuardSlot {
+                    peer_id: primary_peer_id,
+                    reachable: primary_reachable,
+                    is_consented_contact: true,
+                    offers_relay: true,
+                },
+                GuardSlot {
+                    peer_id: secondary_peer_id,
+                    reachable: secondary_reachable,
+                    is_consented_contact: true,
+                    offers_relay: true,
+                },
+            ],
+        }
+    }
+
+    /// Construct with serve seat as guard of last resort (CC §5.4.6).
+    #[must_use]
+    pub fn with_serve_seat_fallback(seat_peer_id: String, seat_reachable: bool) -> Self {
+        Self {
+            guard_peer_id: seat_peer_id.clone(),
+            guard_reachable: seat_reachable,
+            primary_guard_peer_id: None,
+            secondary_guard_peer_id: None,
+            fallback: Some(GuardFallback::ServeSeat(seat_peer_id.clone())),
+            guard_slots: vec![GuardSlot {
+                peer_id: seat_peer_id,
+                reachable: seat_reachable,
+                is_consented_contact: false,
+                offers_relay: true,
+            }],
+        }
+    }
+
+    /// Select hop-one sticky guards per CC §5.4.6:
+    /// Hop one is chosen from the sender's own consented contacts that offer relay,
+    /// two of them for reach; a sender with no such contact uses a serve seat as its guard of last resort.
+    #[must_use]
+    pub fn select_from_contacts(
+        contacts: &[ConsentedContactGuardCandidate],
+        fallback_serve_seat: Option<String>,
+    ) -> Self {
+        let eligible: Vec<&ConsentedContactGuardCandidate> = contacts
+            .iter()
+            .filter(|c| c.is_consented && c.offers_relay)
+            .collect();
+
+        if eligible.is_empty() {
+            if let Some(seat) = fallback_serve_seat {
+                return Self::with_serve_seat_fallback(seat, true);
+            }
+            return Self {
+                guard_peer_id: String::new(),
+                guard_reachable: false,
+                primary_guard_peer_id: None,
+                secondary_guard_peer_id: None,
+                fallback: None,
+                guard_slots: Vec::new(),
+            };
+        }
+
+        if eligible.len() == 1 {
+            let mut g = Self::new(eligible[0].peer_id.clone(), eligible[0].reachable);
+            if let Some(seat) = fallback_serve_seat {
+                g.fallback = Some(GuardFallback::ServeSeat(seat));
+            }
+            return g;
+        }
+
+        let mut g = Self::two_guards(
+            eligible[0].peer_id.clone(),
+            eligible[1].peer_id.clone(),
+            eligible[0].reachable,
+            eligible[1].reachable,
+        );
+        if let Some(seat) = fallback_serve_seat {
+            g.fallback = Some(GuardFallback::ServeSeat(seat));
+        }
+        g
+    }
+
+    /// CC §5.4.6 item 4: a guard is kept as long as it answers, never rotated on a schedule.
+    /// If two guards are configured for reach, retention holds while at least one answers.
     #[must_use]
     pub fn should_retain(&self) -> bool {
-        self.guard_reachable
+        if !self.guard_reachable {
+            return false;
+        }
+        if self.guard_slots.is_empty() {
+            return self.guard_reachable;
+        }
+        self.guard_slots.iter().any(|s| s.reachable)
+    }
+
+    /// Whether this sticky guard is currently using the serve-seat fallback of last resort.
+    #[must_use]
+    pub fn is_using_serve_seat_fallback(&self) -> bool {
+        self.primary_guard_peer_id.is_none() && matches!(self.fallback, Some(GuardFallback::ServeSeat(_)))
+    }
+
+    /// Returns the currently active reachable guard peer ID for routing.
+    #[must_use]
+    pub fn active_guard_peer_id(&self) -> Option<&str> {
+        for slot in &self.guard_slots {
+            if slot.reachable {
+                return Some(&slot.peer_id);
+            }
+        }
+        if self.guard_reachable && !self.guard_peer_id.is_empty() {
+            Some(&self.guard_peer_id)
+        } else {
+            None
+        }
     }
 }
 
@@ -1104,5 +1477,133 @@ mod tests {
         assert_eq!(res.rows_served_local, 1);
         assert_eq!(res.rows_proxied_from_seat, 1);
         assert_eq!(res.rows_refused_non_federation, 1);
+    }
+
+    #[test]
+    fn two_sticky_guards_for_reach_and_serve_seat_fallback() {
+        // Per CC §5.4.6: hop one is chosen from sender's consented contacts offering relay,
+        // two of them for reach; sender with no such contact uses serve seat as guard of last resort.
+        let contacts = vec![
+            ConsentedContactGuardCandidate::new("friend-1", true, true, true),
+            ConsentedContactGuardCandidate::new("friend-2", true, true, true),
+            ConsentedContactGuardCandidate::new("stranger-3", false, true, true), // not consented
+            ConsentedContactGuardCandidate::new("friend-4", true, false, true),   // no relay
+        ];
+
+        // 1. Two consented-contact guards chosen for reach
+        let mut guard = StickyGuard::select_from_contacts(&contacts, Some("seat-last-resort".into()));
+        assert_eq!(guard.primary_guard_peer_id.as_deref(), Some("friend-1"));
+        assert_eq!(guard.secondary_guard_peer_id.as_deref(), Some("friend-2"));
+        assert_eq!(guard.guard_slots.len(), 2);
+        assert!(!guard.is_using_serve_seat_fallback());
+        assert!(guard.should_retain());
+        assert_eq!(guard.active_guard_peer_id(), Some("friend-1"));
+
+        // If primary guard fails, secondary guard maintains reach
+        guard.guard_slots[0].reachable = false;
+        assert!(guard.should_retain(), "reach maintained by secondary guard");
+        assert_eq!(guard.active_guard_peer_id(), Some("friend-2"));
+
+        // When both fail, retention ends
+        guard.guard_slots[1].reachable = false;
+        guard.guard_reachable = false;
+        assert!(!guard.should_retain());
+        assert_eq!(guard.active_guard_peer_id(), None);
+
+        // 2. Sender with NO consented contact offering relay falls back to serve seat of last resort
+        let empty_contacts: Vec<ConsentedContactGuardCandidate> = Vec::new();
+        let fallback_guard = StickyGuard::select_from_contacts(&empty_contacts, Some("seat-alpha".into()));
+        assert!(fallback_guard.is_using_serve_seat_fallback());
+        assert_eq!(fallback_guard.primary_guard_peer_id, None);
+        assert_eq!(fallback_guard.secondary_guard_peer_id, None);
+        assert_eq!(
+            fallback_guard.fallback,
+            Some(GuardFallback::ServeSeat("seat-alpha".into()))
+        );
+        assert_eq!(fallback_guard.active_guard_peer_id(), Some("seat-alpha"));
+        assert!(fallback_guard.should_retain());
+    }
+
+    #[test]
+    fn shaping_offered_by_default_and_ten_minute_idle_drop() {
+        // 1. Shaping default: true for Server, false elsewhere (Home, PhoneWifi, PhoneCellular, Off)
+        assert!(shaping_offered_by_default(BudgetClass::Server));
+        assert!(BudgetClass::Server.shaping_offered_by_default());
+        assert!(!shaping_offered_by_default(BudgetClass::Home));
+        assert!(!BudgetClass::Home.shaping_offered_by_default());
+        assert!(!shaping_offered_by_default(BudgetClass::PhoneWifi));
+        assert!(!BudgetClass::PhoneWifi.shaping_offered_by_default());
+        assert!(!shaping_offered_by_default(BudgetClass::PhoneCellular));
+        assert!(!BudgetClass::PhoneCellular.shaping_offered_by_default());
+        assert!(!shaping_offered_by_default(BudgetClass::Off));
+
+        // 2. Off node ask path: a node with shaping offer off still gives a shaped link
+        // to any peer that asks, at its device class, and drops it 10 minutes (600s) after the last real frame.
+        let mut home_node = ShapedLinkManager::new("home-node".into(), true, false)
+            .with_device_class(BudgetClass::Home);
+        assert_eq!(home_node.local_class, BudgetClass::Off);
+        assert!(!home_node.shaping_offer_enabled);
+
+        // Normal offer results in ShapingOff because offer is off by default
+        let unasked = home_node.request_shaped_link("peer-1", BudgetClass::Server, true, false, &[]);
+        assert_eq!(unasked, Err(ShapingRefusal::ShapingOff));
+
+        // Ask path at t = 1_000: gives shaped link at device class (Home, 2,800 B/s)
+        let placement = home_node.request_shaped_link_asked(
+            "peer-1",
+            BudgetClass::Server,
+            true,
+            false,
+            &[],
+            1_000,
+        );
+        assert_eq!(placement, Ok(LinkPlacement::Admitted));
+        assert_eq!(home_node.active_device_links.get("peer-1"), Some(&BudgetClass::Home));
+        assert_eq!(home_node.asked_links.get("peer-1"), Some(&1_000));
+
+        // At t = 1_599 (599 seconds later, < 600s), idle check does NOT drop
+        let dropped = home_node.check_idle_drops(1_599);
+        assert!(dropped.is_empty());
+        assert!(home_node.active_device_links.contains_key("peer-1"));
+
+        // Receive real frame at t = 1_500, refreshing countdown
+        home_node.record_real_frame("peer-1", 1_500);
+        assert_eq!(home_node.asked_links.get("peer-1"), Some(&1_500));
+
+        // At t = 2_000 (500s after last real frame), still active
+        let dropped = home_node.check_idle_drops(2_000);
+        assert!(dropped.is_empty());
+
+        // At t = 2_100 (600s after last real frame, >= SHAPED_ASK_IDLE_TIMEOUT_SECS = 600),
+        // idle timeout expires and shaped link is dropped
+        assert!(is_asked_link_expired(1_500, 2_100));
+        let dropped = home_node.check_idle_drops(2_100);
+        assert_eq!(dropped, vec!["peer-1".to_string()]);
+        assert!(!home_node.active_device_links.contains_key("peer-1"));
+        assert!(!home_node.asked_links.contains_key("peer-1"));
+    }
+
+    #[test]
+    fn phone_relay_offer_charging_and_unmetered_gate() {
+        // Relay offered by default on every owned node (Server, Home, Seat)
+        assert!(relay_offered_by_default(BudgetClass::Server, false, false));
+        assert!(relay_offered_by_default(BudgetClass::Home, false, false));
+        assert!(relay_offered_by_default(BudgetClass::Seat, false, false));
+        assert!(relay_offered_for_device(false, false, false));
+
+        // Phone only offers relay while charging AND on an unmetered link
+        assert!(!relay_offered_by_default(BudgetClass::PhoneCellular, false, false));
+        assert!(!relay_offered_by_default(BudgetClass::PhoneCellular, true, false)); // charging on cellular (metered)
+        assert!(!relay_offered_by_default(BudgetClass::PhoneCellular, false, true)); // unplugged
+        assert!(relay_offered_by_default(BudgetClass::PhoneCellular, true, true));  // charging AND unmetered
+
+        assert!(!relay_offered_by_default(BudgetClass::PhoneWifi, false, false));
+        assert!(!relay_offered_by_default(BudgetClass::PhoneWifi, false, true));  // unmetered Wi-Fi but unplugged
+        assert!(!relay_offered_by_default(BudgetClass::PhoneWifi, true, false));  // charging but metered
+        assert!(relay_offered_by_default(BudgetClass::PhoneWifi, true, true));   // charging AND unmetered Wi-Fi
+
+        assert!(!relay_offered_for_device(true, false, true));
+        assert!(!relay_offered_for_device(true, true, false));
+        assert!(relay_offered_for_device(true, true, true));
     }
 }

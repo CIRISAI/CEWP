@@ -1,8 +1,9 @@
-CIRISConstitution rc17 f267ce8 (2026-11-05): manifests/transitions.json, manifests/governance_policy.json, manifests/mesh_story_trace.json, manifests/namespace_registry.json, manifests/namespace_match_vectors.json
+CIRISConstitution rc17 b363b6e (2026-11-08): manifests/transitions.json, manifests/governance_policy.json, manifests/governance_policy_vectors.json, manifests/mesh_story_trace.json, manifests/namespace_registry.json, manifests/namespace_match_vectors.json
 
 SHA-256 Hashes:
-  governance_policy.json: 8698e31013c9ac1cd92e6cca6fdb896b65000eb128721ba8020ddfae58faa58f
-  mesh_story_trace.json: 3f42bc744a5a921d06100dd4bba6c40f9e436c90666c3d83071ad79a5e1a3b8f
+  governance_policy.json: c224471f93a18f0f5fc21636cd0222eab1ed4c5a318c6c4670210fde3c894adf
+  governance_policy_vectors.json: 7d1dcdde6273f920416374846feee25b5d1e4757ea4b1464e48db9a0282ebff5
+  mesh_story_trace.json: 4f4dab62870c5df673bb69f96f1ec4b09fcd34d295100f5d96de6f3b31dd6322
   namespace_match_vectors.json: e35f3361602791c482b5a1730356d91eb4c386e0ddccf6bfe9c34fa843a21017
   namespace_registry.json: f400bfc393a8134c92f5927a80090d95474b5514415e282b6aacb9761cfc44a9
   transitions.json: 9a8f976d2b4709bafe9eb3a27a24e3ffd82dd1ded024bbbca2c7f1f026987a38

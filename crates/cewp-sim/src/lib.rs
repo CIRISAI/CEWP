@@ -9,14 +9,20 @@
 //!    - Sealed referrals (up to 3) & proxy pull with federation-tier gate
 //!    - 64 KiB shaped-link payload boundary & exact refusal string
 //!    - Carriage axis (ConsentOnly vs Full) with 16 consent-free envelope kinds
-//!    - Anonymous Tier (3-hop CONP, floor >= 3 answering relays, 2-member room-mailbox, sticky guards)
+//!    - Anonymous Tier (3-hop CONP, floor >= 3 answering relays, 2-member room-mailbox)
+//!    - Two sticky guards for reach from consented contacts & serve seat guard of last resort (CC §5.4.6)
+//!    - Shaping defaults (Server on, off elsewhere) & 10-minute idle timeout on asked shaped links (CC §5.4.3 / §5.4.6)
+//!    - Phone relay gate: only while charging AND on unmetered link (CC §5.4.6)
 //!
-//! 2. `alm` — Deterministic Application-Layer Multicast (CC §6.1.6, CLM-deterministic-alm):
+//! 2. `alm` — Deterministic Application-Layer Multicast (CC §6.1.6, CC §5.3.3.4, CLM-deterministic-alm):
 //!    - Pure integer-only `compute_alm_topology_verified` (zero float branches)
 //!    - Single publisher root via stream key binding (publisher is only member at depth 0)
 //!    - Depth-primary parent selection via single-root BFS traversal with locality preference
+//!    - Layered multipath (`layer_parents`) and sibling pull (`sibling_pull`) for complete reassembly (CC §5.3.3.4)
+//!    - Presence floor layer (`floor_bps` = 32 B/s) ensuring no sender is excluded for bandwidth
+//!    - Replay vectors from `Alm.lean` + `alm_model.py`: loss permille 49/141/226/569, refetch cheaper at 1%, live senders 19531/1953/12
 //!    - MDC sub-path diversity penalty & cycle prevention
-//!    - Single-publisher member relay tree (k <= 8)
+//!    - Single-publisher member relay tree (simulation fan-out cap assumption $k \le 8$; CC §6.1.6 pins capacity preimages)
 //!
 //! 3. `chunk_custody` — Whole-Chunk Storage & Layered Fidelity Model (CC §5.3.3.2.3, §5.4.3, §6.1.2, §6.1.5):
 //!    - Whole-chunk storage contract (`ChunkManifestV1`, `WholeChunkManifestV1`) with `custody:ack:v1`

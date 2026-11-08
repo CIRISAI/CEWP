@@ -8,7 +8,14 @@
 //!   The publisher it names is the only member at depth zero; any depth-zero offer from any
 //!   other key is dropped (`DroppedUnauthorizedRootOffer`).
 //! - Breadth-first search / topological traversal from the single publisher root with
-//!   monotonic integer tree depth ($k \le 8$, CC §6.1.6 member relay tree).
+//!   monotonic integer tree depth (simulation model assumption $k \le 8$; CC §6.1.6 pins the
+//!   topology function contract and signed capacity preimages, leaving parent selection edge-internal).
+//! - Layered multipath and presence floor (CC §5.3.3.4, 2026-11-08): members take each layer from
+//!   different parents (`layer_parents`) and pull missing chunks from siblings (`sibling_pull`).
+//! - Presence floor layer: codec class defines a presence floor layer (`floor_bps`), and receivers
+//!   subscribe senders at the highest layer within `budget / N`.
+//! - Formal replay vectors from `Alm.lean` and `alm_model.py`: end-to-end loss permille, refetch cost,
+//!   and live sender capacity.
 //! - Locality preference when selecting candidate parents (`locality_id`).
 //! - Enforces `SignedRelayCapacity` verification (`verified_signature`),
 //!   dropping unverified ads before scoring.
@@ -32,8 +39,24 @@ pub const MAX_USEFUL_RTT_MS: u32 = 400;
 /// Maximum trust-chain depth explored for transitive trust grants.
 pub const MAX_TRUST_CHAIN_DEPTH: u8 = 4;
 
-/// Maximum fan-out degree per node in the CC §6.1.6 member relay tree (k <= 8).
-pub const ALM_MAX_FANOUT_K: u16 = 8;
+/// Default fan-out cap per node in this simulation model (k = 8).
+///
+/// Simulation model assumption: CC §6.1.6 pins the topology function contract
+/// and signed capacity preimages (`capacity_bps / stream_bitrate_bps`), leaving parent
+/// selection edge-internal; it names no fan-out number (8 is the shaped-link bound of CC §5.4.3).
+pub const DEFAULT_SIM_FANOUT_CAP: u16 = 8;
+
+/// Retained alias for simulation fan-out cap bound (DEFAULT_SIM_FANOUT_CAP = 8).
+pub const ALM_MAX_FANOUT_K: u16 = DEFAULT_SIM_FANOUT_CAP;
+
+/// Fixed repair overhead in permille (100 permille = 10%) paid regardless of loss (Alm.lean).
+pub const FIXED_REPAIR_OVERHEAD_PERMILLE: u64 = 100;
+
+/// Bitrate of the presence floor layer in bytes per second (32 B/s: colour and blink at 1 fps, Alm.lean).
+pub const PRESENCE_FLOOR_BPS: u64 = 32;
+
+/// Lowest video base layer bitrate in bytes per second today (~5,000 B/s = 40 kbps, Alm.lean).
+pub const BASE_LAYER_TODAY_BPS: u64 = 5_000;
 
 /// Refusal / drop token when an unauthorized key claims or offers depth zero.
 pub const DROPPED_UNAUTHORIZED_ROOT_OFFER: &str = "DroppedUnauthorizedRootOffer";
@@ -354,6 +377,208 @@ pub fn normalize_reachability_score(rtt_ms: u32) -> u64 {
     remaining.saturating_mul(1_000) / u64::from(MAX_USEFUL_RTT_MS)
 }
 
+// ── Layered Multipath, Presence Floor & Formal Replay Vectors (CC §5.3.3.4, Alm.lean) ────
+
+/// End-to-end chunk loss along `d` hops at per-hop loss `p` in permille (CC §5.3.3.4, Alm.lean).
+///
+/// Formula: `(1000^d - (1000 - p)^d) / 1000^(d - 1)`
+#[must_use]
+pub fn e2e_loss_permille(p: u64, d: u32) -> u64 {
+    if d == 0 {
+        return 0;
+    }
+    let p_u128 = (p as u128).min(1000);
+    let term1 = 1000_u128.pow(d);
+    let term2 = (1000_u128 - p_u128).pow(d);
+    let denom = 1000_u128.pow(d - 1);
+    ((term1 - term2) / denom) as u64
+}
+
+/// A refetch repairs a lost chunk at the cost of the chunk: repair bytes equal the loss rate.
+#[must_use]
+pub fn refetch_cost_permille(p: u64, d: u32) -> u64 {
+    e2e_loss_permille(p, d)
+}
+
+/// Probability of >= 2 refetches needed in permille.
+#[must_use]
+pub fn two_refetches_permille(p: u64, d: u32) -> u64 {
+    e2e_loss_permille(p, d) * p / 1000
+}
+
+/// Returns whether refetch over sibling pull is cheaper than fixed-overhead repair (100 permille overhead)
+/// at the given per-hop loss permille and tree depth.
+#[must_use]
+pub fn refetch_is_cheaper(p: u64, d: u32) -> bool {
+    refetch_cost_permille(p, d) < FIXED_REPAIR_OVERHEAD_PERMILLE
+}
+
+/// Senders live at once given a receiver bandwidth budget and per-sender floor bitrate (Alm.lean).
+///
+/// Formula: `budget_bps / floor_bps`
+#[must_use]
+pub fn live_senders(budget_bps: u64, floor_bps: u64) -> u64 {
+    if floor_bps == 0 {
+        return 0;
+    }
+    budget_bps / floor_bps
+}
+
+/// Layer specification for a scalable video/audio codec class.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodecLayerSpec {
+    pub layer_index: u8,
+    pub bitrate_bps: u64,
+}
+
+/// Codec class defining a presence floor layer and scalable enhancement layers (CC §5.3.3.4).
+///
+/// Every codec class defines a presence floor layer (`floor_bps`), and a receiver
+/// subscribes each of `N` senders at the highest layer within `budget / N`, so a call
+/// never excludes a sender for bandwidth.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodecClass {
+    pub name: String,
+    pub floor_bps: u64,
+    pub layers: Vec<CodecLayerSpec>,
+}
+
+impl CodecClass {
+    #[must_use]
+    pub fn new(name: impl Into<String>, floor_bps: u64, mut layers: Vec<CodecLayerSpec>) -> Self {
+        layers.sort_by_key(|l| l.bitrate_bps);
+        Self {
+            name: name.into(),
+            floor_bps,
+            layers,
+        }
+    }
+
+    /// Standard presence-floor-aware video codec class (floor = 32 B/s).
+    #[must_use]
+    pub fn standard_video() -> Self {
+        Self::new(
+            "video",
+            PRESENCE_FLOOR_BPS,
+            vec![
+                CodecLayerSpec {
+                    layer_index: 0,
+                    bitrate_bps: PRESENCE_FLOOR_BPS,
+                },
+                CodecLayerSpec {
+                    layer_index: 1,
+                    bitrate_bps: BASE_LAYER_TODAY_BPS,
+                },
+                CodecLayerSpec {
+                    layer_index: 2,
+                    bitrate_bps: 20_000,
+                },
+                CodecLayerSpec {
+                    layer_index: 3,
+                    bitrate_bps: 62_500,
+                },
+            ],
+        )
+    }
+
+    /// Selects the highest codec layer for each sender within `budget / N`.
+    ///
+    /// A receiver subscribes each of `N` senders at the highest layer within `budget / N`.
+    /// The presence floor ensures quality falls while presence does not: so long as `sender_count > 0`,
+    /// the presence floor layer is maintained and no sender is excluded.
+    #[must_use]
+    pub fn select_layer_for_senders(&self, budget_bps: u64, sender_count: usize) -> Option<u8> {
+        if sender_count == 0 {
+            return None;
+        }
+        let per_sender = budget_bps / (sender_count as u64);
+        let mut best = None;
+        for layer in &self.layers {
+            if layer.bitrate_bps <= per_sender {
+                best = Some(layer.layer_index);
+            }
+        }
+        best.or_else(|| self.layers.first().map(|l| l.layer_index))
+    }
+}
+
+/// A member's subscription to a layered stream under layered multipath (CC §5.3.3.4).
+/// A member may take each codec layer from a different parent (`layer_parents: BTreeMap<u8, String>`).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LayeredMemberSubscription {
+    pub member_id: String,
+    pub layer_parents: BTreeMap<u8, String>,
+}
+
+impl LayeredMemberSubscription {
+    #[must_use]
+    pub fn new(member_id: impl Into<String>) -> Self {
+        Self {
+            member_id: member_id.into(),
+            layer_parents: BTreeMap::new(),
+        }
+    }
+
+    pub fn set_layer_parent(&mut self, layer: u8, parent_peer_id: impl Into<String>) {
+        self.layer_parents.insert(layer, parent_peer_id.into());
+    }
+
+    #[must_use]
+    pub fn parent_for_layer(&self, layer: u8) -> Option<&str> {
+        self.layer_parents.get(&layer).map(|s| s.as_str())
+    }
+}
+
+/// Sibling pull (CC §5.3.3.4, Alm.lean):
+/// A member pulls missing chunks from siblings (nodes that share the same parent).
+///
+/// In one round of sibling pull, a member gains every chunk held by any sibling that
+/// shares its parent for the relevant layer or tree.
+#[must_use]
+pub fn sibling_pull(
+    member_id: &str,
+    parent_id: &str,
+    tree_parents: &BTreeMap<String, String>,
+    held_chunks: &BTreeMap<String, BTreeSet<u64>>,
+) -> BTreeSet<u64> {
+    let mut updated = held_chunks.get(member_id).cloned().unwrap_or_default();
+    for (other_id, p) in tree_parents {
+        if p == parent_id && other_id != member_id && other_id != parent_id {
+            if let Some(sibling_chunks) = held_chunks.get(other_id) {
+                for chunk in sibling_chunks {
+                    updated.insert(*chunk);
+                }
+            }
+        }
+    }
+    updated
+}
+
+/// Runs one round of sibling pull across all members (Alm.lean `pullRound`).
+#[must_use]
+pub fn fleet_sibling_pull(
+    tree_parents: &BTreeMap<String, String>,
+    held_chunks: &BTreeMap<String, BTreeSet<u64>>,
+) -> BTreeMap<String, BTreeSet<u64>> {
+    let mut out = held_chunks.clone();
+    for (member_id, parent_id) in tree_parents {
+        let after_pull = sibling_pull(member_id, parent_id, tree_parents, held_chunks);
+        out.insert(member_id.clone(), after_pull);
+    }
+    out
+}
+
+/// Derive a node's fan-out capacity from its signed capacity advertisement
+/// (`capacity_bps / layer_bps`), per CC §6.1.6 signed capacity preimages contract.
+#[must_use]
+pub fn derive_fanout_capacity(capacity_bps: u64, layer_bps: u64) -> u16 {
+    if layer_bps == 0 {
+        return DEFAULT_SIM_FANOUT_CAP;
+    }
+    let fanout = capacity_bps / layer_bps;
+    fanout.min(u16::MAX as u64) as u16
+}
+
 fn canonical_sub_paths(child_ad: &SignedRelayCapacity) -> Vec<SubStreamPath> {
     if child_ad.capacity.sub_stream_commitments.is_empty() {
         vec![Vec::new()]
@@ -440,7 +665,8 @@ fn best_parent_for_child(
             continue;
         }
 
-        // Capacity cap gate: k <= 8 fan-out bound (CC §6.1.6 member relay tree)
+        // Capacity cap gate: simulation model fan-out cap assumption (DEFAULT_SIM_FANOUT_CAP = 8;
+        // CC §6.1.6 pins the function contract and signed capacity preimages `capacity_bps / stream_bitrate_bps`).
         let parent_ad = match latest_ad.get(parent_peer_id) {
             Some(v) => &v.ad.capacity,
             None => continue,
@@ -450,7 +676,7 @@ fn best_parent_for_child(
         let already_subscribed = child_of
             .get(parent_peer_id)
             .is_some_and(|c| c.contains(child_peer_id));
-        let max_subs = u64::from(parent_ad.max_subscribers_per_stream.min(ALM_MAX_FANOUT_K));
+        let max_subs = u64::from(parent_ad.max_subscribers_per_stream.min(DEFAULT_SIM_FANOUT_CAP));
         if !already_subscribed && total_at_parent >= max_subs {
             continue;
         }
@@ -521,7 +747,7 @@ fn best_parent_for_child(
     best_parent
 }
 
-/// Legacy ALM entry point. Re-evaluates advertisements under the CC §6.1.6 member relay tree contract (k <= 8).
+/// Legacy ALM entry point. Re-evaluates advertisements under the CC §6.1.6 member relay tree contract (with simulation fan-out bound DEFAULT_SIM_FANOUT_CAP = 8).
 #[must_use]
 pub fn compute_alm_topology(snapshot: &TopologyInputSnapshot) -> AlmTopology {
     let verified: Vec<VerifiedCapacityAd> = snapshot
@@ -1647,5 +1873,116 @@ mod tests {
         let snap = three_peer_snapshot();
         let topo = compute_alm_topology(&snap);
         assert!(!topo.tree.is_empty(), "legacy compute_alm_topology must return non-empty tree");
+    }
+
+    // 18. formal_alm_replay_vectors (CC §5.3.3.4, Alm.lean, alm_model.py)
+    #[test]
+    fn formal_alm_replay_vectors() {
+        // Pinned points from Alm.lean and alm_model.py: 49, 141, 226, 569 permille
+        assert_eq!(e2e_loss_permille(10, 5), 49);
+        assert_eq!(e2e_loss_permille(30, 5), 141);
+        assert_eq!(e2e_loss_permille(50, 5), 226);
+        assert_eq!(e2e_loss_permille(100, 8), 569);
+
+        // Refetch cheaper than fixed-overhead repair (100 permille overhead) at 1% per hop out to 8 hops
+        for d in 1..=8 {
+            assert!(
+                e2e_loss_permille(10, d) < FIXED_REPAIR_OVERHEAD_PERMILLE,
+                "refetch must be cheaper than fixed-overhead repair at 1% per hop for depth {}",
+                d
+            );
+            assert!(refetch_is_cheaper(10, d));
+        }
+
+        // Fixed-overhead repair is cheaper at 5% per hop from 3 hops on
+        for d in 3..=8 {
+            assert!(
+                e2e_loss_permille(50, d) > FIXED_REPAIR_OVERHEAD_PERMILLE,
+                "fixed-overhead repair must be cheaper at 5% per hop for depth {}",
+                d
+            );
+        }
+
+        // Pinned senders live at once: 19531, 1953, 12
+        assert_eq!(live_senders(625_000, 32), 19531);
+        assert_eq!(live_senders(62_500, 32), 1953);
+        assert_eq!(live_senders(62_500, 5_000), 12);
+    }
+
+    // 19. presence_floor_codec_class_never_excludes
+    #[test]
+    fn presence_floor_codec_class_never_excludes() {
+        let codec = CodecClass::standard_video();
+        assert_eq!(codec.floor_bps, PRESENCE_FLOOR_BPS);
+
+        // Wi-Fi budget (625,000 B/s) with 10 senders: per sender 62,500 B/s -> layer 3
+        assert_eq!(codec.select_layer_for_senders(625_000, 10), Some(3));
+
+        // Cellular budget (62,500 B/s) with 10 senders: per sender 6,250 B/s -> layer 1 (base layer 5000)
+        assert_eq!(codec.select_layer_for_senders(62_500, 10), Some(1));
+
+        // Cellular budget (62,500 B/s) with 1,000 senders: per sender 62 B/s -> layer 0 (presence floor 32)
+        assert_eq!(codec.select_layer_for_senders(62_500, 1000), Some(0));
+
+        // Extremely low bandwidth or massive call (3,000 senders): floor layer is maintained (quality falls, presence does not)
+        assert_eq!(codec.select_layer_for_senders(62_500, 3000), Some(0));
+    }
+
+    // 20. layered_multipath_and_sibling_pull_recovery
+    #[test]
+    fn layered_multipath_and_sibling_pull_recovery() {
+        // Model the worked instance from Alm.lean:
+        // Bob is parent to Dave (id 4) and Frank (id 6).
+        // Dave missed chunk 2, Frank missed chunk 1.
+        let mut tree_parents = BTreeMap::new();
+        tree_parents.insert("alice".to_string(), "alice".to_string());
+        tree_parents.insert("bob".to_string(), "alice".to_string());
+        tree_parents.insert("carol".to_string(), "alice".to_string());
+        tree_parents.insert("dave".to_string(), "bob".to_string());
+        tree_parents.insert("erin".to_string(), "carol".to_string());
+        tree_parents.insert("frank".to_string(), "bob".to_string());
+
+        let mut held_chunks = BTreeMap::new();
+        let mut dave_chunks = BTreeSet::new();
+        dave_chunks.insert(0);
+        dave_chunks.insert(1);
+        dave_chunks.insert(3); // missed 2
+        held_chunks.insert("dave".to_string(), dave_chunks);
+
+        let mut frank_chunks = BTreeSet::new();
+        frank_chunks.insert(0);
+        frank_chunks.insert(2);
+        frank_chunks.insert(3); // missed 1
+        held_chunks.insert("frank".to_string(), frank_chunks);
+
+        // Layered multipath: member can have different parents for different layers
+        let mut erin_sub = LayeredMemberSubscription::new("erin");
+        erin_sub.set_layer_parent(0, "carol"); // base from Carol
+        erin_sub.set_layer_parent(1, "bob");   // enhancement from Bob
+        assert_eq!(erin_sub.parent_for_layer(0), Some("carol"));
+        assert_eq!(erin_sub.parent_for_layer(1), Some("bob"));
+
+        // Execute sibling pull for Dave: pulls missing chunk 2 from sibling Frank
+        let dave_pulled = sibling_pull("dave", "bob", &tree_parents, &held_chunks);
+        assert_eq!(dave_pulled, (0..4).collect::<BTreeSet<u64>>());
+
+        // Execute sibling pull for Frank: pulls missing chunk 1 from sibling Dave
+        let frank_pulled = sibling_pull("frank", "bob", &tree_parents, &held_chunks);
+        assert_eq!(frank_pulled, (0..4).collect::<BTreeSet<u64>>());
+
+        // Fleet-wide sibling pull round restores completeness for both siblings
+        let fleet_pulled = fleet_sibling_pull(&tree_parents, &held_chunks);
+        assert_eq!(fleet_pulled["dave"], (0..4).collect::<BTreeSet<u64>>());
+        assert_eq!(fleet_pulled["frank"], (0..4).collect::<BTreeSet<u64>>());
+    }
+
+    // 21. fanout_capacity_derivation_from_capacity_preimages
+    #[test]
+    fn fanout_capacity_derivation_from_capacity_preimages() {
+        // CC §6.1.6 pins signed capacity preimages: capacity_bps / layer_bps
+        assert_eq!(derive_fanout_capacity(50_000, 5_000), 10);
+        assert_eq!(derive_fanout_capacity(16_000, 2_000), 8);
+        assert_eq!(derive_fanout_capacity(0, 0), DEFAULT_SIM_FANOUT_CAP);
+        assert_eq!(DEFAULT_SIM_FANOUT_CAP, 8);
     }
 }

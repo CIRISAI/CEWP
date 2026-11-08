@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { loadTables, enabledFor, enabled, Mesh, fold, standing, door, admit, queue, preview, matchFamily, extractDimensions, checkPolarity } from "./kernel.js";
+import { loadTables, enabledFor, enabled, Mesh, fold, standing, door, admit, queue, preview, matchFamily, extractDimensions, checkPolarity, ruleVotes } from "./kernel.js";
 
 const here = new URL("./tables/", import.meta.url);
 const J = (f) => JSON.parse(readFileSync(new URL(f, here)));
@@ -13,6 +13,7 @@ const policies = J("governance_policy.json");
 const registry = J("namespace_registry.json");
 const csdMap = J("csd_namespace_map.json");
 const matchVectors = J("namespace_match_vectors.json");
+const policyVectors = J("governance_policy_vectors.json");
 
 const tables = loadTables(transitions, policies, registry, csdMap.aliases);
 const trace = J("mesh_story_trace.json");
@@ -569,4 +570,18 @@ test("191-family & 17-role exhaustive transition coverage & csd_namespace_map.js
   assert.equal(testedTransitions, 474, "all 474 transitions tested");
   assert.equal(gapCellsTested, 13, "all 13 gap transitions verified closed");
   assert.equal(regularTested, 458, "all 458 executable transitions passed with preview, door, and queue parity");
+});
+
+test("CC §4.5.13 governance_policy_vectors.json conformance: replay all 180 rule vectors", () => {
+  assert.equal(policyVectors.rule_vectors.length, 180, "governance_policy_vectors.json must have 180 rule vectors");
+  for (const v of policyVectors.rule_vectors) {
+    const strict = v.cell === "enact";
+    const got = ruleVotes(v.rule, v.base, strict);
+    assert.equal(got, v.votes, `Rule vector mismatch for ${v.family} ${v.cell} base ${v.base}`);
+    const pol = tables.policy.get(v.family);
+    assert.ok(pol, `Missing policy for ${v.family}`);
+    const polRule = pol[v.cell + "_rule"];
+    const gotPol = ruleVotes(polRule, v.base, strict);
+    assert.equal(gotPol, v.votes, `Policy rule mismatch for ${v.family} ${v.cell} base ${v.base}`);
+  }
 });

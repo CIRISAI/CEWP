@@ -774,7 +774,7 @@ pub fn assemble_evidence_bundle(
     let mut metrics = BTreeMap::new();
     metrics.insert(
         "hybrid_verify_us".to_string(),
-        TaggedMetric::measured(276.0, "CIRISVerify v5.8.0 bench", "AMD EPYC 7763 64-Core"),
+        TaggedMetric::measured(276.0, "CIRISVerify v22.0.0 bench", "AMD EPYC 7763 64-Core"),
     );
     metrics.insert(
         "alm_hop_overhead_ns".to_string(),
@@ -805,10 +805,11 @@ pub fn assemble_evidence_bundle(
             csd4_vocabulary_sha256: cewp_evidence::CSD4_VOCABULARY_SHA256.to_string(),
             cewp_commit: cewp_evidence::CEWP_COMMIT.to_string(),
             substrate_versions: SubstrateVersions {
-                ciris_server: "v0.5.233".to_string(),
-                ciris_edge: "v44.0.0".to_string(),
-                ciris_persist: "v8.1.0".to_string(),
-                ciris_verify: "v5.8.0".to_string(),
+                ciris_server: "v0.5.233 (8c1dec21)".to_string(),
+                ciris_edge: "v44.0.0 (310aa7e)".to_string(),
+                ciris_persist: "v61.0.5 (7894b39c)".to_string(),
+                ciris_verify: "v22.0.0 (3c16f9c6)".to_string(),
+                ciris_holon: "v0.2.0".to_string(),
             },
         },
         scenario: ScenarioSummary {
@@ -1079,6 +1080,16 @@ mod tests {
         // Verify evidence bundle integrity
         assert_eq!(bundle.schema_version, "cewp-evidence/v0.2");
         assert_eq!(bundle.claim_matrix.claims.len(), 8);
+        for claim in &bundle.claim_matrix.claims {
+            assert!(claim.claim_id.starts_with("CLM-"), "claim_id {} must start with CLM-", claim.claim_id);
+            assert!(!claim.claim_id.starts_with("CLAIM-"), "claim_id {} must not start with CLAIM-", claim.claim_id);
+            assert!(claim.cc_status.is_some());
+        }
+        assert_eq!(bundle.provenance.substrate_versions.ciris_persist, "v61.0.5 (7894b39c)");
+        assert_eq!(bundle.provenance.substrate_versions.ciris_verify, "v22.0.0 (3c16f9c6)");
+        assert_eq!(bundle.provenance.substrate_versions.ciris_edge, "v44.0.0 (310aa7e)");
+        assert_eq!(bundle.provenance.substrate_versions.ciris_server, "v0.5.233 (8c1dec21)");
+        assert_eq!(bundle.provenance.substrate_versions.ciris_holon, "v0.2.0");
         assert!(bundle.coverage.atoms_exercised_count > 0);
         assert_eq!(bundle.coverage.atoms_promised_in_csd4, 122);
         assert_eq!(bundle.coverage.atoms_in_vocabulary, 156);

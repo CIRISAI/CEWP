@@ -20,8 +20,9 @@ pub use processor::{
 };
 pub use tables::{
     is_bcp47_lang_code, is_currency, is_digits, is_hex, is_hex64, is_literal, is_version,
-    is_version_attempt, is_version_like, is_vocab, policy_row, transition_of, Rules, Tables,
-    VENDORED_CSD_NAMESPACE_MAP, VENDORED_GOVERNANCE_POLICY, VENDORED_MESH_STORY_TRACE,
+    is_version_attempt, is_version_like, is_vocab, parse_rule, policy_row, transition_of, Rules,
+    Tables, VENDORED_CSD_NAMESPACE_MAP, VENDORED_GOVERNANCE_POLICY,
+    VENDORED_GOVERNANCE_POLICY_VECTORS, VENDORED_MESH_STORY_TRACE,
     VENDORED_NAMESPACE_MATCH_VECTORS, VENDORED_NAMESPACE_REGISTRY, VENDORED_TRANSITIONS,
     VENDORED_VERSION,
 };
@@ -2311,5 +2312,56 @@ mod tests {
         assert_eq!(tested_transitions, 474, "all 474 transitions tested");
         assert_eq!(gap_cells_tested, 13, "all 13 gap transitions verified closed");
         assert_eq!(regular_tested, 458, "all 458 executable transitions passed with preview, door, and queue parity");
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: governance_policy_rule_vectors_180
+    // Replays all 180 rule vectors from governance_policy_vectors.json
+    // asserting 100% parity on (family, cell, base) -> votes against typed rules.
+    // -------------------------------------------------------------------------
+    #[test]
+    fn test_governance_policy_rule_vectors_180() {
+        let tables = Tables::load_vendored();
+        let rule_vectors = tables
+            .policy_vectors
+            .get("rule_vectors")
+            .and_then(|v| v.as_array())
+            .expect("rule_vectors array in governance_policy_vectors.json");
+
+        assert_eq!(
+            rule_vectors.len(),
+            180,
+            "governance_policy_vectors.json must contain exactly 180 rule vectors"
+        );
+
+        for (idx, rv) in rule_vectors.iter().enumerate() {
+            let family = rv.get("family").and_then(|v| v.as_str()).expect("family");
+            let cell = rv.get("cell").and_then(|v| v.as_str()).expect("cell");
+            let base = rv.get("base").and_then(|v| v.as_u64()).expect("base");
+            let expected_votes = rv.get("votes").and_then(|v| v.as_u64());
+            let rule = parse_rule(rv.get("rule"));
+
+            let strict = cell == "enact";
+            let computed = rule.votes(base, strict);
+            assert_eq!(
+                computed, expected_votes,
+                "Vector #{} mismatch for family={}, cell={}, base={}",
+                idx, family, cell, base
+            );
+
+            let policy = tables.policies.get(family).expect("family in tables");
+            let pol_rule = match cell {
+                "enact" => &policy.enact_rule,
+                "cancel" => &policy.cancel_rule,
+                "floor" => &policy.floor_rule,
+                _ => panic!("unknown cell {}", cell),
+            };
+            let pol_computed = pol_rule.votes(base, strict);
+            assert_eq!(
+                pol_computed, expected_votes,
+                "Policy rule mismatch for family={}, cell={}, base={}",
+                family, cell, base
+            );
+        }
     }
 }

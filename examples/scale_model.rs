@@ -3918,7 +3918,7 @@ fn main() {
     println!(
         "Empirical baseline : Verify v2.8.0 + Edge v0.10.0 + Persist v3.3.0 (crypto/IO consts)"
     );
-    println!("Chunk custody substrate : Edge v4.1.1 + Persist v8.1.0 + Verify v5.8.0 (holonomic / §19)");
+    println!("Chunk custody substrate : Edge v44.0.0 (310aa7e) + Persist v61.0.5 (7894b39c) + Verify v22.0.0 (3c16f9c6) (holonomic / §19)");
     println!("Verify HEAD        : v4.6.0 — Gap C hybrid KEX (X25519+ML-KEM-768) SHIPPED");
     println!("Regional realism   : UN WPP 2024 + GSMA Mobile Economy 2024 + ITU 2024 + IEA 2024");
     println!("Threat-model anchor: CIRISVerify Fed TM v1.1 (2026-05-31 — 3/4 §3.3 gaps closed)");

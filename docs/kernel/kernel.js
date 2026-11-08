@@ -338,6 +338,21 @@ export function extractDimensions(wireNamespace, tables = null) {
 
 // ---------------------------------------------------------------- tables
 
+export function ruleVotes(rule, base, strict = false) {
+  if (!rule || typeof rule !== "object") return null;
+  const k = rule.kind;
+  if (k === "fraction") {
+    const { num, den } = rule;
+    if (!den) return null;
+    return strict ? Math.floor((num * base) / den) + 1 : Math.ceil((num * base) / den);
+  }
+  if (k === "one_of_n") return 1;
+  if (k === "strict_majority") return Math.floor(base / 2) + 1;
+  if (k === "strict_majority_of_others") return Math.floor((base - 1) / 2) + 1;
+  if (k === "role_at" || k === "voices") return rule.count;
+  return null;
+}
+
 export function loadTables(transitions, policies, registry = null, aliases = null) {
   const families = new Map();
   for (const r of transitions.rows) {
@@ -357,7 +372,16 @@ export function loadTables(transitions, policies, registry = null, aliases = nul
   const aliasMap = aliases || defaultAliases || {};
   const rules = reg ? new Rules(reg) : null;
   
-  const tbl = { families, policy, defaults, registry: reg, aliases: aliasMap, rules };
+  const tbl = {
+    families,
+    policy,
+    defaults,
+    registry: reg,
+    aliases: aliasMap,
+    rules,
+    min_count: policies.min_count || { community: 2, self: 1 },
+    minCount: policies.min_count || { community: 2, self: 1 },
+  };
   tbl.matchFamily = (wire) => matchFamily(wire, tbl);
   tbl.extractDimensions = (wire) => extractDimensions(wire, tbl);
   tbl.checkPolarity = (familyPrefix, score) => checkPolarity(tbl, familyPrefix, score);
@@ -460,32 +484,34 @@ export function fold(held, tables, now) {
     const opener = o.pending.opener;
     const openerFed = getFed(opener);
 
-    const fedFor = new Set([openerFed]);
-    const fedAgainst = new Set();
-    const fedDisagree = new Set();
+    const personVotes = new Map();
+    personVotes.set(openerFed, "for");
     const ballots = [];
 
     for (const { row } of o.rows) {
       const fed = getFed(row.signer);
-      const isApproval = row.stance === "for" || (row.family.startsWith("objection") && row.verb === "assent");
-      const isObjection = row.stance === "against" || row.family === "objection" || (row.family.startsWith("objection") && (row.verb === "raised" || row.verb === "object"));
+      const stateDim = row.family.startsWith("objection:") ? row.family.slice("objection:".length) : "";
+      const isApproval = row.stance === "for"
+        || (row.family.startsWith("objection") && (row.verb === "assent" || stateDim === "assent" || stateDim === "proposal"));
+      const isObjection = row.stance === "against"
+        || row.family === "objection"
+        || (row.family.startsWith("objection") && (row.verb === "raised" || row.verb === "object" || stateDim === "raised"));
 
-      if (isApproval && isObjection) {
-        fedDisagree.add(fed);
+      if (row.verb === "withdraw" || row.verb === "recant") {
+        personVotes.delete(fed);
       } else if (isApproval) {
-        if (fedAgainst.has(fed)) fedDisagree.add(fed);
-        fedFor.add(fed);
+        personVotes.set(fed, "for");
       } else if (isObjection) {
-        if (fedFor.has(fed)) fedDisagree.add(fed);
-        fedAgainst.add(fed);
+        personVotes.set(fed, "against");
       }
       if (row.ranking) ballots.push({ signer: row.signer, ranking: row.ranking });
     }
 
-    // CC Rule: Disagreeing live rows remove a fedID from both for and against tallies (no voice)
-    for (const fed of fedDisagree) {
-      fedFor.delete(fed);
-      fedAgainst.delete(fed);
+    const fedFor = new Set();
+    const fedAgainst = new Set();
+    for (const [fed, v] of personVotes) {
+      if (v === "for") fedFor.add(fed);
+      else if (v === "against") fedAgainst.add(fed);
     }
 
     const forCount = fedFor.size;
@@ -507,7 +533,10 @@ export function fold(held, tables, now) {
       base = Math.max(1, holders.size);
     }
 
-    const minCount = (p.corridor === "self" || p.family?.startsWith("self_roster") || p.family === "accord_halt") ? 1 : 2;
+    const minCount = (tables.min_count && p.corridor && tables.min_count[p.corridor])
+      || (tables.minCount && p.corridor && tables.minCount[p.corridor])
+      || (p.corridor === "self" || p.family?.startsWith("self_roster") ? 1 : 2);
+    const cancelBase = p.cancel_over === "others" ? Math.max(0, base - 1) : base;
     const windowSecs = p.window_secs || 0;
     const windowEnd = o.pending.since + windowSecs * 1000;
 
@@ -531,10 +560,13 @@ export function fold(held, tables, now) {
     const cancelFrac = parseFrac(p.cancel);
     const floorFrac = parseFrac(p.floor);
 
-    // Enact threshold is strictly more: Math.floor((num * base) / den) + 1
-    const ev = enactFrac ? Math.floor((enactFrac.num * base) / enactFrac.den) + 1 : 1;
-    const cv = cancelFrac ? Math.max(minCount, Math.ceil((cancelFrac.num * base) / cancelFrac.den)) : null;
-    const fv = floorFrac ? Math.max(minCount, Math.ceil((floorFrac.num * base) / floorFrac.den)) : null;
+    // Thresholds from typed rules (falling back to fractions)
+    const ev = (p.enact_rule ? ruleVotes(p.enact_rule, base, true) : null)
+      ?? (enactFrac ? Math.floor((enactFrac.num * base) / enactFrac.den) + 1 : 1);
+    const cvRaw = p.cancel_rule ? ruleVotes(p.cancel_rule, cancelBase, false) : (cancelFrac ? Math.ceil((cancelFrac.num * cancelBase) / cancelFrac.den) : null);
+    const cv = cvRaw !== null ? Math.max(minCount, cvRaw) : null;
+    const fvRaw = p.floor_rule ? ruleVotes(p.floor_rule, base, false) : (floorFrac ? Math.ceil((floorFrac.num * base) / floorFrac.den) : null);
+    const fv = fvRaw !== null ? Math.max(minCount, fvRaw) : null;
 
     let outcome = null, missing = null;
     if (p.kind === "two_path") {
@@ -550,20 +582,44 @@ export function fold(held, tables, now) {
       } else if (p.reverse_path && fv !== null && forCount >= fv && againstCount === 0) {
         outcome = "enacted";
       } else {
-        outcome = "cancelled";
+        if (p.at_window === "stay_open") {
+          outcome = null;
+          missing = { voices: ev - forCount };
+        } else {
+          outcome = "cancelled";
+        }
       }
     } else if (p.kind === "mirror") {
-      if (cv !== null && againstCount >= cv) outcome = "reversed";
-      else if (now >= windowEnd) outcome = "stands";
-      else { outcome = "acting"; missing = { until: windowEnd }; }
+      if (cv !== null && againstCount >= cv) {
+        outcome = "reversed";
+      } else if (now >= windowEnd) {
+        if (p.at_window === "lapsed") {
+          outcome = (forCount * 2 > base) ? "stands" : "lapsed";
+        } else {
+          outcome = "stands";
+        }
+      } else {
+        outcome = "acting";
+        missing = { until: windowEnd };
+      }
     } else if (p.kind === "cosigned") {
-      const frac = enactFrac || { num: 1, den: 2 };
-      const required = Math.floor((frac.num * base) / frac.den) + 1;
+      const required = (p.enact_rule ? ruleVotes(p.enact_rule, base, true) : null)
+        ?? (enactFrac ? Math.floor((enactFrac.num * base) / enactFrac.den) + 1 : 2);
       if (forCount >= required) outcome = "enacted";
       else missing = { voices: required - forCount };
     } else if (p.kind === "ranked") {
-      if (now >= windowEnd) outcome = { seated: irv(ballots) };
-      else missing = { until: windowEnd, ballots: ballots.length };
+      if (now >= windowEnd) {
+        const minBallots = fv ?? 2;
+        if (ballots.length >= minBallots) {
+          const seated = irv(ballots);
+          if (seated) outcome = { seated };
+          else outcome = p.at_window === "reopens" ? "reopens" : null;
+        } else {
+          outcome = p.at_window === "reopens" ? "reopens" : null;
+        }
+      } else {
+        missing = { until: windowEnd, ballots: ballots.length };
+      }
     }
     o.outcome = outcome; o.missing = missing; o.voices = { for: [...fedFor].sort(), against: [...fedAgainst].sort() };
   }

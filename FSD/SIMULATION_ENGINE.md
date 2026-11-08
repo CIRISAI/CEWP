@@ -435,16 +435,17 @@ Every run of `cewp-cli` emits a content-addressed, signed or hash-pinned directo
   "schema_version": "cewp-evidence/v0.2",
   "run_id": "01J...",
   "provenance": {
-    "constitution_commit": "db0d051fe9b7b2af3edcc8b61123af33fc305599",
-    "constitution_tables_pin": "rc17-f267ce8",
-    "csd4_catalogue_version": 5,
-    "csd4_vocabulary_sha256": "...",
-    "cewp_commit": "...",
+    "constitution_commit": "b363b6e54dcd2efc7a8df16a335cb84f42869366",
+    "constitution_tables_pin": "rc17-b363b6e",
+    "csd4_catalogue_version": 6,
+    "csd4_vocabulary_sha256": "c37f6f9651579932835ff700a2ec376a0c5c928545c3ed476362ec4bd4ac0769",
+    "cewp_commit": "d6a0ee410d173057d32597eb2619e7186d5ee334",
     "substrate_versions": {
-      "ciris_server": "v0.5.233",
-      "ciris_edge": "v44.0.0",
-      "ciris_persist": "v8.1.0",
-      "ciris_verify": "v5.8.0"
+      "ciris_server": "v0.5.233 (8c1dec21)",
+      "ciris_edge": "v44.0.0 (310aa7e)",
+      "ciris_persist": "v61.0.5 (7894b39c)",
+      "ciris_verify": "v22.0.0 (3c16f9c6)",
+      "ciris_holon": "v0.2.0"
     }
   },
   "scenario": {
@@ -484,12 +485,22 @@ Every run of `cewp-cli` emits a content-addressed, signed or hash-pinned directo
     "formal_invariants_checked": ["door_is_queue", "preview_is_execution", "refused_previews_nothing", "Inv_X1", "Inv_X3", "Inv_X4"]
   },
   "metrics": {
-    "hybrid_verify_us": { "value": 276.0, "epistemic_class": "MEASURED", "source": "CIRISVerify v5.8.0 bench" },
+    "hybrid_verify_us": { "value": 276.0, "epistemic_class": "MEASURED", "source": "CIRISVerify v22.0.0 bench" },
     "alm_hop_overhead_ns": { "value": 946.0, "epistemic_class": "MEASURED", "source": "CIRISEdge v44 bench" },
     "k2_leaf_load_fraction": { "value": 0.60, "ci95": [0.58, 0.62], "epistemic_class": "MODEL", "source": "cewp-sim R3" },
     "planetary_5b_power_mw": { "value": 3082.0, "ci95": [2650.0, 3590.0], "epistemic_class": "PROJECTED", "source": "R3->R0 certified extrapolation" },
     "empirical_nat_mix_global": { "value": null, "epistemic_class": "FRONTIER", "blocker": "leviculum#100 field telemetry" }
   },
+  "claim_matrix": [
+    { "claim_id": "CLM-queue-is-the-door", "decimal_id": "4.5.13", "cc_status": "normative", "method": "RUST_TEST", "epistemic_class": "MEASURED", "verified": true },
+    { "claim_id": "CLM-halt-authority", "decimal_id": "4.2", "cc_status": "established", "method": "RUST_TEST", "epistemic_class": "MEASURED", "verified": true },
+    { "claim_id": "CLM-link-shaping", "decimal_id": "5.4.3", "cc_status": "established", "method": "MODEL_SIMULATION", "epistemic_class": "MODEL", "verified": false },
+    { "claim_id": "CLM-shaped-link-one-hop", "decimal_id": "5.4.3", "cc_status": "normative", "method": "MODEL_SIMULATION", "epistemic_class": "MODEL", "verified": false },
+    { "claim_id": "CLM-alm-live-tree-verified", "decimal_id": "6.1.6", "cc_status": "staged", "method": "RUST_TEST", "epistemic_class": "MEASURED", "verified": true },
+    { "claim_id": "CLM-noise-classify", "decimal_id": "6.1.2", "cc_status": "established", "method": "RUST_TEST", "epistemic_class": "MEASURED", "verified": true },
+    { "claim_id": "CLM-shaping-offered-never-refused", "decimal_id": "5.4.3", "cc_status": "normative", "method": "MODEL_SIMULATION", "epistemic_class": "MODEL", "verified": false },
+    { "claim_id": "CLM-node-inventory", "decimal_id": "6.1", "cc_status": "staged", "method": "MODEL_PROJECTION", "epistemic_class": "PROJECTED", "verified": false }
+  ],
   "verdicts": {
     "semantic_conformance": "PASS",
     "operational_fidelity": "PASS",
@@ -507,16 +518,16 @@ Every metric in `evidence_bundle.json`, CLI tables, and visualization snapshots 
 
 ### 8.3 Claim-to-Evidence Matrix
 
-| Architectural Claim | Required Evidence to Mark `VERIFIED` | Current Status |
-|---|---|---|
-| **1. UI queue, preview, and admission door never drift (`CC §4.5.13`)** | Lean proof (`EventLifecycle.lean`) + `cewp-kernel` / `kernel.js` / `CIRISServer` 100% differential parity on `transitions.json` & `T0–T19` | `MEASURED` (Lean + `kernel.test.js`; Rust `cewp-kernel` in Phase 1) |
-| **2. Nodes converge identically after arbitrary partitions & churn** | Permutation-invariant fold proofs + 100-shuffle multi-island partition fuzzing + real-node `rows.jsonl` replay in `Trace.tla` | `MEASURED` at `R5` (`kernel.test.js` 4/4); `R4/R3` in Phase 2 |
-| **3. Privacy & `> 64 KiB` shaped-link boundaries hold under attack** | `Tiers.lean` + `formal/anonymous/` + `ADV-PR` GPA traffic-analysis & guard-capture campaigns + `REG-MESH-SCOPE` invisibility fixture | `MODEL` + partial `MEASURED`; full `ADV-PR` in Phase 4 |
-| **4. 1-hop shaped links (`L ≤ 8`) & $k=2$ leaves survive CGNAT** | `Tiers.lean` (`each_home_adds_seven`, `reach ≠ capacity`) + `reach_home_share` `[0%, 80%]` sweep + `leviculum#100` field calibration | `MODEL` (`≥ 3.92%` server floor at `0%` reach); awaiting `leviculum#100` (`FRONTIER`) |
-| **5. `CC §6.1.6 deterministic-alm` scales without SFUs (`CC §5.3.3.2`)** | All 15 frozen vectors in `deterministic_topology.rs` + `ADV-ALM` capacity-lie / relay-drop campaigns + Shadow/native multi-container bench | `MEASURED` (vectors + 50-node bench); `ADV-ALM` at scale in Phase 3–4 |
-| **6. Whole-chunk sealed storage survives correlated loss & respects revocation** | Whole-chunk custody simulation (`ChunkCustodyManifestV1`) + `test_540..542` (`Full`/`Partial`/`EnvelopeOnly`, `N5` hard-delete, Kish `n_eff`) + `ADV-ST` withholding tests | `MEASURED` (unit/conformance); whole-chunk custody DES in Phase 3 |
-| **7. Commodity L1 home server (`1 TB / 1 Gbps / 1 core`) suffices** | Reproducible benchmarks on ARM mini-PC / home x86 under `2.5×` diurnal & `4.0×` flash-crowd workloads across `T0–T19` mixes | `MODEL` + micro-`MEASURED`; full hardware calibration in Phase 5 |
-| **8. Five-billion user scale is viable without datacenters** | `CIRISHolon`-certified multiscale ladder (`R5 → R0`) + 4-baseline comparison (`A1–A4`) + 4-regime sensitivity analysis | `PROJECTED` (analytic + `R5` kernel); certified `R3→R0` in Phase 6 |
+| Architectural Claim | Register ID (`claims.tsv`) | Section | CC Status | Required Evidence to Mark `VERIFIED` | Current Status |
+|---|---|---|---|---|---|
+| **1. UI queue, preview, and admission door never drift** | `CLM-queue-is-the-door` | `4.5.13` | `normative` | Lean proof (`EventLifecycle.lean`) + `cewp-kernel` / `kernel.js` / `CIRISServer` 100% differential parity on `transitions.json` & `T0–T19` | `MEASURED` (Lean + `kernel.test.js`; Rust `cewp-kernel` in Phase 1) |
+| **2. Nodes converge identically after arbitrary partitions & churn** | `CLM-halt-authority` | `4.2` | `established` | Permutation-invariant fold proofs + 100-shuffle multi-island partition fuzzing + real-node `rows.jsonl` replay in `Trace.tla` | `MEASURED` at `R5` (`kernel.test.js` 4/4); `R4/R3` in Phase 2 |
+| **3. Privacy & `> 64 KiB` shaped-link boundaries hold under attack** | `CLM-link-shaping` | `5.4.3` | `established` | `Tiers.lean` + `formal/anonymous/` + `ADV-PR` GPA traffic-analysis & guard-capture campaigns + `REG-MESH-SCOPE` invisibility fixture | `MODEL` + partial `MEASURED`; full `ADV-PR` in Phase 4 |
+| **4. 1-hop shaped links (`L ≤ 8`) & $k=2$ leaves survive CGNAT** | `CLM-shaped-link-one-hop` | `5.4.3` | `normative` | `Tiers.lean` (`each_home_adds_seven`, `reach ≠ capacity`) + `reach_home_share` `[0%, 80%]` sweep + `leviculum#100` field calibration | `MODEL` (`≥ 3.92%` server floor at `0%` reach); awaiting `leviculum#100` (`FRONTIER`) |
+| **5. `CC §6.1.6 deterministic-alm` scales without SFUs (`CC §5.3.3.2`)** | `CLM-alm-live-tree-verified` | `6.1.6` | `staged` | All 15 frozen vectors in `deterministic_topology.rs` + `ADV-ALM` capacity-lie / relay-drop campaigns + Shadow/native multi-container bench | `MEASURED` (vectors + 50-node bench); `ADV-ALM` at scale in Phase 3–4 |
+| **6. Whole-chunk sealed storage survives correlated loss & respects revocation** | `CLM-noise-classify` | `6.1.2` | `established` | Whole-chunk custody simulation (`ChunkCustodyManifestV1`) + `test_540..542` (`Full`/`Partial`/`EnvelopeOnly`, `N5` hard-delete, Kish `n_eff`) + `ADV-ST` withholding tests | `MEASURED` (unit/conformance); whole-chunk custody DES in Phase 3 |
+| **7. Commodity L1 home server (`1 TB / 1 Gbps / 1 core`) suffices** | `CLM-shaping-offered-never-refused` | `5.4.3` | `normative` | Reproducible benchmarks on ARM mini-PC / home x86 under `2.5×` diurnal & `4.0×` flash-crowd workloads across `T0–T19` mixes | `MODEL` + micro-`MEASURED`; full hardware calibration in Phase 5 |
+| **8. Five-billion user scale is viable without datacenters** | `CLM-node-inventory` | `6.1` | `staged` | `CIRISHolon`-certified multiscale ladder (`R5 → R0`) + 4-baseline comparison (`A1–A4`) + 4-regime sensitivity analysis | `PROJECTED` (analytic + `R5` kernel); certified `R3→R0` in Phase 6 |
 
 ---
 

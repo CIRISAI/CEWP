@@ -2,7 +2,7 @@
 
 use crate::tables::{expected_active, policy_row, transition_of, Tables};
 use crate::types::{
-    Ballot, ChangedObject, FoldState, Fraction, HaltState, HeldRow, Missing, ObjectState, Outcome, Pending,
+    Ballot, ChangedObject, FoldState, HaltState, HeldRow, Missing, ObjectState, Outcome, Pending,
     Plan, PreviewImpact, PreviewResult, PreviewVerdict, Queue, QueueItem, QueueStart, Refusal, RoomDiff,
     RoomState, Row, Scope, StepResult, TargetRef, Transition, Voices,
 };
@@ -218,33 +218,29 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
         };
 
         let opener_fed = get_fed(&opener);
-        let mut fed_for: HashSet<String> = HashSet::new();
-        let mut fed_against: HashSet<String> = HashSet::new();
-        let mut fed_disagree: HashSet<String> = HashSet::new();
-
-        fed_for.insert(opener_fed);
+        let mut person_vote: HashMap<String, bool> = HashMap::new();
+        person_vote.insert(opener_fed, true);
 
         for h in &o.rows {
             let r = &h.row;
             let fed = get_fed(&r.signer);
+            let state_dim = if r.family.starts_with("objection:") {
+                r.family.strip_prefix("objection:").unwrap()
+            } else {
+                ""
+            };
             let is_approval = r.stance.as_deref() == Some("for")
-                || (r.family.starts_with("objection") && r.verb == "assent");
+                || (r.family.starts_with("objection") && (r.verb == "assent" || state_dim == "assent" || state_dim == "proposal"));
             let is_objection = r.stance.as_deref() == Some("against")
                 || r.family == "objection"
-                || (r.family.starts_with("objection") && (r.verb == "raised" || r.verb == "object"));
+                || (r.family.starts_with("objection") && (r.verb == "raised" || r.verb == "object" || state_dim == "raised"));
 
-            if is_approval && is_objection {
-                fed_disagree.insert(fed.clone());
+            if r.verb == "withdraw" || r.verb == "recant" {
+                person_vote.remove(&fed);
             } else if is_approval {
-                if fed_against.contains(&fed) {
-                    fed_disagree.insert(fed.clone());
-                }
-                fed_for.insert(fed.clone());
+                person_vote.insert(fed, true);
             } else if is_objection {
-                if fed_for.contains(&fed) {
-                    fed_disagree.insert(fed.clone());
-                }
-                fed_against.insert(fed.clone());
+                person_vote.insert(fed, false);
             }
 
             if let Some(ranking) = &r.ranking {
@@ -255,10 +251,14 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
             }
         }
 
-        // CC Rule: Disagreeing live rows remove a fedID from both for and against tallies (no voice)
-        for fed in &fed_disagree {
-            fed_for.remove(fed);
-            fed_against.remove(fed);
+        let mut fed_for: HashSet<String> = HashSet::new();
+        let mut fed_against: HashSet<String> = HashSet::new();
+        for (fed, is_for) in person_vote {
+            if is_for {
+                fed_for.insert(fed);
+            } else {
+                fed_against.insert(fed);
+            }
         }
 
         let for_count = fed_for.len() as u64;
@@ -286,21 +286,37 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
             2
         };
 
-        // Minimum voice rule (CC 1.13.3)
-        let min_count = if p.corridor.as_deref() == Some("self") || p.family.starts_with("self_roster") || p.family == "accord_halt" {
-            1u64
+        // Minimum voice rule from governance policy
+        let min_count = p.corridor.as_deref()
+            .and_then(|c| tables.min_count.get(c))
+            .copied()
+            .unwrap_or_else(|| {
+                if p.corridor.as_deref() == Some("self") || p.family.starts_with("self_roster") {
+                    1
+                } else {
+                    2
+                }
+            });
+
+        let cancel_base = if p.cancel_over.as_deref() == Some("others") {
+            base.saturating_sub(1)
         } else {
-            2u64
+            base
         };
 
         let window_secs = p.window_secs.unwrap_or(0);
         let window_end = o.pending.as_ref().unwrap().since + window_secs * 1000;
 
-        // Thresholds
-        // Enact is strictly more: (num * base) / den + 1
-        let ev = p.enact.map(|e| (e.num * base) / e.den + 1).unwrap_or(1);
-        let cv = p.cancel.map(|c| min_count.max((c.num * base + c.den - 1) / c.den));
-        let fv = p.floor.map(|f| min_count.max((f.num * base + f.den - 1) / f.den));
+        // Thresholds from typed rules
+        let ev = p.enact_rule.votes(base, true)
+            .or_else(|| p.enact.map(|e| (e.num * base) / e.den + 1))
+            .unwrap_or(1);
+        let cv = p.cancel_rule.votes(cancel_base, false)
+            .map(|v| v.max(min_count))
+            .or_else(|| p.cancel.map(|c| min_count.max((c.num * cancel_base + c.den - 1) / c.den)));
+        let fv = p.floor_rule.votes(base, false)
+            .map(|v| v.max(min_count))
+            .or_else(|| p.floor.map(|f| min_count.max((f.num * base + f.den - 1) / f.den)));
 
         let mut outcome: Option<Outcome> = None;
         let mut missing: Option<Missing> = None;
@@ -325,17 +341,38 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
                     } else {
                         Outcome::Enacted
                     });
-                } else if p.reverse_path && fv.is_some() && for_count >= fv.unwrap() {
+                } else if p.reverse_path && fv.is_some() && for_count >= fv.unwrap() && against_count == 0 {
                     outcome = Some(Outcome::Enacted);
                 } else {
-                    outcome = Some(Outcome::Cancelled);
+                    match p.at_window.as_deref() {
+                        Some("stay_open") => {
+                            outcome = None;
+                            let needed = (ev as i64) - (for_count as i64);
+                            missing = Some(Missing {
+                                voices: Some(needed),
+                                until: None,
+                                ballots: None,
+                            });
+                        }
+                        _ => {
+                            outcome = Some(Outcome::Cancelled);
+                        }
+                    }
                 }
             }
             "mirror" => {
                 if cv.is_some() && against_count >= cv.unwrap() {
                     outcome = Some(Outcome::Reversed);
                 } else if now >= window_end {
-                    outcome = Some(Outcome::Stands);
+                    if p.at_window.as_deref() == Some("lapsed") {
+                        if for_count * 2 > base {
+                            outcome = Some(Outcome::Stands);
+                        } else {
+                            outcome = Some(Outcome::Lapsed);
+                        }
+                    } else {
+                        outcome = Some(Outcome::Stands);
+                    }
                 } else {
                     outcome = Some(Outcome::Acting);
                     missing = Some(Missing {
@@ -346,8 +383,9 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
                 }
             }
             "cosigned" => {
-                let frac = p.enact.unwrap_or(Fraction { num: 1, den: 2 });
-                let required = (frac.num * base) / frac.den + 1;
+                let required = p.enact_rule.votes(base, true)
+                    .or_else(|| p.enact.map(|frac| (frac.num * base) / frac.den + 1))
+                    .unwrap_or(2);
                 if for_count >= required {
                     outcome = Some(Outcome::Enacted);
                 } else {
@@ -361,7 +399,15 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
             }
             "ranked" => {
                 if now >= window_end {
-                    outcome = irv(&ballots).map(Outcome::Seated);
+                    let min_ballots = fv.unwrap_or(2);
+                    if (ballots.len() as u64) >= min_ballots {
+                        outcome = irv(&ballots).map(Outcome::Seated);
+                        if outcome.is_none() && p.at_window.as_deref() == Some("reopens") {
+                            outcome = Some(Outcome::Reopens);
+                        }
+                    } else if p.at_window.as_deref() == Some("reopens") {
+                        outcome = Some(Outcome::Reopens);
+                    }
                 } else {
                     missing = Some(Missing {
                         voices: None,

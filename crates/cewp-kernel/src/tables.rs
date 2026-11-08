@@ -1,12 +1,13 @@
 //! Vendored constitutional tables, policy mappings, and CC RC17 namespace matcher.
 
 use crate::json::{parse, JsonValue};
-use crate::types::{Fraction, MatchResult, Policy, Transition};
+use crate::types::{Fraction, MatchResult, Policy, Rule, Transition};
 use std::collections::{HashMap, HashSet};
 
 pub const VENDORED_VERSION: &str = include_str!("../../../docs/kernel/tables/VERSION");
 pub const VENDORED_TRANSITIONS: &str = include_str!("../../../docs/kernel/tables/transitions.json");
 pub const VENDORED_GOVERNANCE_POLICY: &str = include_str!("../../../docs/kernel/tables/governance_policy.json");
+pub const VENDORED_GOVERNANCE_POLICY_VECTORS: &str = include_str!("../../../docs/kernel/tables/governance_policy_vectors.json");
 pub const VENDORED_MESH_STORY_TRACE: &str = include_str!("../../../docs/kernel/tables/mesh_story_trace.json");
 pub const VENDORED_NAMESPACE_REGISTRY: &str = include_str!("../../../docs/kernel/tables/namespace_registry.json");
 pub const VENDORED_NAMESPACE_MATCH_VECTORS: &str = include_str!("../../../docs/kernel/tables/namespace_match_vectors.json");
@@ -1036,52 +1037,6 @@ pub fn expected_active(n: u64) -> u64 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Rule {
-    None,
-    Fraction { num: u64, den: u64 },
-    OneOfN,
-    StrictMajority,
-    StrictMajorityOfOthers,
-    RoleAt { roles: Vec<String>, count: u64 },
-    Voices { count: u64 },
-    RankedIrv { choices: u64 },
-    AllOthers,
-    SelfNodesMin2Or1,
-    WitnessesPriorSeal,
-    AllNamedParties,
-    SingleRoleSignature { roles: Vec<String> },
-    Prose(String),
-}
-
-impl Rule {
-    pub fn votes(&self, base: u64, strict: bool) -> Option<u64> {
-        match self {
-            Rule::Fraction { num, den } => {
-                if *den == 0 {
-                    return None;
-                }
-                if strict {
-                    Some((num * base) / den + 1)
-                } else {
-                    Some((num * base + den - 1) / den)
-                }
-            }
-            Rule::OneOfN => Some(1),
-            Rule::StrictMajority => Some(base / 2 + 1),
-            Rule::StrictMajorityOfOthers => Some(base.saturating_sub(1) / 2 + 1),
-            Rule::RoleAt { count, .. } => Some(*count),
-            Rule::Voices { count } => Some(*count),
-            Rule::AllOthers => Some(base.saturating_sub(1).max(1)),
-            Rule::SelfNodesMin2Or1 => Some(if base <= 1 { 1 } else { 2 }),
-            Rule::WitnessesPriorSeal => Some(if base > 3 { base / 2 + 1 } else { 2.min(base) }),
-            Rule::AllNamedParties => Some(base),
-            Rule::SingleRoleSignature { .. } => Some(1),
-            Rule::RankedIrv { .. } | Rule::None | Rule::Prose(_) => None,
-        }
-    }
-}
-
 pub fn parse_rule(val: Option<&JsonValue>) -> Rule {
     let val = match val {
         Some(v) => v,
@@ -1154,10 +1109,45 @@ pub fn parse_rule(val: Option<&JsonValue>) -> Rule {
         return Rule::Prose(s.to_string());
     }
 
-    if let Some(num) = val.get("num").and_then(|v| v.as_u64()) {
-        if let Some(den) = val.get("den").and_then(|v| v.as_u64()) {
-            return Rule::Fraction { num, den };
+    if let Some(kind) = val.get("kind").and_then(|v| v.as_str()) {
+        match kind {
+            "none" => return Rule::None,
+            "one_of_n" => return Rule::OneOfN,
+            "strict_majority" => return Rule::StrictMajority,
+            "strict_majority_of_others" => return Rule::StrictMajorityOfOthers,
+            "fraction" => {
+                let num = val.get("num").and_then(|v| v.as_u64()).unwrap_or(0);
+                let den = val.get("den").and_then(|v| v.as_u64()).unwrap_or(1);
+                return Rule::Fraction { num, den };
+            }
+            "role_at" => {
+                let mut roles = Vec::new();
+                if let Some(arr) = val.get("roles").and_then(|v| v.as_array()) {
+                    for r in arr {
+                        if let Some(rs) = r.as_str() {
+                            roles.push(rs.to_string());
+                        }
+                    }
+                }
+                let count = val.get("count").and_then(|v| v.as_u64()).unwrap_or(1);
+                return Rule::RoleAt { roles, count };
+            }
+            "voices" => {
+                let count = val.get("count").and_then(|v| v.as_u64()).unwrap_or(1);
+                return Rule::Voices { count };
+            }
+            "ranked_irv" => {
+                let choices = val.get("choices").and_then(|v| v.as_u64()).unwrap_or(3);
+                return Rule::RankedIrv { choices };
+            }
+            _ => {}
         }
+    }
+    if let (Some(num), Some(den)) = (
+        val.get("num").and_then(|v| v.as_u64()),
+        val.get("den").and_then(|v| v.as_u64()),
+    ) {
+        return Rule::Fraction { num, den };
     }
     Rule::None
 }
@@ -1182,6 +1172,8 @@ pub struct Tables {
     pub match_vectors: JsonValue,
     pub csd_map: JsonValue,
     pub rules: Rules,
+    pub min_count: HashMap<String, u64>,
+    pub policy_vectors: JsonValue,
 }
 
 impl Tables {
@@ -1194,6 +1186,7 @@ impl Tables {
             VENDORED_NAMESPACE_REGISTRY,
             VENDORED_NAMESPACE_MATCH_VECTORS,
             VENDORED_CSD_NAMESPACE_MAP,
+            VENDORED_GOVERNANCE_POLICY_VECTORS,
         )
         .expect("Failed to load vendored CC §4.5.13 constitutional tables")
     }
@@ -1212,6 +1205,7 @@ impl Tables {
             VENDORED_NAMESPACE_REGISTRY,
             VENDORED_NAMESPACE_MATCH_VECTORS,
             VENDORED_CSD_NAMESPACE_MAP,
+            VENDORED_GOVERNANCE_POLICY_VECTORS,
         )
     }
 
@@ -1223,11 +1217,13 @@ impl Tables {
         registry_str: &str,
         match_vectors_str: &str,
         csd_map_str: &str,
+        policy_vectors_str: &str,
     ) -> Result<Self, String> {
         let expected_hashes = parse_version_hashes(version_str);
         let files_to_verify = [
             ("transitions.json", transitions_str),
             ("governance_policy.json", policy_str),
+            ("governance_policy_vectors.json", policy_vectors_str),
             ("mesh_story_trace.json", trace_str),
             ("namespace_registry.json", registry_str),
             ("namespace_match_vectors.json", match_vectors_str),
@@ -1250,6 +1246,7 @@ impl Tables {
         let registry_json = parse(registry_str).map_err(|e| format!("namespace_registry.json parse error: {}", e))?;
         let match_vectors_json = parse(match_vectors_str).map_err(|e| format!("namespace_match_vectors.json parse error: {}", e))?;
         let csd_map_json = parse(csd_map_str).map_err(|e| format!("csd_namespace_map.json parse error: {}", e))?;
+        let policy_vectors_json = parse(policy_vectors_str).map_err(|e| format!("governance_policy_vectors.json parse error: {}", e))?;
 
         let mut families = HashMap::new();
         let mut family_order = Vec::new();
@@ -1320,14 +1317,18 @@ impl Tables {
                 let fam = p.get("family").and_then(|v| v.as_str()).unwrap_or("").to_string();
                 let kind = p.get("kind").and_then(|v| v.as_str()).unwrap_or("").to_string();
 
-                let enact_rule = parse_rule(p.get("enact"));
-                let cancel_rule = parse_rule(p.get("cancel"));
-                let floor_rule = parse_rule(p.get("floor"));
+                let enact_rule = p.get("enact_rule")
+                    .map(|v| parse_rule(Some(v)))
+                    .unwrap_or_else(|| parse_rule(p.get("enact")));
+                let cancel_rule = p.get("cancel_rule")
+                    .map(|v| parse_rule(Some(v)))
+                    .unwrap_or_else(|| parse_rule(p.get("cancel")));
+                let floor_rule = p.get("floor_rule")
+                    .map(|v| parse_rule(Some(v)))
+                    .unwrap_or_else(|| parse_rule(p.get("floor")));
 
                 let enact = match &enact_rule {
                     Rule::Fraction { num, den } => Some(Fraction { num: *num, den: *den }),
-                    Rule::OneOfN => Some(Fraction { num: 1, den: 1 }),
-                    Rule::StrictMajority => Some(Fraction { num: 1, den: 2 }),
                     _ => p.get("enact").and_then(|v| {
                         let num = v.get("num")?.as_u64()?;
                         let den = v.get("den")?.as_u64()?;
@@ -1337,7 +1338,6 @@ impl Tables {
 
                 let cancel = match &cancel_rule {
                     Rule::Fraction { num, den } => Some(Fraction { num: *num, den: *den }),
-                    Rule::StrictMajority | Rule::StrictMajorityOfOthers => Some(Fraction { num: 1, den: 2 }),
                     _ => p.get("cancel").and_then(|v| {
                         let num = v.get("num")?.as_u64()?;
                         let den = v.get("den")?.as_u64()?;
@@ -1347,9 +1347,6 @@ impl Tables {
 
                 let floor = match &floor_rule {
                     Rule::Fraction { num, den } => Some(Fraction { num: *num, den: *den }),
-                    Rule::OneOfN => Some(Fraction { num: 1, den: 1 }),
-                    Rule::Voices { count } => Some(Fraction { num: *count, den: 1 }),
-                    Rule::StrictMajority => Some(Fraction { num: 1, den: 2 }),
                     _ => p.get("floor").and_then(|v| {
                         let num = v.get("num")?.as_u64()?;
                         let den = v.get("den")?.as_u64()?;
@@ -1359,11 +1356,15 @@ impl Tables {
 
                 let irreversible = p.get("irreversible").and_then(|v| v.as_bool()).unwrap_or(false);
                 let reverse_path = p.get("reverse_path").and_then(|v| v.as_bool()).unwrap_or(false);
-                let cancel_over = p.get("cancel_over").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let cancel_over = p.get("cancel_over").and_then(|v| v.as_str()).map(|s| {
+                    if s == "—" || s == "-" { "none".to_string() } else { s.to_string() }
+                });
                 let base_law = p.get("base_law").and_then(|v| v.as_str()).map(|s| s.to_string())
                     .or_else(|| policy_json.get("base_law").and_then(|b| b.get("rule")).and_then(|r| r.as_str()).map(|s| s.to_string()));
                 let base = p.get("base").and_then(|v| v.as_str()).map(|s| s.to_string());
-                let at_window = p.get("at_window").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let at_window = p.get("at_window").and_then(|v| v.as_str()).map(|s| {
+                    if s == "—" || s == "-" { "none".to_string() } else { s.to_string() }
+                });
                 let window_secs = p.get("window_secs").and_then(|v| v.as_u64());
                 let window_class = p.get("window_class").and_then(|v| v.as_str()).map(|s| s.to_string());
                 let corridor = p.get("corridor").and_then(|v| v.as_str()).map(|s| s.to_string());
@@ -1376,6 +1377,9 @@ impl Tables {
                         enact,
                         cancel,
                         floor,
+                        enact_rule,
+                        cancel_rule,
+                        floor_rule,
                         irreversible,
                         reverse_path,
                         cancel_over,
@@ -1407,6 +1411,15 @@ impl Tables {
 
         let rules = Rules::from_json(&registry_json);
 
+        let mut min_count = HashMap::new();
+        if let Some(mc_obj) = policy_json.get("min_count").and_then(|v| v.as_object()) {
+            for (k, v) in mc_obj {
+                if let Some(cnt) = v.as_u64() {
+                    min_count.insert(k.clone(), cnt);
+                }
+            }
+        }
+
         Ok(Tables {
             families,
             family_order,
@@ -1419,6 +1432,8 @@ impl Tables {
             match_vectors: match_vectors_json,
             csd_map: csd_map_json,
             rules,
+            min_count,
+            policy_vectors: policy_vectors_json,
         })
     }
 

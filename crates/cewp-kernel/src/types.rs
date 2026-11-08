@@ -40,6 +40,52 @@ pub struct Fraction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Rule {
+    None,
+    Fraction { num: u64, den: u64 },
+    OneOfN,
+    StrictMajority,
+    StrictMajorityOfOthers,
+    RoleAt { roles: Vec<String>, count: u64 },
+    Voices { count: u64 },
+    RankedIrv { choices: u64 },
+    AllOthers,
+    SelfNodesMin2Or1,
+    WitnessesPriorSeal,
+    AllNamedParties,
+    SingleRoleSignature { roles: Vec<String> },
+    Prose(String),
+}
+
+impl Rule {
+    pub fn votes(&self, base: u64, strict: bool) -> Option<u64> {
+        match self {
+            Rule::Fraction { num, den } => {
+                if *den == 0 {
+                    return None;
+                }
+                if strict {
+                    Some((num * base) / den + 1)
+                } else {
+                    Some((num * base + den - 1) / den)
+                }
+            }
+            Rule::OneOfN => Some(1),
+            Rule::StrictMajority => Some(base / 2 + 1),
+            Rule::StrictMajorityOfOthers => Some(base.saturating_sub(1) / 2 + 1),
+            Rule::RoleAt { count, .. } => Some(*count),
+            Rule::Voices { count } => Some(*count),
+            Rule::AllOthers => Some(base.saturating_sub(1).max(1)),
+            Rule::SelfNodesMin2Or1 => Some(if base <= 1 { 1 } else { 2 }),
+            Rule::WitnessesPriorSeal => Some(if base > 3 { base / 2 + 1 } else { 2.min(base) }),
+            Rule::AllNamedParties => Some(base),
+            Rule::SingleRoleSignature { .. } => Some(1),
+            Rule::RankedIrv { .. } | Rule::None | Rule::Prose(_) => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transition {
     pub verb: String,
     pub from: String,
@@ -57,6 +103,9 @@ pub struct Policy {
     pub enact: Option<Fraction>,
     pub cancel: Option<Fraction>,
     pub floor: Option<Fraction>,
+    pub enact_rule: Rule,
+    pub cancel_rule: Rule,
+    pub floor_rule: Rule,
     pub irreversible: bool,
     pub reverse_path: bool,
     pub cancel_over: Option<String>,
@@ -206,6 +255,8 @@ pub enum Outcome {
     Stands,
     Acting,
     Seated(String),
+    Lapsed,
+    Reopens,
 }
 
 impl Outcome {
@@ -218,6 +269,8 @@ impl Outcome {
             Outcome::Stands => "stands",
             Outcome::Acting => "acting",
             Outcome::Seated(s) => s.as_str(),
+            Outcome::Lapsed => "lapsed",
+            Outcome::Reopens => "reopens",
         }
     }
 }

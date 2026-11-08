@@ -242,7 +242,7 @@ pub extern "C" fn tick(
                         *a = a.saturating_add(36);
                     }
                 }
-                // Wire cost: CC 6.1.6 `deterministic-alm` member relay tree branches + local intra-cell fan-out
+                // Wire cost: CC 6.1.6 `deterministic-alm` member relay tree branches (simulation fan-out model assumption) + local intra-cell fan-out
                 let tree_hops = 1 + (touched_n as u32) * 2 + (delivered / 12).max(1);
                 let saved = delivered.saturating_sub(tree_hops);
                 o[21] += saved as f64;

@@ -883,8 +883,8 @@ let activeArcs=[], arcCount=0, arcsNeedUpload=false, meshFilter=-1;
 gl.bindBuffer(gl.ARRAY_BUFFER,linePosBuf); gl.bufferData(gl.ARRAY_BUFFER,posBuffer,gl.DYNAMIC_DRAW);
 gl.bindBuffer(gl.ARRAY_BUFFER,lineParamBuf); gl.bufferData(gl.ARRAY_BUFFER,paramBuffer,gl.DYNAMIC_DRAW);
 const startTime=performance.now(); const getTime=()=>(performance.now()-startTime)*0.001;
-let yaw=8.54*Math.PI/180, pitch=-47.37*Math.PI/180, zoom=4.2, targetZoom=4.2, velYaw=0, velPitch=0, drag=null, lastTouchTime=performance.now(), npts=0;
-let storyCamDist=1.35, storyTargetCamDist=1.35, storyTargetYaw=8.54*Math.PI/180, storyTargetPitch=-47.37*Math.PI/180, storyTargetZoom=4.2;
+let yaw=8.54*Math.PI/180, pitch=47.37*Math.PI/180, zoom=2.35, targetZoom=2.35, velYaw=0, velPitch=0, drag=null, lastTouchTime=performance.now(), npts=0;
+let storyCamDist=1.35, storyTargetCamDist=1.35, storyTargetYaw=8.54*Math.PI/180, storyTargetPitch=47.37*Math.PI/180, storyTargetZoom=2.35;
 let storyActive=true, storyPaused=false, storyCurrentAct=0, storyActElapsed=0, storyMinimized=false;
 function xyz(la,lo){ const a=la*Math.PI/180, o=lo*Math.PI/180; return [Math.cos(a)*Math.sin(o), Math.sin(a), Math.cos(a)*Math.cos(o)]; }
 function uploadPoints(){ const n=W.n; const p=new Float32Array(n*3); for (let i=0;i<n;i++){ const v=xyz(W.lat[i],W.lon[i]); p[i*3]=v[0];p[i*3+1]=v[1];p[i*3+2]=v[2]; } gl.bindBuffer(gl.ARRAY_BUFFER,posBuf); gl.bufferData(gl.ARRAY_BUFFER,p,gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER,kindBuf); gl.bufferData(gl.ARRAY_BUFFER,W.isSeat,gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferData(gl.ARRAY_BUFFER,new Uint8Array(n),gl.DYNAMIC_DRAW); npts=n; }
@@ -894,7 +894,7 @@ function addArc(signer,packedTarget,nowSec){
   if (!W||signer===target||signer>=W.n||target>=W.n) return;
   const a=xyz(W.lat[signer],W.lon[signer]), b=xyz(W.lat[target],W.lon[target]);
   const dot=Math.max(-1,Math.min(1,a[0]*b[0]+a[1]*b[1]+a[2]*b[2])); const th=Math.acos(dot);
-  if (th<0.01) return;
+  if (th<0.0005) return;
   const lift=0.03+0.22*(th/Math.PI); const duration=3.8+Math.min(1.0,th/Math.PI)*2.2;
   const verts=new Float32Array(SEG_VERTS*3), params=new Float32Array(SEG_VERTS*4);
   let prev=null, vw=0, pw=0;
@@ -949,7 +949,7 @@ function setArcs(arcs){
   arcsNeedUpload=true; pruneAndPackArcs(nowSec);
 }
 function rot(){ const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
-  return new Float32Array([cy,0,-sy, sy*sp,cp,cy*sp, sy*cp,-sp,cy*cp]); }
+  return new Float32Array([cy,-sp*sy,cp*sy, 0,cp,sp, -sy,-sp*cy,cp*cy]); }
 function draw(){
   const w=cv.clientWidth, h=cv.clientHeight; const dpr=window.devicePixelRatio||1;
   if (cv.width!==w*dpr|0||cv.height!==h*dpr|0){ cv.width=w*dpr|0; cv.height=h*dpr|0; }
@@ -972,7 +972,7 @@ function draw(){
     gl.drawArrays(gl.LINES,0,arcCount*SEG_VERTS); }
 }
 cv.addEventListener("mousedown",e=>{drag=[e.clientX,e.clientY];velYaw=0;velPitch=0;cv.style.cursor="grabbing";lastTouchTime=performance.now();}); window.addEventListener("mouseup",()=>{drag=null;cv.style.cursor="grab";});
-window.addEventListener("mousemove",e=>{ if(!drag) return; const dx=e.clientX-drag[0], dy=e.clientY-drag[1]; velYaw=dx*0.0035; velPitch=dy*0.0035; yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[e.clientX,e.clientY]; lastTouchTime=performance.now(); });
+window.addEventListener("mousemove",e=>{ if(!drag) return; const dx=e.clientX-drag[0], dy=e.clientY-drag[1]; velYaw=-dx*0.0035/Math.max(1,zoom*0.6); velPitch=dy*0.0035/Math.max(1,zoom*0.6); yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[e.clientX,e.clientY]; lastTouchTime=performance.now(); });
 cv.addEventListener("wheel",e=>{ e.preventDefault(); targetZoom=Math.max(0.6,Math.min(6,targetZoom*(e.deltaY<0?1.15:0.87))); lastTouchTime=performance.now(); },{passive:false});
 let pinchDist=0;
 cv.addEventListener("touchstart",e=>{
@@ -991,12 +991,12 @@ cv.addEventListener("touchmove",e=>{
     lastTouchTime=performance.now(); return;
   }
   if(!drag||e.touches.length!==1) return;
-  const t=e.touches[0]; const dx=t.clientX-drag[0], dy=t.clientY-drag[1]; velYaw=dx*0.0035; velPitch=dy*0.0035; yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[t.clientX,t.clientY]; lastTouchTime=performance.now();
+  const t=e.touches[0]; const dx=t.clientX-drag[0], dy=t.clientY-drag[1]; velYaw=-dx*0.0035/Math.max(1,zoom*0.6); velPitch=dy*0.0035/Math.max(1,zoom*0.6); yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[t.clientX,t.clientY]; lastTouchTime=performance.now();
 },{passive:true});
 cv.addEventListener("touchend",e=>{ if(e.touches.length<2) pinchDist=0; if(e.touches.length===0) drag=null; });
 // ------------------------------------------------------------------ the loop
 const isMobileViewport = window.innerWidth <= 800;
-const DEVICES_PER_PERSON = 2.25; // CC 4.5.13 self roster: ~1 phone + ~1 home/laptop/tablet + ~0.25 shared/personal server
+const DEVICES_PER_PERSON = 2.25; // CC 3.3.6.3 self roster: ~1 phone + ~1 home/laptop/tablet + ~0.25 shared/personal server
 let playing=false, useWasm=true, showArcs=true, cum=0, lastActivity=null, activeBlocks=[];
 let currentPop=5000000000, currentSize=isMobileViewport?100000:1000000, currentActs=isMobileViewport?2000:10000, avgMsPerTick=0, avgMsPerAct=0;
 const $=(id)=>document.getElementById(id);
@@ -1296,18 +1296,18 @@ function decay(){
 
 // ------------------------------------------------------------------ Animated Multi-Scale CIRISHolon Story Engine
 const SEED_NODES = [
-  { lat: 47.3769, lon: 8.5417, name: "alice-home" },     // 0: Zurich Prime
-  { lat: 47.4245, lon: 8.6432, name: "bob-nas" },        // 1: Winterthur Partner
-  { lat: 47.3680, lon: 8.5290, name: "alice-phone" },    // 2
-  { lat: 47.3820, lon: 8.5510, name: "alice-laptop" },   // 3
-  { lat: 47.4100, lon: 8.6200, name: "bob-phone" },      // 4
-  { lat: 47.3500, lon: 8.5800, name: "carol-home" },     // 5
-  { lat: 47.3900, lon: 8.5100, name: "dave-desktop" },   // 6
-  { lat: 47.4400, lon: 8.6100, name: "erin-server" },    // 7
-  { lat: 47.3300, lon: 8.5300, name: "frank-phone" },    // 8
-  { lat: 47.4500, lon: 8.6800, name: "grace-laptop" },   // 9
-  { lat: 47.3600, lon: 8.4900, name: "heidi-home" },     // 10
-  { lat: 47.4000, lon: 8.5900, name: "ivan-phone" }      // 11
+  { lat: 47.3769, lon: 8.5417, name: "alice-home" },     // 0: Zurich
+  { lat: 46.2044, lon: 6.1432, name: "bob-nas" },        // 1: Geneva
+  { lat: 45.4642, lon: 9.1900, name: "alice-phone" },    // 2: Milan
+  { lat: 48.1351, lon: 11.5820, name: "alice-laptop" },  // 3: Munich
+  { lat: 50.1109, lon: 8.6821, name: "bob-phone" },      // 4: Frankfurt
+  { lat: 45.7640, lon: 4.8357, name: "carol-home" },     // 5: Lyon
+  { lat: 48.8566, lon: 2.3522, name: "dave-desktop" },   // 6: Paris
+  { lat: 48.2082, lon: 16.3738, name: "erin-server" },   // 7: Vienna
+  { lat: 52.5200, lon: 13.4050, name: "frank-phone" },   // 8: Berlin
+  { lat: 52.3676, lon: 4.9041, name: "grace-laptop" },   // 9: Amsterdam
+  { lat: 41.9028, lon: 12.4964, name: "heidi-home" },    // 10: Rome
+  { lat: 51.5074, lon: -0.1278, name: "ivan-phone" }     // 11: London
 ];
 const REGIONAL_CLUSTER = [
   { lat: 47.5596, lon: 7.5886 }, { lat: 46.9480, lon: 7.4474 }, { lat: 46.2044, lon: 6.1432 },
@@ -1328,173 +1328,69 @@ const STORY_ACTS = [
     title: "Act I: Self-Certifying First Contact (T0 → T2)",
     scenario: "CSD/4 T0 → T1 → T2 · CC 2.6.8 · CSD-104",
     camDist: 1.35,
-    targetZoom: 4.2,
+    targetZoom: 2.35,
     yaw: 8.54 * Math.PI / 180,
-    pitch: -47.37 * Math.PI / 180,
+    pitch: 47.37 * Math.PI / 180,
     scaleNodes: "2 → 12 Nodes",
     pop: 100,
     holonRes: "R4",
     holonLevel: "L0 Device Peer",
-    ceremony: function(t) {
-      if (t < 5.0) {
-        return [
-          { label: "FedCode Exchange", val: "<code>ciris://id/ed25519-z6Mku7y9K...</code> (CC 2.6.8)" },
-          { label: "Verification", val: "<b>CSD-104</b> short-code ceremony: <code>492-817</code> (in flight...)" },
-          { label: "Class Offer", val: "Alice: <code>home</code> (2,800 B/s) · Bob: <code>server</code> (7,000 B/s)" },
-          { label: "Safety Invariant", val: "<b style='color:var(--warm)'>X3: Bilateral Consent Pending...</b>" }
-        ];
-      }
-      return [
-        { label: "FedCode Exchange", val: "<code>ciris://id/ed25519-z6Mku7y9K...</code> (CC 2.6.8)" },
-        { label: "Verification", val: "<b>CSD-104</b> short-code ceremony: <code>492-817</code> ✓" },
-        { label: "Class Agreement", val: "lower-of-offers: <b>home (2,800 B/s)</b> agreed" },
-        { label: "Safety Invariant", val: "<b style='color:var(--ok)'>X3: Bilateral Consent Sealed ✓</b>" }
-      ];
-    },
-    narrative: "Two sovereign seed nodes in Zurich establish first contact with <b>zero central directory</b>, DNS, or certificate authority. Under <b>CC 2.6.8</b>, each node presents a self-certifying <code>ciris://id/...</code> FedCode derived from root post-quantum keys. The nodes execute the <b>CSD-104</b> 6-digit short-code verification ceremony and seal a bright bilateral link at the <b>lower-of-offers</b> class rate (<code>home</code> 2,800 B/s). Replication strictly honors Cornerstone <b>X3</b>: no state row is replicated without reciprocal bilateral consent.",
-    metrics: [
-      { label: "camDist", val: "1.35 (Neighborhood)" },
-      { label: "Scale", val: "2 → 12 Nodes" },
-      { label: "Class", val: "home 2.8k" },
-      { label: "Directory", val: "0 Central (Sovereign)" },
-      { label: "Inv X3", val: "Bilateral Consent ✓" }
-    ],
-    duration: 15
+    duration: 14
   },
   {
     num: 2,
     title: "Act II: Community Quorum & Whole-Chunk Custody (T4 → T5)",
     scenario: "CSD/4 T4 → T5 · CC 6.1.5 · CC 6.1.2.1.2",
     camDist: 1.75,
-    targetZoom: 2.6,
-    yaw: 8.54 * Math.PI / 180,
-    pitch: -47.37 * Math.PI / 180,
+    targetZoom: 1.85,
+    yaw: 9.5 * Math.PI / 180,
+    pitch: 47.5 * Math.PI / 180,
     scaleNodes: "64 → 500 Nodes",
     pop: 5000,
     holonRes: "R4",
     holonLevel: "L0 Community Cluster",
-    ceremony: function(t) {
-      if (t < 5.0) {
-        return [
-          { label: "Governance Fold", val: "<code>group:roster</code> quorum vote strictly &gt; num·base/den (folding...)" },
-          { label: "Whole-Chunk Storage", val: "streaming chunks + <code>custody:ack:v1</code> (CC 6.1.5)" },
-          { label: "Multiplicity Gate", val: "<b style='color:var(--warm)'>n_eff = 2.15 (reaching threshold...)</b>" },
-          { label: "Local Privacy", val: "<b style='color:var(--ok)'>X4: Local-Tier Rows Isolated</b>" }
-        ];
-      }
-      return [
-        { label: "Governance Fold", val: "<code>group:roster</code> quorum strictly &gt; num·base/den (ADMITTED ✓)" },
-        { label: "Whole-Chunk Storage", val: "whole sealed chunks attested by <code>custody:ack:v1</code> (CC 6.1.5)" },
-        { label: "Multiplicity Gate", val: "<b style='color:var(--ok)'>n_eff ≥ 3 (3.42) [GREEN]</b> (CC 6.1.2.1.2)" },
-        { label: "Local Privacy", val: "<b style='color:var(--ok)'>X4: Local-Tier Rows Never Leave Node ✓</b>" }
-      ];
-    },
-    narrative: "Camera pulls back smoothly to the regional metro cluster as neighboring nodes join (`64 → 500 nodes`). Nodes fold into self-governing communities via <code>group:roster</code> governance rows. Community admission requires a cryptographic quorum strictly exceeding <code>num·base/den</code>. Members open encrypted rooms and store whole sealed chunks attested by signed <code>custody:ack:v1</code> receipts (<b>CC 6.1.5</b>) until the fixed-point integer-floor multiplicity gate <b>n_eff ≥ 3</b> (<b>CC 6.1.2.1.2</b>) turns green, certifying <code>(R, ε)</code> <code>ChunkLayer</code> fidelity. Cornerstone <b>X4</b> holds: private local-tier rows never leave the node.",
-    metrics: [
-      { label: "camDist", val: "1.75 (Metro Cluster)" },
-      { label: "Scale", val: "500 Nodes" },
-      { label: "Multiplicity Gate", val: "n_eff ≥ 3 [GREEN]" },
-      { label: "Chunk Fidelity", val: "(R, ε) ChunkLayer Full" },
-      { label: "Inv X4", val: "Local Privacy ✓" }
-    ],
-    duration: 15
+    duration: 14
   },
   {
     num: 3,
     title: "Act III: Member Relay Trees & Level-1 Holons (T9 → T15)",
     scenario: "CSD/4 T6 → T9 → T15 · CC 6.1.6 · CC 5.4.6",
     camDist: 2.25,
-    targetZoom: 1.7,
-    yaw: 10.0 * Math.PI / 180,
-    pitch: -49.0 * Math.PI / 180,
+    targetZoom: 1.42,
+    yaw: 12.0 * Math.PI / 180,
+    pitch: 42.0 * Math.PI / 180,
     scaleNodes: "10k → 250k Nodes",
     pop: 250000,
     holonRes: "R3",
     holonLevel: "L1 Community Holon",
-    ceremony: function(t) {
-      return [
-        { label: "Single-Publisher ALM", val: "<code>CC 6.1.6</code> member relay tree (k ≤ 8, depth-0 publisher)" },
-        { label: "No Fan-Out Hubs", val: "seats/forwarders <b>never</b> act as fan-out hubs (CC 5.4.6) ✓" },
-        { label: "Shaped Bound", val: "L ≤ 8 shaped links · <code>shaped_only</code> rule honored" },
-        { label: "Anonymous Tier", val: "3-hop onion walks via sticky guards (+0 B extra wire bytes)" }
-      ];
-    },
-    narrative: "Zooming out to continental view (`10,000 → 250,000 nodes`), local clusters coalesce into certified <b>Level-1 Community Holons</b>. A public room stream (<b>CC 6.1.6</b>) fans out from a single depth-0 publisher across the <b>member relay tree</b> with degree bound <b>k ≤ 8</b>. Crucially, under <b>CC 5.4.6</b>, forwarders or seats are never fan-out hubs—the tree belongs entirely to the members. Each node shapes up to <b>L ≤ 8</b> links (<code>shaped_only</code> for Anonymous Tier), and 3-hop onion walks replace cover frames on sticky guards at zero extra wire cost.",
-    metrics: [
-      { label: "camDist", val: "2.25 (Continental)" },
-      { label: "Scale", val: "250k Nodes" },
-      { label: "Relay Tree", val: "ALM (k ≤ 8)" },
-      { label: "Seats As Hubs", val: "0 (Disallowed CC 5.4.6)" },
-      { label: "Holon", val: "Level-1 Community" }
-    ],
-    duration: 15
+    duration: 14
   },
   {
     num: 4,
     title: "Act IV: 10M Nodes & Constitutional Containment (T8 / T10 / X1–X2)",
     scenario: "CSD/4 T8 / T10 / T19 · CIRISHolon L2 · X1–X2",
     camDist: 2.65,
-    targetZoom: 1.25,
+    targetZoom: 1.12,
     yaw: -15.0 * Math.PI / 180,
-    pitch: -35.0 * Math.PI / 180,
+    pitch: 30.0 * Math.PI / 180,
     scaleNodes: "10,000,000 Nodes",
     pop: 10000000,
     holonRes: "R1",
     holonLevel: "L2 Regional Super-Holon",
-    ceremony: function(t) {
-      if (t >= 3.0 && t <= 8.5) {
-        return [
-          { label: "Multiscale Engine", val: "<code>kernel_scale.wasm</code> L2 Super-Holon mode" },
-          { label: "Closure & Drift", val: "Dv² = 0.012 ≤ β=0.030 · Lipschitz K = 1.018 ≤ 1.05" },
-          { label: "Containment Drill", val: "<b style='color:var(--hot)'>accord_halt (T8) + stolen-device evict (T10) ACTIVE</b>" },
-          { label: "Fault Isolation", val: "<b style='color:var(--ok)'>CORDONED: X1 Halt Not Trust Leg · X2 Authority Ends</b>" }
-        ];
-      }
-      return [
-        { label: "Multiscale Engine", val: "<code>kernel_scale.wasm</code> L2 Super-Holon certified" },
-        { label: "Closure & Drift", val: "Dv² = 0.012 ≤ β=0.030 · Lipschitz K = 1.018 ≤ 1.05" },
-        { label: "Containment Drill", val: "<span style='color:var(--ok)'>accord_halt (T8) &amp; key evict (T10) contained locally ✓</span>" },
-        { label: "Fault Isolation", val: "<b style='color:var(--ok)'>X1: Halt Not Trust Leg · X2: Authority Ends ✓</b>" }
-      ];
-    },
-    narrative: "Camera pulls out to hemisphere view, triggering the 10M <code>CIRISHolon</code> multiscale mode (<code>kernel_scale.wasm</code>). The network coarsens into certified <b>Level-2 Regional Super-Holons</b> with bounded commuting-square defect (<b>Dv² ≤ 0.030</b>) and non-expansive Lipschitz drift (<b>K ≤ 1.05</b>). An emergency containment drill pulses an <code>accord_halt</code> (<b>T8</b>) and stolen-device eviction (<b>T10</b>). Under Cornerstone <b>X1</b> (halt is not a transitive trust leg) and <b>X2</b> (evicted key authority terminates), the disturbance is contained immediately within the local holon while global mesh replication continues unaffected.",
-    metrics: [
-      { label: "camDist", val: "2.65 (Hemisphere)" },
-      { label: "Scale", val: "10,000,000 Nodes" },
-      { label: "Closure Defect", val: "Dv² = 0.012 ≤ 0.030" },
-      { label: "Lipschitz Gate", val: "K = 1.018 ≤ 1.05 [PASS]" },
-      { label: "Inv X1/X2", val: "Contained Locally ✓" }
-    ],
-    duration: 15
+    duration: 14
   },
   {
     num: 5,
     title: "Act V: 1 Billion Nodes — Flat Per-Node Cost (CIRISHolon L3)",
     scenario: "CSD/4 T0..T19 · CIRISHolon L3 · CC 4.5.13",
     camDist: 3.10,
-    targetZoom: 1.0,
+    targetZoom: 0.96,
     yaw: 0.0,
-    pitch: -15.0 * Math.PI / 180,
+    pitch: 18.0 * Math.PI / 180,
     scaleNodes: "1,000,000,000 Nodes",
     pop: 1000000000,
     holonRes: "R0",
     holonLevel: "L3 Planetary Super-Holon",
-    ceremony: function(t) {
-      return [
-        { label: "Planetary Grid", val: "2,961 land cells · 181 localities · 9 regions · Submarine arcs" },
-        { label: "Bandwidth Curve", val: "<b style='color:var(--ok)'>O(1) Flat ~2.8 KB/s</b> from 100 to 1,000,000,000 nodes" },
-        { label: "Bootstrap Entry", val: "<code>ciris://r/&lt;root-hash&gt;/...</code> (<b>CIRISDepot</b> bootstrap ready)" },
-        { label: "Verification Gate", val: "<b style='color:var(--ok)'>Invariants X1–X5 All Certified Green ✓</b>" }
-      ];
-    },
-    narrative: "Camera zooms out to full planetary orbit (1 Billion Nodes / 5 Billion people across 2,961 land cells). Global <b>Level-3 Super-Holons</b> federate across continents and submarine cables. Remarkably, <b>per-node bandwidth stays flat</b> from 100 to 1,000,000,000 nodes because links are bounded by <b>L ≤ 8</b> shaped slots and deterministic ALM relay trees. Any web client bootstraps in milliseconds via content-addressed <code>ciris://r/&lt;root-hash&gt;/...</code> (<b>CIRISDepot</b>). All five Cornerstone Invariants <b>X1–X5</b> stand mathematically proved.",
-    metrics: [
-      { label: "camDist", val: "3.10 (Planetary Orbit)" },
-      { label: "Scale", val: "1,000,000,000 Nodes" },
-      { label: "Per-Node Wire", val: "Flat O(1) ~2.8 KB/s" },
-      { label: "Multiplicity Gate", val: "n_eff ≥ 3 (3.85) [GREEN]" },
-      { label: "Invariants", val: "X1–X5 ALL GREEN ✓" }
-    ],
     duration: 16
   }
 ];
@@ -1504,10 +1400,12 @@ function seedStoryNodes(){
   for (let i=0; i<SEED_NODES.length && i<W.n; i++){
     W.lat[i] = SEED_NODES[i].lat;
     W.lon[i] = SEED_NODES[i].lon;
+    W.isSeat[i] = 1;
   }
   for (let i=0; i<REGIONAL_CLUSTER.length && (12+i)<W.n; i++){
     W.lat[12+i] = REGIONAL_CLUSTER[i].lat;
     W.lon[12+i] = REGIONAL_CLUSTER[i].lon;
+    if (i % 2 === 0) W.isSeat[12+i] = 1;
   }
   uploadPoints();
 }
@@ -1522,7 +1420,7 @@ const STORY_CAPTIONS = [
     "<b>Whole-chunk sharing:</b> Sealed chunks attested by <code>custody:ack:v1</code> reach <b>n_eff ≥ 3 ✓</b> (<b>X4</b>)"
   ],
   [
-    "<b>10k → 250k Nodes:</b> Communities connect; single-publisher ALM relay tree (<b>k ≤ 8</b>, 0 seat hubs)",
+    "<b>10k → 250k Nodes:</b> Communities connect; single-publisher ALM relay tree (sim <b>k ≤ 8</b>, 0 seat hubs)",
     "<b>Level-1 Holons:</b> <code>L ≤ 8</code> shaped links &amp; sticky guards mask traffic at +0 extra bytes"
   ],
   [
@@ -1569,53 +1467,51 @@ function storySetupAct(actIx){
     });
   }
 
+  const nowSec = getTime();
   if (actIx === 0) {
-    activeArcs = [];
-    arcCount = 0;
     seedStoryNodes();
-    if (W && W.n >= 2) {
-      addArc(0, 1, getTime());
+    if (W && W.n >= 12) {
+      for (let i = 1; i < 6; i++) addArc(0, i | (1 << 28), nowSec);
+      addArc(1, 2 | (2 << 28), nowSec);
+      addArc(2, 3 | (1 << 28), nowSec);
       arcsNeedUpload = true;
+      pruneAndPackArcs(nowSec);
     }
   } else if (actIx === 1) {
-    activeArcs = [];
-    arcCount = 0;
     if (W) {
-      for (let i = 1; i < Math.min(20, W.n); i++) {
-        addArc(0, i, getTime());
-        if (i % 3 === 0 && i + 1 < W.n) addArc(i, i + 1, getTime());
+      for (let i = 1; i < Math.min(28, W.n); i++) {
+        addArc(i % 6, i | ((i % 3) << 28), nowSec);
+        if (i + 1 < W.n) addArc(i, (i + 1) | (2 << 28), nowSec);
       }
       arcsNeedUpload = true;
+      pruneAndPackArcs(nowSec);
     }
   } else if (actIx === 2) {
-    activeArcs = [];
-    arcCount = 0;
     if (W) {
       for (let i = 1; i <= 8 && i < W.n; i++) {
-        addArc(0, i * 4, getTime());
-        for (let j = 1; j <= 3 && (i * 4 + j) < W.n; j++) {
-          addArc(i * 4, i * 4 + j, getTime());
+        addArc(0, (i * 3) | (2 << 28), nowSec);
+        for (let j = 1; j <= 3 && (i * 3 + j) < W.n; j++) {
+          addArc(i * 3, (i * 3 + j) | (1 << 28), nowSec);
         }
       }
       arcsNeedUpload = true;
+      pruneAndPackArcs(nowSec);
     }
   } else if (actIx === 3) {
-    activeArcs = [];
-    arcCount = 0;
     if (W) {
-      for (let i = 0; i < Math.min(28, W.n); i += 2) {
-        addArc(i, (i + 6) % W.n, getTime());
+      for (let i = 0; i < Math.min(36, W.n); i += 2) {
+        addArc(i, ((i + 7) % W.n) | (3 << 28), nowSec);
       }
       arcsNeedUpload = true;
+      pruneAndPackArcs(nowSec);
     }
   } else if (actIx === 4) {
-    activeArcs = [];
-    arcCount = 0;
     if (W) {
-      for (let i = 0; i < Math.min(48, W.n); i += 3) {
-        addArc(i, (i + 14) % W.n, getTime());
+      for (let i = 0; i < Math.min(60, W.n); i += 2) {
+        addArc(i, ((i + 17) % W.n) | ((i % 4) << 28), nowSec);
       }
       arcsNeedUpload = true;
+      pruneAndPackArcs(nowSec);
     }
   }
 
@@ -1629,64 +1525,52 @@ function storyTickAct(actIx, dt) {
   if (!act) return;
 
   if (actIx === 0) {
-    act[0] = 255;
-    act[1] = 255;
-    const progress = Math.min(1.0, storyActElapsed / 4.0);
+    const progress = Math.min(1.0, storyActElapsed / 5.0);
     const activeSeedCount = 2 + Math.floor(progress * 10);
-    for (let i = 2; i < activeSeedCount && i < W.n; i++) {
-      act[i] = 190 + Math.floor(Math.sin(nowSec * 5 + i) * 55);
+    for (let i = 0; i < activeSeedCount && i < W.n; i++) {
+      act[i] = 255;
     }
-    for (let i = activeSeedCount; i < Math.min(W.n, 350); i++) {
-      act[i] = 0;
-    }
-    if (Math.floor(nowSec * 1.5) !== Math.floor((nowSec - dt) * 1.5)) {
-      addArc(0, 1, nowSec);
-      if (activeSeedCount > 2) {
-        const randDev = 2 + Math.floor(Math.random() * (activeSeedCount - 2));
-        addArc(0, randDev, nowSec);
-      }
+    if (Math.floor(nowSec * 3.0) !== Math.floor((nowSec - dt) * 3.0)) {
+      const a = Math.floor(Math.random() * activeSeedCount);
+      const b = (a + 1 + Math.floor(Math.random() * Math.max(1, activeSeedCount - 1))) % activeSeedCount;
+      addArc(a, b | ((1 + (a % 2)) << 28), nowSec);
       arcsNeedUpload = true;
     }
   } else if (actIx === 1) {
-    const metroCap = Math.min(W.n, 500);
-    for (let i = 0; i < metroCap; i += 4) {
-      act[i] = Math.max(act[i], 160 + Math.floor(Math.sin(nowSec * 4 + i) * 80));
+    const metroCap = Math.min(W.n, 40);
+    for (let i = 0; i < metroCap; i++) {
+      act[i] = 245;
     }
-    if (Math.floor(nowSec * 2.0) !== Math.floor((nowSec - dt) * 2.0)) {
-      const src = Math.floor(Math.random() * Math.min(100, W.n));
-      const dst = Math.floor(Math.random() * metroCap);
-      if (src !== dst) addArc(src, dst, nowSec);
+    if (Math.floor(nowSec * 4.0) !== Math.floor((nowSec - dt) * 4.0)) {
+      const src = Math.floor(Math.random() * 12);
+      const dst = 1 + Math.floor(Math.random() * (metroCap - 1));
+      if (src !== dst) addArc(src, dst | (2 << 28), nowSec);
       arcsNeedUpload = true;
     }
   } else if (actIx === 2) {
     const kNodes = Math.min(W.n, 2000);
-    for (let i = 0; i < kNodes; i += 8) {
-      act[i] = Math.max(act[i], 150 + Math.floor(Math.cos(nowSec * 3 + i) * 75));
+    for (let i = 0; i < kNodes; i += 6) {
+      act[i] = Math.max(act[i], 220);
     }
-    if (Math.floor(nowSec * 2.5) !== Math.floor((nowSec - dt) * 2.5)) {
-      const src = Math.floor(Math.random() * 8);
-      const dst = 8 + Math.floor(Math.random() * 64);
-      if (dst < W.n) addArc(src, dst, nowSec);
+    if (Math.floor(nowSec * 4.5) !== Math.floor((nowSec - dt) * 4.5)) {
+      const src = Math.floor(Math.random() * 12);
+      const dst = 12 + Math.floor(Math.random() * 28);
+      if (dst < W.n) addArc(src, dst | (1 << 28), nowSec);
       arcsNeedUpload = true;
     }
   } else if (actIx === 3) {
-    const isDrill = (storyActElapsed >= 3.5 && storyActElapsed <= 9.0);
-    const faultNode = Math.floor(W.n * 0.15);
-    if (isDrill) {
-      act[faultNode] = 255;
-      for (let k = 1; k < 6; k++) act[(faultNode + k) % W.n] = 240;
-    }
-    if (Math.floor(nowSec * 2.2) !== Math.floor((nowSec - dt) * 2.2)) {
-      const src = Math.floor(Math.random() * W.n);
-      const dst = (src + 10 + Math.floor(Math.random() * 50)) % W.n;
-      addArc(src, dst, nowSec);
+    for (let i = 0; i < Math.min(40, W.n); i++) act[i] = 255;
+    if (Math.floor(nowSec * 4.0) !== Math.floor((nowSec - dt) * 4.0)) {
+      const src = Math.floor(Math.random() * 40);
+      const dst = (src + 5 + Math.floor(Math.random() * 50)) % W.n;
+      addArc(src, dst | (3 << 28), nowSec);
       arcsNeedUpload = true;
     }
   } else if (actIx === 4) {
-    if (Math.floor(nowSec * 3.0) !== Math.floor((nowSec - dt) * 3.0)) {
+    if (Math.floor(nowSec * 5.0) !== Math.floor((nowSec - dt) * 5.0)) {
       const src = Math.floor(Math.random() * W.n);
       const dst = (src + Math.floor(W.n / 3) + Math.floor(Math.random() * 100)) % W.n;
-      addArc(src, dst, nowSec);
+      addArc(src, dst | ((src % 4) << 28), nowSec);
       arcsNeedUpload = true;
     }
   }
