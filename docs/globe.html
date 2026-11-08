@@ -839,10 +839,10 @@ function tickJs(acts){
 const cv=document.getElementById("c"); const gl=cv.getContext("webgl",{antialias:true,alpha:false});
 function sh(t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s); return s; }
 function prog(v,f){ const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,v)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f)); gl.linkProgram(p); return p; }
-const PV=`attribute vec3 p;attribute float a;attribute float k;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float dpr;uniform float uTime;varying float va;varying float vk;varying float vz;
-void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);float ph=fract(sin(dot(p,vec3(12.9898,78.233,45.164)))*43758.5453);float shimmer=0.82+0.18*sin(uTime*3.1+ph*6.2831853);va=a*shimmer;vk=k;float base=(k>0.5)?3.8:(S>2.0?2.2:1.45);gl_PointSize=(base+va*0.65)*dpr;}`;
-const PF=`precision mediump float;varying float va;varying float vk;varying float vz;
-void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;vec2 pc=gl_PointCoord-vec2(0.5);float d2=dot(pc,pc);if(d2>0.25)discard;float circle=smoothstep(0.25,0.06,d2);vec3 base=(vk>0.5)?vec3(0.42,0.71,1.0):vec3(0.34,0.39,0.50);vec3 hot=vec3(1.0,0.69,0.36);vec3 flare=vec3(1.0,0.94,0.82);vec3 c=mix(base,hot,smoothstep(0.0,0.72,va));c=mix(c,flare,smoothstep(0.72,1.0,va));float depth=0.55+0.45*max(0.0,vz);float al=(vk>0.5?0.92:(0.40+0.55*va))*edge*circle;gl_FragColor=vec4(c*depth,al);}`;
+const PV=`attribute vec3 p;attribute float a;attribute float k;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float dpr;uniform float uTime;uniform float uStory;uniform float uStoryCos;uniform float uStoryDensity;uniform vec3 uSeedDir;varying float va;varying float vk;varying float vz;
+void main(){float ph=fract(sin(dot(p,vec3(12.9898,78.233,45.164)))*43758.5453);float shimmer=0.82+0.18*sin(uTime*3.1+ph*6.2831853);float effA=a;if(uStory>0.5){float c=dot(p,uSeedDir);if(c>=uStoryCos&&ph<=uStoryDensity){float wave=smoothstep(uStoryCos,uStoryCos+0.04,c);float glow=(k>0.5?0.74:0.48)*wave;if(glow>effA)effA=glow;}if(effA<0.004){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}}vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);va=effA*shimmer;vk=k;float base=(k>0.5)?3.8:(S>2.0?2.2:1.45);float storyBoost=(uStory>0.5)?(S>1.5?2.8:0.8):0.0;gl_PointSize=(base+storyBoost+va*0.85)*dpr;}`;
+const PF=`precision mediump float;uniform float uStory;varying float va;varying float vk;varying float vz;
+void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;vec2 pc=gl_PointCoord-vec2(0.5);float d2=dot(pc,pc);if(d2>0.25)discard;float circle=smoothstep(0.25,0.06,d2);vec3 base=(vk>0.5)?vec3(0.42,0.71,1.0):vec3(0.36,0.52,0.74);vec3 hot=vec3(1.0,0.69,0.36);vec3 flare=vec3(1.0,0.94,0.82);vec3 c=mix(base,hot,smoothstep(0.32,0.76,va));c=mix(c,flare,smoothstep(0.76,1.0,va));float depth=0.55+0.45*max(0.0,vz);float rawAl=(uStory>0.5)?(smoothstep(0.0,0.22,va)*(vk>0.5?0.98:0.90)):(vk>0.5?0.92:(0.40+0.55*va));float al=rawAl*edge*circle;gl_FragColor=vec4(c*depth,al);}`;
 const LV=`attribute vec3 p;attribute vec4 param;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float uTime;varying float vt;varying float vAge;varying float vz;varying float vTier;
 void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);vt=param.x;vAge=(uTime-param.y)/param.z;vTier=param.w;}`;
 const LF=`precision mediump float;varying float vt;varying float vAge;varying float vz;varying float vTier;
@@ -855,7 +855,7 @@ vec3 col=mix(colBase,colMid,tail);col=mix(col,colHead,clamp(head*1.1,0.0,1.0));g
 const DV=`attribute vec2 p;uniform float S;uniform vec2 asp;varying vec2 vPos;void main(){vPos=p*1.05;gl_Position=vec4(vPos.x*S*asp.x,vPos.y*S*asp.y,0.95,1.0);}`;
 const DF=`precision mediump float;varying vec2 vPos;void main(){float r=length(vPos);if(r>1.05)discard;if(r<=1.0){float z=sqrt(max(0.0,1.0-r*r));vec3 deep=vec3(0.038,0.046,0.064);vec3 rimColor=vec3(0.18,0.36,0.58);float rim=pow(1.0-z,2.6);vec3 col=deep+rimColor*(rim*0.50);gl_FragColor=vec4(col,1.0);}else{float halo=smoothstep(1.05,1.0,r)*0.22;vec3 haloCol=vec3(0.16,0.34,0.56);gl_FragColor=vec4(haloCol*halo,halo);}}`;
 const CV=`attribute vec3 p;uniform mat3 R;uniform float S;uniform vec2 asp;varying float vz;void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);}`;
-const CF=`precision mediump float;varying float vz;void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;gl_FragColor=vec4(0.24,0.34,0.48,0.65*edge);}`;
+const CF=`precision mediump float;varying float vz;void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;gl_FragColor=vec4(0.30,0.46,0.66,0.78*edge);}`;
 const pP=prog(PV,PF), pL=prog(LV,LF), pD=prog(DV,DF), pC=prog(CV,CF);
 let posBuf=gl.createBuffer(), actBuf=gl.createBuffer(), kindBuf=gl.createBuffer(), discBuf=gl.createBuffer(), coastBuf=gl.createBuffer();
 let linePosBuf=gl.createBuffer(), lineParamBuf=gl.createBuffer();
@@ -886,6 +886,8 @@ const startTime=performance.now(); const getTime=()=>(performance.now()-startTim
 let yaw=8.54*Math.PI/180, pitch=47.37*Math.PI/180, zoom=2.35, targetZoom=2.35, velYaw=0, velPitch=0, drag=null, lastTouchTime=performance.now(), npts=0;
 let storyCamDist=1.35, storyTargetCamDist=1.35, storyTargetYaw=8.54*Math.PI/180, storyTargetPitch=47.37*Math.PI/180, storyTargetZoom=2.35;
 let storyActive=true, storyPaused=false, storyCurrentAct=0, storyActElapsed=0, storyMinimized=false;
+let uStoryCosVal=2.0, uStoryDensityVal=0.0;
+const seedOriginXyz=(()=>{ const a=47.3769*Math.PI/180, o=8.5417*Math.PI/180; return new Float32Array([Math.cos(a)*Math.sin(o), Math.sin(a), Math.cos(a)*Math.cos(o)]); })();
 function xyz(la,lo){ const a=la*Math.PI/180, o=lo*Math.PI/180; return [Math.cos(a)*Math.sin(o), Math.sin(a), Math.cos(a)*Math.cos(o)]; }
 function uploadPoints(){ const n=W.n; const p=new Float32Array(n*3); for (let i=0;i<n;i++){ const v=xyz(W.lat[i],W.lon[i]); p[i*3]=v[0];p[i*3+1]=v[1];p[i*3+2]=v[2]; } gl.bindBuffer(gl.ARRAY_BUFFER,posBuf); gl.bufferData(gl.ARRAY_BUFFER,p,gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER,kindBuf); gl.bufferData(gl.ARRAY_BUFFER,W.isSeat,gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferData(gl.ARRAY_BUFFER,new Uint8Array(n),gl.DYNAMIC_DRAW); npts=n; }
 function addArc(signer,packedTarget,nowSec){
@@ -960,6 +962,10 @@ function draw(){
     const cp=gl.getAttribLocation(pC,"p"); gl.bindBuffer(gl.ARRAY_BUFFER,coastBuf); gl.enableVertexAttribArray(cp); gl.vertexAttribPointer(cp,3,gl.FLOAT,false,0,0);
     gl.drawArrays(gl.LINES,0,coastVerts); }
   if (npts){ gl.useProgram(pP); gl.uniformMatrix3fv(gl.getUniformLocation(pP,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pP,"S"),S); gl.uniform2fv(gl.getUniformLocation(pP,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pP,"dpr"),dpr); gl.uniform1f(gl.getUniformLocation(pP,"uTime"),nowSec);
+    gl.uniform1f(gl.getUniformLocation(pP,"uStory"),storyActive?1.0:0.0);
+    gl.uniform1f(gl.getUniformLocation(pP,"uStoryCos"),uStoryCosVal);
+    gl.uniform1f(gl.getUniformLocation(pP,"uStoryDensity"),uStoryDensityVal);
+    gl.uniform3fv(gl.getUniformLocation(pP,"uSeedDir"),seedOriginXyz);
     const ap=gl.getAttribLocation(pP,"p"), aa=gl.getAttribLocation(pP,"a"), ak=gl.getAttribLocation(pP,"k");
     gl.bindBuffer(gl.ARRAY_BUFFER,posBuf); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.enableVertexAttribArray(aa); gl.vertexAttribPointer(aa,1,gl.UNSIGNED_BYTE,true,0,0);
@@ -1281,7 +1287,10 @@ function tick(){
     $("s_baselines").textContent = "CDN " + (b1/cewp).toFixed(1) + "× · SFU " + (b2/cewp).toFixed(1) + "× · P2P " + (b3/cewp).toFixed(1) + "×";
   }
 
-  lastActivity=res.activity; recordActiveBlocks(); gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,lastActivity); setArcs(res.arcs);
+  lastActivity=res.activity; recordActiveBlocks();
+  if (!storyActive) {
+    gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,lastActivity); setArcs(res.arcs);
+  }
 }
 function decay(){
   if (!lastActivity||activeBlocks.length===0) return; const a=lastActivity; const u32=new Uint32Array(a.buffer,a.byteOffset,a.byteLength>>>2);
@@ -1328,10 +1337,10 @@ const STORY_ACTS = [
     title: "Act I: Self-Certifying First Contact (T0 → T2)",
     scenario: "CSD/4 T0 → T1 → T2 · CC 2.6.8 · CSD-104",
     camDist: 1.35,
-    targetZoom: 2.35,
+    targetZoom: 2.25,
     yaw: 8.54 * Math.PI / 180,
     pitch: 47.37 * Math.PI / 180,
-    scaleNodes: "2 → 12 Nodes",
+    scaleNodes: "0 → 2 → 12 Nodes",
     pop: 100,
     holonRes: "R4",
     holonLevel: "L0 Device Peer",
@@ -1342,7 +1351,7 @@ const STORY_ACTS = [
     title: "Act II: Community Quorum & Whole-Chunk Custody (T4 → T5)",
     scenario: "CSD/4 T4 → T5 · CC 6.1.5 · CC 6.1.2.1.2",
     camDist: 1.75,
-    targetZoom: 1.85,
+    targetZoom: 1.78,
     yaw: 9.5 * Math.PI / 180,
     pitch: 47.5 * Math.PI / 180,
     scaleNodes: "64 → 500 Nodes",
@@ -1356,9 +1365,9 @@ const STORY_ACTS = [
     title: "Act III: Member Relay Trees & Level-1 Holons (T9 → T15)",
     scenario: "CSD/4 T6 → T9 → T15 · CC 6.1.6 · CC 5.4.6",
     camDist: 2.25,
-    targetZoom: 1.42,
+    targetZoom: 1.36,
     yaw: 12.0 * Math.PI / 180,
-    pitch: 42.0 * Math.PI / 180,
+    pitch: 41.0 * Math.PI / 180,
     scaleNodes: "10k → 250k Nodes",
     pop: 250000,
     holonRes: "R3",
@@ -1370,9 +1379,9 @@ const STORY_ACTS = [
     title: "Act IV: 10M Nodes & Constitutional Containment (T8 / T10 / X1–X2)",
     scenario: "CSD/4 T8 / T10 / T19 · CIRISHolon L2 · X1–X2",
     camDist: 2.65,
-    targetZoom: 1.12,
-    yaw: -15.0 * Math.PI / 180,
-    pitch: 30.0 * Math.PI / 180,
+    targetZoom: 1.08,
+    yaw: -16.0 * Math.PI / 180,
+    pitch: 26.0 * Math.PI / 180,
     scaleNodes: "10,000,000 Nodes",
     pop: 10000000,
     holonRes: "R1",
@@ -1386,7 +1395,7 @@ const STORY_ACTS = [
     camDist: 3.10,
     targetZoom: 0.96,
     yaw: 0.0,
-    pitch: 18.0 * Math.PI / 180,
+    pitch: 16.0 * Math.PI / 180,
     scaleNodes: "1,000,000,000 Nodes",
     pop: 1000000000,
     holonRes: "R0",
@@ -1394,6 +1403,12 @@ const STORY_ACTS = [
     duration: 16
   }
 ];
+
+let storyActivity = null;
+let storyRingSample = Array.from({length: 180}, () => []);
+let storyCommunityNodes = [];
+let storyLitSeeds = 0;
+let storyLitComm = 0;
 
 function seedStoryNodes(){
   if (!W || W.n < 12) return;
@@ -1407,29 +1422,58 @@ function seedStoryNodes(){
     W.lon[12+i] = REGIONAL_CLUSTER[i].lon;
     if (i % 2 === 0) W.isSeat[12+i] = 1;
   }
+  storyActivity = new Uint8Array(W.n);
+  storyRingSample = Array.from({length: 180}, () => []);
+  const commCandidates = [];
+  const z0 = seedOriginXyz;
+  for (let i=12; i<W.n; i++){
+    const v = xyz(W.lat[i], W.lon[i]);
+    const dot = Math.max(-1, Math.min(1, v[0]*z0[0] + v[1]*z0[1] + v[2]*z0[2]));
+    const angDeg = Math.acos(dot) * 180 / Math.PI;
+    const deg = Math.min(179, Math.max(1, Math.floor(angDeg)));
+    if (storyRingSample[deg].length < 48) storyRingSample[deg].push(i);
+    if (i < 40) {
+      commCandidates.push({ idx: i, ang: angDeg * 0.25 });
+    } else if (angDeg <= 12.5 && commCandidates.length < 520) {
+      commCandidates.push({ idx: i, ang: angDeg });
+    }
+  }
+  commCandidates.sort((a, b) => a.ang - b.ang);
+  storyCommunityNodes = commCandidates.slice(0, 488).map(c => c.idx);
   uploadPoints();
+}
+
+function pickRingNode(minDeg, maxDeg) {
+  const lo = Math.max(1, Math.min(179, Math.floor(minDeg)));
+  const hi = Math.max(lo, Math.min(179, Math.floor(maxDeg)));
+  for (let tries = 0; tries < 8; tries++) {
+    const d = lo + Math.floor(Math.random() * (hi - lo + 1));
+    const ring = storyRingSample[d];
+    if (ring && ring.length > 0) return ring[Math.floor(Math.random() * ring.length)];
+  }
+  return Math.floor(Math.random() * Math.min(W ? W.n : 12, 40));
 }
 
 const STORY_CAPTIONS = [
   [
-    "<b>2 → 12 Nodes:</b> Two peers exchange <code>ciris://id</code> FedCodes — zero central directory",
-    "<b>CSD-104 verified:</b> Bilateral link sealed at lower-of-offers (<b>X3 consent ✓</b>)"
+    "<b>Silent globe → First Contact:</b> Two peers exchange <code>ciris://id</code> FedCodes",
+    "<b>2 → 12 Nodes (CSD-104):</b> First neighbors &amp; self-rosters (<b>CC 3.3.6.3</b>) light up"
   ],
   [
-    "<b>64 → 500 Nodes:</b> Neighbors form a community via <code>group:roster</code> quorum (&gt; num·base/den)",
-    "<b>Whole-chunk sharing:</b> Sealed chunks attested by <code>custody:ack:v1</code> reach <b>n_eff ≥ 3 ✓</b> (<b>X4</b>)"
+    "<b>64 → 500 Nodes:</b> A community lights up via <code>group:roster</code> quorum (&gt; num·base/den)",
+    "<b>Whole-chunk sharing:</b> Sealed chunks attested by <code>custody:ack:v1</code> reach <b>n_eff ≥ 3 ✓</b>"
   ],
   [
-    "<b>10k → 250k Nodes:</b> Communities connect; single-publisher ALM relay tree (sim <b>k ≤ 8</b>, 0 seat hubs)",
-    "<b>Level-1 Holons:</b> <code>L ≤ 8</code> shaped links &amp; sticky guards mask traffic at +0 extra bytes"
+    "<b>10k → 250k Nodes:</b> Communities connect; single-publisher ALM relay trees fan out",
+    "<b>Level-1 Holons:</b> <code>L ≤ 8</code> shaped links &amp; 2 sticky guards mask traffic at +0 extra bytes"
   ],
   [
-    "<b>10M Nodes (L2 Holons):</b> <code>accord_halt</code> (T8) &amp; key-evict (T10) drill contained locally (<b>X1/X2 ✓</b>)",
+    "<b>10M Nodes (L2 Holons):</b> Continents bridge; <code>accord_halt</code> contained locally (<b>X1/X2 ✓</b>)",
     "<b>Certified Multiscale:</b> Coarsened holons hold commuting defect <b>Dv² ≤ 0.03</b> &amp; <b>K ≤ 1.05 ✓</b>"
   ],
   [
-    "<b>1B Planetary Mesh (L3):</b> Per-node bandwidth stays flat <b>~2.8 KB/s</b> from 100 to 1B nodes",
-    "<b>Universal Bootstrap:</b> Any web client joins via <code>ciris://r/&lt;root&gt;</code> (<b>Invariants X1–X5 ✓</b>)"
+    "<b>1B Planetary Mesh (L3):</b> The whole Earth lights up at flat <b>~2.8 KB/s</b> per node",
+    "<b>Universal Bootstrap:</b> Any client joins via <code>ciris://r/&lt;root&gt;</code> (<b>Invariants X1–X5 ✓</b>)"
   ]
 ];
 
@@ -1467,116 +1511,182 @@ function storySetupAct(actIx){
     });
   }
 
+  if (W) tick(); // refresh telemetry panels without overwriting story globe buffers
+  if (!storyActivity || (W && storyActivity.length !== W.n)) {
+    if (W) seedStoryNodes();
+  }
+
   const nowSec = getTime();
   if (actIx === 0) {
-    seedStoryNodes();
-    if (W && W.n >= 12) {
-      for (let i = 1; i < 6; i++) addArc(0, i | (1 << 28), nowSec);
-      addArc(1, 2 | (2 << 28), nowSec);
-      addArc(2, 3 | (1 << 28), nowSec);
-      arcsNeedUpload = true;
-      pruneAndPackArcs(nowSec);
+    // Start 100% silent: 0 lit nodes, 0 arcs
+    uStoryCosVal = 2.0;
+    uStoryDensityVal = 0.0;
+    storyLitSeeds = 0;
+    storyLitComm = 0;
+    activeArcs.length = 0;
+    arcCount = 0;
+    arcsNeedUpload = true;
+    if (storyActivity) {
+      storyActivity.fill(0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, actBuf);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, storyActivity);
     }
+    pruneAndPackArcs(nowSec);
   } else if (actIx === 1) {
-    if (W) {
-      for (let i = 1; i < Math.min(28, W.n); i++) {
-        addArc(i % 6, i | ((i % 3) << 28), nowSec);
-        if (i + 1 < W.n) addArc(i, (i + 1) | (2 << 28), nowSec);
-      }
-      arcsNeedUpload = true;
-      pruneAndPackArcs(nowSec);
+    uStoryCosVal = 2.0;
+    uStoryDensityVal = 0.0;
+    storyLitSeeds = 12;
+    storyLitComm = 0;
+    if (storyActivity) {
+      storyActivity.fill(0);
+      for (let i = 0; i < 12 && i < storyActivity.length; i++) storyActivity[i] = 255;
+      gl.bindBuffer(gl.ARRAY_BUFFER, actBuf);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, storyActivity);
     }
   } else if (actIx === 2) {
-    if (W) {
-      for (let i = 1; i <= 8 && i < W.n; i++) {
-        addArc(0, (i * 3) | (2 << 28), nowSec);
-        for (let j = 1; j <= 3 && (i * 3 + j) < W.n; j++) {
-          addArc(i * 3, (i * 3 + j) | (1 << 28), nowSec);
-        }
-      }
-      arcsNeedUpload = true;
-      pruneAndPackArcs(nowSec);
+    uStoryCosVal = Math.cos(10 * Math.PI / 180);
+    uStoryDensityVal = 0.08;
+    if (storyActivity) {
+      for (let i = 0; i < 12 && i < storyActivity.length; i++) storyActivity[i] = 255;
+      for (let i = 0; i < storyCommunityNodes.length; i++) storyActivity[storyCommunityNodes[i]] = 225;
+      gl.bindBuffer(gl.ARRAY_BUFFER, actBuf);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, storyActivity);
     }
   } else if (actIx === 3) {
-    if (W) {
-      for (let i = 0; i < Math.min(36, W.n); i += 2) {
-        addArc(i, ((i + 7) % W.n) | (3 << 28), nowSec);
-      }
-      arcsNeedUpload = true;
-      pruneAndPackArcs(nowSec);
-    }
+    uStoryCosVal = Math.cos(48 * Math.PI / 180);
+    uStoryDensityVal = 0.42;
   } else if (actIx === 4) {
-    if (W) {
-      for (let i = 0; i < Math.min(60, W.n); i += 2) {
-        addArc(i, ((i + 17) % W.n) | ((i % 4) << 28), nowSec);
-      }
-      arcsNeedUpload = true;
-      pruneAndPackArcs(nowSec);
-    }
+    uStoryCosVal = Math.cos(118 * Math.PI / 180);
+    uStoryDensityVal = 0.78;
   }
 
   updateStoryUI();
 }
 
 function storyTickAct(actIx, dt) {
-  if (!W) return;
+  if (!W || !storyActivity) return;
   const nowSec = getTime();
-  const act = lastActivity || (useWasm && mem ? new Uint8Array(mem.buffer, bufs.activity, W.n) : jsActivity);
-  if (!act) return;
 
   if (actIx === 0) {
-    const progress = Math.min(1.0, storyActElapsed / 5.0);
-    const activeSeedCount = 2 + Math.floor(progress * 10);
-    for (let i = 0; i < activeSeedCount && i < W.n; i++) {
-      act[i] = 255;
+    // 0.0s..0.8s: silent globe; 0.8s..2.1s: first 2 nodes spark & connect; 2.1s..12.5s: 2 -> 12 nodes light up one by one
+    uStoryCosVal = 2.0;
+    uStoryDensityVal = 0.0;
+    let targetSeeds = 0;
+    if (storyActElapsed >= 0.8 && storyActElapsed < 2.1) {
+      targetSeeds = 2;
+    } else if (storyActElapsed >= 2.1) {
+      targetSeeds = Math.min(12, 2 + Math.floor((storyActElapsed - 2.1) / 0.95));
     }
-    if (Math.floor(nowSec * 3.0) !== Math.floor((nowSec - dt) * 3.0)) {
-      const a = Math.floor(Math.random() * activeSeedCount);
-      const b = (a + 1 + Math.floor(Math.random() * Math.max(1, activeSeedCount - 1))) % activeSeedCount;
-      addArc(a, b | ((1 + (a % 2)) << 28), nowSec);
-      arcsNeedUpload = true;
+    let dirty = false;
+    while (storyLitSeeds < targetSeeds && storyLitSeeds < W.n) {
+      const idx = storyLitSeeds++;
+      storyActivity[idx] = 255;
+      dirty = true;
+      if (idx === 1) {
+        addArc(0, 1 | (1 << 28), nowSec);
+        addArc(1, 0 | (1 << 28), nowSec);
+        arcsNeedUpload = true;
+      } else if (idx >= 2) {
+        const p1 = (idx - 1) % idx;
+        const p2 = (idx * 3) % idx;
+        addArc(p1, idx | (1 << 28), nowSec);
+        if (p2 !== p1) addArc(p2, idx | (2 << 28), nowSec);
+        arcsNeedUpload = true;
+      }
+    }
+    if (dirty) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, actBuf);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, storyActivity.subarray(0, Math.min(W.n, 16)));
+    }
+    if (storyLitSeeds >= 2 && Math.floor(nowSec * 2.4) !== Math.floor((nowSec - dt) * 2.4)) {
+      const a = Math.floor(Math.random() * storyLitSeeds);
+      const b = (a + 1 + Math.floor(Math.random() * Math.max(1, storyLitSeeds - 1))) % storyLitSeeds;
+      if (a !== b) {
+        addArc(a, b | ((1 + (a % 2)) << 28), nowSec);
+        arcsNeedUpload = true;
+      }
     }
   } else if (actIx === 1) {
-    const metroCap = Math.min(W.n, 40);
-    for (let i = 0; i < metroCap; i++) {
-      act[i] = 245;
+    // 12 -> 500 community nodes light up radially across Europe with quorum & whole-chunk custody arcs
+    uStoryCosVal = 2.0;
+    uStoryDensityVal = 0.0;
+    const progress = Math.min(1.0, storyActElapsed / 11.5);
+    const targetComm = Math.min(storyCommunityNodes.length, Math.floor(progress * storyCommunityNodes.length));
+    let dirty = false;
+    while (storyLitComm < targetComm) {
+      const nodeIdx = storyCommunityNodes[storyLitComm++];
+      storyActivity[nodeIdx] = 225;
+      dirty = true;
+      if (storyLitComm % 10 === 0) {
+        const src = (storyLitComm < 40) ? (storyLitComm % 12) : storyCommunityNodes[Math.floor(Math.random() * (storyLitComm - 1))];
+        addArc(src, nodeIdx | (((storyLitComm % 3 === 0) ? 1 : 2) << 28), nowSec);
+        arcsNeedUpload = true;
+      }
     }
-    if (Math.floor(nowSec * 4.0) !== Math.floor((nowSec - dt) * 4.0)) {
-      const src = Math.floor(Math.random() * 12);
-      const dst = 1 + Math.floor(Math.random() * (metroCap - 1));
-      if (src !== dst) addArc(src, dst | (2 << 28), nowSec);
-      arcsNeedUpload = true;
+    if (dirty) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, actBuf);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, storyActivity);
+    }
+    if (storyLitComm > 4 && Math.floor(nowSec * 4.0) !== Math.floor((nowSec - dt) * 4.0)) {
+      const src = Math.random() < 0.45 ? Math.floor(Math.random() * 12) : storyCommunityNodes[Math.floor(Math.random() * storyLitComm)];
+      const dst = storyCommunityNodes[Math.floor(Math.random() * storyLitComm)];
+      if (src !== dst) {
+        addArc(src, dst | (2 << 28), nowSec);
+        arcsNeedUpload = true;
+      }
     }
   } else if (actIx === 2) {
-    const kNodes = Math.min(W.n, 2000);
-    for (let i = 0; i < kNodes; i += 6) {
-      act[i] = Math.max(act[i], 220);
-    }
-    if (Math.floor(nowSec * 4.5) !== Math.floor((nowSec - dt) * 4.5)) {
-      const src = Math.floor(Math.random() * 12);
-      const dst = 12 + Math.floor(Math.random() * 28);
-      if (dst < W.n) addArc(src, dst | (1 << 28), nowSec);
-      arcsNeedUpload = true;
+    // Wavefront expands 10 deg -> 48 deg (Europe, UK, Scandinavia, Mediterranean, North Africa, Middle East)
+    const progress = Math.min(1.0, storyActElapsed / 12.0);
+    const waveDeg = 10 + progress * 38;
+    uStoryCosVal = Math.cos(waveDeg * Math.PI / 180);
+    uStoryDensityVal = 0.08 + progress * 0.34;
+    if (Math.floor(nowSec * 5.0) !== Math.floor((nowSec - dt) * 5.0)) {
+      const src = waveDeg < 18 ? Math.floor(Math.random() * 12) : pickRingNode(1, waveDeg * 0.55);
+      for (let f = 0; f < 2; f++) {
+        const dst = pickRingNode(Math.max(2, waveDeg - 8), waveDeg);
+        if (src !== dst) {
+          addArc(src, dst | (((f === 0) ? 2 : 1) << 28), nowSec);
+          arcsNeedUpload = true;
+        }
+      }
     }
   } else if (actIx === 3) {
-    for (let i = 0; i < Math.min(40, W.n); i++) act[i] = 255;
-    if (Math.floor(nowSec * 4.0) !== Math.floor((nowSec - dt) * 4.0)) {
-      const src = Math.floor(Math.random() * 40);
-      const dst = (src + 5 + Math.floor(Math.random() * 50)) % W.n;
-      addArc(src, dst | (3 << 28), nowSec);
+    // Wavefront expands 48 deg -> 118 deg (crosses Atlantic to North & South America, spans Africa & South Asia)
+    const progress = Math.min(1.0, storyActElapsed / 12.0);
+    const waveDeg = 48 + progress * 70;
+    uStoryCosVal = Math.cos(waveDeg * Math.PI / 180);
+    uStoryDensityVal = 0.42 + progress * 0.36;
+    if (Math.floor(nowSec * 5.5) !== Math.floor((nowSec - dt) * 5.5)) {
+      const src = pickRingNode(3, Math.max(12, waveDeg * 0.45));
+      const dst = pickRingNode(Math.max(40, waveDeg - 18), waveDeg);
+      if (src !== dst) {
+        addArc(src, dst | (1 << 28), nowSec);
+        arcsNeedUpload = true;
+      }
+      // Localized accord_halt (T8) / key-evict (T10) containment drill in one holon cluster
+      const cSrc = Math.floor(Math.random() * 28);
+      const cDst = (cSrc + 1 + Math.floor(Math.random() * 10)) % 28;
+      addArc(cSrc, cDst | (3 << 28), nowSec);
       arcsNeedUpload = true;
     }
   } else if (actIx === 4) {
-    if (Math.floor(nowSec * 5.0) !== Math.floor((nowSec - dt) * 5.0)) {
-      const src = Math.floor(Math.random() * W.n);
-      const dst = (src + Math.floor(W.n / 3) + Math.floor(Math.random() * 100)) % W.n;
-      addArc(src, dst | ((src % 4) << 28), nowSec);
-      arcsNeedUpload = true;
+    // Wavefront completes 118 deg -> 180 deg (East Asia, SE Asia, Australia) -> 100% planetary mesh lit
+    const progress = Math.min(1.0, storyActElapsed / 5.0);
+    const waveDeg = 118 + progress * 62;
+    uStoryCosVal = progress >= 1.0 ? -1.05 : Math.cos(waveDeg * Math.PI / 180);
+    uStoryDensityVal = 0.78 + progress * 0.22;
+    if (Math.floor(nowSec * 6.5) !== Math.floor((nowSec - dt) * 6.5)) {
+      for (let k = 0; k < 2; k++) {
+        const src = pickRingNode(1, Math.min(179, waveDeg));
+        const dst = pickRingNode(1, Math.min(179, waveDeg));
+        if (src !== dst) {
+          addArc(src, dst | (((src + k) % 4) << 28), nowSec);
+          arcsNeedUpload = true;
+        }
+      }
     }
   }
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, actBuf);
-  gl.bufferSubData(gl.ARRAY_BUFFER, 0, act);
 }
 
 function startStoryMode(){
@@ -1595,10 +1705,13 @@ function startStoryMode(){
 
 function exitStoryMode(){
   storyActive = false;
+  uStoryCosVal = -1.05;
+  uStoryDensityVal = 1.0;
   if ($("story-hud")) $("story-hud").classList.add("panel-hidden");
   document.querySelectorAll(".nav-story-btn, .fab-story, .btn-story-main").forEach(b => b.classList.remove("active"));
   targetZoom = 1.0;
   storyTargetCamDist = 3.10;
+  if (W) tick();
 }
 
 function initStoryMode(){
@@ -1655,16 +1768,18 @@ function loop(){
       }
     }
     storyTickAct(storyCurrentAct, 0.016);
-  } else if (!drag){
-    velYaw*=0.93; velPitch*=0.93;
-    if (Math.abs(velYaw)>0.00002) yaw+=velYaw;
-    if (Math.abs(velPitch)>0.00002) pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch));
-    const idle=now-lastTouchTime;
-    if (idle>3000){ const blend=Math.min(1.0,(idle-3000)/2000); yaw+=0.0016*blend; }
+  } else {
+    if (!drag){
+      velYaw*=0.93; velPitch*=0.93;
+      if (Math.abs(velYaw)>0.00002) yaw+=velYaw;
+      if (Math.abs(velPitch)>0.00002) pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch));
+      const idle=now-lastTouchTime;
+      if (idle>3000){ const blend=Math.min(1.0,(idle-3000)/2000); yaw+=0.0016*blend; }
+    }
+    if (playing && now-lastTickTime>=120){ lastTickTime=now; tick(); }
+    decay();
   }
   zoom+=(targetZoom-zoom)*0.12;
-  if (playing && now-lastTickTime>=120){ lastTickTime=now; tick(); }
-  decay();
   if (frame%4===0) pruneAndPackArcs(getTime());
   draw(); frame++; requestAnimationFrame(loop);
 }
