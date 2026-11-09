@@ -13,6 +13,70 @@ an AI governance / superalignment platform — built on the bet that
 - [**A mesh run by its kernel**](https://cirisai.github.io/CEWP/mesh.html) — people and their devices as cells, rows as signals travelling one hop per tick, every node folding what it holds with the same order-free function; click any node for its owner's queue and a preview that equals execution. Driven by [`docs/kernel/kernel.js`](docs/kernel/kernel.js) (one file, zero dependencies) over the constitution's own tables (`node --test docs/kernel/kernel.test.js`).
 - [**Interactive scaling & slot-supply toy**](https://cirisai.github.io/CEWP/toy/) — per-server feasibility gates (`1 TB / 1 Gbps / 1 core`), 8 Constitutional opt-in trade-offs (`+` benefit / `−` downside), reachable-home share input, and 1-hop shaped onion cover capacity.
 
+## What is new here
+
+CIRIS starts from a relational ontology. Nothing on the network is a thing with a
+state of its own. A person is a key and the roster of keys that person holds; a group
+is the consents and acceptances between its members; an authority is a delegation
+that narrows as it passes; a steward is a bond; the halt is the relation between
+maker and made, kept symmetric. Every one of these is a signed row from one key about
+another, and every state is read from the rows a node holds, never stored beside
+them. Applied to architecture and engineering, that one premise yields four
+properties that earlier systems treated as a choice between them.
+
+1. **One signed row.** Identity, device pairing, contacts, rooms, quorums, moderation,
+   agent charters and the halt itself travel as the same canonical hybrid-signed row
+   (Ed25519 + ML-DSA-65), in five closed kinds. Frames, sealed chunks and onion
+   packets carry rows; they are not rows.
+2. **The rules are data.** The legal transitions of every family of row, 191 families
+   under 12 typed governance policies, are one table. The table generates the
+   conformance vectors (1,256 for the namespace, 732 for the policies) and the model
+   instances for the policy corridor, and it is the input the CEWP kernel runs. The
+   shipping implementations are measured against the same table through the evidence
+   register.
+3. **The queue is the door.** Whether a row is admitted at a node's boundary, what a
+   user or agent may do next, and what an act would change if signed are one function
+   run three ways, and the equivalence is a checked theorem of the kernel.
+4. **No consensus protocol.** No node runs Paxos, Raft or proof of stake. Every node
+   admits verifiable rows in any order and folds the set it holds; two nodes holding
+   the same rows reach the same state and the same queues, checked over hundreds of
+   arrival orders and partition splits. Windows run per node, so nodes agree once
+   their windows close.
+
+## Why it was not done before
+
+**Shared state was solved with a thing in the middle.** For fifteen years the field
+reached for a global total order, a ledger, or a server. Both put an object between the
+relations. A total order is needed only where one scarce thing must not be spent
+twice. Social, organizational and AI governance is scoped to the relation it governs,
+self, family, community, root, so a household's roster needs no validator anywhere else.
+
+**Authorization and replication were kept apart.** Earlier work on access control over
+replicated data resolved the ordering problem inside a server or a total order. Here a
+row whose dependency has not arrived is held, not refused, and folds when the
+dependency lands.
+
+**Protocols were written as prose.** Federation protocols were specified in English
+and implemented independently in imperative code. Here the transitions are a table
+that the formal models, the conformance vectors and the kernel all read.
+
+**The hardware caught up.** Hybrid post-quantum signatures on phones, constant-rate
+shaped links at eight per device, and machine-checked models of a 242-state design
+across a 20-topology catalogue became practical only recently.
+
+## What the simulations show
+
+Run at one-to-one over the real internet topology at the committed size, five billion
+people on eleven billion devices, about nine of every ten signed acts never leave the
+signer's locality, every shaped slot the fleet asks for is seated in each of the three
+fleet regimes, and no datacenter is required. In simulation, decentralized networking
+is largely solved. What remains is the field: measurement on real nodes beyond the
+halt, and a second independent implementation of the wire.
+
+The network is open, published under the AGPL with every implementation. It is free:
+no token, no fee on the wire, no company in the middle. And it is in production,
+running today on the devices people already own.
+
 ## What CEWP is
 
 CEWP is an *epistemic web*: a **holonomic**, cryptographically-

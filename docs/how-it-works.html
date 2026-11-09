@@ -156,6 +156,35 @@ svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--acce
 <p class="rule">The rule, from the CIRIS Constitution 4.5.13: for an object, the node holds its family, its lifecycle state and the person's standing toward it; the family's transitions come from the family model; the queue is the enabled transitions, one item each, and the door admits by the same predicate. Proved in <code>formal/event_lifecycle</code>; the transitions are rows of <code>manifests/transitions.json</code>; the story is <code>tools/mesh_story.py</code>.</p>
 </div>
 <div class="tab" id="tab-solves">
+<section class="synth-section">
+  <h2>What is new here</h2>
+  <p class="synth-lead">
+    CIRIS starts from a relational ontology. Nothing on the network is a thing with a
+    state of its own. A person is a key and the roster of keys that person holds; a group
+    is the consents and acceptances between its members; an authority is a delegation
+    that narrows as it passes; a steward is a bond; the halt is the relation between
+    maker and made, kept symmetric. Every one of these is a signed row from one key about
+    another, and every state is read from the rows a node holds, never stored beside
+    them. Applied to architecture and engineering, that one premise yields four
+    properties that earlier systems treated as a choice between them.
+  </p>
+  <ol style="font-size:15px;line-height:1.6;margin:0 0 18px;padding-left:22px">
+    <li style="margin-bottom:8px"><b>One signed row.</b> Identity, device pairing, contacts, rooms, quorums, moderation, agent charters and the halt itself travel as the same canonical hybrid-signed row (Ed25519 + ML-DSA-65), in five closed kinds. Frames, sealed chunks and onion packets carry rows; they are not rows.</li>
+    <li style="margin-bottom:8px"><b>The rules are data.</b> The legal transitions of every family of row, 191 families under 12 typed governance policies, are one table. The table generates the conformance vectors (1,256 for the namespace, 732 for the policies) and the model instances for the policy corridor, and it is the input the CEWP kernel runs. The shipping implementations are measured against the same table through the evidence register.</li>
+    <li style="margin-bottom:8px"><b>The queue is the door.</b> Whether a row is admitted at a node's boundary, what a user or agent may do next, and what an act would change if signed are one function run three ways, and the equivalence is a checked theorem of the kernel.</li>
+    <li style="margin-bottom:8px"><b>No consensus protocol.</b> No node runs Paxos, Raft or proof of stake. Every node admits verifiable rows in any order and folds the set it holds; two nodes holding the same rows reach the same state and the same queues, checked over hundreds of arrival orders and partition splits. Windows run per node, so nodes agree once their windows close.</li>
+  </ol>
+
+  <h2>Why it was not done before</h2>
+  <p style="font-size:15px;line-height:1.6;margin:0 0 10px"><b>Shared state was solved with a thing in the middle.</b> For fifteen years the field reached for a global total order, a ledger, or a server. Both put an object between the relations. A total order is needed only where one scarce thing must not be spent twice. Social, organizational and AI governance is scoped to the relation it governs, self, family, community, root, so a household's roster needs no validator anywhere else.</p>
+  <p style="font-size:15px;line-height:1.6;margin:0 0 10px"><b>Authorization and replication were kept apart.</b> Earlier work on access control over replicated data resolved the ordering problem inside a server or a total order. Here a row whose dependency has not arrived is held, not refused, and folds when the dependency lands.</p>
+  <p style="font-size:15px;line-height:1.6;margin:0 0 10px"><b>Protocols were written as prose.</b> Federation protocols were specified in English and implemented independently in imperative code. Here the transitions are a table that the formal models, the conformance vectors and the kernel all read.</p>
+  <p style="font-size:15px;line-height:1.6;margin:0 0 18px"><b>The hardware caught up.</b> Hybrid post-quantum signatures on phones, constant-rate shaped links at eight per device, and machine-checked models of a 242-state design across a 20-topology catalogue became practical only recently.</p>
+
+  <h2>What the simulations show</h2>
+  <p style="font-size:15px;line-height:1.6;margin:0 0 10px">Run at one-to-one over the real internet topology at the committed size, five billion people on eleven billion devices, about nine of every ten signed acts never leave the signer's locality, every shaped slot the fleet asks for is seated in each of the three fleet regimes, and no datacenter is required. In simulation, decentralized networking is largely solved. What remains is the field: measurement on real nodes beyond the halt, and a second independent implementation of the wire.</p>
+  <p style="font-size:15px;line-height:1.6;margin:0">The network is open, published under the AGPL with every implementation. It is free: no token, no fee on the wire, no company in the middle. And it is in production, running today on the devices people already own.</p>
+</section>
 <div class="hero"><div><p><b>Nothing here is a new technology.</b> Signed rows, Merkle trees, hybrid post-quantum keys, cover traffic, deterministic encodings, CBOR and COSE have all existed for years.</p><p>What is new is the arrangement: one table that is both the admission door and the source of every action a person is offered, folds every node computes identically, and a constitution whose rules are tied to the code and proofs that back them. Below, eleven problems decentralized networks have failed on, each with the mechanism, the existing technology it uses, and what remains.</p></div>
 <svg viewBox="0 0 460 250" role="img" aria-hidden="true">
 <circle cx="230" cy="125" r="80" class="sd"/>
