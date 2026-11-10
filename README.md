@@ -135,7 +135,7 @@ privacy, and AI accountability reinforce each other instead of trading off:
    X-Wing (`CONP`) onion route from a sticky contact guard, each hop
    replaces a scheduled cover frame on an already-shaped link (**`+0 B`
    extra wire bytes**). `formal/transport_tiers/Tiers.lean` proves the
-   8-link bound, displacement (`home_displaces_a_phone`), carriage and
+   8-link bound, displacement (in the CC; edge v45 has none until CIRISEdge#939, and `cewp-sim` follows edge), carriage and
    referral reach (`each_home_adds_seven`, `unowned_only_strands_the_73rd`),
    and the **`reach ≠ capacity`** theorem; combined with an explicit
    **reachable-home share** input (direct IPv6 or punched UDP path;

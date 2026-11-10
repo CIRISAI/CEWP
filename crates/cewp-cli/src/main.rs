@@ -569,7 +569,7 @@ pub fn run_phase3_sim_transport_alm() -> Result<Phase3Result, String> {
         false,
         &[],
     );
-    if ninth_unshaped != Ok(LinkPlacement::AdmittedUnshaped) {
+    if !matches!(ninth_unshaped, Ok(LinkPlacement::AdmittedUnshaped { .. })) {
         return Err("Ninth link without shaped_only was not admitted unshaped!".to_string());
     }
 

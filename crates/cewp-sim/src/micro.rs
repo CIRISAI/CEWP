@@ -35,8 +35,12 @@
 //! - Suspend closes every link; resume re-announces (CIRISEdge `src/edge.rs` `suspend`/`resume`,
 //!   `RESUME_ANNOUNCE_WAIT`).
 //! - CIRISEdge v45 has no rank displacement yet (CIRISEdge#939): a full node runs the next link
-//!   unshaped (or refuses it, if shaped-only). This module follows v45, not
-//!   [`crate::transport::ShapedLinkManager`], which models the CC's displacement.
+//!   unshaped (or refuses it, if shaped-only). [`crate::transport::ShapedLinkManager`] follows
+//!   the same reading. Only a link's initiator offers shaping, and a seat never dials, so a seat's
+//!   eight slots go to the first homed devices that shape every link (see `negotiate`).
+//! - The default scenario is production's shape: one serve seat (M = 1, k = 1), a continent
+//!   away from a typical street. Three seats with k = 2 is [`MicroParams::design_multi_seat`],
+//!   the design's multi-seat case, not the baseline.
 
 use crate::transport::{BudgetClass, SHAPED_ASK_IDLE_TIMEOUT_SECS, SHAPED_LINK_BOUND};
 use crate::workload::diurnal_multiplier;
@@ -137,8 +141,8 @@ params! {
     HomeNodeHouseholdShare = "home_node_household_share", 0.60, Model, "share of adopting households running an always-on home node (NAS/desktop)";
     LaptopsPerPerson = "laptops_per_person", 0.50, Model, "rest of the ~1 home/laptop/tablet per person in DEVICES_PER_PERSON";
     LaptopAwakeShare = "laptop_awake_share", 0.35, Model, "stationary share of time a laptop is open";
-    ServeSeats = "serve_seats", 3.0, Model, "M canonicals in the focal region (production runs one; k=2 homing needs M>=2)";
-    HomingK = "homing_k", 2.0, Model, "top-k canonical homing, CIRISEdge#935 / TRANSPORT_TIERS_MODEL.md §0.3 (not shipped code)";
+    ServeSeats = "serve_seats", 1.0, Sourced, "M canonicals: production runs one, on purpose (steward ruling 2026-11-09); 3 is the design_multi_seat case";
+    HomingK = "homing_k", 1.0, Model, "top-k canonical homing, CIRISEdge#935 / TRANSPORT_TIERS_MODEL.md §0.3 (not shipped code); k = 1 with one seat, 2 in design_multi_seat";
     CiArrivalsPerHour = "ci_arrivals_per_hour", 3.0, Model, "QA/CI runners joining the focal seats per hour";
     CiJobMeanS = "ci_job_mean_s", 1200.0, Model, "mean CI job length (boot, join, run, leave)";
     CiOldVersionShare = "ci_old_version_share", 0.30, Model, "share of runners pinned to an older edge (soak / compat jobs)";
@@ -160,6 +164,10 @@ params! {
     UrbanDensity = "urban_density", 1500.0, Model, "people/km2 above which the patch is terraced streets";
     SuburbanDensity = "suburban_density", 250.0, Model, "people/km2 above which the patch is suburban; below it a village";
     StartLocalHour = "start_local_hour", 9.0, Model, "local clock at build (the page passes its own)";
+    ClaimedShare = "claimed_share", 0.70, Model, "share of person devices with an owner (claimed); servers, seats and CI runners are always claimed";
+    BundleBootstrap = "bundle_bootstrap", 1.0, Model, "edge #881 bundle bootstrap: on, the v45 LTS default (ruled; CIRISEdge#971 c580298, required-set Pull); 0 = off, as on v44. A round here is the one Revocation round per cadence a device keeps with each seat; its other planes go by subject Pull, costed in capacity.rs";
+    SeatKmMin = "seat_km_min", 1_500.0, Model, "nearest a seat is drawn from the street: one seat serves the whole mesh, so it is usually a continent away (no real site is used); 120 in design_multi_seat";
+    SeatKmMax = "seat_km_max", 8_000.0, Model, "farthest a seat is drawn; 650 in design_multi_seat";
 }
 
 /// Number of scenario parameters.
@@ -194,6 +202,24 @@ impl MicroParams {
     }
     fn share(&self, p: P) -> f64 {
         self.get(p).clamp(0.0, 1.0)
+    }
+
+    /// Production's shape (the default): one serve seat, k = 1, far from the street.
+    #[must_use]
+    pub fn production_shape() -> Self {
+        Self::default()
+    }
+
+    /// The design's multi-seat case (named scenario, not the baseline): three seats in the
+    /// region, top-2 homing (CIRISEdge#935, not shipped code), seats 120 to 650 km away.
+    #[must_use]
+    pub fn design_multi_seat() -> Self {
+        let mut p = Self::default();
+        p.set(P::ServeSeats, 3.0);
+        p.set(P::HomingK, 2.0);
+        p.set(P::SeatKmMin, 120.0);
+        p.set(P::SeatKmMax, 650.0);
+        p
     }
 }
 
@@ -527,6 +553,16 @@ pub struct Node {
     /// Counts the node's network changes: a punch between two given networks either works or
     /// does not, so its outcome is drawn once per pair of network epochs.
     pub net_epoch: u32,
+    /// Has an owner. A device gets a seat as replication peer only through consent, which
+    /// needs an owner; an unclaimed device announces but opens no round unless the host turns
+    /// on the bundle bootstrap option (edge #881).
+    pub claimed: bool,
+    /// Replication rounds a seat has served this node (on the homing link the node opened).
+    pub rounds: u32,
+    /// Announces this node has sent.
+    pub announces: u32,
+    /// Last replication round time.
+    pub last_round: f64,
 }
 
 impl Node {
@@ -637,7 +673,21 @@ pub struct Link {
     pub since: f64,
     /// Last real frame.
     pub last_frame: f64,
+    /// The end that opened the link (the other is the responder). A link opens only when the
+    /// initiator can reach the responder; a client-only phone is always the initiator.
+    pub initiator: usize,
 }
+
+impl Link {
+    /// The end that answered the link.
+    #[must_use]
+    pub fn responder(&self) -> usize {
+        if self.initiator == self.a { self.b } else { self.a }
+    }
+}
+
+/// Bootstrap round cadence per plane per peer, seconds (edge #881; `capacity::C::CadenceS`).
+pub const ROUND_CADENCE_S: f64 = 30.0;
 
 /// How one row travelled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -707,6 +757,10 @@ pub struct MicroStats {
     pub ci_joined: u64,
     /// CI runners left.
     pub ci_left: u64,
+    /// Replication rounds seats served (one per device per homed seat per cadence).
+    pub rounds_served: u64,
+    /// Cadences where an online device announced but had no seat as peer (unclaimed, bootstrap off).
+    pub rounds_unserved: u64,
     /// Phone suspensions.
     pub suspends: u64,
     /// Phone network changes.
@@ -886,6 +940,7 @@ impl MicroWorld {
         w.thin_to_density();
         w.place_sites();
         w.populate();
+        w.assign_claims();
         w
     }
 
@@ -1113,8 +1168,10 @@ impl MicroWorld {
 
     fn place_sites(&mut self) {
         let m = self.params.get(P::ServeSeats).round().clamp(1.0, 9.0) as usize;
+        let lo = self.params.get(P::SeatKmMin).max(1.0);
+        let hi = self.params.get(P::SeatKmMax).max(lo + 1.0);
         for _ in 0..m {
-            let km = self.rng.range(120.0, 650.0);
+            let km = self.rng.range(lo, hi);
             let b = self.rng.range(0.0, std::f64::consts::TAU);
             let (lat, lon) = destination(self.lat0, self.lon0, b, km);
             self.sites.push(Site { lat, lon, km, kind: SiteKind::Seat });
@@ -1173,6 +1230,10 @@ impl MicroWorld {
             last_announce: 0.0,
             label: "",
             net_epoch: 0,
+            claimed: true,
+            rounds: 0,
+            announces: 0,
+            last_round: f64::NEG_INFINITY,
         }
     }
 
@@ -1492,7 +1553,8 @@ impl MicroWorld {
             self.links[i].last_frame = self.t;
             return i;
         }
-        let mut l = Link { a: x, b: y, kind, shaped: BudgetClass::Off, at_bound: false, asked: false, since: self.t, last_frame: self.t };
+        let initiator = self.initiator_for(a, b, kind);
+        let mut l = Link { a: x, b: y, kind, shaped: BudgetClass::Off, at_bound: false, asked: false, since: self.t, last_frame: self.t, initiator };
         self.negotiate(&mut l);
         self.links.push(l);
         let i = self.links.len() - 1;
@@ -1500,22 +1562,99 @@ impl MicroWorld {
         i
     }
 
-    /// The shaping a link gets when it comes up (CC 5.4.3): shaped when one end shapes every
-    /// identity link (the other accepts when asked), at the lower of the two offers; within the
-    /// bound of eight on each device-tier end; seat to seat at the seat class outside the eight.
+    /// Who opens a link of `kind` between `a` (the end asking for it) and `b`. A seat never
+    /// dials a device: on a homing link the device is the initiator. A dialled link is opened by
+    /// the end without a listener toward the end with one. A client-only phone is always the
+    /// initiator. A punch is opened by the end that proposed it (`a`).
+    fn initiator_for(&self, a: usize, b: usize, kind: LinkKind) -> usize {
+        let (na, nb) = (&self.nodes[a], &self.nodes[b]);
+        let listens = |n: &Node| n.public && !n.client_only;
+        match kind {
+            LinkKind::SeatMesh => a.min(b),
+            LinkKind::Homing => {
+                if na.kind == HostKind::ServeSeat { b } else { a }
+            }
+            LinkKind::Dialled => {
+                if listens(nb) && !listens(na) {
+                    a
+                } else if listens(na) && !listens(nb) {
+                    b
+                } else {
+                    a
+                }
+            }
+            LinkKind::Lan | LinkKind::Punched => {
+                if nb.client_only && !na.client_only { b } else { a }
+            }
+        }
+    }
+
+    /// A seat sends to a device only on a link that device opened (or to a fellow seat).
+    #[must_use]
+    pub fn seat_may_send(&self, seat: usize, dev: usize) -> bool {
+        if self.nodes[dev].kind == HostKind::ServeSeat {
+            return true;
+        }
+        let (x, y) = key(seat, dev);
+        [LinkKind::Homing, LinkKind::Dialled, LinkKind::Lan, LinkKind::Punched]
+            .iter()
+            .filter_map(|k| self.link_index.get(&(x, y, *k)))
+            .any(|&i| self.links[i].initiator == dev)
+    }
+
+    /// The node rounds with its seats: it has an owner (consent), or the bundle bootstrap
+    /// option is on. Seats round with each other on the seat mesh.
+    #[must_use]
+    pub fn rounds_with_seat(&self, i: usize) -> bool {
+        let n = &self.nodes[i];
+        n.kind != HostKind::ServeSeat && (n.claimed || self.params.get(P::BundleBootstrap) >= 0.5)
+    }
+
+    /// Decide which person devices have an owner. Each node's draw is its own hash, so changing
+    /// the share never reshuffles the other draws.
+    fn assign_claims(&mut self) {
+        let share = self.params.share(P::ClaimedShare);
+        for i in 0..self.nodes.len() {
+            let person_device = matches!(self.nodes[i].kind, HostKind::Phone | HostKind::HomeNode | HostKind::Laptop);
+            if person_device {
+                let u = Rng::new(self.seed ^ (i as u64).wrapping_mul(0xA24B_AED4_963E_E407) ^ 0xC1A1).f();
+                self.nodes[i].claimed = u < share;
+            } else {
+                self.nodes[i].claimed = true;
+            }
+        }
+    }
+
+    /// Mark a node claimed or unclaimed (story control).
+    pub fn set_claimed(&mut self, i: usize, claimed: bool) {
+        if let Some(n) = self.nodes.get_mut(i) {
+            n.claimed = claimed;
+        }
+    }
+
+    /// The shaping a link gets when it comes up (CC 5.4.3), as CIRISEdge v45 (92012e5) does it.
+    /// Only the initiator offers: "nothing is offered to a peer this node does not shape
+    /// toward" (`src/transport/reticulum.rs:14038`), and a responder only ever answers an offer
+    /// (`src/transport/reticulum.rs:545-552`, :17182-17213). So a link is shaped only when its
+    /// initiator shapes every identity link (server, or the person opted in); the responder
+    /// answers by its own policy or, if it does not offer, on the ask path at its device class
+    /// (`link_shaping.rs:3236` `answer_asked`). The lower of the two offers wins. Every link but
+    /// seat to seat counts in each end's eight (`link_shaping.rs:3172` `counted_links`,
+    /// :2867 `is_seat_link`). An initiator at its bound offers nothing
+    /// (`reticulum.rs:13968` `offer_withheld`); a responder at its bound answers `off` with
+    /// referrals and the link runs unshaped (`link_shaping.rs:3347`). No displacement (#939).
     fn negotiate(&mut self, l: &mut Link) {
         let (na, nb) = (&self.nodes[l.a], &self.nodes[l.b]);
         if na.kind == HostKind::ServeSeat && nb.kind == HostKind::ServeSeat {
             l.shaped = BudgetClass::Seat;
             return;
         }
-        if !(na.shapes_all() || nb.shapes_all()) {
+        let (ni, nr) = if l.initiator == l.a { (na, nb) } else { (nb, na) };
+        if !ni.shapes_all() {
             return;
         }
         // one end a seat, the other not: the seat travels as `server` (both-seat returned above)
-        let ca = na.offered_to_non_seat();
-        let cb = nb.offered_to_non_seat();
-        let class = BudgetClass::agree(ca, cb, false);
+        let class = BudgetClass::agree(ni.offered_to_non_seat(), nr.offered_to_non_seat(), false);
         if class == BudgetClass::Off {
             return;
         }
@@ -1526,7 +1665,7 @@ impl MicroWorld {
             return;
         }
         l.shaped = class;
-        l.asked = !(na.shapes_all() && nb.shapes_all());
+        l.asked = !nr.shapes_all();
         self.nodes[l.a].shaped_used += 1;
         self.nodes[l.b].shaped_used += 1;
     }
@@ -1597,7 +1736,12 @@ impl MicroWorld {
             let announce = t - self.nodes[i].last_announce >= ANNOUNCE_INTERVAL_S;
             if announce {
                 self.nodes[i].last_announce = t;
+                self.nodes[i].announces += 1;
             }
+            // a replication round each cadence on the homing link the device opened, if it has
+            // a seat as peer (claimed, or bundle bootstrap on); otherwise it only announces
+            let round_due = t - self.nodes[i].last_round >= ROUND_CADENCE_S;
+            let rounds = round_due && self.nodes[i].resume_at <= t && self.rounds_with_seat(i);
             for h in self.nodes[i].homes {
                 if h == NONE {
                     continue;
@@ -1610,6 +1754,18 @@ impl MicroWorld {
                     if let Some(&li) = self.link_index.get(&(x, y, LinkKind::Homing)) {
                         self.links[li].last_frame = t;
                     }
+                }
+                if rounds && self.seat_may_send(s, i) {
+                    self.nodes[i].rounds += 1;
+                    self.stats.rounds_served += 1;
+                }
+            }
+            if round_due {
+                if rounds {
+                    self.nodes[i].last_round = t;
+                } else if self.nodes[i].resume_at <= t {
+                    self.stats.rounds_unserved += 1;
+                    self.nodes[i].last_round = t;
                 }
             }
         }
@@ -2313,8 +2469,9 @@ mod tests {
 
     #[test]
     fn seat_offers_server_to_non_seats_and_seat_to_seats() {
-        let mut w = world(1200.0, 9);
+        let mut w = MicroWorld::build_at_density(ZRH.0, ZRH.1, 1200.0, 9, MicroParams::design_multi_seat());
         w.step(4.0);
+        assert!(w.links.iter().any(|l| l.kind == LinkKind::SeatMesh), "the design case has a seat mesh");
         for l in &w.links {
             if l.kind == LinkKind::SeatMesh {
                 assert_eq!(l.shaped, BudgetClass::Seat);
@@ -2341,8 +2498,127 @@ mod tests {
     }
 
     #[test]
-    fn homing_is_top_k_of_m_and_pairs_share_a_seat() {
+    fn a_seat_never_dials_a_device_and_a_phone_always_initiates() {
+        let mut w = world(1200.0, 17);
+        w.step(120.0);
+        assert!(!w.links.is_empty());
+        for l in &w.links {
+            let (ini, resp) = (&w.nodes[l.initiator], &w.nodes[l.responder()]);
+            assert!(l.initiator == l.a || l.initiator == l.b);
+            if l.kind == LinkKind::Homing {
+                assert_ne!(ini.kind, HostKind::ServeSeat, "a seat never dials a device");
+                assert_eq!(resp.kind, HostKind::ServeSeat);
+            }
+            if l.kind != LinkKind::SeatMesh {
+                assert!(!(resp.client_only && !ini.client_only), "a client-only phone is always the initiator: {l:?}");
+            }
+            if l.kind == LinkKind::Dialled {
+                assert!(resp.public && !resp.client_only, "a dialled link opens toward a listener");
+            }
+        }
+        // a seat sends to a device only on a link that device opened
+        let [ap, _, _, _] = w.story_actors().expect("actors");
+        w.pin(ap, true, true, false);
+        w.step(20.0);
+        let s = w.nodes[ap].homes[0] as usize;
+        assert!(w.seat_may_send(s, ap));
+        w.pin(ap, false, true, false);
+        assert!(!w.seat_may_send(s, ap), "asleep: no device-opened link, so the seat cannot send");
+    }
+
+    #[test]
+    fn an_unclaimed_device_announces_but_is_never_served_unless_bootstrap_is_on() {
+        let mut w = world(1200.0, 23);
+        w.quiet = true;
+        let [ap, _, bp, _] = w.story_actors().expect("actors");
+        w.set_claimed(ap, true);
+        w.set_claimed(bp, false);
+        w.params.set(P::BundleBootstrap, 0.0); // v44: off
+        w.pin(ap, true, true, true);
+        w.pin(bp, true, true, true);
+        w.step(400.0);
+        assert!(w.nodes[ap].rounds > 0, "claimed: a seat is its peer");
+        assert!(w.nodes[bp].announces > 0, "unclaimed still announces");
+        assert_eq!(w.nodes[bp].rounds, 0, "unclaimed, bootstrap off: no round");
+        assert!(w.stats.rounds_unserved > 0);
+        w.params.set(P::BundleBootstrap, 1.0);
+        w.step(90.0);
+        assert!(w.nodes[bp].rounds > 0, "bootstrap on: the bundle seats serve it");
+    }
+
+    #[test]
+    fn the_default_world_is_the_v45_shape_with_bundle_bootstrap_on() {
+        assert_eq!(MicroParams::default().get(P::BundleBootstrap), 1.0, "v45 LTS ships #881 on");
+        let mut w = world(1200.0, 23);
+        w.quiet = true;
+        let [_, _, bp, _] = w.story_actors().expect("actors");
+        w.set_claimed(bp, false);
+        w.pin(bp, true, true, true);
+        w.step(400.0);
+        assert!(w.nodes[bp].rounds > 0, "v45: an unclaimed device rounds with the bundle seats");
+    }
+
+    #[test]
+    fn claims_are_stable_when_the_share_moves() {
+        let a = world(1200.0, 29);
+        let mut p = MicroParams::default();
+        p.set(P::ClaimedShare, 0.9);
+        let b = MicroWorld::build_at_density(ZRH.0, ZRH.1, 1200.0, 29, p);
+        for (x, y) in a.nodes.iter().zip(&b.nodes) {
+            assert!(!x.claimed || y.claimed, "raising the share only adds claims");
+        }
+        assert!(a.nodes.iter().any(|n| !n.claimed));
+        assert!(a.nodes.iter().filter(|n| n.kind == HostKind::ServeSeat).all(|n| n.claimed));
+    }
+
+    /// Production's shape (the default): one serve seat, every node homes on it, k = 1, and the
+    /// seat sits far from the street.
+    #[test]
+    fn the_default_is_one_far_seat_and_every_node_homes_on_it() {
         let w = world(1200.0, 17);
+        let seats = w.seat_ids();
+        assert_eq!(seats.len(), 1);
+        for n in w.nodes.iter().filter(|n| n.kind != HostKind::ServeSeat) {
+            assert_eq!(n.homes[0] as usize, seats[0]);
+            assert_eq!(n.homes[1], NONE);
+        }
+        let km = w.sites.iter().find(|s| s.kind == SiteKind::Seat).unwrap().km;
+        assert!((1_500.0..8_000.0).contains(&km), "{km}");
+    }
+
+    /// CIRISEdge 92012e5: only the initiator offers (`src/transport/reticulum.rs:14038`), a
+    /// seat never dials, and device-to-seat links count in the seat's eight
+    /// (`src/transport/link_shaping.rs:3172`). So every shaped homing link was opened by a
+    /// device that shapes every link, at most 8 are shaped at the seat, and a device that
+    /// offers nothing rides unshaped whatever the seat offers.
+    #[test]
+    fn the_seat_shapes_only_the_first_eight_devices_that_offer() {
+        let mut w = world(3_000.0, 13);
+        w.step(60.0);
+        let seat = w.seat_ids()[0];
+        let homing: Vec<&Link> = w.links.iter().filter(|l| l.kind == LinkKind::Homing && (l.a == seat || l.b == seat)).collect();
+        let shaped = homing.iter().filter(|l| l.shaped != BudgetClass::Off).count();
+        assert!(shaped <= SHAPED_LINK_BOUND);
+        for l in &homing {
+            let dev = &w.nodes[l.initiator];
+            assert_ne!(l.initiator, seat, "a seat never dials");
+            if !dev.shapes_all() {
+                assert_eq!(l.shaped, BudgetClass::Off, "a device that offers nothing rides unshaped");
+                assert!(!l.at_bound, "it asked for nothing, so it is not a ninth link");
+            }
+        }
+        let offering = homing.iter().filter(|l| w.nodes[l.initiator].shapes_all()).count();
+        // Fewer than min(offering, 8) is possible: a slot freed by a sleeping phone is not handed
+        // to a device already linked unshaped (edge re-offers only when a link goes direct), and
+        // a device at its own bound offers nothing.
+        assert!(shaped <= offering.min(SHAPED_LINK_BOUND), "{shaped} shaped, {offering} offering");
+        assert!(offering == 0 || shaped > 0, "{offering} offering, none shaped");
+        assert!(homing.len() > offering, "most homed devices offer nothing at the fleet default");
+    }
+
+    #[test]
+    fn homing_is_top_k_of_m_and_pairs_share_a_seat() {
+        let w = MicroWorld::build_at_density(ZRH.0, ZRH.1, 1200.0, 17, MicroParams::design_multi_seat());
         let seats = w.seat_ids();
         for n in w.nodes.iter().filter(|n| n.kind != HostKind::ServeSeat) {
             assert!(n.homes[0] != NONE && n.homes[1] != NONE && n.homes[0] != n.homes[1]);

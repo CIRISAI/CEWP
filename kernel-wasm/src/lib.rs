@@ -67,7 +67,7 @@ unsafe fn push_arc(arcs: *mut u32, arcs_n: &mut u32, arc_cap: u32, from: u32, to
 /// 21 unicast deliveries saved by CC 6.1.6 `deterministic-alm` member relay tree,
 /// 22 onion-routed acts (0 extra wire bytes over rho=0.5 cover), 23 direct IPv6/punched-path hops,
 /// 24 count of > 64 KiB acts refused on shaped links (check_shaped_payload refusal),
-/// 25 count of L <= 8 rank-based displacements & 3-referral proxy pulls,
+/// 25 L <= 8 rank displacements: zero, edge v45 has none (CIRISEdge#939),
 /// 26 whole-chunk custody / layered fidelity NoiseFloorState::Full reconstruction percentage (0.0..100.0),
 /// 27 count of whole-chunk objects in Partial / EnvelopeOnly or hard-deleted via CLM-noise-N5,
 /// 28 CIRISHolon commuting-square closure defect D_v^2,
@@ -276,9 +276,11 @@ pub extern "C" fn tick(
                     let one_end_shaped_only = below(&mut s, 1000) < shaping_pm;
                     let shaped_hop = direct_nat && payload_shaped_allowed && (is_onion || (!is_live_alm && one_end_shaped_only));
 
-                    // Rank-based L <= 8 link displacement & 3-referral proxy pull (CC §5.4.3)
-                    if shaped_hop && below(&mut s, 25) == 0 {
-                        o[25] += 1.0;
+                    // CIRISEdge v45 has no rank displacement (CIRISEdge#939) and no proxy
+                    // pull-through, so slot 25 stays zero. The draw is kept so every other
+                    // slot's random stream matches the earlier build.
+                    if shaped_hop {
+                        let _ = below(&mut s, 25);
                     }
 
                     let mm = metro[m] as usize;
@@ -450,7 +452,8 @@ pub extern "C" fn tick(
 // The page builds a world for the tile under the camera, steps it, and reads flat arrays back;
 // what it draws at node level is this state, nothing else.
 
-use cewp_sim::micro::{MicroParams, MicroWorld, PARAM_COUNT, NONE as MICRO_NONE, HostKind};
+use cewp_sim::micro::{MicroParams, MicroWorld, PARAM_COUNT, NONE as MICRO_NONE, HostKind, P as MicroP};
+use cewp_sim::capacity::{self, CostParams, ReadSet, RoundShape, Scenario, SeatSelect, C as CostC};
 use cewp_sim::transport::BudgetClass;
 
 struct MicroExport {
@@ -467,6 +470,9 @@ struct MicroExport {
     punches: Vec<u32>,
     meta: Vec<f64>,
     actors: [u32; 4],
+    node_counts: Vec<u32>,
+    cost: Option<CostParams>,
+    cap: Vec<f64>,
 }
 
 static mut MICRO: Option<MicroExport> = None;
@@ -489,6 +495,9 @@ fn micro() -> &'static mut MicroExport {
             punches: Vec::new(),
             meta: Vec::new(),
             actors: [MICRO_NONE; 4],
+            node_counts: Vec::new(),
+            cost: None,
+            cap: Vec::new(),
         })
     }
 }
@@ -566,7 +575,8 @@ pub extern "C" fn micro_export() -> u32 {
             | (n.kind.off_patch() as u32) << 13
             | (n.shaping_opt_in as u32) << 14
             | (n.relay_pref as u32) << 15
-            | (n.device_relays() as u32) << 16;
+            | (n.device_relays() as u32) << 16
+            | (n.claimed as u32) << 17;
         m.nodes_u32.extend_from_slice(&[
             n.kind as u8 as u32 | (n.activity as u8 as u32) << 8 | class_code(n.budget_class()) << 16 | (n.shaped_used as u32) << 24,
             flags,
@@ -578,12 +588,18 @@ pub extern "C" fn micro_export() -> u32 {
             n.site.map_or(MICRO_NONE, |s| s as u32) | (n.owner as u32) << 24,
         ]);
     }
+    m.node_counts.clear();
+    for (i, n) in w.nodes.iter().enumerate() {
+        m.nodes_u32[i * 8 + 1] |= (w.rounds_with_seat(i) as u32) << 18;
+        m.node_counts.extend_from_slice(&[n.rounds, n.announces]);
+    }
     m.links.clear();
     for l in &w.links {
         m.links.extend_from_slice(&[
             l.a as u32,
             l.b as u32,
-            l.kind as u8 as u32 | class_code(l.shaped) << 8 | (l.at_bound as u32) << 16 | (l.asked as u32) << 17,
+            l.kind as u8 as u32 | class_code(l.shaped) << 8 | (l.at_bound as u32) << 16 | (l.asked as u32) << 17
+                | ((l.initiator == l.a) as u32) << 18,
             (t - l.since).max(0.0) as u32,
         ]);
     }
@@ -618,12 +634,14 @@ pub extern "C" fn micro_export() -> u32 {
         s.suspends as f64, s.network_changes as f64,
         c[0] as f64, c[1] as f64, c[2] as f64, c[3] as f64, c[4] as f64, c[5] as f64,
         (m.punches.len() / 2) as f64, w.qa_peer as f64, w.lat0, w.lon0,
+        s.rounds_served as f64, s.rounds_unserved as f64, w.params.get(MicroP::BundleBootstrap),
     ];
     w.nodes.len() as u32
 }
 
 /// Export buffer pointers and lengths (in elements): 0 nodes_f64, 1 nodes_u32, 2 links, 3 events,
-/// 4 roads, 5 buildings, 6 households, 7 sites, 8 punches, 9 meta, 10 actors.
+/// 4 roads, 5 buildings, 6 households, 7 sites, 8 punches, 9 meta, 10 actors,
+/// 11 node counts (u32 × 2 per node: rounds served, announces), 12 capacity readout (`cap_seat`).
 #[no_mangle]
 pub extern "C" fn micro_buf_ptr(which: u32) -> u32 {
     let m = micro();
@@ -638,6 +656,8 @@ pub extern "C" fn micro_buf_ptr(which: u32) -> u32 {
         7 => m.sites.as_ptr() as usize,
         8 => m.punches.as_ptr() as usize,
         9 => m.meta.as_ptr() as usize,
+        11 => m.node_counts.as_ptr() as usize,
+        12 => m.cap.as_ptr() as usize,
         _ => m.actors.as_ptr() as usize,
     }) as u32
 }
@@ -657,6 +677,8 @@ pub extern "C" fn micro_buf_len(which: u32) -> u32 {
         7 => m.sites.len(),
         8 => m.punches.len(),
         9 => m.meta.len(),
+        11 => m.node_counts.len(),
+        12 => m.cap.len(),
         _ => 4,
     }) as u32
 }
@@ -665,7 +687,8 @@ pub extern "C" fn micro_buf_len(which: u32) -> u32 {
 /// 2 unpin(a); 3 send(a → b), returns the route; 4 introduce(a, b); 5 spawn a CI runner
 /// (b = 1 old version), returns its index; 6 pick the story actors into the actors buffer,
 /// returns 1 if found; 7 shaping opt-in of a set to b; 8 would a punch between a and b on their
-/// current networks come up (1/0).
+/// current networks come up (1/0); 9 mark a claimed (b = 1) or unclaimed; 10 bundle bootstrap
+/// switch (b = 1 on).
 #[no_mangle]
 pub extern "C" fn micro_cmd(op: u32, a: u32, b: u32) -> i32 {
     let m = micro();
@@ -688,6 +711,54 @@ pub extern "C" fn micro_cmd(op: u32, a: u32, b: u32) -> i32 {
             if node.kind != HostKind::ServeSeat && node.kind != HostKind::HostedServer { node.shaping_opt_in = b != 0; }
             0
         }
+        9 if ok(a) => { w.set_claimed(a as usize, b != 0); 0 }
+        10 => { w.params.set(MicroP::BundleBootstrap, f64::from(b.min(1))); 0 }
         _ => -1,
     }
+}
+
+/// Seat capacity readout (`cewp_sim::capacity`, calibrated to seat-1) for one seat serving
+/// `devices` bootstrap devices. `shape`: 0 whole-plane, 1 required-set, 2 digest, 3 stretched;
+/// `read`: 0 as shipped, 1 after read minimisation; `select`: 0 every seat, 1 one home seat.
+/// Fills buffer 12 with: cpu cores, rho cpu, rho permits, round latency s (-1 = unbounded),
+/// counted reads/s, index pages/s, egress bytes/s, links, attribution reads/s, cpu index,
+/// cpu query, cpu context, seat cores, knee devices, cpu ceiling, Revocation walk cores (kept
+/// apart from the read terms; MODEL a + b x keys), keys walked. Returns the buffer length.
+#[no_mangle]
+pub extern "C" fn cap_seat(devices: f64, shape: u32, read: u32, seats: u32, select: u32) -> u32 {
+    let m = micro();
+    let p = m.cost.get_or_insert_with(CostParams::calibrated).clone();
+    let shape = match shape {
+        1 => RoundShape::RequiredSet,
+        2 => RoundShape::Digest,
+        3 => RoundShape::Stretched,
+        _ => RoundShape::WholePlane,
+    };
+    let read = if read == 1 { ReadSet::AfterReadMin } else { ReadSet::AsShipped };
+    let mut sc = Scenario::one_seat(devices.max(0.0), shape, read);
+    sc.seats = seats.max(1);
+    sc.select = if select == 1 { SeatSelect::HomeOne } else { SeatSelect::AllSeats };
+    let o = capacity::run(&p, &sc);
+    let knee = capacity::knee(&p, &sc);
+    let lat = o.seat_load.round_latency_s;
+    m.cap = vec![
+        o.seat_load.cpu_cores,
+        o.seat_load.rho_cpu,
+        o.seat_load.rho_permit,
+        if lat.is_finite() { lat } else { -1.0 },
+        o.seat.counted_per_s(),
+        o.seat.index_pages_per_s,
+        o.seat_egress_bytes_per_s,
+        o.seat_links,
+        o.seat.attribution_per_s,
+        o.seat.cpu_index,
+        o.seat.cpu_query,
+        o.seat.cpu_context,
+        p.get(CostC::SeatCores),
+        knee,
+        p.get(CostC::CpuCeiling),
+        o.seat.cpu_rev_walk,
+        o.seat.rev_walk_keys,
+    ];
+    m.cap.len() as u32
 }

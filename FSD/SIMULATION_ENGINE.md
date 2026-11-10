@@ -199,11 +199,13 @@ A generic P2P graph simulator (edges with static bandwidth capacities) is inadeq
    - Chat and files ride a shaped link **only when one end is `shaped_only`**; every other pair's chat and ordinary transactions cross direct unshaped links.
    - **The Ninth Peer (`CC §5.4.3`)**: An arriving 9th shaping peer is refused **only on a node set to `shaped_only` or the Anonymous Tier** (`ninth_is_refused`). On any other node, the link is made and runs unshaped.
    - **Sybil Resistance Clarification**: $L \le 8$ is link-rate shaping, **not** "contact-gated Sybil resistance". Sybil resistance in the Constitution is trust gating (`CC §1.13.3.3`) and a stated residual under flood (`CC §5.4.6`).
-3. **Rank-Based Displacement (`CLM-shaped-link-displacement`)**:
-   - At a full node (`8` shaped links), an arriving higher-rank peer (e.g., `home` rank 3 arriving at a `server` holding 8 `phone` links of rank 1–2) displaces the lowest-rank shaped peer (`lowestOf`), who is moved via a sealed control message to a shaped `home` or `server` with an available slot (`movedToShapedPeer`) and keeps shaping (`home_displaces_a_phone`, `displaced_keeps_shaping`).
-   - A phone never displaces a phone (`phone_does_not_displace_a_phone`), and a lower rank never displaces a higher or equal rank (`lower_never_displaces`).
+3. **Rank-Based Displacement (`CLM-shaped-link-displacement`): in the CC, not in edge v45.**
+   - The CC and `Tiers.lean` let a higher-rank arrival at a full node displace the lowest-rank shaped peer to a shaping home or server with a free slot.
+   - Edge v45 has no displacement until CIRISEdge#939 (`src/transport/link_shaping.rs:356`: "a higher-class newcomer at a full node is refused, not given a slot"). `cewp-sim` follows edge: `ShapedLinkManager` keeps every held slot, and the newcomer gets the ninth-peer answer (unshaped with referrals, or refused on a shaped-only node) (`a_higher_class_newcomer_at_a_full_node_gets_no_slot`). The planetary kernel's slot 25 ("displacements") now reads zero.
 4. **One Direct Hop (`CLM-shaped-link-one-hop`) & Reachability vs. Capacity (`reach ≠ capacity`)**:
    - **A shaped link is one direct hop** between its two ends, never forwarded through a third node.
+   - A link is one hop when either end can be dialled by the other (edge `link_is_forwarded`, `src/transport/reticulum.rs:534`): a NAT'd phone dialling a public seat is one hop and is shaped. Only two ends that neither listen nor punch go through a forwarder (`link_is_one_hop`, `a_natd_device_dialling_a_public_seat_is_one_hop_and_shaped`).
+   - Only the initiator offers shaping (`src/transport/reticulum.rs:14038`), and a responder only answers an offer. Every link but seat to seat counts in each end's eight (`link_shaping.rs:3172`, `:2867`): the seat class is seat to seat only, and a seat's links to devices take its eight slots (`a_seat_counts_its_device_links_in_the_eight`).
    - `cewp-sim` must model **direct reachability (`has_direct_path`: IPv6 or punched UDP per `leviculum#100/#101`)** and **slot capacity (`free_shaped_slots > 0` and CPU/bandwidth headroom)** as **two separate state variables and two separate failure counters**:
      - *Failure Mode A (`UNREACHABLE_FOR_SHAPING`)*: Node has spare CPU, disk, and free `L ≤ 8` slots, but lacks a direct path (behind symmetric NAT/CGNAT) and therefore cannot offer shaped parent slots or establish a shaped link.
      - *Failure Mode B (`CAPACITY_EXHAUSTED`)*: Node is directly reachable, but all `8` shaped slots (or uplink/CPU gates) are full.
@@ -339,7 +341,7 @@ At `5,000,000,000` agents with $R = 150$ neighbors, storing explicit 4-byte dire
 
 ### 4.6 The R5 Micro Tier as Built (`crates/cewp-sim/src/micro.rs`)
 
-R5 is no longer only a row in the table above. `cewp_sim::micro::MicroWorld` is a focal 1:1 neighbourhood: generated streets, buildings and households, every device in them as its own node with a host kind, and the off-street nodes those devices talk to (serve seats, hosted servers, CI runners in data centres). The same code is compiled into `kernel-wasm` (`micro_*` exports). `docs/globe.html` draws only what that world exports (§4.6.4), so the picture at node scale is the sim's state, not an illustration of it.
+R5 is no longer only a row in the table above. `cewp_sim::micro::MicroWorld` is a focal 1:1 neighbourhood: generated streets, buildings and households, every device in them as its own node with a host kind, and the off-street nodes those devices talk to (serve seats, hosted servers, CI runners in data centres). The same code is compiled into `kernel-wasm` (`micro_*` exports). `docs/globe.html` draws only what that world exports (§4.6.5), so the picture at node scale is the sim's state, not an illustration of it.
 
 #### 4.6.1 Host kinds and where each behaviour comes from
 
@@ -362,8 +364,14 @@ R5 is no longer only a row in the table above. `cewp_sim::micro::MicroWorld` is 
 | **Dialled** | One end has a public listener. A client-only end can only dial. |
 | **Punched** | A relayed room-peer pair proposes a direct path (v44+, `DirectAccept::RoomPeers`). The canonical facilitates the punch, which has a `DIRECT_PATH_BUDGET` of 20 s. A failure backs the pair off for 1 h. Whether two networks punch is drawn once per pair of network epochs, with `punch_success_share` (FRONTIER). |
 
+**Who opens a link.** Every link has an initiator and a responder (`Link::initiator`), and it opens only when the initiator can reach the responder:
+- A client-only phone is always the initiator. A seat never dials a device: on a homing link the device opened it.
+- A dialled link is opened by the end without a listener toward the end with one.
+- A seat sends to a device only on a link that device opened, or to a fellow seat (`MicroWorld::seat_may_send`). A sleeping phone has no such link, so a seat cannot reach it until it wakes and dials again.
+- **Rounds need a peer.** A device gets a seat as a replication peer through consent, which needs an owner. An unclaimed device (`Node::claimed`, drawn with `claimed_share`) keeps its homing link and announces on it, but no seat opens a replication round for it when the world's `bundle_bootstrap` switch (edge #881) is off, as on v44. The default world is the v45 shape: the switch is on, and an unclaimed device rounds with the bundle's seats (its required set by subject Pull, one Revocation round per cadence). The page names three settings: v45 (on, required-set Pull, the default), v44 (off) and whole-plane (on with the #881 whole-plane diff, never shipped as a default); the seat load table follows the round shape of the one chosen. Served rounds and announces are counted per node (`rounds`, `announces`) and in `MicroStats::rounds_served` / `rounds_unserved`. This is the model's reading of the constitution and of edge as shipped, not a measurement.
+
 **Shaping and paths:**
-- **When a link is shaped:** a link is shaped when one end shapes every identity link and the other accepts.
+- **When a link is shaped:** a link is shaped when its initiator shapes every identity link (server class by default, or the person opted in) and the responder answers, by its own policy or on the ask path. A seat never dials, so a homed device that does not offer gets an unshaped homing link whatever the seat offers.
   - The class is the lower of the two offers.
   - At most 8 device links per end. The ninth runs unshaped, because v45 has no displacement (CIRISEdge#939).
   - An asked link loses its shaping 10 min after its last real frame.
@@ -403,8 +411,8 @@ Constants copied from the stack are not parameters. They carry their citation in
 | 14 | `home_node_household_share` | 0.60 | MODEL | share of adopting households running an always-on home node (NAS/desktop) |
 | 15 | `laptops_per_person` | 0.50 | MODEL | rest of the ~1 home/laptop/tablet per person in DEVICES_PER_PERSON |
 | 16 | `laptop_awake_share` | 0.35 | MODEL | stationary share of time a laptop is open |
-| 17 | `serve_seats` | 3.0 | MODEL | M canonicals in the focal region (production runs one; k=2 homing needs M>=2) |
-| 18 | `homing_k` | 2.0 | MODEL | top-k canonical homing, CIRISEdge#935 / TRANSPORT_TIERS_MODEL.md §0.3 (not shipped code) |
+| 17 | `serve_seats` | 1.0 | SOURCED | M canonicals: production runs one, on purpose (steward ruling 2026-11-09); 3 is the `design_multi_seat` case |
+| 18 | `homing_k` | 1.0 | MODEL | top-k canonical homing, CIRISEdge#935 / TRANSPORT_TIERS_MODEL.md §0.3 (not shipped code); k = 1 with one seat, 2 in `design_multi_seat` |
 | 19 | `ci_arrivals_per_hour` | 3.0 | MODEL | QA/CI runners joining the focal seats per hour |
 | 20 | `ci_job_mean_s` | 1200.0 | MODEL | mean CI job length (boot, join, run, leave) |
 | 21 | `ci_old_version_share` | 0.30 | MODEL | share of runners pinned to an older edge (soak / compat jobs) |
@@ -426,8 +434,22 @@ Constants copied from the stack are not parameters. They carry their citation in
 | 37 | `urban_density` | 1500.0 | MODEL | people/km2 above which the patch is terraced streets |
 | 38 | `suburban_density` | 250.0 | MODEL | people/km2 above which the patch is suburban; below it a village |
 | 39 | `start_local_hour` | 9.0 | MODEL | local clock at build (the page passes its own) |
+| 40 | `claimed_share` | 0.70 | MODEL | share of person devices with an owner (claimed); servers, seats and CI runners are always claimed |
+| 41 | `bundle_bootstrap` | 1.0 | MODEL | edge #881 bundle bootstrap rounds: on, the v45 LTS default (ruled; CIRISEdge#971 c580298, required-set Pull); 0 = off, as on v44 |
+| 42 | `seat_km_min` | 1,500 | MODEL | nearest a seat is drawn from the street: one seat serves the whole mesh, so it is usually a continent away (no real site is used); 120 in `design_multi_seat` |
+| 43 | `seat_km_max` | 8,000 | MODEL | farthest a seat is drawn; 650 in `design_multi_seat` |
 
-#### 4.6.4 Visualization contract
+**Scenarios.** The default (`MicroParams::production_shape`) is production's shape: one serve seat, k = 1, far away. `MicroParams::design_multi_seat` is the design's multi-seat case (three seats, k = 2, 120 to 650 km), a named scenario, not the baseline. The page's focal chip switches between them ("seats: production: 1" / "design case: 3, k=2").
+
+#### 4.6.4 Findings and open items against `cewp-sim`
+
+- **Laptop (finding, for Eric).** Edge gives a laptop the Home class through `DeviceKind::platform_default()`, so it relays by default, yet it closes its lid on `laptop_awake_share` (MODEL). A Home-class node that sleeps drops its relay duty without notice. The twin shows this as plain behaviour; it does not invent a laptop class.
+- **No CI/QA host class in edge (finding).** Runners default to the Home class.
+- **`ShapedLinkManager` (fixed).** It required `has_direct_path` at both ends and displaced by rank. Both were wrong against edge v45: a NAT'd node dialling a public seat is one hop and is shaped, and there is no displacement (#939). It now follows edge; each test cites the edge line it follows. Planetary numbers that move: slot 25 (displacements) goes to zero; no other slot moves, because the planetary kernel decides a shaped hop per pair from `direct_nat_pm` and does not call `ShapedLinkManager` (the random draw is kept so the other slots' streams are unchanged). `cewp-adversary` and `cewp-cli` only use the bound and the ninth-peer rule, which are unchanged.
+- **The seat's eight slots (finding, for Eric).** On one seat with N homed devices, at most 8 hold a shaped link: the first 8 devices that offer shaping on every link (server class by default; home or phone only when the person opted in), first come, kept for the link's life. The other N − 8 ride unshaped on the same one-hop homing link, E1-sealed (CC 5.4.3 "the accepted leak"). The seat class does not relieve this: it is seat to seat only. Under the load ladder's Admit-close tier the seat takes no new shaped link at all (`reticulum.rs:17189`).
+- **Homing is a model.** k = 2 of M needs M ≥ 2; production runs one canonical, so the default is M = 1, k = 1 (CIRISEdge#935 for the multi-seat case).
+
+#### 4.6.5 Visualization contract
 
 - **Zoom range:** the globe zooms continuously from planet to about 6 px per metre.
 - **Building the focal world:** at zoom 24 the page builds the `MicroWorld` for the tile under the screen centre. It steps that world in sim time and draws the exports on a Canvas2D layer, projected in float64 through the globe's own rotation:
@@ -437,9 +459,63 @@ Constants copied from the stack are not parameters. They carry their citation in
   - pending punches;
   - rows as pulses along their real path (direct, relayed via the forwarder, held at the mailbox, handed over).
 - **Off-street nodes:** they are globe arcs from far away and screen-edge markers at street scale.
-- **Outside the patch:** nothing is drawn 1:1. The boundary is marked, and the land is the population grid's own cells.
+- **Outside the patch:** nothing is drawn 1:1. The boundary is marked, and the population grid's own cells are drawn on the land.
+- **Land:** the page's embedded coastline (2,001 points in 134 pieces, kept to about 0.01°) is closed into rings and filled even-odd through the stencil buffer. The fill is a fan from one point to every ring edge, so no grid size shows at any zoom. The population tiles, the ground and the people are all drawn only where the stencil says land, and the coastline is drawn from the same 0.5° points as the fill's edge. To close the rings, open pieces join where they share a point. A chain with both ends on one side of the antimeridian closes along it (Eurasia, Chukotka, Wrangel Island, the two halves of Vanua Levu). Antarctica, whose ends sit on both sides, closes through the south pole. Two pieces have a loose end. They are drawn as coastline but left out of the fill:
+  - piece 91, two points on the Black Sea's northeast shore, 44.66°N 37.54°E to 43.43°N 39.96°E (the Novorossiysk–Sochi coast). The Eurasia ring already crosses that stretch with one chord.
+  - piece 95, two points on Chukotka's north coast, 68.20°N 177.55°W to 68.96°N 180°. The Chukotka ring already ends at the same antimeridian point.
+- **Streets only on whole land tiles:** free roam builds a tile's `MicroWorld` only when the tile's centre is inside the rings and no coast edge enters it. A coastal tile shows the chip "not wholly settled land", so no street or device is ever drawn on the sea. The coastline is coarse (tens of km), so the coast at street scale is a straight line from that data, not a real shore.
 - **Node card:** tapping a node shows its kind, class, slots used of 8, reachability, the relay decision with its reason, homes, edge version, mailbox, and every live link with its class.
 - **Story, acts 1–2:** a script of what happens to whom (wake, introduce, send, leave, sleep, wake). The rules decide how each one goes, and the captions branch on the sim's outcome.
+
+### 4.7 Seat Capacity: Cost Ledger and Sweep (`crates/cewp-sim/src/capacity.rs`)
+
+The question: what one serve seat ("seat-1") can carry once devices round with it by default (edge v45, #881), and which term binds first. Production showed the cost is store reads driven by replication rounds, not cryptography or shaping.
+
+Run it: `cargo run -p cewp-sim --example capacity_sweep` (any parameter can be overridden as `name=value`; the CPU fit is redone after the overrides). Tests: `cargo test -p cewp-sim capacity`.
+
+#### 4.7.1 The model
+
+- **Two read classes, one CPU parameter.**
+  - **Index pages.** As shipped, every received Summary on every plane drains a whole holdings index: ⌈N_att/1024⌉ pages on Key, IdentityOccurrence, both revocation planes and Attestation (one shared index), ⌈N_td/1024⌉ on TransportDestination. The store's counters do not see these reads. Each page holds one of the node's two sweep permits. Nothing is shared across peers or planes.
+  - **Counted queries.** Only the attestation plane issues them: a required read of 10–20 queries a round, plus about 9.4 attestation queries, 1.86 composer lookups and 1.0 consent-grant read per row refused to a first-contact peer (about 208 refused rows a round on seat-1).
+  - **CPU** = decoded bytes × `cpu_per_byte_s`. A page decodes 1,024 hash refs; a counted query decodes its rows plus a fixed per-call cost. Only one measured window (B) has a CPU reading, so `cpu_per_byte_s` is the one fitted parameter and the byte sizes are MODEL/DERIVED. The page/query split is PROVISIONAL until a second CPU window lands.
+- **Store size is state.** N_att and N_td grow with the nodes the store holds (seat-1's measured rows per announced node), and never fall below today's store (`store_floor_nodes`). As shipped, seat cost is therefore roughly peers × planes × store size: quadratic in the fleet.
+- **Round schedule.** A bootstrap device rounds on five planes (key, identity occurrence, transport destination, revocation, occurrence revocation) with each seat it uses, every 30 s. Fellow seats and proxies round on all six. A round that carries a new row adds one admission: a hybrid verify and `ingest_reads_per_row` reads.
+- **Round shapes.**
+  - *Whole-plane diff* (not shipped as the v45 default): the Summary is the full ref list, each way.
+  - *Required-set Pull* (the v45 baseline, ruled). Read from CIRISEdge#971 at c580298 (the frozen series; 0dc3274 on top is test-only), `src/replication/runtime.rs`. The twin keeps these as `capacity::edge_971`, and the test `edge_971_constants_match_the_source` compares them with the branch when `CEWP_EDGE_RUNTIME_RS` is set. This shape applies only toward a seat that is not also a consent peer.
+    - **Pull planes (`BUNDLE_PULL_PLANES`, :1016):** Key, IdentityOccurrence, TransportDestination and IdentityOccurrenceRevocation go by subject Pull. A Pull carries the device itself and the seat (`pull_planes` = 4).
+    - **Owner leg (`BUNDLE_OWNER_PLANES`, :1027):** asked on Key, IdentityOccurrence and IdentityOccurrenceRevocation, never the route plane, and on timer cycles only (:1461, :1503).
+    - **Timer:** 600 s (:1051), with each device drawing from 300–900 s, so there is no herd.
+    - **First contact:** at once, then retries drawn U[0.5, 1.5] × 30 s (:1056, `first_contact_delay` :1545), up to six tries (:1262), after which the device gives up to the jittered 600 s timer (:1628), counted and warned once; until the seat holds the device's key and route (:1522). Before that the IdentityOccurrenceRevocation leg waits (:1474). `first_contact_cycles` (MODEL 2) is what a start costs when the seat already holds both.
+    - **Writes and kicks:** a write on a Pull plane pulls the device itself on that plane only. An Attestation-plane write kicks nothing (:1320). A host kick runs the self and seat legs. An idle phone makes no edge-side kick.
+    - **The one ordinary round (`BUNDLE_ROUND_PLANES`, :1037):** Revocation, every 30 s, after attribution. The seat's offer there is `Projection::Global`, the revocations it holds of any key in own ∪ cohort, which on a seat is every key it holds (bridge.rs:11640). The refs are few (`rev_plane_refs`, MODEL until the #971 idle-cost test prints the measured figure), but the listing walks a per-subject memo over every key each round, reading the store only for subjects the memo lacks (the CIRISEdge#930 comment there).
+    - **Consent peers:** a device whose host names the seat as a consent peer rounds on every bootstrap plane as on v44 (`consent_peer_share`, MODEL, default 0). That is the case that brings the whole-plane bytes back.
+    - **The listing walk, apart from the read ledger:** every responder round on the Revocation and occurrence-revocation planes walks `subjects_for_projection(Projection::Global)`, which on a seat is every key it holds (bridge.rs:11640). The twin books it as two terms of its own, never folded into the drains: store reads per listing (`rev_round_store_reads`, 0 with a warm memo, MODEL) and seat CPU per listing, a + b × keys_held (`rev_walk_cpu_base_s`, `rev_walk_cpu_per_key_s`, both MODEL until the #971 idle-cost witness prints the walk time at ~8,700 keys and at 2×). The read fix moves the drains and leaves the walk; a listing cached across peers (`rev_listing_cache_s`, a named scenario, not built) moves the walk and leaves the drains. Because keys grow with the fleet and rounds grow with the fleet, the walk is quadratic in the fleet; with the guessed b it can bind before the drains do once reads are minimised, so the knee after read minimisation is only as good as b.
+    - **Cold restart (named scenario, not a default):** the seat restarts with an empty memo and every device's Revocation round arrives within `restart_arrival_s`. Each walk reads the keys the memo lacks (`rev_cold_reads_per_key`, `rev_cold_read_s`); with no single flight (MODEL), each round arriving during the fill reads half the keys on average. `capacity::cold_restart` reports the reads, the fill time and the CPU during it.
+    - **Cost as shipped:** the Revocation round still drains the attestation index on each responder round (the window B drain model), so the baseline is cheap only after read minimisation. Per-device seat cost is MODEL until the edge witness measures it.
+  - *Digest* (after the LTS, not built) and *stretched cadence* (not built): comparison rows.
+- **Read sets.** *As shipped*, and *after read minimisation* (the v45 plan, DERIVED until measured): zero reads per Summary; one shared probe per second per index kind; one audit drain per 60 s per kind; refused rows cost nothing; stale routes are verified once.
+- **Seat selection.** Each device rounds with every seat (as #881 ships), or with one home seat. With every seat, a second seat doubles the work instead of splitting it.
+- **Offload: referral + proxy (MODEL until edge's implementation is confirmed).** A fraction `f` of devices is referred by the loaded seat to one of `S` server-class proxies (CC 5.4.3, 5.4.6). The proxy serves them from its own store and pulls each missing federation-tier row from the seat once per proxy. The seat still pays: a refusal with referrals at each start (or once, with durable homing), the proxies as peers, the row pulls, and owner-binding pulls of unrooted claimed devices (CC 5.3.4). Invalid configurations are refused by `ProxyConfig::violations`: a phone off charge or on a metered network, a node that does not offer relay or has no free shaped slot, serving an owned node's route or a non-federation-tier row, a shaped link of more than one hop.
+- **Saturation.** One queue: the seat's cores act as one fast server, and the waiting factor is 1/(1−ρ). Separately, the sweep permits are checked: ρ_permit = pages/s × page hold time / 2. The knee is the largest fleet with both under `cpu_ceiling`.
+- **What it leaves out.** Tokio scheduling, SQLite lock contention, page-cache misses, the allocator, bursty arrivals (a roll hour), memory pressure, and network latency in round latency.
+
+#### 4.7.2 Calibration against seat-1
+
+<!-- capacity:calibration -->
+
+#### 4.7.3 Results
+
+<!-- capacity:results -->
+
+#### 4.7.4 Parameters
+
+<!-- capacity:params -->
+
+#### 4.7.5 What the twin can and cannot say about capacity
+
+<!-- capacity:statement -->
 
 ---
 

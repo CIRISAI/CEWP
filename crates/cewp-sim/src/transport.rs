@@ -3,8 +3,11 @@
 //! Models:
 //! - 5 Named Budget Classes + Seat class (CC §5.4.3, Tiers.lean)
 //! - Shaped-Link Bound (L ≤ 8, CLM-shaped-link-bound-refuse)
-//! - Rank-based Displacement (CLM-shaped-link-displacement) verifying referral destination is a shaping home/server with slot
-//! - One direct hop (CLM-shaped-link-one-hop) & separate failure counters (reach ≠ capacity)
+//! - No rank displacement: CIRISEdge v45 has none until CIRISEdge#939 (`src/transport/link_shaping.rs:356`);
+//!   a full node runs the next shaping peer unshaped, with referrals, or refuses it if shaped-only
+//! - One direct hop (CLM-shaped-link-one-hop): a NAT'd node dialling a reachable node is one hop;
+//!   only a link a forwarder carries is unshaped (`src/transport/reticulum.rs:534` `link_is_forwarded`).
+//!   Separate failure counters (reach ≠ capacity)
 //! - Up to 3 sealed referrals (MAX_REFERRALS = 3, CLM-refusal-carries-referrals) ranked by inbound dials descending
 //! - 64 KiB (65,536 B) Shaped-Link Payload Boundary & unshaped bulk/AV (CC §5.3.3.2)
 //! - Carriage axis (Carriage::ConsentOnly vs Carriage::Full, CLM-link-carriage-axis) + 16 consent-free envelope kinds
@@ -81,7 +84,8 @@ pub enum BudgetClass {
 }
 
 impl BudgetClass {
-    /// Rank of the budget class: higher rank displaces lowest rank on full nodes.
+    /// Rank of the budget class (the order `agree` takes the lower of). CIRISEdge v45 has no
+    /// displacement by rank (CIRISEdge#939).
     #[must_use]
     pub const fn rank(self) -> u8 {
         self as u8
@@ -353,25 +357,20 @@ pub struct SealedReferral {
     pub inbound_dial_count: u32,
 }
 
-/// Control message delivered to a peer when it is displaced by a higher-rank arrival.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MovedToShapedPeer {
-    pub displaced_peer_id: String,
-    pub referrals: Vec<SealedReferral>,
-}
-
 /// Outcome of attempting to place a shaped link.
+///
+/// Follows CIRISEdge v45 (92012e5), not the CC's displacement clause: there is no
+/// displacement until CIRISEdge#939 lands (`src/transport/link_shaping.rs:356`, "until it
+/// lands a higher-class newcomer at a full node is refused, not given a slot").
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LinkPlacement {
     /// Admitted directly into a free slot.
     Admitted,
-    /// Higher rank peer displaced an existing lower rank peer.
-    Displaced {
-        displaced_peer_id: String,
-        moved_notice: MovedToShapedPeer,
-    },
-    /// Ninth peer accepted on unshaped tier (CC §5.4.3 / 2026-11-06 rule).
-    AdmittedUnshaped,
+    /// Past the bound on a node that is neither shaped-only nor anonymous-tier: the link
+    /// is made and runs unshaped at both ends, and the referrals go out with the `off`
+    /// answer as a hint (`src/transport/link_shaping.rs:3347` `past_bound_answer`;
+    /// `src/transport/reticulum.rs:17215` `no_slot`, "the referrals go out either way").
+    AdmittedUnshaped { referrals: Vec<SealedReferral> },
 }
 
 /// Refusal reason when a shaped link cannot be established.
@@ -386,15 +385,19 @@ pub enum ShapingRefusal {
     ShapingOff,
 }
 
-/// Tracks shaped links on a simulated or real node, enforcing the 8-link bound,
-/// rank displacement, reachability vs capacity separation, and referrals.
+/// Tracks shaped links on a simulated or real node, enforcing the 8-link bound (all links
+/// but seat-to-seat ones count, `src/transport/link_shaping.rs:3172` `counted_links`),
+/// the one-hop rule, reachability vs capacity separation, and referrals. Line citations
+/// are CIRISEdge at the v45 candidate 92012e5.
 #[derive(Debug, Clone)]
 pub struct ShapedLinkManager {
     /// This node's identity.
     pub local_peer_id: String,
     /// Local offered budget class (CC §5.4.3).
     pub local_class: BudgetClass,
-    /// Whether this node has a direct path (IPv6 or punched UDP).
+    /// Whether this node can be dialled directly (public address, IPv6, or a punched UDP
+    /// path). A link is one hop when either end can be dialled by the other
+    /// ([`link_is_one_hop`]); a NAT'd phone dialling a public seat is one hop.
     pub has_direct_path: bool,
     /// Whether this node holds a `serve` seat in the signed roster.
     pub holds_serve_seat: bool,
@@ -561,44 +564,9 @@ impl ShapedLinkManager {
             return Ok(LinkPlacement::Admitted);
         }
 
-        // Node is full (8 device links): attempt rank-based displacement.
-        // Find lowest-ranked currently held peer.
-        let mut lowest_peer: Option<(String, BudgetClass)> = None;
-        for (held_peer, held_class) in &self.active_device_links {
-            match &lowest_peer {
-                None => lowest_peer = Some((held_peer.clone(), *held_class)),
-                Some((_, lowest_class)) => {
-                    if held_class.rank() < lowest_class.rank() {
-                        lowest_peer = Some((held_peer.clone(), *held_class));
-                    }
-                }
-            }
-        }
-
-        if let Some((displaced_id, lowest_class)) = lowest_peer {
-            // Higher rank displaces lowest rank (e.g. Home displaces PhoneCellular).
-            // Phone never displaces Phone; lower rank never displaces equal/higher.
-            if agreed_class.rank() > lowest_class.rank() {
-                // When displacing a peer to a referral, verify the referral destination
-                // is a shaping home or server with an available slot (CC §5.4.3).
-                let has_valid_dest = candidate_referrals.iter().any(|c| c.is_shaping_home_or_server());
-                if has_valid_dest {
-                    self.active_device_links.remove(&displaced_id);
-                    self.active_device_links
-                        .insert(peer_id.to_string(), agreed_class);
-
-                    let referrals = Self::rank_referrals(candidate_referrals);
-                    let notice = MovedToShapedPeer {
-                        displaced_peer_id: displaced_peer_id_clone(&displaced_id),
-                        referrals,
-                    };
-                    return Ok(LinkPlacement::Displaced {
-                        displaced_peer_id: displaced_id,
-                        moved_notice: notice,
-                    });
-                }
-            }
-        }
+        // Full: no displacement in v45 (CIRISEdge#939, `src/transport/link_shaping.rs:356`).
+        // Whoever holds a slot keeps it; nothing is ever taken from a running link
+        // (`src/transport/link_shaping.rs:365`).
 
         // Ninth peer rule (CC §5.4.3 / 2026-11-06 rule):
         // A 9th shaping peer is refused ONLY on a node set to shaped_only or the Anonymous Tier;
@@ -609,17 +577,22 @@ impl ShapedLinkManager {
             Err(ShapingRefusal::CapacityExhausted { referrals })
         } else {
             self.active_unshaped_links.insert(peer_id.to_string());
-            Ok(LinkPlacement::AdmittedUnshaped)
+            Ok(LinkPlacement::AdmittedUnshaped {
+                referrals: Self::rank_referrals(candidate_referrals),
+            })
         }
     }
 
     /// Request establishment of a shaped link with `peer_id`.
     /// Enforces:
-    /// 1. Direct reachability check (Failure Mode A vs Failure Mode B)
+    /// 1. One hop (Failure Mode A vs Failure Mode B): either end directly dialable
+    ///    ([`link_is_one_hop`])
     /// 2. Lower of offers agreement (`agree(self.local_class, peer_class)`)
-    /// 3. Seat-class bypass of the 8-link bound (CLM-seat-class)
-    /// 4. Rank-based displacement with destination home/server slot verification
-    /// 5. Ninth peer rule: refused only on `shaped_only` or Anonymous Tier; unshaped otherwise
+    /// 3. Seat-class bypass of the 8-link bound, seat to seat only (CLM-seat-class;
+    ///    `src/transport/link_shaping.rs:2867` `is_seat_link`)
+    /// 4. No displacement (CIRISEdge#939): first come keeps the slot
+    /// 5. Ninth peer rule: refused only on `shaped_only` or Anonymous Tier; unshaped with
+    ///    referrals otherwise
     pub fn request_shaped_link(
         &mut self,
         peer_id: &str,
@@ -628,8 +601,9 @@ impl ShapedLinkManager {
         peer_holds_serve_seat: bool,
         candidate_referrals: &[NodeRelayCandidate],
     ) -> Result<LinkPlacement, ShapingRefusal> {
-        // One direct hop check: both ends must have direct reachability.
-        if !self.has_direct_path || !peer_has_direct_path {
+        // One hop: a link is shaped unless a forwarder carries it
+        // (`src/transport/reticulum.rs:534` `link_is_forwarded`, :17182 responder side).
+        if !link_is_one_hop(self.has_direct_path, peer_has_direct_path) {
             self.unreachable_for_shaping_count += 1;
             return Err(ShapingRefusal::UnreachableForShaping);
         }
@@ -658,7 +632,7 @@ impl ShapedLinkManager {
         candidate_referrals: &[NodeRelayCandidate],
         current_unix_secs: u64,
     ) -> Result<LinkPlacement, ShapingRefusal> {
-        if !self.has_direct_path || !peer_has_direct_path {
+        if !link_is_one_hop(self.has_direct_path, peer_has_direct_path) {
             self.unreachable_for_shaping_count += 1;
             return Err(ShapingRefusal::UnreachableForShaping);
         }
@@ -716,14 +690,20 @@ impl ShapedLinkManager {
     }
 }
 
+/// CC 5.4.3 `CLM-shaped-link-one-hop` as CIRISEdge v45 reads it: a link is forwarded only
+/// when it has no direct interface AND the path is more than one hop
+/// (`src/transport/reticulum.rs:534` `link_is_forwarded`). A node that cannot be dialled
+/// (NAT'd, no punch) reaches a dialable one directly, so the link is one hop when EITHER
+/// end can be dialled. Two NAT'd ends with no punch go through a forwarder: unshaped.
+#[must_use]
+pub const fn link_is_one_hop(a_dialable: bool, b_dialable: bool) -> bool {
+    a_dialable || b_dialable
+}
+
 /// Predicate checking if an asked link is expired after 10 minutes (600s) of inactivity (CC §5.4.3 / §5.4.6).
 #[must_use]
 pub fn is_asked_link_expired(last_frame_unix_secs: u64, current_unix_secs: u64) -> bool {
     current_unix_secs.saturating_sub(last_frame_unix_secs) >= SHAPED_ASK_IDLE_TIMEOUT_SECS
-}
-
-fn displaced_peer_id_clone(s: &str) -> String {
-    s.to_string()
 }
 
 /// Model the 2026-11-06 rule for traffic routing over shaped links:
@@ -1184,26 +1164,22 @@ mod tests {
                 .unwrap();
         }
         let res_unshaped = unshaped_mgr.request_shaped_link("phone-9", BudgetClass::PhoneWifi, true, false, &[]);
-        assert_eq!(res_unshaped, Ok(LinkPlacement::AdmittedUnshaped));
+        assert_eq!(res_unshaped, Ok(LinkPlacement::AdmittedUnshaped { referrals: vec![] }));
         assert!(unshaped_mgr.active_unshaped_links.contains("phone-9"));
     }
 
+    /// CIRISEdge 92012e5 `src/transport/link_shaping.rs:356`: "Displacement
+    /// (`CLM-shaped-link-displacement`) is CIRISEdge#939: until it lands a higher-class
+    /// newcomer at a full node is refused, not given a slot." On a node that is not
+    /// shaped-only, "refused" is the `off` answer: the link runs unshaped, the referrals go
+    /// out with it (`src/transport/reticulum.rs:17215`), and every held link stays shaped.
     #[test]
-    fn home_displaces_a_phone_and_displaced_keeps_shaping() {
+    fn a_higher_class_newcomer_at_a_full_node_gets_no_slot() {
         let mut mgr = ShapedLinkManager::new("server-host".into(), true, false);
-
-        // Fill with 8 PhoneCellular peers (rank 1)
         for i in 0..8 {
-            mgr.request_shaped_link(
-                &format!("cellular-{i}"),
-                BudgetClass::PhoneCellular,
-                true,
-                false,
-                &[],
-            )
-            .unwrap();
+            mgr.request_shaped_link(&format!("cellular-{i}"), BudgetClass::PhoneCellular, true, false, &[])
+                .unwrap();
         }
-
         let referrals = vec![NodeRelayCandidate {
             peer_id: "relay-alt".into(),
             relay_offering: true,
@@ -1211,33 +1187,71 @@ mod tests {
             inbound_dial_count: 10,
             budget_class: BudgetClass::Home,
         }];
-
-        // Arriving Home node (rank 3) displaces a PhoneCellular node (rank 1)
-        // when referral destination is a shaping home/server with slot.
-        let res = mgr.request_shaped_link(
-            "home-arriving",
-            BudgetClass::Home,
-            true,
-            false,
-            &referrals,
-        );
-
+        let res = mgr.request_shaped_link("home-arriving", BudgetClass::Home, true, false, &referrals);
         match res {
-            Ok(LinkPlacement::Displaced {
-                displaced_peer_id,
-                moved_notice,
-            }) => {
-                assert!(displaced_peer_id.starts_with("cellular-"));
-                assert_eq!(moved_notice.displaced_peer_id, displaced_peer_id);
-                assert_eq!(moved_notice.referrals.len(), 1);
-                assert_eq!(moved_notice.referrals[0].peer_id, "relay-alt");
+            Ok(LinkPlacement::AdmittedUnshaped { referrals }) => {
+                assert_eq!(referrals.len(), 1);
+                assert_eq!(referrals[0].peer_id, "relay-alt");
             }
-            other => panic!("Expected displacement, got {other:?}"),
+            other => panic!("expected an unshaped ninth link with referrals, got {other:?}"),
         }
-
-        // Manager still has exactly 8 device links
         assert_eq!(mgr.active_device_links.len(), 8);
-        assert!(mgr.active_device_links.contains_key("home-arriving"));
+        assert!(!mgr.active_device_links.contains_key("home-arriving"));
+        assert!((0..8).all(|i| mgr.active_device_links.contains_key(&format!("cellular-{i}"))));
+        assert!(mgr.active_unshaped_links.contains("home-arriving"));
+    }
+
+    /// CIRISEdge 92012e5 `src/transport/reticulum.rs:534` `link_is_forwarded`: a link is
+    /// forwarded only with no direct interface and more than one hop. A phone behind NAT
+    /// dials the seat's public interface: one hop, shaped. Two NAT'd ends with no punch go
+    /// through a forwarder and run sealed and unshaped (`src/transport/reticulum.rs:13968`
+    /// `offer_withheld`, :17182 on the responder).
+    #[test]
+    fn a_natd_device_dialling_a_public_seat_is_one_hop_and_shaped() {
+        let mut seat = ShapedLinkManager::new("seat-1".into(), true, true);
+        let res = seat.request_shaped_link("phone-natd", BudgetClass::PhoneWifi, false, false, &[]);
+        assert_eq!(res, Ok(LinkPlacement::Admitted));
+        assert_eq!(seat.active_device_links.get("phone-natd"), Some(&BudgetClass::PhoneWifi));
+        assert_eq!(seat.unreachable_for_shaping_count, 0);
+
+        let mut natd_home = ShapedLinkManager::new("home-natd".into(), false, false)
+            .with_local_class(BudgetClass::Home);
+        let res = natd_home.request_shaped_link("phone-natd", BudgetClass::PhoneWifi, false, false, &[]);
+        assert_eq!(res, Err(ShapingRefusal::UnreachableForShaping));
+        assert!(link_is_one_hop(true, false) && link_is_one_hop(false, true));
+        assert!(!link_is_one_hop(false, false));
+    }
+
+    /// CIRISEdge 92012e5 `src/transport/link_shaping.rs:2867` `is_seat_link` (own seat AND
+    /// peer seat) and :3172 `counted_links` ("all but `seat` links"): a seat's links to
+    /// devices count within its eight; only seat-to-seat links sit outside. The ninth
+    /// device that offers rides unshaped; a second seat still gets its seat link.
+    #[test]
+    fn a_seat_counts_its_device_links_in_the_eight() {
+        let mut seat = ShapedLinkManager::new("seat-1".into(), true, true);
+        for i in 0..8 {
+            let r = seat.request_shaped_link(&format!("dev-{i}"), BudgetClass::PhoneWifi, false, false, &[]);
+            assert_eq!(r, Ok(LinkPlacement::Admitted));
+        }
+        assert_eq!(seat.free_device_slots(), 0);
+        let ninth = seat.request_shaped_link("dev-8", BudgetClass::Server, true, false, &[]);
+        assert!(matches!(ninth, Ok(LinkPlacement::AdmittedUnshaped { .. })));
+        let peer_seat = seat.request_shaped_link("seat-2", BudgetClass::Seat, true, true, &[]);
+        assert_eq!(peer_seat, Ok(LinkPlacement::Admitted));
+        assert_eq!(seat.active_seat_links.len(), 1);
+        assert_eq!(seat.active_device_links.len(), 8);
+    }
+
+    /// CIRISEdge 92012e5 `src/transport/reticulum.rs:14038`: the dialler sends no offer
+    /// when its policy does not shape toward the peer, and a responder only ever answers
+    /// an offer (:17182-17213). A phone or home at its fleet default (shaping opt-in, off;
+    /// `src/transport/link_shaping.rs:429` `FLEET_DEFAULTS`) takes no slot at the seat.
+    #[test]
+    fn a_device_that_offers_nothing_takes_no_slot() {
+        let mut seat = ShapedLinkManager::new("seat-1".into(), true, true);
+        let r = seat.request_shaped_link("phone-default", BudgetClass::Off, false, false, &[]);
+        assert_eq!(r, Err(ShapingRefusal::ShapingOff));
+        assert_eq!(seat.free_device_slots(), SHAPED_LINK_BOUND);
     }
 
     #[test]
@@ -1297,14 +1311,19 @@ mod tests {
         let mut mgr = ShapedLinkManager::new("host".into(), true, false)
             .with_shaped_only(true);
 
-        // Attempt from peer behind symmetric NAT (no direct path)
-        let res1 = mgr.request_shaped_link("nat-peer", BudgetClass::Home, false, false, &[]);
+        // Two NAT'd ends with no punch: the link goes through a forwarder.
+        let mut natd = ShapedLinkManager::new("natd-host".into(), false, false).with_shaped_only(true);
+        let res1 = natd.request_shaped_link("nat-peer", BudgetClass::Home, false, false, &[]);
         assert_eq!(res1, Err(ShapingRefusal::UnreachableForShaping));
-        assert_eq!(mgr.unreachable_for_shaping_count, 1);
+        assert_eq!(natd.unreachable_for_shaping_count, 1);
+        // A NAT'd peer dialling this reachable host is one hop and takes a slot.
+        let res1 = mgr.request_shaped_link("nat-peer", BudgetClass::Home, false, false, &[]);
+        assert_eq!(res1, Ok(LinkPlacement::Admitted));
+        assert_eq!(mgr.unreachable_for_shaping_count, 0);
         assert_eq!(mgr.capacity_exhausted_count, 0);
 
-        // Fill slots
-        for i in 0..8 {
+        // Fill the other seven slots
+        for i in 0..7 {
             mgr.request_shaped_link(&format!("d-{i}"), BudgetClass::Server, true, false, &[])
                 .unwrap();
         }
@@ -1315,7 +1334,8 @@ mod tests {
             res2,
             Err(ShapingRefusal::CapacityExhausted { .. })
         ));
-        assert_eq!(mgr.unreachable_for_shaping_count, 1);
+        assert_eq!(mgr.unreachable_for_shaping_count, 0);
+        assert_eq!(natd.capacity_exhausted_count, 0);
         assert_eq!(mgr.capacity_exhausted_count, 1);
     }
 
