@@ -308,3 +308,5 @@ body.story-first .story-progress-track{left:0;right:0;top:0;bottom:auto;border-r
   body.story-first #stats{left:auto;right:var(--sf-side)}
   body.story-first #node-card{left:auto;width:min(400px,calc(100vw - 24px))}
 }
+/* narrow screens: the globe centres in the space above the story sheet, so the sheet never covers it */
+@media (max-width:700px){body.story-first.story-on #c,body.story-first.story-on #micro{height:calc(100dvh - var(--sheet-h,0px))}}
