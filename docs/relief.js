@@ -4,13 +4,14 @@
 // Levels: z0 the globe (2048 x 1024), z1 45° tiles (1024 px), z2 15° tiles (900 px, 1/60°).
 // The relief is a 2x multiply on the land already drawn, inside the land stencil, so the land
 // keeps its colours and the shading only darkens slopes away from the light and lifts the ones
-// facing it. It fades out with the other real layers (by 30 m a pixel), before any generated
+// facing it. On the night side the land is darker, so the shading is stretched (2.6x against 1.5x
+// by day) to stay as legible. It fades out with the other real layers (by 30 m a pixel), before any generated
 // street fades in: real geography stops at region scale.
 const RELIEF = { idx: null, pIdx: false, tiles: new Map(), cap: { 1: 10, 2: 16 }, used: "-",
   stats(){ let n = 0; for (const t of this.tiles.values()) if (t.tex) n++; return { used: this.used, textures: n }; } };
-const RV = `attribute vec3 p;attribute vec2 uv;uniform mat3 R;uniform float S;uniform vec2 asp;varying vec2 vUv;varying float vz;void main(){vec3 q=R*p;vz=q.z;vUv=uv;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
-const RF = `precision mediump float;uniform sampler2D T;uniform float uA;varying vec2 vUv;varying float vz;
-void main(){if(vz<0.0)discard;vec4 t=texture2D(T,vUv);float sh=clamp(1.0+(t.r/0.808-1.0)*1.5,0.3,1.5);float e=t.g;
+const RV = `attribute vec3 p;attribute vec2 uv;uniform mat3 R;uniform float S;uniform vec2 asp;uniform vec3 uSunWorld;varying vec2 vUv;varying float vz;varying float vSun;void main(){vec3 q=R*p;vz=q.z;vSun=dot(p,uSunWorld);vUv=uv;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
+const RF = `precision mediump float;uniform sampler2D T;uniform float uA;varying vec2 vUv;varying float vz;varying float vSun;
+void main(){if(vz<0.0)discard;vec4 t=texture2D(T,vUv);float day=smoothstep(-0.10,0.12,vSun);float sh=clamp(1.0+(t.r/0.808-1.0)*mix(2.6,1.5,day),0.25,1.7);float e=t.g;
 vec3 tint=mix(vec3(0.97,1.03,0.96),vec3(1.04,1.0,0.94),smoothstep(0.15,0.45,e));tint=mix(tint,vec3(1.12,1.11,1.1),smoothstep(0.55,0.8,e));tint=mix(tint,vec3(1.3,1.3,1.32),smoothstep(0.85,0.95,e));
 vec3 c=0.5*sh*tint;gl_FragColor=vec4(mix(vec3(0.5),c,uA*smoothstep(0.0,0.06,vz)),1.0);}`;
 let pRelief = null;
@@ -65,7 +66,7 @@ function reliefEvict(z, keep){
   for (let i = 0; i < n - RELIEF.cap[z] && i < old.length; i++){ const [k, t] = old[i]; gl.deleteTexture(t.tex); gl.deleteBuffer(t.mesh.buf); RELIEF.tiles.delete(k); }
 }
 // Called inside the land stencil (bit 1). Finest first; each pass marks bit 2, so a pixel is shaded once.
-function reliefDraw(R, S, asp, w, h, mpp, a){
+function reliefDraw(R, S, asp, w, h, mpp, a, sun){
   if (a <= 0.01) return;
   if (!pRelief){ pRelief = prog(RV, RF); }
   if (!RELIEF.pIdx){ RELIEF.pIdx = true; reliefLoad(0, 0, 0);
@@ -83,7 +84,7 @@ function reliefDraw(R, S, asp, w, h, mpp, a){
   RELIEF.used = passes.length ? "z" + passes[0].z : "-";
   if (!passes.length) return;
   gl.useProgram(pRelief);
-  gl.uniformMatrix3fv(gl.getUniformLocation(pRelief, "R"), false, R); gl.uniform1f(gl.getUniformLocation(pRelief, "S"), S); gl.uniform2fv(gl.getUniformLocation(pRelief, "asp"), asp);
+  gl.uniformMatrix3fv(gl.getUniformLocation(pRelief, "R"), false, R); gl.uniform1f(gl.getUniformLocation(pRelief, "S"), S); gl.uniform2fv(gl.getUniformLocation(pRelief, "asp"), asp); gl.uniform3fv(gl.getUniformLocation(pRelief, "uSunWorld"), sun || [0, 0, 1]);
   gl.uniform1f(gl.getUniformLocation(pRelief, "uA"), a); gl.uniform1i(gl.getUniformLocation(pRelief, "T"), 0); gl.activeTexture(gl.TEXTURE0);
   const ap = gl.getAttribLocation(pRelief, "p"), au = gl.getAttribLocation(pRelief, "uv");
   gl.enableVertexAttribArray(ap); gl.enableVertexAttribArray(au);
