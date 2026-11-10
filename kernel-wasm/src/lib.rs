@@ -722,11 +722,14 @@ pub extern "C" fn micro_cmd(op: u32, a: u32, b: u32) -> i32 {
 /// `read`: 0 as shipped, 1 after read minimisation; `select`: 0 every seat, 1 one home seat.
 /// Fills buffer 12 with: cpu cores, rho cpu, rho permits, round latency s (-1 = unbounded),
 /// counted reads/s, index pages/s, egress bytes/s, links, attribution reads/s, cpu index,
-/// cpu query, cpu context, seat cores, knee devices, cpu ceiling, Global-plane cores (kept
-/// apart from the read terms; MODEL a + b x subjects), subjects walked, busier plane lock rho
-/// (one server per plane). Returns the buffer length.
+/// cpu query, cpu context, seat cores, knee devices, cpu ceiling, key-plane cores (kept apart
+/// from the read terms; a + b x subjects), subjects the busiest plane walks, busiest plane lock
+/// rho (one server per plane), busiest plane (0 Key, 1 occurrence, 2 Revocation, 3 occurrence
+/// withdrawal), lock knee devices, binding term at the seat knee (0 CPU, 1 permits, 2 a plane
+/// lock). `cand` 1 adds the v45 candidate listing changes ((b) cache and read budget; MODEL).
+/// Returns the buffer length.
 #[no_mangle]
-pub extern "C" fn cap_seat(devices: f64, shape: u32, read: u32, seats: u32, select: u32) -> u32 {
+pub extern "C" fn cap_seat(devices: f64, shape: u32, read: u32, seats: u32, select: u32, cand: u32) -> u32 {
     let m = micro();
     let p = m.cost.get_or_insert_with(CostParams::calibrated).clone();
     let shape = match shape {
@@ -739,8 +742,20 @@ pub extern "C" fn cap_seat(devices: f64, shape: u32, read: u32, seats: u32, sele
     let mut sc = Scenario::one_seat(devices.max(0.0), shape, read);
     sc.seats = seats.max(1);
     sc.select = if select == 1 { SeatSelect::HomeOne } else { SeatSelect::AllSeats };
+    if cand == 1 {
+        sc = sc.with_candidate();
+    }
     let o = capacity::run(&p, &sc);
     let knee = capacity::knee(&p, &sc);
+    let lock_knee = capacity::lock_knee(&p, &sc);
+    let mut at = sc;
+    at.devices = knee.max(1.0);
+    let binds = match capacity::binding(&p, &at) {
+        capacity::Binding::Cpu => 0.0,
+        capacity::Binding::Permits => 1.0,
+        capacity::Binding::Lock(_) => 2.0,
+    };
+    let busiest = o.seat.key_planes[o.seat.lock_plane];
     let lat = o.seat_load.round_latency_s;
     m.cap = vec![
         o.seat_load.cpu_cores,
@@ -758,9 +773,12 @@ pub extern "C" fn cap_seat(devices: f64, shape: u32, read: u32, seats: u32, sele
         p.get(CostC::SeatCores),
         knee,
         p.get(CostC::CpuCeiling),
-        o.seat.cpu_rev_walk,
-        o.seat.rev_walk_keys,
+        o.seat.cpu_key_planes,
+        busiest.subjects,
         o.seat.rho_lock,
+        o.seat.lock_plane as f64,
+        lock_knee,
+        binds,
     ];
     m.cap.len() as u32
 }

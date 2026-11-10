@@ -384,7 +384,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=9"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=10"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -1797,13 +1797,15 @@ function microRead(){
 // ---- seat capacity (cewp_sim::capacity, calibrated to seat-1; MODEL/DERIVED/MEASURED as tagged there)
 const CAP_SHAPE = ["whole-plane diff (not shipped)", "required-set Pull (v45 baseline)", "digest (not built)", "stretched (not built)"];
 const capMemo = new Map();
+const KEY_PLANE = ["Key", "occurrence", "Revocation", "occurrence-withdrawal"];
+const CAP_BINDS = ["CPU", "sweep permits", "a key-plane lock"];
 function capSeat(devices, shape, read){
   if (!wasm || !wasm.cap_seat) return null;
   const key = devices + ":" + shape + ":" + read; if (capMemo.has(key)) return capMemo.get(key);
   if (capMemo.size > 512) capMemo.clear();
-  wasm.cap_seat(devices, shape, read, 1, 0);
+  wasm.cap_seat(devices, shape, read, 1, 0, 0);
   const b = microBuf(12, Float64Array);
-  const r = { cpu: b[0], rhoCpu: b[1], rhoPermit: b[2], latency: b[3], reads: b[4], pages: b[5], egress: b[6], links: b[7], attr: b[8], cpuIndex: b[9], cpuQuery: b[10], cpuCtx: b[11], cores: b[12], knee: b[13], ceiling: b[14], walk: b[15], walkKeys: b[16], lock: b[17] };
+  const r = { cpu: b[0], rhoCpu: b[1], rhoPermit: b[2], latency: b[3], reads: b[4], pages: b[5], egress: b[6], links: b[7], attr: b[8], cpuIndex: b[9], cpuQuery: b[10], cpuCtx: b[11], cores: b[12], knee: b[13], ceiling: b[14], walk: b[15], walkKeys: b[16], lock: b[17], lockPlane: b[18], lockKnee: b[19], binds: b[20] };
   capMemo.set(key, r); return r;
 }
 // devices in this patch that round with seat s now (online, homed on s, with a seat as peer)
@@ -2240,10 +2242,10 @@ function renderNodeCard(){
     const kw = capSeat(1, 0, 0), kr = capSeat(1, 1, 0), ka = capSeat(1, 1, 1);
     capHtml = `<div class="card-links"><span>seat load, ${BS_LABEL[microBootstrap]} (${microBootstrap === 0 ? "ordinary whole-plane rounds, claimed devices only" : CAP_SHAPE[bsShape()]}), one seat of ${kr ? kr.cores : "?"} cores · model, calibrated to seat-1</span>
       <div class="kv"><span>includes today's measured peer load at seat-1 as a fixed baseline (MEASURED round mix, MODEL scaling)</span></div>
-      <div class="kv cap-which"><span>which to believe: for today's fleet, the measured line at the foot of this card (0.65 of a core at seat-1). The as-shipped column is PROVISIONAL: it rests on what a sweep permit counts, which is not yet settled, and it may overstate per-device cost</span></div>
+      <div class="kv cap-which"><span>which to believe: for today's fleet, the measured line at the foot of this card (0.65 of a core at seat-1). The as-shipped column is PROVISIONAL: it rests on what one index page costs in CPU, which the one measured CPU window cannot separate from the cost of rows, so it may be high or low</span></div>
       <table class="cap"><tr><th>devices</th><th>as shipped (PROVISIONAL)</th><th>after read minimisation (MODEL)</th></tr>${tr}</table>
-      <div class="kv"><span>largest fleet under ${kr ? Math.round(kr.ceiling * 100) : 70}% (MODEL; the as-shipped knees are PROVISIONAL until what a sweep permit counts is settled)</span><b>whole-plane ${kw ? fmtKnee(kw.knee) : "–"} · required-set ${kr ? fmtKnee(kr.knee) : "–"} · required-set after ${ka ? fmtKnee(ka.knee) : "–"}</b></div>
-      <div class="kv"><span>Global key planes, ${fmtN(here)} devices (MODEL: a + b × subjects under one lock, apart from reads; a and b not yet measured)</span><b>${(() => { const w = capSeat(here, bsShape(), 1); return w && w.walk >= 0 ? fmtN(w.walk) + " cores over " + fmtN(w.walkKeys) + " subjects" + (w.lock >= 0 ? " · plane lock ρ " + w.lock.toFixed(2) + " (one server, cores do not help)" : "") : "–"; })()}</b></div>
+      <div class="kv"><span>largest fleet under ${kr ? Math.round(kr.ceiling * 100) : 70}% (MODEL; the as-shipped knees are PROVISIONAL: they rest on the CPU cost of one index page)</span><b>whole-plane ${kw ? fmtKnee(kw.knee) : "–"} · required-set ${kr ? fmtKnee(kr.knee) : "–"} · required-set after ${ka ? fmtKnee(ka.knee) + " (binds on " + (CAP_BINDS[ka.binds] || "?") + ")" : "–"}</b></div>
+      <div class="kv"><span>key-plane locks, ${fmtN(here)} devices (MODEL: each plane's listing and its 10-minute refill hold one lock; Key and occurrence walk thousands of subjects, the Global planes tens)</span><b>${(() => { const w = capSeat(here, bsShape(), 1); return w && w.lock >= 0 ? "busiest: " + (KEY_PLANE[w.lockPlane] || "?") + " plane, ρ " + w.lock.toFixed(2) + " over " + fmtN(w.walkKeys) + " subjects (one server, cores do not help) · lock knee " + fmtKnee(w.lockKnee) + " devices" : "–"; })()}</b></div>
       <div class="kv"><span>seat-1 measured</span><b>0.65 cores, ~329 attestation queries/s (quiet 60 s window)</b></div></div>`;
   }
   const state = !(f & NF.present) ? "not present" : !(f & NF.awake) ? "asleep" : (f & NF.online) ? "online" : "resuming";
