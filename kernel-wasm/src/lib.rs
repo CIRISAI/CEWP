@@ -534,6 +534,106 @@ pub extern "C" fn micro_build(lat: f64, lon: f64, density_km2: f64, seed_lo: u32
     n
 }
 
+// ------------------------------------------------------------------ holon tiling (cewp_sim::tiling)
+//
+// The page keeps the tree (which holons exist, their households); the kernel does the arithmetic
+// both must agree on: apportionment, the leaf layout, and the focal world on a leaf.
+
+use cewp_sim::tiling::{self, HolonId, LeafContext, LeafLayout};
+
+struct HolonDoor {
+    ext: Vec<u32>,
+    out: Vec<f64>,
+    ctx: [f64; 31],
+    roads: Vec<f64>,
+    buildings: Vec<f64>,
+    ports: Vec<f64>,
+    meta: Vec<f64>,
+}
+
+static mut HOLON: Option<HolonDoor> = None;
+
+fn holon() -> &'static mut HolonDoor {
+    // SAFETY: one thread, the page calls in turn (as `micro`).
+    unsafe {
+        let h = &mut *std::ptr::addr_of_mut!(HOLON);
+        h.get_or_insert_with(|| HolonDoor { ext: vec![0; 25], out: Vec::new(), ctx: [0.0; 31], roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), meta: Vec::new() })
+    }
+}
+
+/// Where the page writes one weight per child (u32 × up to 25) before `holon_split`.
+#[no_mangle]
+pub extern "C" fn holon_ext_ptr() -> *mut u32 { holon().ext.as_mut_ptr() }
+
+/// Split holon `id` (a packed `HolonId`, exact in an f64) holding `budget` households over its
+/// children, by the weights at `holon_ext_ptr`. Child budgets land in buffer 0, in
+/// `HolonId::children` order. Returns the child count (0 for a bad id or at L12).
+#[no_mangle]
+pub extern "C" fn holon_split(id: f64, budget: f64) -> u32 {
+    let h = holon();
+    h.out.clear();
+    let Some(c) = HolonId::unpack(id as u64) else { return 0 };
+    let n = c.children().len();
+    if n == 0 { return 0; }
+    for (_, b) in tiling::split(c, budget.max(0.0) as u64, &h.ext[..n]) { h.out.push(b as f64); }
+    n as u32
+}
+
+/// Where the page writes a leaf's context (31 f64, `LeafContext::to_f64`) before `holon_layout`.
+#[no_mangle]
+pub extern "C" fn holon_ctx_ptr() -> *mut f64 { holon().ctx.as_mut_ptr() }
+
+fn holon_layout_of(id: f64) -> Option<LeafLayout> {
+    let c = HolonId::unpack(id as u64)?;
+    let ctx = LeafContext::from_f64(&holon().ctx);
+    Some(LeafLayout::build(c, &ctx, &MicroParams { values: micro().params }))
+}
+
+/// Lay out leaf `id` from the context at `holon_ctx_ptr` (parameters from the micro block).
+/// Buffers: 1 roads (x0 y0 x1 y1 width, metres from the leaf centre), 2 buildings (cx cy w d
+/// angle floors units 0), 3 ports (dir pos main), 4 meta (w h households class density digest-lo
+/// digest-hi). Returns the road count, or -1 for a bad id.
+#[no_mangle]
+pub extern "C" fn holon_layout(id: f64) -> i32 {
+    let Some(l) = holon_layout_of(id) else { return -1 };
+    let h = holon();
+    h.roads = l.roads.iter().flat_map(|r| [r.x0, r.y0, r.x1, r.y1, r.width]).collect();
+    h.buildings = l.buildings.iter().flat_map(|b| [b.cx, b.cy, b.w, b.d, b.angle, b.floors as f64, b.units as f64, 0.0]).collect();
+    h.ports = l.ports.iter().flat_map(|p| [p.dir as u8 as f64, p.pos, p.main as u8 as f64]).collect();
+    let d = l.digest();
+    h.meta = vec![l.w, l.h, l.households as f64, l.class as u8 as f64, l.density_km2, (d & 0xFFFF_FFFF) as f64, (d >> 32) as f64];
+    l.roads.len() as i32
+}
+
+/// Holon buffers: 0 child budgets, 1 roads, 2 buildings, 3 ports, 4 meta.
+#[no_mangle]
+pub extern "C" fn holon_buf_ptr(which: u32) -> u32 {
+    let h = holon();
+    (match which { 0 => h.out.as_ptr(), 1 => h.roads.as_ptr(), 2 => h.buildings.as_ptr(), 3 => h.ports.as_ptr(), _ => h.meta.as_ptr() }) as usize as u32
+}
+
+/// Length in f64 of a holon buffer.
+#[no_mangle]
+pub extern "C" fn holon_buf_len(which: u32) -> u32 {
+    let h = holon();
+    (match which { 0 => h.out.len(), 1 => h.roads.len(), 2 => h.buildings.len(), 3 => h.ports.len(), _ => h.meta.len() }) as u32
+}
+
+/// Build the focal world on leaf `id` (context at `holon_ctx_ptr`): the leaf's own streets and
+/// dwellings, populated by `MicroWorld::from_leaf`. Returns the node count, or 0 for a bad id.
+#[no_mangle]
+pub extern "C" fn micro_build_leaf(id: f64) -> u32 {
+    let Some(l) = holon_layout_of(id) else { return 0 };
+    let m = micro();
+    let w = MicroWorld::from_leaf(&l, MicroParams { values: m.params });
+    let n = w.nodes.len() as u32;
+    m.roads = w.roads.iter().flat_map(|r| [r.x0, r.y0, r.x1, r.y1, r.width]).collect();
+    m.sites = w.sites.iter().flat_map(|s| [s.lat, s.lon, s.km, s.kind as u8 as f64]).collect();
+    m.world = Some(w);
+    micro_export();
+    n
+}
+
 /// Advance the world `dt_s` simulated seconds.
 #[no_mangle]
 pub extern "C" fn micro_step(dt_s: f64) {

@@ -849,7 +849,7 @@ pub fn destination(lat: f64, lon: f64, bearing: f64, km: f64) -> (f64, f64) {
     (la2.to_degrees(), ((lo2.to_degrees() + 540.0) % 360.0) - 180.0)
 }
 
-fn seg_dist(px: f64, py: f64, r: &Road) -> f64 {
+pub(crate) fn seg_dist(px: f64, py: f64, r: &Road) -> f64 {
     let (dx, dy) = (r.x1 - r.x0, r.y1 - r.y0);
     let l2 = dx * dx + dy * dy;
     let t = if l2 > 0.0 { (((px - r.x0) * dx + (py - r.y0) * dy) / l2).clamp(0.0, 1.0) } else { 0.0 };
@@ -864,7 +864,7 @@ fn rect_corners(b: &Building, margin: f64) -> [(f64, f64); 4] {
 }
 
 /// Separating-axis test for two building footprints (with a gap of `margin` metres).
-fn rects_overlap(a: &Building, b: &Building, margin: f64) -> bool {
+pub(crate) fn rects_overlap(a: &Building, b: &Building, margin: f64) -> bool {
     let ca = rect_corners(a, margin / 2.0);
     let cb = rect_corners(b, margin / 2.0);
     for ang in [a.angle, a.angle + std::f64::consts::FRAC_PI_2, b.angle, b.angle + std::f64::consts::FRAC_PI_2] {
@@ -909,7 +909,34 @@ impl MicroWorld {
         let pph = params.get(P::PersonsPerHousehold).max(1.0);
         let area_km2 = params.get(P::TargetHouseholds).max(4.0) * pph / density_km2.max(1.0);
         let half = (area_km2.sqrt() * 1000.0 / 2.0).clamp(70.0, 650.0);
-        let mut w = Self {
+        let mut w = Self::empty(lat0, lon0, density_km2, class, half, seed, params);
+        w.lay_out_streets();
+        w.place_buildings();
+        w.thin_to_density();
+        w.place_sites();
+        w.populate();
+        w.assign_claims();
+        w
+    }
+
+    /// Build the focal world on one leaf holon of the tiling (`crate::tiling`): its streets and
+    /// dwellings are the leaf's layout, so the world the page runs sits in the tiled streets
+    /// exactly, and its households are the leaf's budget.
+    #[must_use]
+    pub fn from_leaf(leaf: &crate::tiling::LeafLayout, params: MicroParams) -> Self {
+        let (lat0, lon0) = leaf.id.centre_deg();
+        let half = leaf.w.max(leaf.h) / 2.0;
+        let mut w = Self::empty(lat0, lon0, leaf.density_km2, leaf.class, half, leaf.id.seed(), params);
+        w.roads = leaf.roads.clone();
+        w.buildings = leaf.buildings.clone();
+        w.place_sites();
+        w.populate();
+        w.assign_claims();
+        w
+    }
+
+    fn empty(lat0: f64, lon0: f64, density_km2: f64, class: DensityClass, half: f64, seed: u64, params: MicroParams) -> Self {
+        Self {
             params,
             seed,
             rng: Rng::new(seed.rotate_left(17) ^ 0x51_7E),
@@ -934,14 +961,7 @@ impl MicroWorld {
             link_index: BTreeMap::new(),
             qa_peer: NONE,
             runs: 0,
-        };
-        w.lay_out_streets();
-        w.place_buildings();
-        w.thin_to_density();
-        w.place_sites();
-        w.populate();
-        w.assign_claims();
-        w
+        }
     }
 
     // -------------------------------------------------------------- geometry

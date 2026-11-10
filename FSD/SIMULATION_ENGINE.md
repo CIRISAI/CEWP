@@ -478,6 +478,34 @@ Constants copied from the stack are not parameters. They carry their citation in
 - **Node card:** tapping a node shows its kind, class, slots used of 8, reachability, the relay decision with its reason, homes, edge version, mailbox, and every live link with its class.
 - **Story, acts 1–2:** a script of what happens to whom (wake, introduce, send, leave, sleep, wake). The rules decide how each one goes, and the captions branch on the sim's outcome.
 
+#### 4.6.6 Holon tiling (`crates/cewp-sim/src/tiling.rs`)
+
+The tiling lays procedural streets and homes over all settled land at street scale, so a zoom can show many neighbourhoods side by side instead of one patch. Each holon is a lat/lon cell on one global integer lattice:
+
+| level | cell | children per side |
+|---|---|---|
+| L0 | 1.5° (the population grid) | |
+| L1 | 0.3° | 5 |
+| L2 | 0.06° | 5 |
+| L3 | 0.02° (the street tile, the same `(ti, tj)` and seed tile as §4.6.2) | 3 |
+| L4–L12 | 0.02° / 2ᵏ | 2 (adaptive quadtree) |
+
+- **Ids:** one lattice unit is 0.02° / 512. A cell's id is `level·2^47 + (i + 2^22)·2^24 + (j + 2^23)`, which is below 2^51, so a JavaScript number holds it exactly. Longitude wraps, and the parent is found by floor division. `docs/holon.js` repeats the arithmetic, and `tools/holon/id_test.mjs` and the Rust test `id_vectors_match_the_page` check one shared vector file (`tools/holon/id_vectors.tsv`, 126 points, including both sides of the antimeridian).
+- **Households:** the caller gives an L0 cell its households (grid density × land area) and gives each child a weight (land share × populated-place kernel). The kernel multiplies each weight by two octaves of integer value noise on the global lattice. It then splits the parent's households by largest-remainder apportionment, so the children always sum to the parent exactly.
+- **Depth:** a holon at L3 or below is a leaf once it holds no more than `target_households` (60), or at L12. Depth is therefore a pure function of the households, and every leaf shows about one street view's worth of homes.
+- **Streets:** each cell keeps the street lines of its parent that run through it, and adds lines in the widest gaps until its own density's spacing is met (MODEL: `3400 / households_per_km²^0.4` metres, clamped to 60–3,000 m). So streets run straight on through holons of any depth. Across a side inside an L3 tile, the crossings are the lines of the lowest cell holding both sides. About 6% are dropped by the pair's hash, which gives T-junctions. Across an L3 tile boundary, the crossings are drawn from a hash of the two cells at the shallower side's level. A deeper holon's own lines stop at its last cross street. Main roads are drawn per L3 tile, from main crossings on its sides to one hub, and every holon in the tile clips the same lines.
+- **Dwellings:** lots are placed along every street by the street class of §4.6.2. Then units are added or removed until the leaf's dwellings equal its households exactly. Every footprint stays inside its own leaf.
+- **Focal world:** `MicroWorld::from_leaf` builds the simulated neighbourhood on one leaf's streets and dwellings. `build_at_density` stays as the story's and the tests' fixed-density path. No existing test changed.
+- **Witnesses (unit tests):**
+  - parent sums hold from L0 to the leaves;
+  - generate, evict and regenerate gives the identical layout digest;
+  - generating A then B equals generating B then A;
+  - a zoom out to L0 and back in returns the byte-identical leaf;
+  - neighbouring leaves of equal and of different depth (and across the antimeridian) list the same crossings on their shared side, and no street leaves its leaf except at a crossing;
+  - the focal world on a leaf holds exactly its households.
+- **Kernel doors:** `holon_split`, `holon_layout`, `micro_build_leaf` (and `holon_ext_ptr`, `holon_ctx_ptr`, `holon_buf_ptr`, `holon_buf_len`). The page keeps the tree and calls these for the arithmetic both sides must agree on.
+- **No real places:** the inputs are the coarse population grid, land share and populated-place weights. Every street, lot and home below region scale is generated.
+
 ### 4.7 Seat Capacity: Cost Ledger and Sweep (`crates/cewp-sim/src/capacity.rs`)
 
 **Measured from a live mesh.** The seat's costs are calibrated from measurements taken on the live production CIRIS mesh on 2026-11-10: four 60-second windows of the serve node's own counters (one of them with CPU), its store composition, and its announced-node count. Device behaviour is derived from the shipping edge source (CIRISEdge v45 candidate, commit `c580298`, cited beside each constant in `edge_971`). Everything beyond today's fleet size is a model projection, and each figure is labelled MEASURED, DERIVED or MODEL. In the README scoreboard's vocabulary (MEASURED / MODEL / PROJECTED / FRONTIER), DERIVED and PROVISIONAL are both MODEL: DERIVED is computed by stated arithmetic from measured counts and the edge source, PROVISIONAL is a MODEL figure resting on an open calibration question (§4.7.1). Only aggregate counts are kept; the serve node is called seat-1. Today's measured peer load is booked as a fixed baseline in every scenario (`today_peers_booked`, default on): window B's round and door counts are MEASURED, how they scale is MODEL; with no bundle devices the seat reproduces window B's 0.652 cores.
