@@ -6,6 +6,27 @@ A decentralized replacement for the internet — and simultaneously
 an AI governance / superalignment platform — built on the bet that
 **big tech is not necessary**.
 
+**Measured from a live mesh.** The [globe](https://cirisai.github.io/CEWP/)'s serve-seat
+cost model is calibrated from measurements taken on the live production CIRIS mesh on
+2026-11-10 (four 60-second windows of the serve node's own counters, one with CPU; its
+store composition; its announced-node count). Device behaviour is derived from the
+shipping edge source (CIRISEdge v45 candidate, commit `c580298`). Everything beyond
+today's fleet size is a model projection, labelled MEASURED, DERIVED or MODEL where it is
+shown; DERIVED (stated arithmetic on measured counts and source) and PROVISIONAL (resting
+on an open calibration question) are both `MODEL` in the scoreboard's sense below. The
+seat capacity figures do not yet include today's measured peer load, so they are
+optimistic. See [`FSD/SIMULATION_ENGINE.md` §4.7](FSD/SIMULATION_ENGINE.md).
+
+**Begin using it:**
+
+```sh
+pip install ciris-agent
+ciris-agent            # desktop app + local API server
+```
+
+Install guide: [ciris.ai/install](https://ciris.ai/install) ·
+[ciris-agent on PyPI](https://pypi.org/project/ciris-agent/).
+
 ## See it move
 
 - [**Billions of people and devices, one rulebook (Landing Page)**](https://cirisai.github.io/CEWP/) — 5 billion people and 11.25 billion devices (adjustable from `100 M` to `8.1 B` people) on a land-bounded world population density grid (`2,961` cells, `181` localities, `9` GSMA/UN regions). Every device evaluates the same constitutional rulebook in WebAssembly across **CC §5.4.3 1-hop shaped budget classes** (`server` 7,000 B/s, `home` 2,800 B/s, `phone-wifi` 1,400 B/s, `phone-cellular` 350 B/s, `seat` 33,000 B/s), ordinary links, **CC §6.1.6 `deterministic-alm` member relay trees** over sealed chunks, and cover-replaced 15,296 B X-Wing onion walks (`+0 B` extra wire bytes), with expandable `☰ Controls`, `☰ Metrics`, and direct pill links to how it works and how it compares to other decentralized meshes.

@@ -268,6 +268,16 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
   .story-hdr-btn { padding: 2px 6px; font-size: 10px; }
 }
 
+#live-strip{position:fixed;top:76px;left:50%;transform:translateX(-50%);z-index:24;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px 8px;max-width:min(860px,calc(100vw - 16px));padding:5px 10px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--panel) 86%,transparent);backdrop-filter:blur(8px);font:500 10.5px/1.35 var(--mono);color:var(--mute);text-align:center}
+#live-strip b{color:var(--ink)}
+#live-strip code{color:#7ee2a8;background:rgba(126,226,168,.08);padding:1px 5px;border-radius:5px}
+#live-strip a{color:#8ec5ff}
+#live-strip button{font:inherit;color:#8ec5ff;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline}
+#live-strip .ls-x{color:var(--mute);text-decoration:none;margin-left:2px}
+#live-strip .ls-short{display:none}
+#foot{max-height:calc(100vh - 200px);overflow-y:auto;overscroll-behavior:contain}
+@media(max-width:800px){#foot{max-height:calc(100vh - 210px)}}
+@media(max-width:800px){#live-strip{font-size:9.5px;line-height:1.3;padding:4px 8px;width:calc(100vw - 16px);gap:2px 6px}#live-strip .ls-long{display:none}#live-strip .ls-short{display:inline}#live-strip .ls-x{position:absolute;top:2px;right:6px}}
 </style>
 </head>
 <body>
@@ -289,6 +299,11 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
   <a class="nav-pill" href="https://github.com/CIRISAI/CEWP/blob/main/FSD/SIMULATION_ENGINE.md" target="_blank" rel="noopener">📄 Sim FSD v0.2</a>
   <a class="nav-pill" href="https://github.com/CIRISAI/CEWP" target="_blank" rel="noopener">GitHub</a>
 </nav>
+<div id="live-strip" role="note">
+  <span><b>Measured from a live mesh:</b> <span class="ls-long">the serve seat's costs are calibrated on the production CIRIS mesh (2026-11-10); beyond today's fleet every figure is a model, labelled where shown.</span><span class="ls-short">seat costs calibrated on the production CIRIS mesh (2026-11-10); the rest is model.</span> <button id="live-what" type="button">what is measured?</button></span>
+  <span><span class="ls-long">Begin using it: </span><code>pip install ciris-agent</code> then <code>ciris-agent</code> · <a href="https://ciris.ai/install" target="_blank" rel="noopener">install guide</a> · <a href="https://pypi.org/project/ciris-agent/" target="_blank" rel="noopener">PyPI</a></span>
+  <button class="ls-x" id="live-x" type="button" title="Hide">✕</button>
+</div>
 
 <div id="story-hud" class="story-panel">
   <span class="story-act-badge" id="story-act-badge">1/6</span>
@@ -548,6 +563,11 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
   <div class="panel-head" style="margin-bottom:4px">
     <b style="color:#fff;font-size:11.5px">How the Rulebook &amp; Transport Tiers Globe Works</b>
     <button class="panel-close" id="close-foot" type="button" title="Hide info">✕</button>
+  </div>
+  <div id="foot-measured" style="margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px">
+    <b style="color:#fff">Measured from a live mesh.</b> The serve seat's cost model (open a serve seat's card at street zoom) is calibrated from the live production CIRIS mesh on 2026-11-10: four 60-second windows of the serve node's own counters, one of them with CPU, plus its store composition and announced-node count. Device behaviour is derived from the shipping edge source (CIRISEdge v45 candidate, commit <code>c580298</code>). Everything beyond today's fleet size is a model projection.
+    <br><b style="color:#fff">Measured today (seat-1, aggregates only):</b> 0.65 of a core in a quiet 60 s window · ~329 attestation queries/s · ~10–12 replication rounds per minute per plane (quiet window) · store of ~42.5k attestations, ~18.3k transport destinations, ~8.7k keys · 1,349 announced nodes under 1,338 owners · 0 key-revocation rows. On screen, only the seat card's <i>seat-1 measured</i> line shows these directly.
+    <br><b style="color:#fff">Labels:</b> MEASURED is read from the serve node; DERIVED is computed by stated arithmetic from measured counts and the edge source; MODEL is a projection; PROVISIONAL is a MODEL figure that rests on an open calibration question. DERIVED and PROVISIONAL are both MODEL in the README scoreboard's sense. Seat capacity figures exclude today's measured peer load, so they are optimistic. The population, links and story elsewhere on the globe are simulated.
   </div>
   Every person and device sits on populated land (2,961 density cells stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Per <b>CC 5.4.3</b> ("A shaped link is one hop"), shaped budget classes (<code>server</code> 7,000 B/s, <code>home</code> 2,800 B/s, <code>phone-wifi</code> 1,400 B/s, <code>phone-cellular</code> 350 B/s, <code>seat</code> 33,000 B/s at ρ=0.5) are 1 direct hop and never forwarded; peers without a direct path carry on ordinary links. Large rooms fan out via the <b>CC 6.1.6 <code>deterministic-alm</code> member relay tree</b> over sealed chunks (distinct from CC 5.3.3.2's no-SFU-relay-role; no seat decodes or selects). 15,296 B X-Wing onion packets replace cover frames on shaped links at <b>0 extra wire bytes</b> (CC 5.4.6). <a href="how-it-works.html#solves">How it works</a> · <a href="how-it-works.html#peers">vs. other meshes</a> · <a href="mesh.html">6-peer kernel</a> · <a href="toy/">scaling toy</a>
 </div>
@@ -1190,6 +1210,10 @@ if ($("btn-foot")) $("btn-foot").onclick=()=>togglePanel("foot","btn-foot");
 if ($("close-hud")) $("close-hud").onclick=()=>togglePanel("hud","btn-hud");
 if ($("close-stats")) $("close-stats").onclick=()=>togglePanel("stats","btn-stats");
 if ($("close-foot")) $("close-foot").onclick=()=>togglePanel("foot","btn-foot");
+if ($("live-what")) $("live-what").onclick=()=>{ if ($("foot").classList.contains("panel-hidden")) togglePanel("foot","btn-foot"); };
+if ($("live-x")) $("live-x").onclick=()=>{ $("live-strip").style.display="none"; };
+function placeLiveStrip(){ const nav=document.querySelector(".nav-strip"), ls=$("live-strip"); if (nav && ls) ls.style.top=(nav.getBoundingClientRect().bottom+6)+"px"; }
+placeLiveStrip(); addEventListener("resize", placeLiveStrip);
 function updateStatusLine(buildSec){
   if (!W) return;
   const P = currentPop, D = Math.round(P * DEVICES_PER_PERSON);
@@ -2179,6 +2203,7 @@ function microDraw(){
 let safeTop = 60, safeBot = 60;
 function measureSafe(F){
   const nav = document.querySelector(".nav-strip"); safeTop = nav ? nav.getBoundingClientRect().bottom + 8 : 60;
+  const ls = $("live-strip"); if (ls && ls.style.display !== "none"){ safeTop = ls.getBoundingClientRect().bottom + 8; }
   let b = F.h; for (const id of ["focal-chip", "story-hud"]){ const el = $(id); if (el && !el.classList.contains("panel-hidden") && el.offsetParent !== null){ const r = el.getBoundingClientRect(); if (r.height) b = Math.min(b, r.top); } }
   safeBot = F.h - b + 8;
 }
@@ -2292,7 +2317,7 @@ function drawEdgeMarkers(g, F, alpha){
     const label = parts.join(" + ") + " · " + Math.round(km).toLocaleString() + " km";
     let sub = "";
     if (seats.length){ const s0 = seats[0]; let homed = 0; for (let l = 0; l < M.links.length; l += 4) if ((M.links[l + 2] & 0xff) === 0 && (M.links[l] === s0 || M.links[l + 1] === s0)) homed++; sub = `${nodeShaped(s0)}/8 shaped · ${homed} homed here`;
-      const sc = M.seatCap && M.seatCap.get(s0); if (sc && sc.c) sub += ` · CPU ${fmtN(sc.c.cpu)} cores · ${fmtN(sc.c.reads)} reads/s (model, as shipped: provisional)`; }
+      const sc = M.seatCap && M.seatCap.get(s0); if (sc && sc.c) sub += ` · CPU ${fmtN(sc.c.cpu)} cores · ${fmtN(sc.c.reads)} reads/s (model, as shipped: provisional; excludes today's measured peer load, optimistic)`; }
     const small = F.w < 800; let label2 = label;
     if (small){ label2 = (seats.length ? "seat" : ci.length ? "CI" : "server") + (parts.length > 1 ? "+" : "") + " · " + Math.round(km).toLocaleString() + " km"; sub = seats.length ? `${nodeShaped(seats[0])}/8 shaped` : ""; }
     drawNodeGlyph(g, mk.node, mx, my, 11, alpha * (microSel < 0 || nodes.includes(microSel) ? 1 : 0.6), 0);
@@ -2408,6 +2433,7 @@ function renderNodeCard(){
     const tr = sizes.map((d, j) => `<tr><td>${j ? fmtN(d) : d + " (this patch)"}</td><td>${cell(capSeat(d, bsShape(), 0))}</td><td>${cell(capSeat(d, bsShape(), 1))}</td></tr>`).join("");
     const kw = capSeat(1, 0, 0), kr = capSeat(1, 1, 0), ka = capSeat(1, 1, 1);
     capHtml = `<div class="card-links"><span>seat load, ${BS_LABEL[microBootstrap]} (${microBootstrap === 0 ? "ordinary whole-plane rounds, claimed devices only" : CAP_SHAPE[bsShape()]}), one seat of ${kr ? kr.cores : "?"} cores · model, calibrated to seat-1</span>
+      <div class="kv" style="color:#ffcf70"><span>excludes today's measured peer load (0.65 of a core at seat-1); capacity shown is optimistic</span></div>
       <table class="cap"><tr><th>devices</th><th>as shipped (PROVISIONAL)</th><th>after read minimisation (MODEL)</th></tr>${tr}</table>
       <div class="kv"><span>largest fleet under ${kr ? Math.round(kr.ceiling * 100) : 70}% (MODEL; the as-shipped knees are PROVISIONAL until what a sweep permit counts is settled)</span><b>whole-plane ${kw ? fmtN(kw.knee) : "–"} · required-set ${kr ? fmtN(kr.knee) : "–"} · required-set after ${ka ? fmtN(ka.knee) : "–"}</b></div>
       <div class="kv"><span>Global key planes, ${fmtN(here)} devices (MODEL: a + b × subjects under one lock, apart from reads; a and b not yet measured)</span><b>${(() => { const w = capSeat(here, bsShape(), 1); return w && w.walk >= 0 ? fmtN(w.walk) + " cores over " + fmtN(w.walkKeys) + " subjects" + (w.lock >= 0 ? " · plane lock ρ " + w.lock.toFixed(2) + " (one server, cores do not help)" : "") : "–"; })()}</b></div>
