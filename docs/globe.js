@@ -791,8 +791,9 @@ function pruneAndPackArcs(nowSec){
 function getSimUtcHours(nowSec){
   if (storyActive) {
     const oa = Math.max(0, storyCurrentAct - 1 - STORY_LEAD);
-    if (oa < 3) return 7.2 + oa * 0.7 + (Math.min(storyActElapsed, 14.0) / 14.0) * 0.7;
-    if (oa === 3) return 9.3 + (storyActElapsed / 14.0) * 3.2;
+    const d = Math.max(1, STORY_ACTS[storyCurrentAct].duration);
+    if (oa < 3) return 7.2 + oa * 0.7 + Math.min(1, storyActElapsed / d) * 0.7;
+    if (oa === 3) return 9.3 + (storyActElapsed / d) * 3.2;
     return (8.5 + storyActElapsed * 0.85) % 24.0;
   }
   return (8.5 + nowSec * 0.85) % 24.0;
@@ -1276,7 +1277,7 @@ const STORY_LEAD = 1;
 const STORY_ACTS = [
   {
     num: 1,
-    title: "A twin of a live mesh",
+    title: "A digital twin",
     intro: true,
     live: true,
     camDist: 2.65,
@@ -1287,7 +1288,7 @@ const STORY_ACTS = [
   },
   {
     num: 2,
-    title: "First Contact",
+    title: "Two neighbours connect",
     micro: true, // street scale: the R5 focal world (cewp_sim::micro)
     camDist: 1.35,
     targetZoom: 2.25,
@@ -1295,11 +1296,11 @@ const STORY_ACTS = [
     pitch: 47.37 * Math.PI / 180,
     pop: 100,
     holonRes: "R4",
-    duration: 40
+    duration: 8 // re-planned from its beats once the street is built (storyMicroPlan)
   },
   {
     num: 3,
-    title: "A Street of Devices",
+    title: "A whole street",
     micro: true,
     camDist: 1.35,
     targetZoom: 2.25,
@@ -1307,11 +1308,11 @@ const STORY_ACTS = [
     pitch: 47.37 * Math.PI / 180,
     pop: 5000,
     holonRes: "R4",
-    duration: 28
+    duration: 8
   },
   {
     num: 4,
-    title: "A Local Community Forms",
+    title: "A local community",
     camDist: 1.75,
     targetZoom: 1.78,
     yaw: 9.5 * Math.PI / 180,
@@ -1322,7 +1323,7 @@ const STORY_ACTS = [
   },
   {
     num: 5,
-    title: "Communities Connect Across Cities",
+    title: "Cities connect",
     live: true,
     camDist: 2.25,
     targetZoom: 1.36,
@@ -1334,7 +1335,7 @@ const STORY_ACTS = [
   },
   {
     num: 6,
-    title: "Continents Link Across Oceans",
+    title: "Across the oceans",
     live: true,
     camDist: 2.65,
     targetZoom: 1.08,
@@ -1346,7 +1347,7 @@ const STORY_ACTS = [
   },
   {
     num: 7,
-    title: "A Worldwide Network of People",
+    title: "The whole world",
     live: true,
     camDist: 3.10,
     targetZoom: 0.96,
@@ -1358,7 +1359,7 @@ const STORY_ACTS = [
   },
   {
     num: 8,
-    title: "Run a node yourself",
+    title: "Join in",
     outro: true,
     live: true,
     camDist: 3.10,
@@ -1421,27 +1422,34 @@ function pickRingNode(minDeg, maxDeg) {
 
 function storyLive(){ const c = STORY_ACTS[storyCurrentAct]; return !!(c && c.live); }
 const STORY_CAPTIONS = [
-  [ `<b>A digital twin of the CIRIS mesh.</b> Its seat-load figures are calibrated from live production mesh measurements taken 2026-11-10: four 60 s windows of the serve node's counters (one with CPU), its store composition and its announced-node count. Device behaviour is derived from edge source at commit <code>c580298</code>. The people, streets and devices you will see are simulated.` ],
-  [ "Two people share a contact link and connect directly — no central server" ],
-  [ "The rest of the street: phones, laptops, home nodes, a CI runner passing through" ],
+  [ `<b>This is a digital twin of the CIRIS mesh</b>: a simulation tuned to measurements from the real network. Everyone and everything you'll see is simulated. <a href="#" data-story-sources>How we know</a>` ],
+  [ "Two neighbours connect directly, with no company in the middle" ],
+  [ "A whole street of phones, laptops and home servers" ],
   [
-    "Neighbors form a local community and agree on shared rules together",
-    "Members back up each other's shared files and media across the neighborhood"
+    "Neighbours form a local community and agree on their own rules together",
+    "Members keep backup copies of each other's shared photos and files"
   ],
   [
-    "Communities connect across cities, relaying live streams from member to member",
-    "Traffic is paced smoothly on direct links so private conversations blend in"
+    "Communities in different cities connect, passing live video from member to member",
+    "Traffic is sent at a steady pace, so private conversations blend in with everything else"
   ],
   [
-    "Regions link across oceans while local disputes stay contained where they happen",
-    "Every community governs itself without any single company or gatekeeper"
+    "Regions connect across oceans, while local disagreements stay local",
+    "Every community runs itself. No single company is in charge"
   ],
   [
-    "A billion people connected worldwide — yet each person's data use stays tiny",
-    "Activity rises and falls with daylight and evening hours across every time zone"
+    "A billion people connected, and each person uses only a little data",
+    "Activity rises and falls with day and night around the world"
   ],
-  [ `<b>Run a node yourself:</b> <code>pip install ciris-agent</code>, then <code>ciris-agent</code>, the desktop app plus a local API server (Python 3.10 or later). <a href="https://ciris.ai/install" target="_blank" rel="noopener">Install guide</a> · <a href="https://pypi.org/project/ciris-agent/" target="_blank" rel="noopener">PyPI</a>. This globe is a model of the mesh, not a census: no real install appears on it.` ]
+  [ `<b>Want to join?</b> Install the CIRIS agent: <code>pip install ciris-agent</code>, then run <code>ciris-agent</code>. <a href="https://ciris.ai/install" target="_blank" rel="noopener">Install guide</a> · <a href="https://pypi.org/project/ciris-agent/" target="_blank" rel="noopener">PyPI</a>. This globe shows a model, not real people.` ]
 ];
+
+// pacing: a caption stays on screen for its length, ~250 ms a word, never under 3 s or over 7 s
+const capWords = (html) => html.replace(/<[^>]+>/g, " ").trim().split(/\s+/).filter(Boolean).length;
+const capSecs = (html) => Math.min(7, Math.max(3, 0.25 * capWords(html)));
+// a planetary step lasts as long as its captions; the street steps set their own length beat by beat
+STORY_ACTS.forEach((cfg, i) => { if (cfg.micro) return; cfg.capT = (STORY_CAPTIONS[i] || [cfg.title]).map(capSecs); cfg.duration = cfg.capT.reduce((a, b) => a + b, 0); });
+function storySubIx(cfg, t){ if (!cfg.capT) return 0; let acc = 0; for (let i = 0; i < cfg.capT.length; i++){ acc += cfg.capT[i]; if (t < acc) return i; } return cfg.capT.length - 1; }
 
 function updateStoryUI(){
   const cfg = STORY_ACTS[storyCurrentAct];
@@ -1449,8 +1457,7 @@ function updateStoryUI(){
   if ($("story-title")) $("story-title").textContent = cfg.title;
   if ($("story-line") && !cfg.micro) {
     const lines = STORY_CAPTIONS[storyCurrentAct] || [cfg.title];
-    const subIx = storyActElapsed < (cfg.duration * 0.5) ? 0 : Math.min(lines.length - 1, 1);
-    $("story-line").innerHTML = lines[subIx];
+    $("story-line").innerHTML = lines[Math.min(lines.length - 1, storySubIx(cfg, storyActElapsed))];
   }
   if ($("story-btn-play")) {
     const end = storyCurrentAct === STORY_ACTS.length - 1 && storyActElapsed >= cfg.duration;
@@ -1594,7 +1601,7 @@ function storyTickAct(actIx, dt) {
       const ni = storyCommunityNodes[i];
       if (storyActivity[ni] > 12) storyActivity[ni] = Math.max(12, (storyActivity[ni] * 0.90) | 0);
     }
-    const progress = Math.min(1.0, storyActElapsed / 11.5);
+    const progress = Math.min(1.0, storyActElapsed / (0.85 * cfg.duration));
     const targetComm = Math.min(storyCommunityNodes.length, Math.floor(progress * storyCommunityNodes.length));
     while (storyLitComm < targetComm) {
       const nodeIdx = storyCommunityNodes[storyLitComm++];
@@ -1620,19 +1627,19 @@ function storyTickAct(actIx, dt) {
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, storyActivity);
   } else if (actIx === 2) {
     // Wavefront expands 10 deg -> 48 deg; live tick() + decay() flashes traffic inside the wave
-    const progress = Math.min(1.0, storyActElapsed / 12.0);
+    const progress = Math.min(1.0, storyActElapsed / (0.85 * cfg.duration));
     const waveDeg = 10 + progress * 38;
     uStoryCosVal = Math.cos(waveDeg * Math.PI / 180);
     uStoryDensityVal = 0.25 + progress * 0.30;
   } else if (actIx === 3) {
     // Wavefront expands 48 deg -> 118 deg across oceans; live tick() + decay() flashes diurnal traffic
-    const progress = Math.min(1.0, storyActElapsed / 12.0);
+    const progress = Math.min(1.0, storyActElapsed / (0.85 * cfg.duration));
     const waveDeg = 48 + progress * 70;
     uStoryCosVal = Math.cos(waveDeg * Math.PI / 180);
     uStoryDensityVal = 0.55 + progress * 0.30;
   } else if (actIx === 4) {
     // Wavefront completes 118 deg -> 180 deg -> 100% planetary diurnal network
-    const progress = Math.min(1.0, storyActElapsed / 5.0);
+    const progress = Math.min(1.0, storyActElapsed / (0.6 * cfg.duration));
     const waveDeg = 118 + progress * 62;
     uStoryCosVal = progress >= 1.0 ? -1.05 : Math.cos(waveDeg * Math.PI / 180);
     uStoryDensityVal = 0.85 + progress * 0.15;
@@ -2313,7 +2320,7 @@ function localToLL(x, y){ return [M.lat0 + y / 111320, M.lon0 + x / (111320 * Ma
 function storyCam(x, y, z){ const [la, lo] = localToLL(x, y); storyTargetPitch = la * Math.PI / 180; storyTargetYaw = lo * Math.PI / 180; storyTargetZoom = z; }
 const expLerp = (a, b, t) => a * Math.pow(b / a, Math.max(0, Math.min(1, t)));
 function storyMicroSetup(act){
-  microStory = true; MSTORY.fired = new Set(); MSTORY.outcome = null;
+  microStory = true; MSTORY.fired = new Set(); MSTORY.outcome = null; MSTORY.beat = undefined; MSTORY.waitFrom = 0; MSTORY.beatT = undefined;
   if (act === 0){
     // rebuilt at the act's start, so it plays from the same state every time
     if (!storyMicroWorld()){ MSTORY.actors = null; return; }
@@ -2327,54 +2334,90 @@ function storyMicroSetup(act){
     microStoryDim = null; wasm.micro_quiet(0); MSTORY.actors.forEach(i => wasm.micro_cmd(2, i, 0)); microTimeScale = 40;
   }
 }
+// "How we know" in the opening caption opens the Sources panel, which keeps every measured detail
+document.addEventListener("click", (e) => { const a = e.target.closest && e.target.closest("[data-story-sources]"); if (!a) return; e.preventDefault();
+  const f = $("foot"); if (f && f.classList.contains("panel-hidden")) togglePanel("foot", "btn-foot"); });
 function storyMicroCaption(text){ if ($("story-line")) $("story-line").innerHTML = text; }
+// the two street steps as beats: a beat runs its action, shows its caption, and stays for that
+// caption's length (capSecs); a beat with a `wait` holds the previous caption until the sim answers
+function storyMicroCtx(){
+  const [ap, ah, bp, bh] = MSTORY.actors; const [axh, ayh] = actorXY(ah), [bxh, byh] = actorXY(bh);
+  const F = camFrame(), frameZ = (m) => Math.min(zoomMax(), (Math.min(F.w, F.h) * 0.62) / (m * 0.86 * Math.min(F.w, F.h) / 2 / EARTH_M));
+  return { ap, ah, bp, bh, axh, ayh, mid: [(axh + bxh) / 2, (ayh + byh) / 2], span: Math.hypot(bxh - axh, byh - ayh), frameZ,
+    kmOf: (s) => Math.round(M.sites[(M.nu[s * 8 + 7] & 0xffffff) * 4 + 2]).toLocaleString() };
+}
+const camAlice = (c) => storyCam(c.axh, c.ayh, c.frameZ(70));
+const camPair = (c, u) => storyCam(c.mid[0], c.mid[1], expLerp(c.frameZ(70), c.frameZ(c.span * 1.35 + 40), u === undefined ? 1 : Math.min(1, u * 2)));
+const camOut = (c) => { const p = actorXY(c.ap); storyCam((p[0] + c.axh) / 2, (p[1] + c.ayh) / 2, c.frameZ(Math.max(90, Math.hypot(p[0] - c.axh, p[1] - c.ayh) * 1.4 + 60))); };
+const helperPhrase = (c, hs) => hs.length === 1 ? `a helper server in a data centre ${c.kmOf(hs[0])} km away` : `${hs.length} helper servers in data centres ${hs.map(c.kmOf).join(" and ")} km away`;
+const MICRO_BEATS = [
+  [ // two neighbours connect
+    { cap: () => "We zoom in on one neighbourhood near Zurich. Every phone and computer here is simulated",
+      cam: (c, u) => storyCam(c.axh, c.ayh, u < 0.15 ? 2.25 : expLerp(2.25, c.frameZ(70), (u - 0.15) / 0.85)) },
+    { run: (c) => wasm.micro_cmd(1, c.ap, 1 | 2), cap: () => "Alice's phone wakes up at home. Her home server is always on", cam: camAlice },
+    { run: (c) => wasm.micro_cmd(3, c.ap, c.ah), cap: () => "Her phone finds the home server over Wi-Fi: a direct link, with no company in between", cam: camAlice },
+    { cap: (c) => `Both also check in with ${helperPhrase(c, homesOf(c.ap))}, so friends can find them`, cam: camAlice },
+    { run: (c) => { wasm.micro_cmd(1, c.bp, 1 | 2); wasm.micro_cmd(4, c.ap, c.bp); }, cap: (c) => `Bob lives ${Math.round(c.span)} m away. He and Alice swap contact details`, cam: camPair },
+    { run: (c) => { microTimeScale = 6; MSTORY.route1 = wasm.micro_cmd(3, c.ap, c.bp); microRead(); MSTORY.fired.add("first");
+        const e = M.ev.length - 7, via = M.ev[e + 3]; MSTORY.viaSeat = via < 4294967295 && nodeKind(via) === 4; },
+      cap: () => MSTORY.route1 === 0 ? "Alice sends her first message. It goes straight to Bob's home, because his router accepts direct connections" :
+        `Her first message passes through ${MSTORY.viaSeat ? "the helper" : "a member's home server"}, sealed so only Bob can read it. Their homes try connecting directly`,
+      cam: camPair },
+    { run: (c) => wasm.micro_cmd(3, c.ap, c.bp), wait: () => MSTORY.outcome !== null, waitMax: 8,
+      cap: () => MSTORY.outcome === "ok" ? "It works: their two homes now talk directly, and the helper server steps out of the way" :
+        MSTORY.outcome === "direct" ? "They already have a direct path, so no helper is needed" :
+        MSTORY.outcome === "fail" ? "These two home networks can't connect directly, so messages keep going through the helper, still sealed" :
+        "They are still trying for a direct path; meanwhile messages keep flowing through the helper",
+      cam: camPair },
+    { run: (c) => wasm.micro_cmd(1, c.ap, 1), cap: () => "Alice leaves home. Her phone switches to mobile data and loses the link to her home Wi-Fi", cam: camOut },
+    { run: (c) => wasm.micro_cmd(1, c.ap, 0), cap: () => "In her pocket, the phone goes to sleep and closes its connections to save battery", cam: camOut },
+    { run: (c) => wasm.micro_cmd(3, c.bp, c.ap), cap: () => "Bob replies. While her phone sleeps, her home server keeps the message for her", cam: camOut },
+    { run: (c) => wasm.micro_cmd(1, c.ap, 1), cap: () => "On the tram she opens the app, and her home server passes Bob's message to her phone", cam: camOut }
+  ],
+  [ // the whole street
+    { cap: () => "Now the whole street: phones sleep and wake, laptops close, and home servers stay on to hold messages",
+      cam: (c) => storyCam(c.mid[0], c.mid[1], c.frameZ(Math.max(160, M.half * 0.9))) },
+    { cap: () => "The helper evens out traffic for up to eight devices, hiding their patterns; the rest still connect normally",
+      cam: (c, u) => storyCam(c.mid[0], c.mid[1], expLerp(c.frameZ(Math.max(160, M.half * 0.9)), c.frameZ(M.half * 2.6), u * 0.5)) },
+    { run: () => { MSTORY.ci = wasm.micro_cmd(5, 0, 1); },
+      cap: (c) => `A test computer in a data centre ${MSTORY.ci >= 0 ? c.kmOf(MSTORY.ci) + " km" : "far"} away joins for a few minutes, runs its checks, then leaves`,
+      cam: (c, u) => storyCam(c.mid[0], c.mid[1], expLerp(c.frameZ(Math.max(160, M.half * 0.9)), c.frameZ(M.half * 2.6), 0.5 + u * 0.5)) },
+    { cap: () => "Pulling back: this is one street among millions. From up here the twin counts groups of devices, not each one",
+      cam: (c, u) => storyCam(c.mid[0], c.mid[1], expLerp(c.frameZ(M.half * 2.6), 30, u)) }
+  ]
+];
+// the step's length is the sum of its beats, re-planned as each beat starts (a wait adds its own time)
+function storyMicroPlan(act, from, t0){
+  const cfg = STORY_ACTS[act + STORY_LEAD], beats = MICRO_BEATS[act], c = storyMicroCtx();
+  let d = t0; for (let i = from; i < beats.length; i++) d += i === from && MSTORY.beatT !== undefined ? MSTORY.beatT : capSecs(beats[i].cap(c));
+  cfg.duration = Math.max(d, t0 + 0.1);
+}
 function storyMicroTick(act, t){
   if (!M || !MSTORY.actors) return;
-  const [ap, ah, bp, bh] = MSTORY.actors; const once = (k, fn) => { if (!MSTORY.fired.has(k)){ MSTORY.fired.add(k); fn(); } };
-  const [axh, ayh] = actorXY(ah), [bxh, byh] = actorXY(bh);
-  const mid = [(axh + bxh) / 2, (ayh + byh) / 2], span = Math.hypot(bxh - axh, byh - ayh);
-  const F = camFrame(), frameZ = (m) => Math.min(zoomMax(), (Math.min(F.w, F.h) * 0.62) / (m * 0.86 * Math.min(F.w, F.h) / 2 / EARTH_M));
-  const kmOf = (s) => Math.round(M.sites[(M.nu[s * 8 + 7] & 0xffffff) * 4 + 2]).toLocaleString();
-  if (act === 0){
-    if (t < 7.5){ const z = t < 1.2 ? 2.25 : expLerp(2.25, frameZ(70), (t - 1.2) / 6.3); storyCam(axh, ayh, z);
-      once("c0", () => storyMicroCaption("Zurich from orbit. The twin keeps one neighbourhood here at <b>1:1</b>: every device in it is its own node")); }
-    else if (t < 16){ storyCam(axh, ayh, frameZ(70));
-      once("wake", () => { wasm.micro_cmd(1, ap, 1 | 2); storyMicroCaption("A generated street on the city's edge. Alice's phone wakes on her home Wi-Fi; her <b>home node</b> is always on"); });
-      if (t > 9.5) once("lan", () => { wasm.micro_cmd(3, ap, ah); storyMicroCaption("The phone finds her home node on the <b>LAN</b>: a direct one-hop link, no server involved"); });
-      if (t > 12) once("home", () => { const hs = homesOf(ap); storyMicroCaption(hs.length === 1 ? `Both dial out to the one serve seat the whole mesh homes on, a data centre ${kmOf(hs[0])} km away. The phone is client-only: it listens for nothing` : `Both dial out to the ${hs.length} serve seats they home on (design case, k=${hs.length}), data centres ${hs.map(kmOf).join(" and ")} km away. The phone is client-only: it listens for nothing`); }); }
-    else if (t < 24){ const z = expLerp(frameZ(70), frameZ(span * 1.35 + 40), (t - 16) / 2); storyCam(mid[0], mid[1], z);
-      once("bob", () => { wasm.micro_cmd(1, bp, 1 | 2); wasm.micro_cmd(4, ap, bp); storyMicroCaption(`Bob lives ${Math.round(span)} m away. They swap a contact link`); });
-      if (t > 18.2) once("first", () => { microTimeScale = 6; const r = wasm.micro_cmd(3, ap, bp); MSTORY.route1 = r; microRead();
-        const e = M.ev.length - 7, via = M.ev[e + 3]; const viaKind = via < 4294967295 ? nodeKind(via) : -1;
-        storyMicroCaption(r === 0 ? "Alice's first row reaches Bob <b>directly</b>: his router has a public listener" :
-          `The first row crosses ${viaKind === 4 ? "a <b>serve seat</b>" : "a member-owned relay"}, <b>sealed and unshaped</b>. Their nodes propose a direct path; the seat facilitates the punch`); });
-      storyPunchOutcome(ap, bp);
-      if (t > 22.5) once("second", () => wasm.micro_cmd(3, ap, bp)); }
-    else if (t < 40){
-      storyPunchOutcome(ap, bp);
-      if (MSTORY.outcome === null && t < 27){ storyCam(mid[0], mid[1], frameZ(span * 1.35 + 40)); return; } // wait for the punch to settle
-      const p = actorXY(ap); storyCam((p[0] + axh) / 2, (p[1] + ayh) / 2, frameZ(Math.max(90, Math.hypot(p[0] - axh, p[1] - ayh) * 1.4 + 60)));
-      once("out", () => { wasm.micro_cmd(1, ap, 1); storyMicroCaption("Alice heads out. On <b>cellular</b> her phone drops to the phone-cellular class and loses the LAN" + (MSTORY.outcome === "ok" ? " and the punched path" : " path")); });
-      if (t > 28.5) once("pocket", () => { wasm.micro_cmd(1, ap, 0); storyMicroCaption("In her pocket the phone <b>sleeps</b>: the OS suspends it and every link closes"); });
-      if (t > 30.5) once("reply", () => { wasm.micro_cmd(3, bp, ap); storyMicroCaption("Bob replies. A phone is never a mailbox: her <b>home node holds the row</b> until she wakes"); });
-      if (t > 34) once("tram", () => { wasm.micro_cmd(1, ap, 1); storyMicroCaption("On the tram she opens the app: the phone resumes, re-announces, and her home node hands the row over through a forwarder"); });
-    }
-  } else if (act === 1){
-    const z = t < 6 ? frameZ(Math.max(160, M.half * 0.9)) : t < 20 ? expLerp(frameZ(Math.max(160, M.half * 0.9)), frameZ(M.half * 2.6), (t - 6) / 14) : expLerp(frameZ(M.half * 2.6), 30, (t - 20) / 8);
-    storyCam(mid[0], mid[1], z);
-    once("all", () => storyMicroCaption("The whole street: phones sleep and wake and change network, laptops close, home nodes stay up and hold their members' mail"));
-    if (t > 7) once("bound", () => { const s = M.nu[ap * 8 + 3]; storyMicroCaption(`A serve seat shapes at most <b>eight</b> device links (now ${nodeShaped(s)}/8): the first homed devices that offer shaping. A seat never dials, so a device that does not offer gets none, and past the eight the rest ride unshaped on the same homing link (edge v45: no displacement)`); });
-    if (t > 12) once("ci", () => { MSTORY.ci = wasm.micro_cmd(5, 0, 1); const km = MSTORY.ci >= 0 ? kmOf(MSTORY.ci) : "–";
-      storyMicroCaption(`A <b>QA runner</b> boots in a CI data centre ${km} km away, homes on ${MSTORY.ci >= 0 ? seatPhrase(homesOf(MSTORY.ci).length).replace(" it homes on", "") : "the seat"}, runs its job and leaves. This one runs an older edge, so it never proposes a direct path`); });
-    if (t > 20) once("pull", () => storyMicroCaption("Pull back: this street is one of millions. Past its edge the twin keeps cohorts, not devices"));
+  const beats = MICRO_BEATS[act], c = storyMicroCtx();
+  if (MSTORY.beat === undefined){ MSTORY.beat = -1; MSTORY.beatEnd = 0; }
+  storyPunchOutcome(c.ap, c.bp);
+  const nx = MSTORY.beat + 1;
+  if (nx < beats.length && t >= MSTORY.beatEnd){
+    const b = beats[nx];
+    if (b.wait && !MSTORY.waitFrom) MSTORY.waitFrom = t;
+    const waiting = b.wait && !b.wait() && t - MSTORY.waitFrom < (b.waitMax || 6);
+    if (!waiting){
+      MSTORY.waitFrom = 0; MSTORY.beat = nx; MSTORY.beatStart = t;
+      if (b.run) b.run(c);
+      const txt = b.cap(c); storyMicroCaption(txt); MSTORY.beatT = capSecs(txt); MSTORY.beatEnd = t + MSTORY.beatT;
+      storyMicroPlan(act, nx, t); MSTORY.beatT = undefined;
+    } else storyMicroPlan(act, nx, t);
   }
+  const cur = beats[Math.max(0, MSTORY.beat)];
+  if (MSTORY.beat < 0) return;
+  const u = Math.min(1, (t - MSTORY.beatStart) / Math.max(0.1, MSTORY.beatEnd - MSTORY.beatStart));
+  cur.cam(c, u);
 }
 function storyPunchOutcome(ap, bp){
   if (MSTORY.outcome !== null || !MSTORY.fired.has("first") || M.pun.length !== 0) return;
-        let punched = false; for (let l = 0; l < M.links.length; l += 4){ const a = M.links[l], b = M.links[l + 1]; if ((M.links[l + 2] & 0xff) === 4 && ((a === ap && b === bp) || (a === bp && b === ap))) punched = true; }
+  let punched = false; for (let l = 0; l < M.links.length; l += 4){ const a = M.links[l], b = M.links[l + 1]; if ((M.links[l + 2] & 0xff) === 4 && ((a === ap && b === bp) || (a === bp && b === ap))) punched = true; }
   MSTORY.outcome = punched ? "ok" : (MSTORY.route1 === 0 ? "direct" : "fail"); microTimeScale = 10;
-  storyMicroCaption(MSTORY.outcome === "ok" ? "The punch comes up: a <b>direct path</b> between the two homes, and the seat drops out of the path" :
-    MSTORY.outcome === "direct" ? "They keep the direct path; no forwarder is needed" : "The punch fails for this pair of networks (a FRONTIER rate): the rows keep crossing a forwarder, and the pair backs off for an hour");
 }
 function storyMicroEnd(){ microStory = false; microStoryDim = null; if (M) M.key = null; microTimeScale = 20; if (M && MSTORY.actors) MSTORY.actors.forEach(i => wasm.micro_cmd(2, i, 0)); if (wasm && wasm.micro_quiet) wasm.micro_quiet(0); }
 
@@ -2396,11 +2439,10 @@ function loop(){
     storyCamDist += (storyTargetCamDist - storyCamDist) * 0.05;
     if (!storyUserCam) targetZoom = storyTargetZoom;
     if (!storyPaused) {
-      const prevHalf = storyActElapsed < (STORY_ACTS[storyCurrentAct].duration * 0.5);
+      const prevSub = storySubIx(STORY_ACTS[storyCurrentAct], storyActElapsed);
       storyActElapsed += storyDt;
       const curCfg = STORY_ACTS[storyCurrentAct];
-      const nowHalf = storyActElapsed < (curCfg.duration * 0.5);
-      if (prevHalf !== nowHalf) updateStoryUI();
+      if (prevSub !== storySubIx(curCfg, storyActElapsed)) updateStoryUI();
       if ($("story-progress-bar")) {
         const pct = Math.min(100, (storyActElapsed / curCfg.duration) * 100);
         $("story-progress-bar").style.width = pct.toFixed(1) + "%";
