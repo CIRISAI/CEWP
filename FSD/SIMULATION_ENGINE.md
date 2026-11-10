@@ -474,7 +474,7 @@ Constants copied from the stack are not parameters. They carry their citation in
   | `geo/places.bin` | 163,299 | below 6 km a pixel |
   | `geo/ne10/*.bin` (464 tiles) | 5,280,924 total, 11.4 KB mean, 146.5 KB largest | per visible 10° tile below 2.4 km a pixel |
   | `geo/ne10/index.json` | 4,290 | below 2.4 km a pixel |
-- **Streets only on whole land tiles:** free roam builds a tile's `MicroWorld` only when the tile's centre is inside the 110m land (lakes are holes) and no shoreline edge enters it. A coastal tile shows the chip "not wholly settled land", so no street or device is ever drawn on the sea. The 110m land is coarse (tens of km), so it is a mask, not a real shore.
+- **Streets only on land:** with the holon tiling (§4.6.6) ready, free roam builds the `MicroWorld` on the leaf under the screen centre, and only when the leaf holds households and is wholly inside the 50m land (lakes are holes). Otherwise the chip says "not wholly settled land". Every tiled street and home is drawn through the same land stencil as the land fill, so none is drawn on the sea at any zoom. Lakes smaller than Natural Earth's 10m set (Lake Zurich, Lake Garda) are land in the twin.
 - **Node card:** tapping a node shows its kind, class, slots used of 8, reachability, the relay decision with its reason, homes, edge version, mailbox, and every live link with its class.
 - **Story, acts 1–2:** a script of what happens to whom (wake, introduce, send, leave, sleep, wake). The rules decide how each one goes, and the captions branch on the sim's outcome.
 
@@ -493,7 +493,11 @@ The tiling lays procedural streets and homes over all settled land at street sca
 - **Ids:** one lattice unit is 0.02° / 512. A cell's id is `level·2^47 + (i + 2^22)·2^24 + (j + 2^23)`, which is below 2^51, so a JavaScript number holds it exactly. Longitude wraps, and the parent is found by floor division. `docs/holon.js` repeats the arithmetic, and `tools/holon/id_test.mjs` and the Rust test `id_vectors_match_the_page` check one shared vector file (`tools/holon/id_vectors.tsv`, 126 points, including both sides of the antimeridian).
 - **Households:** the caller gives an L0 cell its households (grid density × land area) and gives each child a weight (land share × populated-place kernel). The kernel multiplies each weight by two octaves of integer value noise on the global lattice. It then splits the parent's households by largest-remainder apportionment, so the children always sum to the parent exactly.
 - **Depth:** a holon at L3 or below is a leaf once it holds no more than `target_households` (60), or at L12. Depth is therefore a pure function of the households, and every leaf shows about one street view's worth of homes.
-- **Streets:** each cell keeps the street lines of its parent that run through it, and adds lines in the widest gaps until its own density's spacing is met (MODEL: `3400 / households_per_km²^0.4` metres, clamped to 60–3,000 m). So streets run straight on through holons of any depth. Across a side inside an L3 tile, the crossings are the lines of the lowest cell holding both sides. About 6% are dropped by the pair's hash, which gives T-junctions. Across an L3 tile boundary, the crossings are drawn from a hash of the two cells at the shallower side's level. A deeper holon's own lines stop at its last cross street. Main roads are drawn per L3 tile, from main crossings on its sides to one hub, and every holon in the tile clips the same lines.
+- **Streets:** an L2 cell (0.06°) draws arterials, about eight blocks apart (MODEL, 0.7–8 km, at most one for every 1,500 households, so open country has none). Every cell below keeps the lines of its parent that run through it and adds local lines in the widest gaps until its own density's spacing is met (MODEL: `3400 / households_per_km²^0.4` metres, clamped to 60–3,000 m). So streets and arterials run straight on through holons of any depth.
+  - Inside an L2 cell, the crossings on a side are the lines of the lowest cell holding both sides. About 6% of the local ones are dropped by the pair's hash, which gives T-junctions.
+  - Across an L2 boundary, the arterials that cross are those of the side with fewer.
+  - Across an L3 tile boundary, local crossings are also drawn from a hash of the two cells at the shallower side's level.
+  - A deeper holon's own lines stop at its last cross street.
 - **Dwellings:** lots are placed along every street by the street class of §4.6.2. Then units are added or removed until the leaf's dwellings equal its households exactly. Every footprint stays inside its own leaf.
 - **Focal world:** `MicroWorld::from_leaf` builds the simulated neighbourhood on one leaf's streets and dwellings. `build_at_density` stays as the story's and the tests' fixed-density path. No existing test changed.
 - **Witnesses (unit tests):**
@@ -503,8 +507,35 @@ The tiling lays procedural streets and homes over all settled land at street sca
   - a zoom out to L0 and back in returns the byte-identical leaf;
   - neighbouring leaves of equal and of different depth (and across the antimeridian) list the same crossings on their shared side, and no street leaves its leaf except at a crossing;
   - the focal world on a leaf holds exactly its households.
-- **Kernel doors:** `holon_split`, `holon_layout`, `micro_build_leaf` (and `holon_ext_ptr`, `holon_ctx_ptr`, `holon_buf_ptr`, `holon_buf_len`). The page keeps the tree and calls these for the arithmetic both sides must agree on.
-- **No real places:** the inputs are the coarse population grid, land share and populated-place weights. Every street, lot and home below region scale is generated.
+- **Kernel doors:** `holon_split`, `holon_layout`, `holon_arterials`, `micro_build_leaf` (and `holon_ext_ptr`, `holon_ctx_ptr`, `holon_buf_ptr`, `holon_buf_len`). The page keeps the tree (`docs/holon.js` `HOLON.tree`, the same walk as `HolonTree`) and calls these for the arithmetic both sides must agree on. `tools/holon/seam_test.mjs` drives the page's tree through the wasm and checks that 804 neighbouring pairs (124 of mixed depth) list identical crossings, and that evicting and regenerating gives the identical digest.
+- **The page's inputs (`docs/tiling.js`):**
+  - An L0 cell's households are the population grid's density at each of 6×6 land samples (the containing grid cell, or the nearest within 1.6°, since the grid stops short of many coasts), times that sample's share of the area, divided by 2.5 persons per household.
+  - A child's weight is the sum, over 9, 4 or 1 land samples (L1–L2, L3, deeper), of 40 plus the populated-place kernel. The kernel gives each Natural Earth place a Gaussian of its population, with σ = 1.5 km + 4 km·√(population / 1M).
+  - The land test is Natural Earth 50m. The tree waits until it and the place list have loaded, so every budget is computed from the same inputs.
+- **Drawing, by scale (MODEL visual rules):**
+  - Below 400 m a pixel, every holon in view is a quad toned by households per km².
+  - Below 30 m a pixel, each L2 cell's arterials are drawn at least a pixel wide.
+  - Below 26 m a pixel, leaves inside the acuity ring are drawn in full: ground, streets (at least a pixel wide), and casings once a street is a few pixels wide. Buildings appear once a 10 m home is about a pixel.
+  - Real layers have faded out by 30 m a pixel, so generated streets never share a scale with real ones.
+- **Acuity ring:** holons are resolved best-first from the screen centre. Leaves are drawn in detail out to the ring's radius, or until a cap (6,000 leaves on a wide screen, 2,500 on a phone). They fade into the mosaic over the ring's last 15%.
+- **Governor:** an EMA of frame time with hysteresis moves the ring's radius. Above 28 ms it shrinks by 15%; below 18 ms (a 60 Hz display included) it grows by 6%; in between it holds. `tools/holon/governor_test.mjs` runs it on fixed frame-time series. The ring radius, frame rate and leaf counts are in Metrics → street tiling.
+- **Memory and work:**
+  - Leaf geometry is generated a few milliseconds a frame, nearest first. A leaf still pending shows as its mosaic quad.
+  - It is kept in an LRU by holon id under a 60 MB budget.
+  - It is drawn as one buffer per L3 tile, rebuilt only when that tile's set of drawn leaves changes.
+  - Budgets are memoised, and those below L4 are dropped past 250,000 entries. They come back identical.
+  - No IndexedDB cache is used.
+- **Measured headless (Chromium with ANGLE on this host, a dense city):**
+
+  | screen | scale | leaves drawn | draws | frame rate |
+  |---|---|---|---|---|
+  | 390×844 | 20 m/px | 2,500 (cap) | 14 | 60 fps |
+  | 390×844 | 6 m/px | 1,078 | 6 | 60 fps |
+  | 1440×900 | 20 m/px | 6,000 (cap) | 36 | 57 fps |
+  | 1440×900 | 6 m/px | 3,720 | 18 | 60 fps |
+
+  At 20 m a pixel the cap sets the ring (about 150 px on the phone, 250 px on the wide screen). Phones are not measured.
+- **No real places:** the inputs are the coarse population grid, the 50m land share and populated-place weights. Every street, lot and home below region scale is generated.
 
 ### 4.7 Seat Capacity: Cost Ledger and Sweep (`crates/cewp-sim/src/capacity.rs`)
 

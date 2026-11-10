@@ -37,6 +37,55 @@ const HOLON = (() => {
   const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]]; // N, E, S, W (tiling::Dir order)
   function neighbour(c, d){ return make(c.level, c.i + DIRS[d][0], c.j + DIRS[d][1]); }
   function boundsDeg(c){ const s = STEP[c.level]; return [c.i * s / UPD, c.j * s / UPD, (c.i + 1) * s / UPD, (c.j + 1) * s / UPD]; }
-  return { UPD, STEP, RATIO, MAX_LEVEL, L3, at, make, pack, unpack, parent, ancestor, children, neighbour, boundsDeg };
+  // The tree over caller inputs, the same walk as tiling::HolonTree: root(l0) -> households,
+  // ext(child) -> weight, split(parent, households, weights) -> child households (the kernel's
+  // largest-remainder apportionment). Budgets are memoised in B; evicting them is always safe.
+  function tree(root, ext, split, target){
+    const B = new Map();
+    const T = {
+      B, target,
+      budget(c){
+        if (c.level === 0) return root(c);
+        const k = pack(c); const b = B.get(k); if (b !== undefined) return b;
+        const p = parent(c), pb = T.budget(p), kids = children(p), out = split(p, pb, kids.map(ext));
+        for (let q = 0; q < kids.length; q++) B.set(pack(kids[q]), out[q]);
+        return B.get(k);
+      },
+      isLeaf(c){ return c.level >= L3 && (T.budget(c) <= target || c.level >= MAX_LEVEL); },
+      leafOver(c){ for (let l = L3; l <= c.level; l++){ const a = ancestor(c, l); if (T.isLeaf(a)) return a; } return null; },
+      leafAt(lat, lon){ let c = at(L3, lat, lon); while (!T.isLeaf(c)) c = at(c.level + 1, lat, lon); return c; },
+      // LeafContext::to_f64: budget, 4 L2 neighbours, per side (level, own, other, present), then
+      // the budgets from L2 down to the leaf
+      context(leaf){
+        const v = new Float64Array(32), a2 = ancestor(leaf, 2);
+        v[0] = T.budget(leaf);
+        for (let d = 0; d < 4; d++){
+          const n2 = neighbour(a2, d); v[1 + d] = n2 ? T.budget(n2) : 0;
+          const nb = neighbour(leaf, d); if (!nb) continue;
+          const y = T.leafOver(nb), level = y ? y.level : leaf.level;
+          const own = ancestor(leaf, level), other = neighbour(own, d);
+          v[5 + 4 * d] = level; v[6 + 4 * d] = T.budget(own); v[7 + 4 * d] = T.budget(other); v[8 + 4 * d] = 1;
+        }
+        for (let l = 2; l <= leaf.level; l++) v[21 + l - 2] = T.budget(ancestor(leaf, l));
+        return v;
+      },
+      // drop memoised budgets at `level` and below (they come back identical)
+      evict(level){ for (const k of [...B.keys()]) if (Math.floor(k / P47) >= level) B.delete(k); },
+    };
+    return T;
+  }
+  // Frame-time governor for the acuity ring: an EMA of frame time; above 28 ms (under ~36 fps) the
+  // ring shrinks, below 18 ms (a 60 Hz display's 16.7 ms frame included) it grows, in between it
+  // holds (hysteresis), with a cool-down after each move.
+  function governor(s, ms){
+    ms = Math.min(100, Math.max(1, ms));
+    s.ema = s.ema ? s.ema * 0.9 + ms * 0.1 : ms;
+    s.ring = Math.min(s.max, Math.max(s.min, s.ring));
+    if (s.cool > 0){ s.cool--; return s; }
+    if (s.ema > 28 && s.ring > s.min){ s.ring = Math.max(s.min, s.ring * 0.85); s.cool = 12; }
+    else if (s.ema < 18 && s.ring < s.max){ s.ring = Math.min(s.max, s.ring * 1.06); s.cool = 6; }
+    return s;
+  }
+  return { UPD, STEP, RATIO, MAX_LEVEL, L3, at, make, pack, unpack, parent, ancestor, children, neighbour, boundsDeg, tree, governor };
 })();
 if (typeof module !== "undefined") module.exports = HOLON;

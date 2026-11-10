@@ -544,11 +544,12 @@ use cewp_sim::tiling::{self, HolonId, LeafContext, LeafLayout};
 struct HolonDoor {
     ext: Vec<u32>,
     out: Vec<f64>,
-    ctx: [f64; 31],
+    ctx: [f64; 32],
     roads: Vec<f64>,
     buildings: Vec<f64>,
     ports: Vec<f64>,
     meta: Vec<f64>,
+    mains: Vec<f64>,
 }
 
 static mut HOLON: Option<HolonDoor> = None;
@@ -557,7 +558,7 @@ fn holon() -> &'static mut HolonDoor {
     // SAFETY: one thread, the page calls in turn (as `micro`).
     unsafe {
         let h = &mut *std::ptr::addr_of_mut!(HOLON);
-        h.get_or_insert_with(|| HolonDoor { ext: vec![0; 25], out: Vec::new(), ctx: [0.0; 31], roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), meta: Vec::new() })
+        h.get_or_insert_with(|| HolonDoor { ext: vec![0; 25], out: Vec::new(), ctx: [0.0; 32], roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), meta: Vec::new(), mains: Vec::new() })
     }
 }
 
@@ -579,7 +580,7 @@ pub extern "C" fn holon_split(id: f64, budget: f64) -> u32 {
     n as u32
 }
 
-/// Where the page writes a leaf's context (31 f64, `LeafContext::to_f64`) before `holon_layout`.
+/// Where the page writes a leaf's context (32 f64, `LeafContext::to_f64`) before `holon_layout`.
 #[no_mangle]
 pub extern "C" fn holon_ctx_ptr() -> *mut f64 { holon().ctx.as_mut_ptr() }
 
@@ -605,18 +606,33 @@ pub extern "C" fn holon_layout(id: f64) -> i32 {
     l.roads.len() as i32
 }
 
-/// Holon buffers: 0 child budgets, 1 roads, 2 buildings, 3 ports, 4 meta.
+/// The arterials of L2 cell `id` holding `bud` households: pairs (position in lattice units,
+/// 1 for a north-south line / 0 for east-west) into buffer 5. Returns the line count.
+#[no_mangle]
+pub extern "C" fn holon_arterials(id: f64, bud: f64) -> u32 {
+    let h = holon();
+    h.mains.clear();
+    let Some(c) = HolonId::unpack(id as u64) else { return 0 };
+    if c.level != 2 { return 0; }
+    let chain = [bud.max(0.0) as u64];
+    for ns in [true, false] {
+        for (v, _) in tiling::cell_lines(c, &chain, ns) { h.mains.extend_from_slice(&[v, ns as u8 as f64]); }
+    }
+    (h.mains.len() / 2) as u32
+}
+
+/// Holon buffers: 0 child budgets, 1 roads, 2 buildings, 3 ports, 4 meta, 5 arterials.
 #[no_mangle]
 pub extern "C" fn holon_buf_ptr(which: u32) -> u32 {
     let h = holon();
-    (match which { 0 => h.out.as_ptr(), 1 => h.roads.as_ptr(), 2 => h.buildings.as_ptr(), 3 => h.ports.as_ptr(), _ => h.meta.as_ptr() }) as usize as u32
+    (match which { 0 => h.out.as_ptr(), 1 => h.roads.as_ptr(), 2 => h.buildings.as_ptr(), 3 => h.ports.as_ptr(), 5 => h.mains.as_ptr(), _ => h.meta.as_ptr() }) as usize as u32
 }
 
 /// Length in f64 of a holon buffer.
 #[no_mangle]
 pub extern "C" fn holon_buf_len(which: u32) -> u32 {
     let h = holon();
-    (match which { 0 => h.out.len(), 1 => h.roads.len(), 2 => h.buildings.len(), 3 => h.ports.len(), _ => h.meta.len() }) as u32
+    (match which { 0 => h.out.len(), 1 => h.roads.len(), 2 => h.buildings.len(), 3 => h.ports.len(), 5 => h.mains.len(), _ => h.meta.len() }) as u32
 }
 
 /// Build the focal world on leaf `id` (context at `holon_ctx_ptr`): the leaf's own streets and

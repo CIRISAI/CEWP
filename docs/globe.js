@@ -265,6 +265,8 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
     <div class="kv"><span><span class="dot" style="background:var(--ok)"></span> ordinary &amp; <code>deterministic-alm</code> (unshaped)</span><b id="m_bulk">–</b></div>
     <div class="kv"><span><span class="dot" style="background:var(--violet)"></span> onion walks (cover-replaced, 0 B extra)</span><b id="m_onion">–</b></div>
     <div class="kv"><span>CC 6.1.6 <code>deterministic-alm</code> member tree savings</span><b id="m_alm">–</b></div>
+    <h2>street tiling (holons, FSD §4.6.6)</h2>
+    <div class="kv"><span>acuity ring · frame rate · leaves</span><b id="s_tiling">–</b></div>
     <h2>this tick</h2>
     <div class="kv"><span>acts signed</span><b id="acts_n">–</b></div>
     <div class="kv"><span>deliveries (rulebook checks run)</span><b id="deliv">–</b></div>
@@ -385,7 +387,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=10"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=11"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -904,7 +906,7 @@ function draw(){
     else { gl.bindBuffer(gl.ARRAY_BUFFER,fanBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,fanVerts); }
     gl.colorMask(true,true,true,true); gl.stencilFunc(gl.EQUAL,1,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP);
     // ground reaches full cover sooner than the tiles fade in, so empty land never reads as shallow sea
-    gl.uniform1f(gl.getUniformLocation(pG,"uA"),0.6+0.4*Math.min(1,landA*3)); // land shows at every zoom
+    gl.uniform1f(gl.getUniformLocation(pG,"uA"),(0.6+0.4*Math.min(1,landA*3))*(1-0.6*sstep(26,8,mpp))); // land shows at every zoom; at street scale it is a faint land/sea mask
     gl.bindBuffer(gl.ARRAY_BUFFER,groundBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,groundVerts);
     gl.uniform1f(gl.getUniformLocation(pG,"uA"),landA);
     gl.bindBuffer(gl.ARRAY_BUFFER,landBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0);
@@ -933,6 +935,8 @@ function draw(){
     if (landVerts){ gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL,1,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP); }
     gl.drawArrays(gl.POINTS,0,npts); gl.disable(gl.STENCIL_TEST);
     gl.disable(gl.DEPTH_TEST); }
+  // the street tiling (tiling.js): holons over the land, clipped by the same land stencil
+  if (typeof tlDraw==="function") tlDraw(w,h,mpp);
   if (arcCount>0 && showArcs){ gl.useProgram(pL); gl.uniformMatrix3fv(gl.getUniformLocation(pL,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pL,"S"),S); gl.uniform2fv(gl.getUniformLocation(pL,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pL,"uTime"),nowSec);
     const lp=gl.getAttribLocation(pL,"p"), lparam=gl.getAttribLocation(pL,"param");
     gl.bindBuffer(gl.ARRAY_BUFFER,linePosBuf); gl.enableVertexAttribArray(lp); gl.vertexAttribPointer(lp,3,gl.FLOAT,false,0,0);
@@ -1771,7 +1775,7 @@ function initStoryMode(){
 // The world below is `cewp_sim::micro::MicroWorld` (crates/cewp-sim/src/micro.rs), run in the wasm kernel.
 // This code only builds it for the tile under the camera, steps it, and draws what it exports:
 // every street, house, device, link and row on screen is the sim's state, nothing decorative.
-const FOCAL_ZOOM = 24, EARTH_M = 6371000, TILE_DEG = 0.02;
+const FOCAL_ZOOM = 24, EARTH_M = 6371000, TILE_DEG = 0.02, MICRO_MF = (EARTH_M * Math.PI / 180) / 111320;
 const mcv = document.getElementById("micro"), mctx = mcv.getContext("2d");
 const MK = ["phone", "home node", "laptop", "hosted server", "serve seat", "CI runner"];
 const MK_COL = ["#8fd3ff", "#5ad38f", "#c3b6ff", "#ffcf7a", "#6cb6ff", "#ff9ec7"];
@@ -1850,6 +1854,19 @@ function microBuild(lat, lon, density, exact, seedLo, seedHi, adoption, key){
   M.N = [-Math.sin(a) * Math.sin(o), Math.cos(a), -Math.sin(a) * Math.cos(o)];
   microSel = -1; renderNodeCard();
 }
+function microBuildLeaf(leaf, adoption, key){
+  microSetParams(adoption, tlCentre(leaf)[1]);
+  const ctx = tlTree().context(leaf), cp = wasm.holon_ctx_ptr(); new Float64Array(mem.buffer, cp, 32).set(ctx);
+  const id = HOLON.pack(leaf); wasm.micro_build_leaf(id);
+  M = { key, leaf: id, lat0: 0, lon0: 0, roads: microBuf(4, Float64Array), sites: microBuf(7, Float64Array) };
+  microRead(); M.lat0 = M.meta[35]; M.lon0 = M.meta[36];
+  const st = HOLON.STEP[leaf.level] / HOLON.UPD * 111320; M.leafHW = st * Math.cos(M.lat0 * Math.PI / 180) / 2; M.leafHH = st / 2; // the leaf, not a square
+  const a = M.lat0 * Math.PI / 180, o = M.lon0 * Math.PI / 180;
+  M.c = [Math.cos(a) * Math.sin(o), Math.sin(a), Math.cos(a) * Math.cos(o)];
+  M.E = [Math.cos(o), 0, -Math.sin(o)];
+  M.N = [-Math.sin(a) * Math.sin(o), Math.cos(a), -Math.sin(a) * Math.cos(o)];
+  microSel = -1; renderNodeCard();
+}
 function microRead(){
   wasm.micro_export();
   M.nf = microBuf(0, Float64Array); M.nu = microBuf(1, Uint32Array); M.links = microBuf(2, Uint32Array); M.ev = microBuf(3, Float64Array);
@@ -1897,8 +1914,16 @@ function microFreeRoam(){
   if (drag) return;
   if (M && zoom >= 1500) return; // at street scale keep the patch you are exploring
   const lat = pitch * 180 / Math.PI, lon = ((yaw * 180 / Math.PI + 540) % 360) - 180;
-  const ti = Math.floor(lat / TILE_DEG), tj = Math.floor(lon / TILE_DEG);
   const adoption = Math.min(0.98, currentPop / 8.05e9);
+  // with the tiling ready, the focal world is the leaf holon under the centre (MicroWorld::from_leaf)
+  if (typeof tlReady === "function" && tlReady()){
+    const T = tlTree(), leaf = T.leafAt(lat, lon), id = HOLON.pack(leaf), key = "h" + id + ":" + paramKey();
+    if (M && M.key === key) return;
+    const b = HOLON.boundsDeg(leaf);
+    if (!T.budget(leaf) || !tlLand().squareOnLand(b[0], b[1], b[2] - b[0])){ microNoLand = true; M = null; return; }
+    microNoLand = false; microBuildLeaf(leaf, adoption, key); microGlide = 1; return;
+  }
+  const ti = Math.floor(lat / TILE_DEG), tj = Math.floor(lon / TILE_DEG);
   const key = ti + ":" + tj + ":" + paramKey();
   if (M && M.key === key) return;
   const tlat = (ti + 0.5) * TILE_DEG, tlon = (tj + 0.5) * TILE_DEG;
@@ -1919,8 +1944,9 @@ function camQ(x, y, z){ const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.
 function camFrame(){ const w = cv.clientWidth, h = cv.clientHeight; const k = 0.86 * zoom * Math.min(w, h) / 2; return { w, h, k }; }
 function projLL(F, lat, lon){ const v = xyz(lat, lon); const q = camQ(v[0], v[1], v[2]); return [F.w / 2 + F.k * q[0], F.h / 2 - F.k * q[1], q[2]]; }
 function patchAffine(F){
-  const qc = camQ(...M.c), qE = camQ(...M.E), qN = camQ(...M.N), s = F.k / EARTH_M;
-  return { a: s * qE[0], b: -s * qE[1], c: s * qN[0], d: -s * qN[1], e: F.w / 2 + F.k * qc[0], f: F.h / 2 - F.k * qc[1], front: qc[2], pxPerM: F.k / EARTH_M };
+  // the world's metres are 111,320 a degree (MicroWorld::local_xy); scale them onto the globe's sphere
+  const qc = camQ(...M.c), qE = camQ(...M.E), qN = camQ(...M.N), s = F.k / EARTH_M * MICRO_MF;
+  return { a: s * qE[0], b: -s * qE[1], c: s * qN[0], d: -s * qN[1], e: F.w / 2 + F.k * qc[0], f: F.h / 2 - F.k * qc[1], front: qc[2], pxPerM: s };
 }
 const nodeKind = (i) => M.nu[i * 8] & 0xff, nodeAct = (i) => (M.nu[i * 8] >>> 8) & 0xff, nodeClass = (i) => (M.nu[i * 8] >>> 16) & 0xff, nodeShaped = (i) => M.nu[i * 8] >>> 24;
 const nodeFlags = (i) => M.nu[i * 8 + 1];
@@ -1960,15 +1986,18 @@ function microDraw(){
   const outsideA = sstep(110, 420, P), groundA = sstep(50, 200, P), roadA = sstep(70, 240, P), bldA = sstep(0.22, 0.6, ppm), nodeA = sstep(30, 120, P);
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   // beyond the focal subgraph: land the twin keeps as cohorts, dimmed
-  if (outsideA > 0){ g.fillStyle = `rgba(12,15,14,${0.55 * outsideA})`; g.fillRect(0, 0, F.w, F.h); }
+  if (outsideA > 0 && !(typeof TL !== "undefined" && TL.on)){ g.fillStyle = `rgba(12,15,14,${0.55 * outsideA})`; g.fillRect(0, 0, F.w, F.h); }
   // the patch, in metres
   g.setTransform(dpr * A.a, dpr * A.b, dpr * A.c, dpr * A.d, dpr * A.e, dpr * A.f);
   const H = M.half;
+  // with the street tiling on, the GPU draws this leaf's ground and streets with its neighbours';
+  // the canvas adds the boundary of the simulated neighbourhood, its buildings and its devices
+  const tiled = typeof TL !== "undefined" && TL.on && M.leaf !== undefined;
   if (groundA > 0){
-    g.globalAlpha = groundA; g.fillStyle = GROUND[cls]; g.fillRect(-H, -H, 2 * H, 2 * H);
-    g.globalAlpha = groundA * 0.9; g.strokeStyle = "rgba(108,182,255,0.55)"; g.lineWidth = 1.4 / ppm; g.setLineDash([6 / ppm, 5 / ppm]); g.strokeRect(-H, -H, 2 * H, 2 * H); g.setLineDash([]);
+    if (!tiled){ g.globalAlpha = groundA; g.fillStyle = GROUND[cls]; g.fillRect(-H, -H, 2 * H, 2 * H); }
+    g.globalAlpha = groundA * 0.9; g.strokeStyle = "rgba(108,182,255,0.55)"; g.lineWidth = 1.4 / ppm; g.setLineDash([6 / ppm, 5 / ppm]); g.strokeRect(-(M.leafHW || H), -(M.leafHH || H), 2 * (M.leafHW || H), 2 * (M.leafHH || H)); g.setLineDash([]);
   }
-  if (roadA > 0){
+  if (roadA > 0 && !tiled){
     g.save(); g.beginPath(); g.rect(-H, -H, 2 * H, 2 * H); g.clip(); g.lineCap = "round";
     const R = M.roads;
     for (let pass = 0; pass < 2; pass++){
@@ -2539,8 +2568,9 @@ function loop(){
   }
   zoom*=Math.pow(targetZoom/zoom,0.12); // multiplicative: the same feel from orbit to a doorstep
   if (frame%4===0) pruneAndPackArcs(getTime());
+  if (typeof tlFrame==="function") tlFrame(now);
   microFreeRoam(); microStep(now);
-  draw(); microDraw(); geoLabels(camFrame()); frame++; requestAnimationFrame(loop);
+  draw(); microDraw(); geoLabels(camFrame()); if (typeof tlMetrics==="function") tlMetrics(); frame++; requestAnimationFrame(loop);
 }
 async function build(){
   const wasPlaying=playing;

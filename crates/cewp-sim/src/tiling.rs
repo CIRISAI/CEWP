@@ -18,10 +18,11 @@
 //! place weight × a value-noise field on the global lattice), so the children always sum to the
 //! parent exactly and nothing depends on the order holons are generated or evicted.
 //!
-//! Streets cross a holon's edge only at the edge's crossings, drawn from a hash of the two cells
-//! that meet there at the SHALLOWER side's level; a deeper holon's own streets stay inside it.
-//! Main roads are drawn per L3 tile and handed down: every holon inside the tile clips the same
-//! lines. Everything here is procedural: no real road or building appears below region scale.
+//! Streets are lines each cell inherits from its parent: an L2 cell draws arterials, every cell
+//! below adds local streets for its own density. Streets cross a holon's edge only at the edge's
+//! crossings: the lines of the lowest cell holding both sides, or, across a tile boundary, a hash
+//! of the two cells at the SHALLOWER side's level; a deeper holon's own streets stay inside it.
+//! Everything here is procedural: no real road or building appears below region scale.
 
 use crate::micro::{rects_overlap, seg_dist, Building, DensityClass, MicroParams, Rng, Road, P};
 use std::collections::BTreeMap;
@@ -396,12 +397,11 @@ impl<R: Fn(HolonId) -> u64, W: Fn(HolonId) -> u32> HolonTree<R, W> {
     /// What a leaf needs from outside itself to lay out its streets.
     pub fn context(&mut self, leaf: HolonId) -> LeafContext {
         let budget = self.budget(leaf);
-        let t = leaf.ancestor(L3);
-        let tile_budget = self.budget(t);
-        let mut tile_nb = [0u64; 4];
+        let a2 = leaf.ancestor(2);
+        let mut l2_nb = [0u64; 4];
         let mut edges = [EdgeCtx::default(); 4];
         for d in Dir::ALL {
-            tile_nb[d as usize] = t.neighbour(d).map_or(0, |n| self.budget(n));
+            l2_nb[d as usize] = a2.neighbour(d).map_or(0, |n| self.budget(n));
             let Some(nb) = leaf.neighbour(d) else { continue };
             // the neighbour side's leaf, if it is no deeper than this one
             let level = self.leaf_over(nb).map_or(leaf.level, |y| y.level);
@@ -409,11 +409,11 @@ impl<R: Fn(HolonId) -> u64, W: Fn(HolonId) -> u32> HolonTree<R, W> {
             let other = own.neighbour(d).expect("same-level neighbour exists");
             edges[d as usize] = EdgeCtx { level, own_budget: self.budget(own), other_budget: self.budget(other), present: true };
         }
-        let mut chain = [0u64; 10];
-        for l in L3..=leaf.level {
-            chain[(l - L3) as usize] = self.budget(leaf.ancestor(l));
+        let mut chain = [0u64; 11];
+        for l in 2..=leaf.level {
+            chain[(l - 2) as usize] = self.budget(leaf.ancestor(l));
         }
-        LeafContext { budget, tile_budget, tile_nb, edges, chain }
+        LeafContext { budget, l2_nb, edges, chain }
     }
 }
 
@@ -435,34 +435,31 @@ pub struct EdgeCtx {
 pub struct LeafContext {
     /// Households in the leaf.
     pub budget: u64,
-    /// Households in its L3 tile.
-    pub tile_budget: u64,
-    /// Households in the tile's four neighbours (N, E, S, W).
-    pub tile_nb: [u64; 4],
+    /// Households in the four L2 cells around the leaf's L2 cell (N, E, S, W).
+    pub l2_nb: [u64; 4],
     /// The leaf's four sides (N, E, S, W).
     pub edges: [EdgeCtx; 4],
-    /// Households in the leaf's ancestors from L3 down to the leaf (`chain[k]` is level 3 + k).
-    pub chain: [u64; 10],
+    /// Households in the leaf's ancestors from L2 down to the leaf (`chain[k]` is level 2 + k).
+    pub chain: [u64; 11],
 }
 
 impl LeafContext {
-    /// Flat form for the kernel door: budget, tile budget, 4 tile neighbours, then per side
-    /// level, own budget, other budget, present, then the 10 chain budgets (31 numbers).
+    /// Flat form for the kernel door (32 numbers): budget, 4 L2 neighbours, per side level, own
+    /// budget, other budget, present, then the 11 chain budgets.
     #[must_use]
-    pub fn to_f64(&self) -> [f64; 31] {
-        let mut v = [0.0; 31];
-        for k in 0..10 {
-            v[21 + k] = self.chain[k] as f64;
-        }
+    pub fn to_f64(&self) -> [f64; 32] {
+        let mut v = [0.0; 32];
         v[0] = self.budget as f64;
-        v[1] = self.tile_budget as f64;
         for k in 0..4 {
-            v[2 + k] = self.tile_nb[k] as f64;
+            v[1 + k] = self.l2_nb[k] as f64;
             let e = self.edges[k];
-            v[6 + 4 * k] = e.level as f64;
-            v[7 + 4 * k] = e.own_budget as f64;
-            v[8 + 4 * k] = e.other_budget as f64;
-            v[9 + 4 * k] = if e.present { 1.0 } else { 0.0 };
+            v[5 + 4 * k] = e.level as f64;
+            v[6 + 4 * k] = e.own_budget as f64;
+            v[7 + 4 * k] = e.other_budget as f64;
+            v[8 + 4 * k] = if e.present { 1.0 } else { 0.0 };
+        }
+        for k in 0..11 {
+            v[21 + k] = self.chain[k] as f64;
         }
         v
     }
@@ -470,13 +467,13 @@ impl LeafContext {
     #[must_use]
     pub fn from_f64(v: &[f64]) -> Self {
         let g = |k: usize| v.get(k).copied().unwrap_or(0.0).max(0.0) as u64;
-        let mut c = Self { budget: g(0), tile_budget: g(1), ..Self::default() };
-        for k in 0..10 {
-            c.chain[k] = g(21 + k);
-        }
+        let mut c = Self { budget: g(0), ..Self::default() };
         for k in 0..4 {
-            c.tile_nb[k] = g(2 + k);
-            c.edges[k] = EdgeCtx { level: g(6 + 4 * k).min(MAX_LEVEL as u64) as u8, own_budget: g(7 + 4 * k), other_budget: g(8 + 4 * k), present: g(9 + 4 * k) != 0 };
+            c.l2_nb[k] = g(1 + k);
+            c.edges[k] = EdgeCtx { level: g(5 + 4 * k).min(MAX_LEVEL as u64) as u8, own_budget: g(6 + 4 * k), other_budget: g(7 + 4 * k), present: g(8 + 4 * k) != 0 };
+        }
+        for k in 0..11 {
+            c.chain[k] = g(21 + k);
         }
         c
     }
@@ -543,142 +540,105 @@ pub fn local_crossings(a: HolonId, d: Dir, bud_a: u64, bud_b: u64) -> Vec<f64> {
     v
 }
 
-/// The main-road crossing (if any) on side `d` of L3 tile `t`, whose neighbour holds `bud_b`.
+/// Arterial spacing (metres): eight local blocks, clamped to 0.7–8 km. MODEL, a visual rule.
 #[must_use]
-pub fn main_crossing(t: HolonId, d: Dir, bud_t: u64, bud_b: u64) -> Option<f64> {
-    debug_assert_eq!(t.level, L3);
-    let b = t.neighbour(d)?;
-    if bud_t == 0 || bud_b == 0 {
-        return None;
-    }
-    let dens = (bud_t + bud_b) as f64 / (t.area_km2() + b.area_km2());
-    let mut r = Rng::new(pair_key(t, b, 0x3A1D));
-    let p = (dens / 300.0).clamp(0.2, 0.85);
-    if !r.chance(p) {
-        return None;
-    }
-    let (start, len_u, _) = edge_span(t, d);
-    let q = (r.range(0.2, 0.8) * 65_536.0).floor();
-    Some(start + q * len_u / 65_536.0)
+pub fn arterial_spacing_m(hh_per_km2: f64) -> f64 {
+    (street_spacing_m(hh_per_km2) * 8.0).clamp(700.0, 8000.0)
 }
 
-/// The main roads of an L3 tile, as segments in absolute lattice units (x in the tile's column
-/// frame): every main crossing runs to one hub inside the tile.
-#[must_use]
-pub fn tile_main_roads(t: HolonId, bud_t: u64, nb: [u64; 4]) -> Vec<[f64; 4]> {
-    let (y0, x0, y1, x1) = t.bounds_units();
-    let mut ends = Vec::new();
-    for d in Dir::ALL {
-        if let Some(p) = main_crossing(t, d, bud_t, nb[d as usize]) {
-            ends.push(match d {
-                Dir::N => (p, y1 as f64),
-                Dir::S => (p, y0 as f64),
-                Dir::E => (x1 as f64, p),
-                Dir::W => (x0 as f64, p),
-            });
-        }
-    }
-    if ends.is_empty() {
-        return Vec::new();
-    }
-    let mut r = Rng::new(t.seed() ^ 0x4B);
-    let s = t.step() as f64;
-    let hub = (x0 as f64 + s * r.range(0.3, 0.7), y0 as f64 + s * r.range(0.3, 0.7));
-    ends.into_iter().map(|e| [e.0, e.1, hub.0, hub.1]).collect()
-}
+/// One street line of a cell: its position in lattice units (x for a north-south street, y for
+/// an east-west one) and whether it is an arterial.
+pub type Line = (f64, bool);
 
-/// Clip a segment to a box (Liang–Barsky). Both holons that share a side compute the same point
-/// on it, because the side is one value and the formula is the same.
-fn clip(s: [f64; 4], bx0: f64, by0: f64, bx1: f64, by1: f64) -> Option<[f64; 4]> {
-    let (dx, dy) = (s[2] - s[0], s[3] - s[1]);
-    let (mut t0, mut t1) = (0.0f64, 1.0f64);
-    for (p, q) in [(-dx, s[0] - bx0), (dx, bx1 - s[0]), (-dy, s[1] - by0), (dy, by1 - s[1])] {
-        if p == 0.0 {
-            if q < 0.0 {
-                return None;
-            }
-            continue;
-        }
-        let t = q / p;
-        if p < 0.0 {
-            t0 = t0.max(t);
-        } else {
-            t1 = t1.min(t);
-        }
-    }
-    if t0 >= t1 {
-        return None;
-    }
-    let pt = |t: f64| (s[0] + dx * t, s[1] + dy * t);
-    let (a, b) = (pt(t0), pt(t1));
-    // snap the exits onto the box sides exactly
-    let sn = |v: f64, lo: f64, hi: f64| if (v - lo).abs() < 1e-9 { lo } else if (v - hi).abs() < 1e-9 { hi } else { v };
-    Some([sn(a.0, bx0, bx1), sn(a.1, by0, by1), sn(b.0, bx0, bx1), sn(b.1, by0, by1)])
-}
-
-/// Street lines of a cell, in lattice units: x of its north-south streets (`ns`) or y of its
-/// east-west ones. A cell keeps every line of its parent that runs through it and adds lines in
-/// the widest gaps until its own density's spacing is met, so streets run straight on through
-/// holons of any depth. `chain[k]` holds the households at level 3 + k of the cell's ancestry.
+/// Street lines of a cell. An L2 cell (0.06°) draws its arterials; every cell below keeps the
+/// lines of its parent that run through it and adds local lines in the widest gaps until its own
+/// density's spacing is met, so streets and arterials run straight on through holons of any
+/// depth. `chain[k]` holds the households at level 2 + k of the cell's ancestry (`ns` picks the
+/// north-south lines).
 #[must_use]
-pub fn cell_lines(id: HolonId, chain: &[u64], ns: bool) -> Vec<f64> {
-    let mut lines: Vec<f64> = Vec::new();
-    for l in L3..=id.level {
+pub fn cell_lines(id: HolonId, chain: &[u64], ns: bool) -> Vec<Line> {
+    let mut lines: Vec<Line> = Vec::new();
+    for l in 2..=id.level {
         let c = id.ancestor(l);
         let (y0, x0, y1, x1) = c.bounds_units();
         let (lo, hi) = if ns { (x0 as f64, x1 as f64) } else { (y0 as f64, y1 as f64) };
-        lines.retain(|&v| v > lo && v < hi);
-        let b = chain.get((l - L3) as usize).copied().unwrap_or(0);
+        lines.retain(|v| v.0 > lo && v.0 < hi);
+        let b = chain.get((l - 2) as usize).copied().unwrap_or(0);
         if b == 0 {
             lines.clear();
             continue;
         }
         let (w, h) = c.size_m();
-        let want = ((if ns { w } else { h }) / street_spacing_m(b as f64 / c.area_km2())).round() as usize;
-        // a handful of homes needs a lane, not a grid
-        let want = want.min((b as f64 / 3.0).ceil() as usize);
+        let len = if ns { w } else { h };
+        let dens = b as f64 / c.area_km2();
+        let main = l == 2;
+        let want = if main {
+            // an arterial for every ~1,500 households at most: open country has none
+            ((len / arterial_spacing_m(dens)).round() as usize).min((b / 1500) as usize)
+        } else {
+            // a handful of homes needs a lane, not a grid
+            ((len / street_spacing_m(dens)).round() as usize).min((b as f64 / 3.0).ceil() as usize)
+        };
         let mut r = Rng::new(c.seed() ^ if ns { 0x4E53 } else { 0x4557 });
         while lines.len() < want {
             let mut best = (0.0, lo);
             let mut prev = lo;
-            for &v in lines.iter().chain(std::iter::once(&hi)) {
+            for v in lines.iter().map(|v| v.0).chain(std::iter::once(hi)) {
                 if v - prev > best.0 {
                     best = (v - prev, prev);
                 }
                 prev = v;
             }
             let v = best.1 + best.0 * (0.5 + (r.f() - 0.5) * 0.4);
-            let at = lines.partition_point(|&x| x < v);
-            lines.insert(at, v);
+            let at = lines.partition_point(|x| x.0 < v);
+            lines.insert(at, (v, main));
         }
     }
     lines
 }
 
-/// The streets crossing side `d` of leaf `id`. Inside an L3 tile they are the lines of the lowest
-/// cell holding both sides (a few dropped by the pair's hash, so streets also end in T-junctions);
-/// across a tile boundary they are [`local_crossings`] of the pair at the shallower level.
+/// The streets crossing side `d` of leaf `id`, as (position, arterial).
+/// - Inside an L2 cell they are the lines of the lowest cell holding both sides; a few local ones
+///   are dropped by the pair's hash, so streets also end in T-junctions.
+/// - Across an L2 boundary the arterials are those of the side with fewer (the lower id on a tie).
+/// - Across an L3 tile boundary, local crossings are also drawn from a hash of the two cells at the
+///   shallower side's level, clear of the lines already crossing there.
 #[must_use]
-pub fn side_crossings(id: HolonId, d: Dir, e: &EdgeCtx, chain: &[u64]) -> Vec<f64> {
+pub fn side_crossings(id: HolonId, d: Dir, ctx: &LeafContext) -> Vec<Line> {
+    let e = ctx.edges[d as usize];
     if !e.present || e.own_budget == 0 || e.other_budget == 0 {
         return Vec::new();
     }
+    let ns = d.horizontal();
     let a = id.ancestor(e.level);
     let Some(b) = a.neighbour(d) else { return Vec::new() };
+    let (y0, x0, y1, x1) = a.bounds_units();
+    let (lo, hi) = if ns { (x0 as f64, x1 as f64) } else { (y0 as f64, y1 as f64) };
     let mut m = e.level;
-    while m > L3 && a.ancestor(m) != b.ancestor(m) {
+    while m > 2 && a.ancestor(m) != b.ancestor(m) {
         m -= 1;
     }
-    if a.ancestor(m) != b.ancestor(m) {
-        return local_crossings(a, d, e.own_budget, e.other_budget);
-    }
-    let (y0, x0, y1, x1) = a.bounds_units();
-    let (lo, hi) = if d.horizontal() { (x0 as f64, x1 as f64) } else { (y0 as f64, y1 as f64) };
     let key = pair_key(a, b, 0x7EE);
-    cell_lines(a.ancestor(m), chain, d.horizontal())
-        .into_iter()
-        .filter(|&v| v > lo && v < hi && mix64(key ^ v.to_bits()) % 100 >= 6)
-        .collect()
+    let mut out: Vec<Line> = if a.ancestor(m) == b.ancestor(m) {
+        cell_lines(a.ancestor(m), &ctx.chain, ns).into_iter().filter(|v| v.0 > lo && v.0 < hi && (v.1 || mix64(key ^ v.0.to_bits()) % 100 >= 6)).collect()
+    } else {
+        let (o2, t2) = (a.ancestor(2), b.ancestor(2));
+        let mine = cell_lines(o2, &ctx.chain[..1], ns);
+        let theirs = cell_lines(t2, &[ctx.l2_nb[d as usize]], ns);
+        let pick = if mine.len() < theirs.len() || (mine.len() == theirs.len() && o2.pack() < t2.pack()) { mine } else { theirs };
+        pick.into_iter().filter(|v| v.0 > lo && v.0 < hi).collect()
+    };
+    if m < L3 || a.ancestor(m) != b.ancestor(m) {
+        let k_m = M_PER_DEG / UNITS_PER_DEG as f64;
+        let near: Vec<f64> = out.iter().map(|v| v.0).collect();
+        for p in local_crossings(a, d, e.own_budget, e.other_budget) {
+            if p > lo && p < hi && near.iter().all(|&q| (p - q).abs() * k_m >= 30.0) {
+                out.push((p, false));
+            }
+        }
+        out.sort_by(|x, y| x.0.total_cmp(&y.0));
+    }
+    out
 }
 
 // ------------------------------------------------------------------ leaf layout
@@ -755,91 +715,46 @@ impl LeafLayout {
         let area = (w * h / 1e6).max(1e-9);
         let density_km2 = ctx.budget as f64 * pph / area;
         let class = DensityClass::of(density_km2, params);
-        let mut rng = Rng::new(id.seed());
+        let rng = Rng::new(id.seed());
         let mut out = Self { id, w, h, households: ctx.budget, density_km2, class, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new() };
-        let (y0, x0, y1, x1) = id.bounds_units();
         let (hw, hh) = (w / 2.0, h / 2.0);
 
-        // ports: main roads handed down by the tile, then local crossings at the shallower level
-        let t = id.ancestor(L3);
-        let mains = tile_main_roads(t, ctx.tile_budget, ctx.tile_nb);
-        let mut main_m: Vec<[f64; 4]> = Vec::new();
-        for s in &mains {
-            if let Some(c) = clip(*s, x0 as f64, y0 as f64, x1 as f64, y1 as f64) {
-                let a = Self::to_m(id, c[0], c[1]);
-                let b = Self::to_m(id, c[2], c[3]);
-                if (a.0 - b.0).abs() + (a.1 - b.1).abs() < 1e-6 {
-                    continue;
-                }
-                main_m.push([a.0, a.1, b.0, b.1]);
-                for (px, py) in [(c[0], c[1]), (c[2], c[3])] {
-                    let d = if py == y1 as f64 {
-                        Some((Dir::N, px))
-                    } else if py == y0 as f64 {
-                        Some((Dir::S, px))
-                    } else if px == x1 as f64 {
-                        Some((Dir::E, py))
-                    } else if px == x0 as f64 {
-                        Some((Dir::W, py))
-                    } else {
-                        None
-                    };
-                    if let Some((dir, pos)) = d {
-                        out.ports.push(Port { dir, pos, main: true });
-                    }
-                }
-            }
-        }
-        let tile_main: Vec<(Dir, f64)> = Dir::ALL.iter().filter_map(|&d| main_crossing(t, d, ctx.tile_budget, ctx.tile_nb[d as usize]).map(|p| (d, p))).collect();
-        let k_m = M_PER_DEG / UNITS_PER_DEG as f64;
+        // ports: where streets cross each side (the shallower side's rule; see side_crossings)
+        let (y0, x0, y1, x1) = id.bounds_units();
         for d in Dir::ALL {
-            let e = ctx.edges[d as usize];
+            // the crossings are drawn along the shallower cell's whole side; this leaf keeps its stretch
             let (lo, hi) = if d.horizontal() { (x0 as f64, x1 as f64) } else { (y0 as f64, y1 as f64) };
-            // a side on the tile's boundary keeps clear of the tile's main crossing there
-            let (ty0, tx0, ty1, tx1) = t.bounds_units();
-            let on_tile = match d {
-                Dir::N => y1 == ty1,
-                Dir::S => y0 == ty0,
-                Dir::E => x1 == tx1,
-                Dir::W => x0 == tx0,
-            };
-            let main_here = if on_tile { tile_main.iter().find(|m| m.0 == d).map(|m| m.1) } else { None };
-            for p in side_crossings(id, d, &e, &ctx.chain) {
-                if p <= lo || p >= hi {
-                    continue;
+            for (pos, main) in side_crossings(id, d, ctx) {
+                if pos > lo && pos < hi {
+                    out.ports.push(Port { dir: d, pos, main });
                 }
-                if let Some(m) = main_here {
-                    if (p - m).abs() * k_m < 30.0 {
-                        continue;
-                    }
-                }
-                out.ports.push(Port { dir: d, pos: p, main: false });
             }
         }
         out.ports.sort_by(|a, b| a.dir.cmp(&b.dir).then(a.pos.total_cmp(&b.pos)));
 
-        // local streets: the leaf's own lines, run on to a side where that side has a port, and a
+        // streets: the leaf's own lines, run on to a side where that side has a port there, and a
         // stub in from every port that is not on a line; the grid closes over all of them
         let width = match class {
             DensityClass::UrbanCore | DensityClass::Urban => 8.0,
             DensityClass::Suburban => 6.0,
             DensityClass::Village => 5.0,
         };
-        let has = |dir: Dir, v: f64| out.ports.iter().any(|p| !p.main && p.dir == dir && p.pos.to_bits() == v.to_bits());
-        let mut xs: Vec<f64> = cell_lines(id, &ctx.chain, true);
-        let mut ys: Vec<f64> = cell_lines(id, &ctx.chain, false);
-        for p in out.ports.iter().filter(|p| !p.main) {
+        let has = |dir: Dir, v: f64| out.ports.iter().any(|p| p.dir == dir && p.pos.to_bits() == v.to_bits());
+        let mut xs: Vec<Line> = cell_lines(id, &ctx.chain, true);
+        let mut ys: Vec<Line> = cell_lines(id, &ctx.chain, false);
+        for p in &out.ports {
             let v = if p.dir.horizontal() { &mut xs } else { &mut ys };
-            if !v.iter().any(|q| q.to_bits() == p.pos.to_bits()) {
-                v.push(p.pos);
+            if !v.iter().any(|q| q.0.to_bits() == p.pos.to_bits()) {
+                v.push((p.pos, p.main));
             }
         }
-        xs.sort_by(f64::total_cmp);
-        ys.sort_by(f64::total_cmp);
-        let xm: Vec<f64> = xs.iter().map(|&x| Self::to_m(id, x, 0.0).0).collect();
-        let ym: Vec<f64> = ys.iter().map(|&y| Self::to_m(id, 0.0, y).1).collect();
+        xs.sort_by(|a, b| a.0.total_cmp(&b.0));
+        ys.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let xm: Vec<f64> = xs.iter().map(|&(x, _)| Self::to_m(id, x, 0.0).0).collect();
+        let ym: Vec<f64> = ys.iter().map(|&(y, _)| Self::to_m(id, 0.0, y).1).collect();
+        let wd = |main: bool| if main { 12.0 } else { width };
         let mut roads = Vec::new();
-        for (k, &x) in xs.iter().enumerate() {
+        for (k, &(x, main)) in xs.iter().enumerate() {
             let top = if has(Dir::N, x) { Some(hh) } else { ym.last().copied() };
             let bot = if has(Dir::S, x) { Some(-hh) } else { ym.first().copied() };
             let (top, bot) = match (top, bot) {
@@ -849,10 +764,10 @@ impl LeafLayout {
                 (None, None) => continue,
             };
             if top - bot > 1e-9 {
-                roads.push(Road { x0: xm[k], y0: bot, x1: xm[k], y1: top, width });
+                roads.push(Road { x0: xm[k], y0: bot, x1: xm[k], y1: top, width: wd(main) });
             }
         }
-        for (k, &y) in ys.iter().enumerate() {
+        for (k, &(y, main)) in ys.iter().enumerate() {
             let east = if has(Dir::E, y) { Some(hw) } else { xm.last().copied() };
             let west = if has(Dir::W, y) { Some(-hw) } else { xm.first().copied() };
             let (east, west) = match (east, west) {
@@ -862,12 +777,10 @@ impl LeafLayout {
                 (None, None) => continue,
             };
             if east - west > 1e-9 {
-                roads.push(Road { x0: west, y0: ym[k], x1: east, y1: ym[k], width });
+                roads.push(Road { x0: west, y0: ym[k], x1: east, y1: ym[k], width: wd(main) });
             }
         }
-        for m in &main_m {
-            roads.push(Road { x0: m[0], y0: m[1], x1: m[2], y1: m[3], width: 12.0 });
-        }
+        let mut rng = rng;
         out.roads = roads;
         out.place_buildings(&mut rng);
         out.fit_households(&mut rng);
@@ -1245,6 +1158,7 @@ mod tests {
         let mut pairs = 0;
         let mut mixed = 0;
         let mut ports = 0;
+        let mut arterials = 0;
         // walk a strip of leaves across the town's edge (depths change along it) and over the
         // antimeridian
         for &(lat, lon0, lon1) in &[(10.011, 19.95, 20.08), (10.311, 20.1, 20.45), (10.011, 179.97, 180.03)] {
@@ -1286,6 +1200,7 @@ mod tests {
                         assert_eq!(mine, theirs, "{a:?} {d:?} vs {b:?}");
                         pairs += 1;
                         ports += mine.len();
+                        arterials += mine.iter().filter(|m| m.1).count();
                         if a.level != b.level {
                             mixed += 1;
                         }
@@ -1298,7 +1213,7 @@ mod tests {
                 }
             }
         }
-        assert!(pairs > 100 && mixed > 10 && ports > 50, "pairs {pairs} mixed {mixed} ports {ports}");
+        assert!(pairs > 100 && mixed > 10 && ports > 50 && arterials > 0, "pairs {pairs} mixed {mixed} ports {ports} arterials {arterials}");
     }
 
     /// The focal world built on a leaf holds exactly the leaf's households, on the leaf's streets.
