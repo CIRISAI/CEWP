@@ -26,7 +26,7 @@ The tables are the constitution's, vendored under [`tables/`](tables/) at the co
 
 ## At scale: billions of people and devices, one rulebook in WebAssembly
 
-[`../globe.html`](../globe.html) models up to **8.1 billion people and 18.1 billion devices** (`5.00 B` people / `11.25 B` devices default at `2.25` devices per person's `self` roster), placed on a land-bounded world population density grid (`2,961` populated land cells across `181` localities and `9` GSMA/UN regions, stitched to continent coastlines with zero ocean nodes), and signs random acts every tick: 65% family-scope, 30% in a community room, 4% consent-free rows, 1% in a public room. Each node's local door evaluates the same constitutional rulebook (`transitions.json` + `governance_policy.json`) at the signer's device and at every device of the row's audience. The loop is [`kernel-wasm/src/lib.rs`](../../kernel-wasm/src/lib.rs), compiled to `kernel_scale.wasm` (34 KB, no dependencies, `kernel-wasm/build.sh`), with the same loop in JavaScript on the page so the two engines can be timed on one world.
+[`../globe.html`](../globe.html) models up to **8.1 billion people and 18.1 billion devices** (`5.00 B` people / `11.25 B` devices default at `2.25` devices per person's `self` roster), placed on a land-bounded world population density grid (`2,961` populated land cells across `181` localities and `9` GSMA/UN regions, stitched to continent coastlines with zero ocean nodes), and signs random acts every tick: 65% family-scope, 30% in a community room, 4% consent-free rows, 1% in a public room. Each node's local door evaluates the same constitutional rulebook (`transitions.json` + `governance_policy.json`) at the signer's device and at every device of the row's audience. The loop is [`kernel-wasm/src/lib.rs`](../../kernel-wasm/src/lib.rs), compiled to `kernel_scale.wasm` (about 170 KB with the micro tier, no dependencies, `kernel-wasm/build.sh`), with the same loop in JavaScript on the page so the two engines can be timed on one world.
 
 What it models and measures (per **CC RC17 §4.5.13 / §5.3.3.2 / §5.4.3 / §5.4.6 / §6.1.6** and **CIRISEdge v44**):
 - **The locality dividend (CC 5.2)**: the share of rows that never leave the signer's locality (~90% with community rooms drawn 90% local).
@@ -38,3 +38,26 @@ What it models and measures (per **CC RC17 §4.5.13 / §5.3.3.2 / §5.4.3 / §5.
 - **Reticulum IPv6 / NAT traversal vs. $k=2$ homed leaves (`reach_home_share`)**: [`formal/transport_tiers/Tiers.lean`](https://github.com/CIRISAI/CIRISConstitution) proves the 8-link bound (`L ≤ 8`), displacement, carriage/referral reach, and **`reach ≠ capacity`** (it has no reachability term); directly reachable home share (`reach_home_share`) is an explicit scenario input (`leviculum#100` first empirical NAT-mix data; `leviculum#101` notes neither PCP/NAT-PMP nor UPnP is implemented). Peers with no direct path attach as $k=2$ homed leaves (`cap = 32` $k=2$ leaves on `server`, `8` on directly reachable `home`) and carry identity, consent, chat, and small attachments on ordinary links.
 - **Collapsible `▸ Advanced` opt-in & sustainability model**: exposes device tier shares (`% server`, `% home`, `% phone`), phone Wi-Fi vs. cellular + charging share, directly reachable home share (`reach_home_share`), no-direct-path share, and the 8 Constitutional opt-in choices with explicit **Benefit (`+`)** and **Downside (`−`)** alongside live **No-direct-path leaf load** and **1-hop shaped onion cover capacity** (`each_home_adds_seven` when reachable vs. `unowned_only_strands_the_73rd`).
 - **Door checks per second**: ~15 M/s in WASM against ~6 M/s in JavaScript on one core at 1 M nodes. It runs the admission predicate, not the policy folds.
+
+## Down to one street: the R5 micro tier
+
+Zoom the globe past regional scale and the page builds a **focal 1:1 neighbourhood** for the tile under the camera. That world is [`crates/cewp-sim/src/micro.rs`](../../crates/cewp-sim/src/micro.rs), unit-tested in `cewp-sim` and compiled into the same wasm (`micro_*` exports). The page draws only what it exports: streets, houses, every device, every one-hop link with its shaped class, pending punches, and each row along the path it actually took.
+
+- **Host kinds:**
+  - **phone:** client-only; its class follows Wi-Fi or cellular; it suspends and resumes.
+  - **home node:** always on; the member-owned mailbox.
+  - **laptop:** runs as `home` by platform default and relays with no battery gate, yet sleeps.
+  - **hosted server:** `server` class; shapes every identity link by default.
+  - **serve seat:** `seat` to seats, `server` to everyone else; facilitator, federation and last-resort mailbox.
+  - **CI runner:** ephemeral, sometimes on an older edge that never proposes a direct path.
+- **Paths:**
+  - **direct:** a LAN, one end's public listener, or a facilitated punch.
+  - **with no direct path:** a row crosses a forwarder sealed and unshaped.
+  - **at the bound:** a ninth shaped link runs unshaped.
+  - **to a sleeping phone:** a row waits at the household's home node or server, else at a seat.
+- **Provenance:** every number without a source in CIRISEdge or the constitution is a named parameter tagged `MODEL` or `FRONTIER`. The table is in [`FSD/SIMULATION_ENGINE.md` §4.6](../../FSD/SIMULATION_ENGINE.md). Notable FRONTIER defaults:
+  - `reach_home_share` 0.40;
+  - `cellular_punchable_share` 0.15;
+  - `punch_success_share` 0.90 (leviculum#100 has no fleet data yet).
+- **Places:** streets are procedurally generated from the tile seed and the population grid's density (apartment blocks, terraced streets, suburbs, villages). They are not map data, and no simulated device sits on a real building.
+- **Story:** acts 1 and 2 descend from orbit to such a street near Zurich. Alice's phone and home node, Bob two streets away, their seats in data centres hundreds of km off: the narration fires the actions, and the rules decide how each one goes. Then the camera pulls back to the planetary acts.

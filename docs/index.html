@@ -9,6 +9,16 @@
 :root{--bg:#0b0d12;--panel:#12151c;--line:#242a36;--ink:#dfe3ea;--mute:#8a93a3;--ok:#5ad38f;--warm:#ffb15c;--hot:#ff6a5c;--cool:#6cb6ff;--violet:#c68aff;--mono:ui-monospace,Menlo,Consolas,monospace}
 *{box-sizing:border-box}html,body{height:100%;overscroll-behavior:none}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--mono);overflow:hidden;-webkit-text-size-adjust:100%}
 #c{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:block;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}
+#micro{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:block;pointer-events:none}
+#focal-chip{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:16;max-width:min(860px,calc(100vw - 24px));background:rgba(10,14,22,.72);border:1px solid rgba(108,182,255,.28);border-radius:10px;padding:6px 11px;font:11px/1.4 var(--mono);color:var(--mute);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);text-align:center}
+#focal-chip b{color:var(--ok)}
+#focal-chip .chip-sub{font-size:10px;color:#9aa4b4;margin-top:1px}
+.chip-btn{padding:0 6px!important;font:11px/1.3 var(--mono)!important;margin-left:3px;border-radius:4px!important}
+#node-card{position:fixed;right:12px;bottom:118px;width:min(400px,calc(100vw - 24px));max-height:min(62dvh,560px);overflow:auto;background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:11.5px;z-index:24;backdrop-filter:blur(8px);box-shadow:0 8px 28px rgba(0,0,0,.45)}
+#node-card .kv{font-size:11px}#node-card .kv b{font-weight:500;max-width:62%}
+.card-links{margin-top:6px;color:var(--mute);font-size:10.5px}.card-links ul{margin:3px 0 0;padding-left:0;list-style:none}.card-links li{padding:2px 0;color:var(--ink);border-bottom:1px dashed #1e2430}
+.lk{display:inline-block;width:14px;height:3px;margin-right:6px;vertical-align:middle;background:#5ad38f;opacity:.5}.lk.shaped{background:#ffb15c;opacity:1}.lk4{opacity:1;background:#78f0aa}.lk1{background:#6cb6ff}.lkp{background:#ffec78}
+@media(max-width:800px){.nav-strip{flex-wrap:nowrap!important;overflow-x:auto;justify-content:flex-start!important;scrollbar-width:none;-webkit-overflow-scrolling:touch}.nav-strip::-webkit-scrollbar{display:none}.nav-pill{flex:none}#focal-chip{bottom:86px;font-size:10px;padding:5px 8px}#focal-chip .chip-sub{display:none}#node-card{left:8px;right:8px;width:auto;bottom:104px;max-height:46dvh}}
 .fab{position:fixed;z-index:20;display:inline-flex;align-items:center;gap:7px;background:color-mix(in srgb,var(--panel) 86%,transparent);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:7px 13px;font:600 12px/1 var(--mono);backdrop-filter:blur(8px);cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:border-color .18s,background .18s,color .18s}
 .fab:hover,.fab.open{border-color:var(--ok);color:#fff;background:color-mix(in srgb,var(--panel) 96%,transparent)}
 .fab .badge{color:var(--ok);font-weight:600;font-variant-numeric:tabular-nums}
@@ -160,7 +170,7 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
   width: max-content;
   background: rgba(10, 14, 22, 0.54);
   border: 1px solid rgba(108, 182, 255, 0.28);
-  border-radius: 999px;
+  border-radius: 18px;
   padding: 7px 14px;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -187,9 +197,11 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
   font-size: 12px;
   line-height: 1.3;
   color: rgba(242, 246, 252, 0.95);
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 .story-line b { color: var(--ok); font-weight: 600; }
 .story-line code {
@@ -248,7 +260,7 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
     font-size: 11px;
     white-space: normal;
     display: -webkit-box;
-    -webkit-line-clamp: 1;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     flex: 1;
   }
@@ -259,6 +271,7 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
 </head>
 <body>
 <canvas id="c"></canvas>
+<canvas id="micro" aria-hidden="true"></canvas>
 <button id="btn-hud" class="fab" type="button" title="Toggle controls &amp; population opt-ins">☰ Controls · <span class="badge" id="badge-scale">5.00 B</span></button>
 <button id="btn-story-fab" class="fab fab-story" type="button" title="Watch two people connect and grow into a global network">▶ Play Story</button>
 <button id="btn-stats" class="fab" type="button" title="Toggle live telemetry &amp; sustainability metrics">☰ Metrics · <span class="badge" id="badge-local">– local</span></button>
@@ -277,7 +290,7 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
 </nav>
 
 <div id="story-hud" class="story-panel">
-  <span class="story-act-badge" id="story-act-badge">1/5</span>
+  <span class="story-act-badge" id="story-act-badge">1/6</span>
   <div class="story-line" id="story-line">Two people share a contact link and connect directly — no central server</div>
   <div class="story-mini-ctls">
     <button id="story-btn-prev" class="story-hdr-btn" type="button" title="Previous">‹</button>
@@ -290,6 +303,8 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
   </div>
 </div>
 
+<div id="focal-chip" class="panel-hidden"></div>
+<div id="node-card" class="panel-hidden"></div>
 <div id="hud" class="panel-hidden">
   <div class="panel-head">
     <h1>Billions of people and devices, one rulebook</h1>
@@ -627,7 +642,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=5"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=6"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -856,7 +871,24 @@ const DV=`attribute vec2 p;uniform float S;uniform vec2 asp;varying vec2 vPos;vo
 const DF=`precision mediump float;uniform vec3 uSunCam;varying vec2 vPos;void main(){float r=length(vPos);if(r>1.05)discard;if(r<=1.0){float z=sqrt(max(0.0,1.0-r*r));vec3 n=vec3(vPos.x,vPos.y,z);float sunDot=dot(n,uSunCam);float day=smoothstep(-0.10,0.12,sunDot);float spec=pow(max(0.0,sunDot),2.0);vec3 nightDeep=vec3(0.008,0.012,0.024);vec3 dayDeep=vec3(0.11,0.26,0.46)+vec3(0.10,0.18,0.28)*spec;vec3 deep=mix(nightDeep,dayDeep,day);vec3 rimColor=mix(vec3(0.04,0.08,0.16),vec3(0.38,0.72,1.0),day);float rim=pow(1.0-z,2.3);vec3 col=deep+rimColor*(rim*0.54);gl_FragColor=vec4(col,1.0);}else{vec3 limbN=normalize(vec3(vPos.x,vPos.y,0.15));float limbSun=dot(limbN,uSunCam);float limbDay=smoothstep(-0.15,0.20,limbSun);float halo=smoothstep(1.05,1.0,r)*mix(0.06,0.36,limbDay);vec3 haloCol=mix(vec3(0.08,0.16,0.30),vec3(0.34,0.68,1.0),limbDay);gl_FragColor=vec4(haloCol*halo,halo);}}`;
 const CV=`attribute vec3 p;uniform mat3 R;uniform float S;uniform vec2 asp;uniform vec3 uSunWorld;varying float vz;varying float vSun;void main(){vec3 q=R*p;vz=q.z;vSun=dot(p,uSunWorld);gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);}`;
 const CF=`precision mediump float;varying float vz;varying float vSun;void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;float day=smoothstep(-0.10,0.12,vSun);vec3 col=mix(vec3(0.13,0.21,0.34),vec3(0.46,0.74,0.98),day);float al=mix(0.42,0.86,day)*edge;gl_FragColor=vec4(col,al);}`;
-const pP=prog(PV,PF), pL=prog(LV,LF), pD=prog(DV,DF), pC=prog(CV,CF);
+// land: the population grid's own 1.5° tiles, brighter where more people live; fades in below the planetary view
+const GV=`attribute vec3 p;attribute float t;uniform mat3 R;uniform float S;uniform vec2 asp;uniform vec3 uSunWorld;varying float vz;varying float vt;varying float vSun;void main(){vec3 q=R*p;vz=q.z;vt=t;vSun=dot(p,uSunWorld);gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
+const GF=`precision mediump float;uniform float uA;varying float vz;varying float vt;varying float vSun;void main(){if(vz<0.0)discard;float day=smoothstep(-0.10,0.12,vSun);vec3 c=mix(vec3(0.13,0.165,0.145),vec3(0.21,0.265,0.22),vt);c*=mix(0.62,1.0,day);gl_FragColor=vec4(c,uA*smoothstep(0.0,0.06,vz));}`;
+const pP=prog(PV,PF), pL=prog(LV,LF), pD=prog(DV,DF), pC=prog(CV,CF), pG=prog(GV,GF);
+let landBuf=gl.createBuffer(), landTBuf=gl.createBuffer(), landVerts=0;
+function initLand(){
+  const G=initPopGrid(); const P=[], T=[]; let wmax=0;
+  const dens=(c)=>{ const w=G.cumW[c]-(c?G.cumW[c-1]:0); const r=cellHalf(G,c); return w/(r*r); };
+  for (let c=0;c<G.nCells;c++) wmax=Math.max(wmax,dens(c));
+  for (let c=0;c<G.nCells;c++){
+    const r=cellHalf(G,c), la=G.cellLat[c], lo=G.cellLon[c], t=Math.min(1,Math.log1p(9*dens(c)/wmax)/Math.log(10));
+    const k=[[la-r,lo-r],[la-r,lo+r],[la+r,lo+r],[la+r,lo-r]].map(([y,x])=>xyz(y,x));
+    for (const i of [0,1,2,0,2,3]){ P.push(...k[i]); T.push(t); }
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER,landBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(P),gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,landTBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(T),gl.STATIC_DRAW);
+  landVerts=P.length/3;
+}
 let posBuf=gl.createBuffer(), actBuf=gl.createBuffer(), kindBuf=gl.createBuffer(), discBuf=gl.createBuffer(), coastBuf=gl.createBuffer();
 let linePosBuf=gl.createBuffer(), lineParamBuf=gl.createBuffer();
 const COAST_B64="BQBM4Q3AYuEDwfLgz8Hl4A/BTOENwAkACxWU/cMUpf1qFFn9PhQa/KYUa/wMFTf8iRUL/U8Vyv0LFZT9HgD8/hQ3fv56ON39Bjmg/a05a/3FOWD9aTkd/X853vvdOgv8xznZ/A05Bf2KOMf8+Td+/AU4W/y3N9b8WTa3/ME1JP0rNuX94TWe/jY0Zf7yM+b+jzMj/zo0I/+nM6L//DLb/7Yzsv9XNOv+gjSv/uo0Vv+wNfz+FDcSAMUBnCy0ApktHQKOLkMB0y1aAHwuTgAFLrD/6C1r/4gtb/5fLdv+Dith//8q0v+dKoYAmyrJANYquQBtKw4BgSs2ASQsxQGcLAQASh1v20UdLtqNHfPaSh1v2wMASB5Y22ceVNpIHljbBQDFHjXaoh6s2mke/dnPHnnZxR412gsADx2R3Twd5tukHbfb0B1T2/sdENokHjXa/h033IkdKd2THU/gRB3R4A8dkd0FAIceitR4HhfVPR471F0ep9OHHorUBADIHqjUtB4q1aEeCtTIHqjUBQA7BxzmHwdh5gMHwuU8B8rlOwcc5gQAOQez4f0GPOIfB2bhOQez4QoADwnd38sIZeHsBwbjwgeg4fkH4+FwCEDhvwjn39gIDOCOCM/eDwnd3xUADBRI6nUT0OmXExLqghNV6l8TMuo9Exzr9BL96gUTQ+uSEm/rOhJF60kS1uqnEtDqUBJc6lQSIOqDEmfqmxIH6pgS2ejZEgjp9BLd6NATmOkMFEjqCgBvGTzf5Ri24MUYXeAKGYnfoRiY3twYdd7SGO7dBBlF3q4ZdN5vGTzfKwBDHDvhaxya4d0bDuP0G8jjjRsh5Qcb1+XYGh/lHhrX52QZCOfvGfDl4hlu5akZYuUmGXzmwxi95nsYm+bnGCLlMRgn5lkYGOVEGcXiORlQ4YMZkuGRGRzj5xke40gan+OXGl3j6Rr54QMbOeJpGyjhPhs94IEbXN2kGwnd0htx3dIb49w4HMPcuhx33dQced6UHDDeVRx/3qYc297PHNjfaByE4CYcdeBDHDvhBgD1HBbb2hyl3CIcLdsmHLvasBx+2vUcFtsJAGccxNioHFbY0Bz22YMcs9lYHEra/hs42tcblNlQHPjXZxzE2AwAoR3i1a0dpNZ8HbbWEh0q1DAdhdNcHVXUYh0F0uAd7NJ7HWXV2x3W1P8dMtWhHeLVBQC8HQPQRx560VUenNLlHUHSvB0D0AcAFR2G0LQc4dKyG+vPExzPzsgcls8FHTTPFR2G0AQAlhf5vmcXUr+FF5a+lhf5vgUApRYlxH8WksRDFqTDchaVw6UWJcQHABwVKcwkFYnMshRrzGIUwszdFAfMKRX6yxwVKcwFAIMTAs/zEsHPExPqzr4T1M2DEwLPBADqGOu8uhgbvpoYx73qGOu8BgD6HsvWyB6d2G8eEdmeHurWvB5L1/oey9YFANMN3wzvDYINjg2xDLYNmgzTDd8MBADKDUUKyA0vCfMNQgnKDUUKDgAh+1oT3fmuE935ZxNo+XETQvZmEgD2vRE99jQRGvfvEGj4XhEz+SwRqvldEdb5FxJM+zcTIftaEwMAy/lSQZH5kEHL+VJBBADh+SdBSfoXQdr5V0Hh+SdBAwBO/W003/2KNE79bTQHAIPh/uxY4djuveAT71ngSOyB4Njq5+AV7IPh/uwHAKbgG+aZ4NTn5eBT6Lzgu+hc4IDoZODP5qbgG+YJACnkIOMx5Nnj2eT64xjlj+Qb5E/lz+Mi5a7jPOTZ47niKeQg4wUA6+MH2OXjMdqs42zaruOi2OvjB9gEADrjGtBM46DRD+MJ0TrjGtADAE7jSM4l443PTuNIzgUAxPfCQFj3SEGI96NAJfgTQMT3wkAFAJL+oDsj/rM7hf6JO+7+2jqS/qA7CQC4/Ro7iP17OsH98DkM/qY63v3pOl/+Mjth/m47Gf6AO7j9GjsFAOj7VD/F+3A/xvsqPwT8BD/o+1Q/AwBA/Cg/wPy6PkD8KD8EACX81T4t/HE+ZPxiPiX81T4EAN78XD6q/Hg+Gv3NPd78XD4EAEL9Yj0h/Yo9bP0mPUL9Yj0DAOr9dDxW/eQ86v10PA0AWfAZRd/vwUS373RE4O85RDLwc0SR8OZD2PAxRGbxPkSD8nBDOfIZRFTxvERG8bxFWfAZRQ0A/O5HQi/wgEPb761DA/D0Q9nvEUQP73dD3+6cQ7ju+UIR7qZCyO0lQvLtHEFh7kFB/O5HQgYAD/CxOQjw7Tkf78c5/e4NORrwijgP8LE5QgBq80cxIPOGMMPyTjC68tUuTvIaLqTy7yxr8zwtzPVGLKH1ciz+9VAsuvWfLHr2Syw4924sgPeXLDT3nyzq95ctUPg2L5f5DTBB+TcwVfliMIT5PjBx+hkxmvqjMTH6JDIn+qIyXvqNMhr7BjNF+8ozmft+M6f7tDM3+9o0XvtRNS37fzXM+hw1JPruNBX5xjaZ+S83J/tZN9X7rDdR+jg4d/p4OCb6yTiY+C85CfglOkb3eDpA9+E61vbyOiH2tjsF9f07pPO5OxHyuTph8Zg6wPAoOf7wmDgy8ac41/AZOCbx8Dbi8YU2F/L0NZLy/TU68nM1JvPVNV/yHzVC83M0svNNM2rzRzEGAPAC8x+IAuQfVQJjHzQDIh/WA08f8ALzHwYA6P6JMsv+9zJ+/hszrf72MeT+DjLo/okyBACF/o8xwv43Mcf+nDGF/o8xBQDZAPkxcQBFMqb/CjJlAMQx2QD5MRUAWAAFMI4A7DAYAFEwGADyLsz/5C5z/z4vwv8uMEL/dy/q/Rww8P3AL0L+8C83/nUv+f5BL9v+/y7X/Qsvyf3MLqP+ri7o/mUuDwDPLoMAOS9YAAUwBQD++/4uRPx5Llj81i4b/C4v/vv+LgYAqvxmL9f8AjCf/PQvj/zYLsj8KC+q/GYvBAC8/DIumfyJLnn8mi28/DIuCAB+/WEqSf39Kwn9Iiy7/DMtlfzALFP9KSmy/W0pfv1hKg4AlP/FKBb/+SjO/nMpt/1WKbX95yha/hIotgCEJiQCOSUNAhQm0gBQJ4wACigKAJAouf9oKJT/xSgFAPYEMy9DBQAvGwV5L8UEXi/2BDMvBwDmA+MvQAQHMEYEPjADBC4wYwR4MIYDDDDmA+MvDwBJA14xzwJuMXMCTDHZAicxpwL4MC4C/DBoAoYw4AKIMA8DSTDPAqAvZQM9MDgDYDCDAwMx0AP9MEkDXjEGABwHxCo7B3IqkQdvKtgHRytMBxorHAfEKgUAhwmSL5UIKy80Cesu4gl2L4cJki8VAE4PbDfpDhA3ug3JNoUNmjUSDQs1hA3END0NKzPzDJAzSQxNMx8MDTNGDNwyoAz1MgINjTLXDc4z4Q0ANZIOaDVjDqs17g53NhgQzzYqEDk3Tg9sNw0ALBF9OFYRxDjmENo4yxBGOGgQ7jesEFE3PhAbNz0QrDagEJ427RDPNvMQOjfLEXU3LBF9OAcA+g9nAxkQmQPSD9UDTg/HAzMPcQP/DzAD+g9nAwQApxBrA80QqwMqEJsDpxBrAwYA6xXVBLkV9QRoFbkEoBVQBMoVQgTrFdUEFwDfFlv+6BbT/nsWaf6IFjz/3RXI/tcVL/+tFC8AmhSoAD0UaQAJFJEAmBO+/RcUq/5PFPH9bhRa/uYUNv7cFMv+FhXZ/mcVHP7KFQf+mxXR/S8Wmf3nFgv+3xZb/gwA9hlV+rUZPvpxGa/6zhi2+PwYHPcoGX73WRmk9ooZUfehGX/28Rlb960Z9vf2GVX6CwD6FNM3IhOBOEMT7TeyErA3BhIPOEISwzf1EYE30hRYNwAVtTcvFY03+hTTNwUApANKLkUDxS1xBK8uHwTBLqQDSi4KAB4Hyi+ZBY0vYgVrMOYEeDBLBQUwagUfL60FQy8FBtguOwcoLx4Hyi8FAHYErC+lBJwvhgQYMBQEqC92BKwvCQDABAYxUQQiMWsE1TAMBPAw9QPAMH4EjjCbBMgw6ASLMMAEBjFAAGMDyeGwA3HiVAS94mMEU+PcBPnjuwQ25HYE5eOLA/7j2gNA5EkEHORyBJjkwASu5B8EXeXwA6fmKATg5jAE1OcSBH/n4wOh56oDPehaA03oIAPq6FUCrelAAuzqnAH2664Ae+z4/1Hs6P8C7YT/Bu3G/1LtZf917vP+lu7h/mLwHv528f39GPIi/W/yfPxH8ub65fAF+anwbvcC8Af3me/h9o/uR/Zj7eT1Du3N9OfskPL76mLyCurB8i3px/HW6RbxcenV8KbnHPC55/bvkOaS757mYO825wLviuZo7mPmNe635ertmuWM7VzmL+z+5I3rYeVW61Pk9uoZ5JbrueIeANIClOGBAd/higAy4U0At+CW/2PgH/9f4Pb+1+Am/jPgmv1D4DH92OBH+k/iOPkW5NX4g+RI+JjkNPVN5Lr0E+RW8xjkfPFB46rwZuMe7/fiD+8244zvVeNy75jjo+5k48bu9eIg7tPix+104qrtC+P97Hfiluu54gsAXOvW4uHqOeRT643kcOsx5ffqieWi6pfmcOpq5o7q2OVS6vXkturG41zr1uIGAHsfhRGGHyAUQR+XElkfKhJ4H2MSex+FEREAzxznFCcd1hVUHbsVyR3lFw4eoBrmHeUaBx3YFkUcphXyG7oVoBt6FqQb+BTrGygUIRwaFDccgBRtHHwUwxxDFc8c5xQFAEYftQoEH/4IYB/JBoIf9AhGH7UKBgBpHqgJWB4ZCHIeXgiRHiEIpR7wCGkeqAkKAB8f6gVFH6MG2B5qCLAebwcBHrAG/R03BjoeYAVeHrsFHR8UBB8f6gXRANIClOGEAxjhPgOa4PMCwODXApbgTQNh398D6d7hA4reVQSF3jIF091xBV3cVAYD2x0GSNolB5LXywfL1l4I4dblCJXWTwsp1C0MzdNsDCrTyAs10w8JQdXqCAXVqgku1CkKItTUCg7TKQto04wL4NLpDC7ShQ3i0L8PaM/IEZrP0hJLz8QS6M9mEh3QJBME0NsTOM5xFA/OnBSPzewUfc2uFXPMtBagy70WocpCF13JyBeJxrMXGsZuFy7GHBe8xLkX28TwFyrFLxfWw/4WH8S3FsHD3xUdwkAVob99FmTCBBeowusWu8BLF8XAbxeEwFwXAsCjF2m/Bhgcvz8YQ7+rGLi/6RgzwSgZ6MBPGTLBLRmQv6cZVb4CGsG/1BnYwLQa3L4ZG0PAeRvBwOAb1sLqGq7KaxtNzUIbkc2IG/LNJBvgzmgbZs8cG3PPRBuN0LgagtOGGvbSjhoN1VIaeNWFGuXVrxp/1dEav9XgGonWbRpf2HoajNm4GoDZyhrZ2agadNpJGnPamRqz2pYaBNv7GjHbYRtR2s8bWdoYHM/a3Bu422sbQNw6G+fbJhuh3L8aodwOGybdzhqe3YMagN1AGuHd3hqS3kwbmN42G7rfBBtA4J0a/N83GjXg8Rly3wAaf95OGeTd2RiS3JgYi9yMGBfcyhcw2wcXBNv2FpbbTRby22AWftyaFcveixXd39AU698BFMngiBRM4VsV0eAVFhrirRbO4fgWVOFhF8rhWBh94WQYKOPiFx/k2hfR5AgX7+S9FpPlkhfG5kEWBOgCFtznVxWb6c8UOOpfFEDqoBON6J8TEOZKEjrk3hIv5TsTluYKE+/mxxKQ5hAS0ebsEfjnXRJc6PARpOgDEXjmChEs5l8RKOaxEdXmohHG5dUQZ+SJEFbkRBCr5P0PNeP9D+Xj6w8d4zYPveJuD3/iAA+u4ooOVuJLDy3i4A4v4vAO7eHQDjLi4w1r4kgMOuCACrrg2Qma4BsKFeCyC03flAvB3uALQN7ICwHdZAsT3ZsLV9uyCvfZxAjF2VsHitoWBx3bYAdL3DQIvNxqCP/dJQgT3iIHsN06B4LddQZ83TUGQ91ABs7e9wVr33EEPt+9A8HfBAC9A8HfbwMw4LsDIuFjA8nhCQCzB/3jrQet5EUHUOUzB2Xk4AYc5CoH6uJLB7/jyAdp47MH/eMGAOYOxAXvDhAGTg7mBbEO2wTlDukE5g7EBQIAchGqDvcQnA8FABINtTNsDU40NQ2lNMYM9TMSDbUzBQF2B6b5jQhf+UEKXPqxC0T8uAxe/FMNTf34Da/9vQ0n/00OkwCXDrcDWA76A2oOVgQzDQoEmwz1BUIMIwbTC3UHGwzVB5gM3QfUDGoIDwxLC1QMGgwVDHwMGQwxDYgNEA5RDiAOGw6zDFAOYgweDpoLUg7MCu0OSAo7D3gKag85CsoPqArOD0ILGhBsCw0QKwxqEBcN/w/7DjoQOxCpEDEQrBFUDhAS7w44ErcOdhJIDxMSqA3VEa4NwxFFDp8RMQ5UETwNtRGtDAASAg0yEgMMmBGTC4sRRAuiEM8KCRBBC68PTAryDy4K/w+9CeUPQwmsD4kJnA9WCboP1wi2DmQJ0A4ICToOCwk5DskIuQ+VB0wQogfeESIFuhHRBDkR6wSxDzgHzA+XBowPbQYyD6kG1w5KBs8OIAY4D0sGpQ8FBkoQuwTFEBsEKBH8A1UReQPZEI0C1BA2AV0QMAEFEFEAWw/k/yIPCwBTDin/VA5L/gsO5v1uDnT9Zw6G/PMOjPwiD0f87A+T/M8QVfwXEeL89hBC/zIRdv/5EYn/lRLY/rsSP/4EEzX+ABNe/3ITP/9HE53/lROGAOcTpAAqFH8BvRTXAekULAMaFXADsBUsA08WVgONFiIEORYBBA4WQwSrFcUDGRVGBEcV5AQAFYQFbRXiBkMVrgePFU8IbRZuCI8WzAhHFmwJzhaLCeUWJwkfFx4JcxdgC6IX9wphF+8IuBdUCHUYOgivGGoIbxnsCckZVgmsGaoIZxlJCCkZWQiDGPkG9hewBngXVwcHF/sG8BaTBuoVNAagFQ4FOxcMBMcWRgPjFjcCNRjzATEZHQR9GsQFRht+B88bAQuFGzkMaxu5CywbJgxPG40M+hpDDloaChAXGhEQyBn+Dgca9gy+GZkNKRmmDfEYdQ5MGUYOchmGDjQZdw9MGcwPlhmID/gZcRDPGSsRFBplEU8aEhGMGkERyRr5EKkaERJxGkoSZRrMES0azBELGhsS5hr8FOEaRxWkGuUU6Br4FqwaahfuGtwXKBtzF0kbpxeZGsMazhoGGyEbJRq/Gw0aiBxSG24cWxw2HHAc5RsRHH8bbxz2GlgcuRrHHOgZ2BvZGUoceBpRHbEaFx3zGkYdMxvAHJcbEB3pG44cLBxBHXMcKh0+HJAd3htpHcsb1B0THKYdOxxOHgcc1h9aHH0fxRxzH+Ic6iEWHZkhWB0NItsdXCdaHsMo4B3kKfcdZCuhHZUsbR19LPocvCrmHCYsphxZLM8cJS2BHCAwzhwmML0cmjGIHDsySBxpMh4cLjKnG0kzEBypM+0bozZKHFs2dRzfNjQcZjqsG8E7rxscPoUbbz48G2M+IBvePi0bkkHVGj5C9Rq6QjUbaUJiG5VCTBukRPAaUEbVAGIZUEY9GU1FmhgRRlYYA0ZsGEhFFRjYQ2QXiUKpF/pBWxf1QGMX4j/AFko/gha/P/AVsj/sFVU/mRUqP24VVD86FaU+yBSCPrAU7T1KFM897RM/PaIVtzwtFuc8lxZBPa4W3D3iF+8/bxg/QGcYxj+mF4w+IRg6Pv8XOD1YFz48GheQPPYWFzs+Fx47TheCOhAXjDdhFck0ABX4NSsVpja9FDc3aBQ6NwQU7DbtErY2FxL+NfQQrzS5ECo06BCsM4gP0TFRD8MxXg6SMrQNbTJvDWkxWQ5EMWkOjjG/Dkkx4w63MHMP9DCZD4swMg9JL8oPuS//D4QvUA8cLiIP6S2hDnMuhA7CLssOMi+hDswvbQ7cL1EOTi+jDYsubA33LmEMny/8C14vpwuxLwcLiC+XCVou5ghFLVwIRyvyByQr7AftKlwI6ip8CGQqtwdcKXIHRin4BYgqPwW2Ko8EqCpcAxQp4AMMKScEbijDBBIo7wRjJz0Fcic9BRonnAPCJpkDAyfnAj4nKAI4KIEAtygUAZsnhgIZJ0YDeiYLA2omeASUJp0G9CUjBkElRAbLJB0H2CTlCLYj6QhaI4gIQyNmCPoh3wfKIZwHOiF4BhsgNgZgHwwEMh8dA0oeegPrHT8GuRxYCF8cKAiHG6EIBBvsCBcbWglYGu8J7RnMCQYYDgpsFpoKERZYCmAV4wogFMcLlBO2C70SqwnZEykK7RMUCicUYgk7FGwJGRVQCgQWeAk1FjUJ8Ra3CF0X6AeXFmYHiRa7BpcVZgZ3FBgGYRR4BQQT8AT8EI0GqRBRCEoPQQkJD/YKhw2GC6QNzQpADakLqgxZCfENBgnhDZgIZw5FB6QOCAcBDzgGVw/XBOwQlgSwEBQEbRGyBPcTKATxE6YBphL//roPLP5QD7H9Ig9U/WgPr/xPD8v70A9D+u4PtvmpD0b4lw1f9+QNlPbaDfP1uQzy9K4M1vO+C77yEgrG8tEIZvKqB6ryLgei8x4Ha/XxBV33kgXx+JsE1fmaBEz7UwXP+1kFCP6nBJH/cAMzAdQDdQGsA90BUgOqAU4CcwKxAWYCuwDXATz/BQIv/rIBEP3jAXz81gIl+0AENPrBBIP5TwV5+cEFHflOBpL5dgem+QIApBqluvAasLkCALn5sLmI+bC5BQC1/DMxuPy+MQD8OjBf/G4wtfwzMYMA6d6wuSLfDrr73uK7PN+dvafeQcKP3vvFyN4ZyPfeL8hP3wHE9N9KxFLgvMI64CfFnuDOxgDhl8Ue4VPDheFDwvfhI8LE4ePEIOLuxo7i5Mag4mXH+uIvy+jiPtE1437T0eIi1KLi/NWW4q/YweLk2A3j8dei44DXPuNe2lzjz9yo4yXdTOO53ifjLeBv46LgG+M64nvjEuXb48flxOQ65eDlu+XA5mTnSedr6S/npumw5sbnbOaH5yXmvOcG5hnndeVZ5vXkUOdg5NvnNuM96Jri3eYR4mzkCeLU4ZHhOuNi4Y/hEuGG4abgkOLS36/oft9C6RPgkOzw30fvOOAT8J7g2fQK4Wf09uAU8mbhBvIN4rj0p+Io+ebi3vkN4/v5JeOR+W3j9/kp5Pr7/uMa/UvkUf0E5On/s+QGA6fkuQNV5DoEq+Q+BXrklQrK5H8MPuU7Db7kGQ9K5k0VdeX/F6vlBRl35eka9eQ3G4nkfRpk5Psa7+OLGsbjSxvX474bteTaHN7kVB5P5ecev+VWIMXl4yEj5l8ixeUHI63laiW75fQmZOYrKNvleilE5mAsueXPLgjmIjDs5VAyI+akNH3mwzTZ5bI13OXVOHrlSTlJ5SQ6OOVEPG7kHT9V5FtB/uPhQjrjIULy4uFAOOLlP+Xh3T924VpAPeE8QRThMT9h4Gs+Qd8sQuneUEYPAPAasLlBGqu7Ahqju+oZ5rsyGs+7IxrevMYZor2QGZu8GRlwvIgZK7uLGVS60xkzursZvLmMGem5YhmwuQMA8BuwudcborqrG7C5AwCrG1BGxhvRRfAbUEYDAIj5UEaA+cRFuflQRgUAv+sY6ArsIend63HpnOvM6L/rGOgEAALt7hrC7JAbjuzaGgLt7hoFACr5lUUd+dBF6fi/Rej4SkUq+ZVFBQA0BOjnPgQ26PMDMujxA83nNATo5wUA2AdMw58Hh8NkBy/DsgcJw9gHTMMDABwIEMMtCMnCHAgQwwMARgjEwj4Ii8JGCMTCAwB8CEXCTghlwnwIRcIDAK0Iv8GfCJTBrQi/wQQA2Ql14UgJt+GaCV/h2Ql14QMAdwom4WIKmuF3CibhBACQCp3hYwrs4RwK2+GQCp3hBQBgEv/mJBLH5/URcecfEvLmYBL/5hkAbRE8EiASLhNhEv8TTRK4FK4RuBRtEacT2RAOFLcQghQSEKEUWxCsFHQQ/BT/D2IV+A+sFKMPlRSeD9gUWQ++FDcPDBVxDgcVZw7cE64OOBMqDxYTsg9dE7oPrxPLEI0SbRE8EgMAexPM5i8T2+d7E8zmBABBGKDgSBgJ4RMY4uBBGKDgBABlGDHfkhgE4EgYjd9lGDHfBgBYGp7iNhrt4Wca1OGtGlrikRqp4lganuIFADgbSNr/GqPaHBsE2WYbotk4G0jaGwCMHGTWYxzU1rsbMtdaG47YLhuD2CYb39cAGx/Y2xr91wYbnNbGGr3TVBsq0n0bFtSOG/LRsxu90dsbpdL0G1zRZxz10aMcAdOQHGfTYRw104AcFNRNHJ/UgBwQ1f0bvdUnHO/VjRyo1YwcZNYFAHAc1uDJHG3gxRyC4XMcN+JwHNbgBACpHKI22hx+N5kcGDipHKI2BQBvHeY5VB3hOi0dbjpdHRQ5bx3mOQYAvh07NoQdrTg6HV44JR1INmYdgTW+HTs2BgDrHX7Zyh3S2UwdqNmEHfbX0h3v1+sdftkFAPgeLCi/HikpcB7YJvMejif4HiwoBwCmH6IkvR96JSofIyfQHgonxB4wJmIfniOmH6IkCQB8H37avh/n2/4ee96VHjjdmh6428MeTdsCH53bUB852nwfftoaAP0fOdxJIJreKCCC33kgBeFHINfn1h+S5dcfbOYsHzLk/B714fAef+LeHjrirR6N4ike2OD+HZPhwh2I4N8dC90PHv7cJh633W4eht1KHs7enR6k3f8ew95ZHwvebh8H4HQfyN39HzncRABHILztoyDq8KAgavVRINv3HCCK8+0fYfezH/P2/x/X+cEfO/tSHyv4TR8T+cMeTvhUHlH4Ex7J+O8diPe6HUH4ZR1Y+Fwd7fcGHW/4/hyR99YcBfiyHOT3oxzL9jIcSvdBHFH26xtb95obgfeHG8725xsG9qMbKPZvG7T1ZRtF978aKfWcGpbzDBqk8pIZc/DMGOnvfBhG7y4Ybu96Fw7vxhcm7dsY1es/GuvqtBpO69ka5OtRGyHsEBse6zEbpOqqG8TqkRvt6/0bMepbHKDqgB0d6bodEei2HT7lFR4c5Doe7OV8Hl7jAx9V5igffOZMH27lxB+x5/Efh+f9H0jrNCBR7OYfnO4cIK7tRyC87QQAwBxc1q4cLtdsHNbWwBxc1g==";
@@ -946,8 +978,9 @@ function pruneAndPackArcs(nowSec){
 }
 function getSimUtcHours(nowSec){
   if (storyActive) {
-    if (storyCurrentAct < 3) return 7.2 + storyCurrentAct * 0.7 + (storyActElapsed / 14.0) * 0.7;
-    if (storyCurrentAct === 3) return 9.3 + (storyActElapsed / 14.0) * 3.2;
+    const oa = Math.max(0, storyCurrentAct - 1);
+    if (oa < 3) return 7.2 + oa * 0.7 + (Math.min(storyActElapsed, 14.0) / 14.0) * 0.7;
+    if (oa === 3) return 9.3 + (storyActElapsed / 14.0) * 3.2;
     return (8.5 + storyActElapsed * 0.85) % 24.0;
   }
   return (8.5 + nowSec * 0.85) % 24.0;
@@ -991,6 +1024,12 @@ function draw(){
   const peakLon=(15.0-simUtc)*15.0*Math.PI/180;
   const peakDir=[Math.sin(peakLon), Math.cos(peakLon)];
   gl.useProgram(pD); gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); const dp=gl.getAttribLocation(pD,"p"); gl.enableVertexAttribArray(dp); gl.vertexAttribPointer(dp,2,gl.FLOAT,false,0,0); gl.uniform1f(gl.getUniformLocation(pD,"S"),S); gl.uniform2fv(gl.getUniformLocation(pD,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pD,"uSunCam"),sunCam); gl.drawArrays(gl.TRIANGLES,0,96*3);
+  const landA=Math.max(0,Math.min(1,(zoom-3)/9));
+  if (landVerts && landA>0){ gl.useProgram(pG); gl.uniformMatrix3fv(gl.getUniformLocation(pG,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pG,"S"),S); gl.uniform2fv(gl.getUniformLocation(pG,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pG,"uSunWorld"),sunWorld); gl.uniform1f(gl.getUniformLocation(pG,"uA"),landA);
+    const gp=gl.getAttribLocation(pG,"p"), gt=gl.getAttribLocation(pG,"t");
+    gl.bindBuffer(gl.ARRAY_BUFFER,landBuf); gl.enableVertexAttribArray(gp); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,landTBuf); gl.enableVertexAttribArray(gt); gl.vertexAttribPointer(gt,1,gl.FLOAT,false,0,0);
+    gl.drawArrays(gl.TRIANGLES,0,landVerts); gl.disableVertexAttribArray(gt); }
   if (coastVerts){ gl.useProgram(pC); gl.uniformMatrix3fv(gl.getUniformLocation(pC,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pC,"S"),S); gl.uniform2fv(gl.getUniformLocation(pC,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pC,"uSunWorld"),sunWorld);
     const cp=gl.getAttribLocation(pC,"p"); gl.bindBuffer(gl.ARRAY_BUFFER,coastBuf); gl.enableVertexAttribArray(cp); gl.vertexAttribPointer(cp,3,gl.FLOAT,false,0,0);
     gl.drawArrays(gl.LINES,0,coastVerts); }
@@ -1014,9 +1053,11 @@ function draw(){
     gl.bindBuffer(gl.ARRAY_BUFFER,lineParamBuf); gl.enableVertexAttribArray(lparam); gl.vertexAttribPointer(lparam,4,gl.FLOAT,false,0,0);
     gl.drawArrays(gl.LINES,0,arcCount*SEG_VERTS); }
 }
+// rotation per pixel: the old feel near the planet; at depth, exactly one pixel of ground per pixel dragged
+const dragK=()=>zoom>3?2/(0.86*zoom*Math.min(cv.clientWidth,cv.clientHeight)):0.0035/Math.max(1,zoom*0.6);
 cv.addEventListener("mousedown",e=>{drag=[e.clientX,e.clientY];velYaw=0;velPitch=0;cv.style.cursor="grabbing";lastTouchTime=performance.now();}); window.addEventListener("mouseup",()=>{drag=null;cv.style.cursor="grab";});
-window.addEventListener("mousemove",e=>{ if(!drag) return; const dx=e.clientX-drag[0], dy=e.clientY-drag[1]; velYaw=-dx*0.0035/Math.max(1,zoom*0.6); velPitch=dy*0.0035/Math.max(1,zoom*0.6); yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[e.clientX,e.clientY]; lastTouchTime=performance.now(); });
-cv.addEventListener("wheel",e=>{ e.preventDefault(); targetZoom=Math.max(0.6,Math.min(6,targetZoom*(e.deltaY<0?1.15:0.87))); lastTouchTime=performance.now(); },{passive:false});
+window.addEventListener("mousemove",e=>{ if(!drag) return; const dx=e.clientX-drag[0], dy=e.clientY-drag[1]; velYaw=-dx*dragK()/Math.max(0.2,Math.cos(pitch)); velPitch=dy*dragK(); yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[e.clientX,e.clientY]; lastTouchTime=performance.now(); });
+cv.addEventListener("wheel",e=>{ e.preventDefault(); targetZoom=Math.max(0.6,Math.min(zoomMax(),targetZoom*Math.exp(-Math.max(-120,Math.min(120,e.deltaY))*0.0016))); lastTouchTime=performance.now(); },{passive:false});
 let pinchDist=0;
 cv.addEventListener("touchstart",e=>{
   if(e.touches.length===2){
@@ -1030,11 +1071,11 @@ cv.addEventListener("touchstart",e=>{
 cv.addEventListener("touchmove",e=>{
   if(e.touches.length===2&&pinchDist>0){
     const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-    if(d>4){ targetZoom=Math.max(0.6,Math.min(6,targetZoom*(d/pinchDist))); pinchDist=d; }
+    if(d>4){ targetZoom=Math.max(0.6,Math.min(zoomMax(),targetZoom*(d/pinchDist))); pinchDist=d; }
     lastTouchTime=performance.now(); return;
   }
   if(!drag||e.touches.length!==1) return;
-  const t=e.touches[0]; const dx=t.clientX-drag[0], dy=t.clientY-drag[1]; velYaw=-dx*0.0035/Math.max(1,zoom*0.6); velPitch=dy*0.0035/Math.max(1,zoom*0.6); yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[t.clientX,t.clientY]; lastTouchTime=performance.now();
+  const t=e.touches[0]; const dx=t.clientX-drag[0], dy=t.clientY-drag[1]; velYaw=-dx*dragK()/Math.max(0.2,Math.cos(pitch)); velPitch=dy*dragK(); yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[t.clientX,t.clientY]; lastTouchTime=performance.now();
 },{passive:true});
 cv.addEventListener("touchend",e=>{ if(e.touches.length<2) pinchDist=0; if(e.touches.length===0) drag=null; });
 // ------------------------------------------------------------------ the loop
@@ -1325,7 +1366,7 @@ function tick(){
   }
 
   lastActivity=res.activity; recordActiveBlocks();
-  if (!storyActive || storyCurrentAct >= 2) {
+  if (!storyActive || storyCurrentAct >= 3) {
     gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,lastActivity); setArcs(res.arcs);
   }
 }
@@ -1372,16 +1413,29 @@ const STORY_ACTS = [
   {
     num: 1,
     title: "First Contact",
+    micro: true, // street scale: the R5 focal world (cewp_sim::micro)
     camDist: 1.35,
     targetZoom: 2.25,
     yaw: 8.54 * Math.PI / 180,
     pitch: 47.37 * Math.PI / 180,
     pop: 100,
     holonRes: "R4",
-    duration: 14
+    duration: 40
   },
   {
     num: 2,
+    title: "A Street of Devices",
+    micro: true,
+    camDist: 1.35,
+    targetZoom: 2.25,
+    yaw: 8.54 * Math.PI / 180,
+    pitch: 47.37 * Math.PI / 180,
+    pop: 5000,
+    holonRes: "R4",
+    duration: 28
+  },
+  {
+    num: 3,
     title: "A Local Community Forms",
     camDist: 1.75,
     targetZoom: 1.78,
@@ -1392,7 +1446,7 @@ const STORY_ACTS = [
     duration: 14
   },
   {
-    num: 3,
+    num: 4,
     title: "Communities Connect Across Cities",
     camDist: 2.25,
     targetZoom: 1.36,
@@ -1403,7 +1457,7 @@ const STORY_ACTS = [
     duration: 14
   },
   {
-    num: 4,
+    num: 5,
     title: "Continents Link Across Oceans",
     camDist: 2.65,
     targetZoom: 1.08,
@@ -1414,7 +1468,7 @@ const STORY_ACTS = [
     duration: 14
   },
   {
-    num: 5,
+    num: 6,
     title: "A Worldwide Network of People",
     camDist: 3.10,
     targetZoom: 0.96,
@@ -1477,10 +1531,8 @@ function pickRingNode(minDeg, maxDeg) {
 }
 
 const STORY_CAPTIONS = [
-  [
-    "Two people share a contact link and connect directly — no central server",
-    "Their phones and home computers link up, and nearby friends join in"
-  ],
+  [ "Two people share a contact link and connect directly — no central server" ],
+  [ "The rest of the street: phones, laptops, home nodes, a CI runner passing through" ],
   [
     "Neighbors form a local community and agree on shared rules together",
     "Members back up each other's shared files and media across the neighborhood"
@@ -1501,8 +1553,8 @@ const STORY_CAPTIONS = [
 
 function updateStoryUI(){
   const cfg = STORY_ACTS[storyCurrentAct];
-  if ($("story-act-badge")) $("story-act-badge").textContent = `${cfg.num}/5`;
-  if ($("story-line")) {
+  if ($("story-act-badge")) $("story-act-badge").textContent = `${cfg.num}/${STORY_ACTS.length}`;
+  if ($("story-line") && !cfg.micro) {
     const lines = STORY_CAPTIONS[storyCurrentAct] || [cfg.title];
     const subIx = storyActElapsed < (cfg.duration * 0.5) ? 0 : Math.min(lines.length - 1, 1);
     $("story-line").innerHTML = lines[subIx];
@@ -1539,8 +1591,10 @@ function storySetupAct(actIx){
   }
 
   const nowSec = getTime();
-  if (actIx === 0) {
-    // Start 100% silent: 0 lit nodes, 0 arcs
+  const o = actIx - 1; // the planetary acts keep their original numbering (0 was First Contact, now told at street scale)
+  if (cfg.micro) storyMicroSetup(actIx); else if (microStory) storyMicroEnd();
+  if (cfg.micro) {
+    // the globe is silent while the camera is on the street: 0 lit cohorts, 0 arcs
     uStoryCosVal = 2.0;
     uStoryDensityVal = 0.0;
     storyLitSeeds = 0;
@@ -1554,7 +1608,7 @@ function storySetupAct(actIx){
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, storyActivity);
     }
     pruneAndPackArcs(nowSec);
-  } else if (actIx === 1) {
+  } else if (o === 1) {
     uStoryCosVal = 2.0;
     uStoryDensityVal = 0.0;
     storyLitSeeds = 12;
@@ -1565,13 +1619,13 @@ function storySetupAct(actIx){
       gl.bindBuffer(gl.ARRAY_BUFFER, actBuf);
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, storyActivity);
     }
-  } else if (actIx === 2) {
+  } else if (o === 2) {
     uStoryCosVal = Math.cos(10 * Math.PI / 180);
     uStoryDensityVal = 0.25;
-  } else if (actIx === 3) {
+  } else if (o === 3) {
     uStoryCosVal = Math.cos(48 * Math.PI / 180);
     uStoryDensityVal = 0.55;
-  } else if (actIx === 4) {
+  } else if (o === 4) {
     uStoryCosVal = Math.cos(118 * Math.PI / 180);
     uStoryDensityVal = 0.85;
   }
@@ -1582,6 +1636,8 @@ function storySetupAct(actIx){
 function storyTickAct(actIx, dt) {
   if (!W || !storyActivity) return;
   const nowSec = getTime();
+  if (STORY_ACTS[actIx].micro) { storyMicroTick(actIx, storyActElapsed); return; }
+  actIx = actIx - 1; // original planetary numbering below
 
   if (actIx === 0) {
     // 0.0s..0.8s: silent globe; 0.8s..2.1s: first 2 nodes spark & connect; 2.1s..12.5s: 2 -> 12 nodes light up one by one
@@ -1697,6 +1753,7 @@ function startStoryMode(){
 
 function exitStoryMode(){
   storyActive = false;
+  storyMicroEnd();
   uStoryCosVal = -1.05;
   uStoryDensityVal = 1.0;
   if ($("story-hud")) $("story-hud").classList.add("panel-hidden");
@@ -1715,7 +1772,7 @@ function initStoryMode(){
   if ($("btn-story-hud-bottom")) $("btn-story-hud-bottom").onclick = startStoryMode;
   if ($("story-btn-prev")) $("story-btn-prev").onclick = () => storySetupAct(Math.max(0, storyCurrentAct - 1));
   if ($("story-btn-next")) $("story-btn-next").onclick = () => {
-    if (storyCurrentAct < 4) storySetupAct(storyCurrentAct + 1);
+    if (storyCurrentAct < STORY_ACTS.length - 1) storySetupAct(storyCurrentAct + 1);
     else exitStoryMode();
   };
   if ($("story-btn-play")) $("story-btn-play").onclick = () => {
@@ -1734,9 +1791,599 @@ function initStoryMode(){
   storySetupAct(0);
 }
 
-let frame=0, lastTickTime=0;
+// ------------------------------------------------------------------ R5 micro tier: the focal 1:1 neighbourhood
+// The world below is `cewp_sim::micro::MicroWorld` (crates/cewp-sim/src/micro.rs), run in the wasm kernel.
+// This code only builds it for the tile under the camera, steps it, and draws what it exports:
+// every street, house, device, link and row on screen is the sim's state, nothing decorative.
+const FOCAL_ZOOM = 24, EARTH_M = 6371000, TILE_DEG = 0.02;
+const mcv = document.getElementById("micro"), mctx = mcv.getContext("2d");
+const MK = ["phone", "home node", "laptop", "hosted server", "serve seat", "CI runner"];
+const MK_COL = ["#8fd3ff", "#5ad38f", "#c3b6ff", "#ffcf7a", "#6cb6ff", "#ff9ec7"];
+const MACT = ["online, idle", "asleep: suspended, every link closed", "resumed: waiting for its re-announce", "punching a direct path", "signing and sending a row", "forwarding a sealed row", "holding mail for a sleeping member", "booting and homing", "running its CI job", "not present"];
+// cewp_sim::transport::BudgetClass codes (Off 0 … Seat 5)
+const MCLASS = ["off", "phone-cellular", "phone-wifi", "home", "server", "seat"];
+const MCLASS_BPS = [0, 350, 1400, 2800, 7000, 33000];
+const MFONT = "ui-monospace,Menlo,Consolas,monospace";
+const MLINK = ["homing link to a serve seat", "seat mesh", "LAN (AutoInterface)", "dialled to a public listener", "punched direct path"];
+const MROUTE = ["direct", "relayed", "held at a mailbox", "mail handed over", "to the federation"];
+const MROUTER = ["public listener (IPv6 / forwarded port)", "NAT a facilitated punch can traverse", "hard NAT / CGNAT: no direct path in"];
+const MDCLASS = ["apartment blocks", "terraced streets", "suburban streets", "village"];
+// cewp_sim::micro::P, in index order (asserted against micro_param_count at build)
+const MP = { reach_home_share: 0, server_tier_share: 4, relay_offering_share: 5, phone_wifi_share: 7, phone_charging_share: 8, home_shaping_opt_in: 9, phone_shaping_opt_in: 10, adoption: 11, start_local_hour: 39 };
+const MP_COUNT = 40;
+// deepest zoom: about 6 px per metre on this screen (a house is ~60 px)
+function zoomMax(){ const m = Math.min(cv.clientWidth || 800, cv.clientHeight || 800); return 6 * EARTH_M / (0.86 * m / 2); }
+let M = null, microTimeScale = 20, microSel = -1, microLastReal = performance.now(), microGlide = 0, microNoLand = false, microStory = false;
+let microStoryDim = null; // Set of node indices drawn at full strength while the story follows them
+const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const microOk = () => !!(wasm && wasm.micro_build && wasm.micro_param_count && wasm.micro_param_count() === MP_COUNT);
+function hash32(a, b){ let h = (Math.imul(a | 0, 0x9E3779B1) ^ Math.imul(b | 0, 0x85EBCA77)) >>> 0; h ^= h >>> 15; h = Math.imul(h, 0x2C1B3C6D) >>> 0; h ^= h >>> 12; h = Math.imul(h, 0x297A2D39) >>> 0; h ^= h >>> 15; return h >>> 0; }
+// a cell's own ground: the grid is 1.5° squares whose people are scattered within ±0.48° of the
+// centre (cellRad), so a cell's tile is cellRad × 1.5625 on each side of its centre
+const cellHalf = (G, c) => Math.max(0.04, G.cellRad[c]) * 1.5625;
+function cellAt(lat, lon){
+  const G = initPopGrid(); let best = -1, bd = 1e9;
+  for (let c = 0; c < G.nCells; c++){
+    const r = cellHalf(G, c) * 1.02; const dla = Math.abs(G.cellLat[c] - lat); if (dla > r) continue;
+    const dlo = Math.abs(((G.cellLon[c] - lon + 540) % 360) - 180) * Math.cos(lat * Math.PI / 180); if (dlo > r) continue;
+    const d = dla + dlo; if (d < bd){ bd = d; best = c; }
+  }
+  return best;
+}
+function cellDensity(c){
+  const G = initPopGrid(); const share = G.cumW[c] - (c > 0 ? G.cumW[c - 1] : 0); const r = cellHalf(G, c);
+  const area = (2 * r * 111.32) * (2 * r * 111.32 * Math.cos(G.cellLat[c] * Math.PI / 180));
+  return share * 8.05e9 / Math.max(1, area); // the grid is real population density; the page's adoption is a separate parameter
+}
+function microSetParams(adoption, lon){
+  wasm.micro_params_reset();
+  const p = new Float64Array(mem.buffer, wasm.micro_params_ptr() >>> 0, MP_COUNT);
+  const v = (id) => +$(id).value / 100;
+  p[MP.reach_home_share] = 1 - v("sl_nat");
+  p[MP.server_tier_share] = v("sl_srv");
+  p[MP.relay_offering_share] = v("sl_relay");
+  p[MP.phone_wifi_share] = v("sl_wifi");
+  p[MP.phone_charging_share] = v("sl_chg");
+  p[MP.home_shaping_opt_in] = v("sl_sh_home");
+  p[MP.phone_shaping_opt_in] = v("sl_sh_phone");
+  p[MP.adoption] = adoption;
+  p[MP.start_local_hour] = ((getSimUtcHours(getTime()) + lon / 15) % 24 + 24) % 24;
+}
+function microBuf(i, T){ return new T(mem.buffer, wasm.micro_buf_ptr(i) >>> 0, wasm.micro_buf_len(i) >>> 0).slice(); }
+function microBuild(lat, lon, density, exact, seedLo, seedHi, adoption, key){
+  microSetParams(adoption, lon);
+  wasm.micro_build(lat, lon, density, seedLo >>> 0, seedHi >>> 0, exact ? 1 : 0);
+  M = { key, lat0: lat, lon0: lon, roads: microBuf(4, Float64Array), sites: microBuf(7, Float64Array) };
+  microRead();
+  const a = lat * Math.PI / 180, o = lon * Math.PI / 180;
+  M.c = [Math.cos(a) * Math.sin(o), Math.sin(a), Math.cos(a) * Math.cos(o)];
+  M.E = [Math.cos(o), 0, -Math.sin(o)];
+  M.N = [-Math.sin(a) * Math.sin(o), Math.cos(a), -Math.sin(a) * Math.cos(o)];
+  microSel = -1; renderNodeCard();
+}
+function microRead(){
+  wasm.micro_export();
+  M.nf = microBuf(0, Float64Array); M.nu = microBuf(1, Uint32Array); M.links = microBuf(2, Uint32Array); M.ev = microBuf(3, Float64Array);
+  M.bld = microBuf(5, Float64Array); M.hh = microBuf(6, Float64Array); M.pun = microBuf(8, Uint32Array); M.meta = microBuf(9, Float64Array);
+  M.n = M.nu.length / 8; M.t = M.meta[0]; M.half = M.meta[3];
+}
+// free roam: the tile under the screen centre (the centre of an orthographic view is lat = pitch, lon = yaw)
+function microFreeRoam(){
+  if (!microOk() || microStory) return;
+  if (zoom < FOCAL_ZOOM){ return; }
+  if (drag) return;
+  if (M && zoom >= 1500) return; // at street scale keep the patch you are exploring
+  const lat = pitch * 180 / Math.PI, lon = ((yaw * 180 / Math.PI + 540) % 360) - 180;
+  const ti = Math.floor(lat / TILE_DEG), tj = Math.floor(lon / TILE_DEG);
+  const adoption = Math.min(0.98, currentPop / 8.05e9);
+  const key = ti + ":" + tj + ":" + paramKey();
+  if (M && M.key === key) return;
+  const tlat = (ti + 0.5) * TILE_DEG, tlon = (tj + 0.5) * TILE_DEG;
+  const c = cellAt(tlat, tlon);
+  if (c < 0){ microNoLand = true; M = null; return; }
+  microNoLand = false;
+  microBuild(tlat, tlon, cellDensity(c), false, hash32(ti, tj), hash32(tj ^ 0x5bd1e995, ti), adoption, key);
+  microGlide = 1;
+}
+function paramKey(){ return ["sl_nat", "sl_srv", "sl_relay", "sl_wifi", "sl_chg", "sl_sh_home", "sl_sh_phone"].map(id => $(id).value).join(",") + "," + currentPop; }
+// camera, in float64: q = R p with R from rot()
+function camQ(x, y, z){ const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  return [cy * x - sy * z, -sp * sy * x + cp * y - sp * cy * z, cp * sy * x + sp * y + cp * cy * z]; }
+function camFrame(){ const w = cv.clientWidth, h = cv.clientHeight; const k = 0.86 * zoom * Math.min(w, h) / 2; return { w, h, k }; }
+function projLL(F, lat, lon){ const v = xyz(lat, lon); const q = camQ(v[0], v[1], v[2]); return [F.w / 2 + F.k * q[0], F.h / 2 - F.k * q[1], q[2]]; }
+function patchAffine(F){
+  const qc = camQ(...M.c), qE = camQ(...M.E), qN = camQ(...M.N), s = F.k / EARTH_M;
+  return { a: s * qE[0], b: -s * qE[1], c: s * qN[0], d: -s * qN[1], e: F.w / 2 + F.k * qc[0], f: F.h / 2 - F.k * qc[1], front: qc[2], pxPerM: F.k / EARTH_M };
+}
+const nodeKind = (i) => M.nu[i * 8] & 0xff, nodeAct = (i) => (M.nu[i * 8] >>> 8) & 0xff, nodeClass = (i) => (M.nu[i * 8] >>> 16) & 0xff, nodeShaped = (i) => M.nu[i * 8] >>> 24;
+const nodeFlags = (i) => M.nu[i * 8 + 1];
+const NF = { present: 1, awake: 2, online: 4, unmetered: 8, charging: 16, public: 32, punchable: 64, clientOnly: 128, shapesAll: 256, relay: 512, old: 1024, pinned: 2048, mailbox: 4096, offPatch: 8192, optIn: 16384, relayPref: 32768, deviceRelays: 65536 };
+function nodeScreen(F, A, i){
+  if (nodeFlags(i) & NF.offPatch){ const p = projLL(F, M.nf[i * 4 + 2], M.nf[i * 4 + 3]); return p; }
+  const x = M.nf[i * 4], y = M.nf[i * 4 + 1]; return [A.a * x + A.c * y + A.e, A.b * x + A.d * y + A.f, A.front];
+}
+function microVisible(){ return M && (zoom >= FOCAL_ZOOM * 0.6 || microStory); }
+function microStep(now){
+  const dtReal = Math.min(0.1, (now - microLastReal) / 1000); microLastReal = now;
+  if (!M || !microOk()) return;
+  if (zoom >= FOCAL_ZOOM * 0.6 || microStory){
+    if (!(storyActive && storyPaused)) wasm.micro_step(dtReal * microTimeScale);
+    microRead();
+  }
+  if (microGlide > 0 && !drag && !microStory){
+    const tl = M.lat0 * Math.PI / 180, to = M.lon0 * Math.PI / 180;
+    let dy = to - yaw; while (dy < -Math.PI) dy += 2 * Math.PI; while (dy > Math.PI) dy -= 2 * Math.PI;
+    yaw += dy * 0.08; pitch += (tl - pitch) * 0.08; velYaw = 0; velPitch = 0;
+    if (Math.abs(dy) < 1e-9 && Math.abs(tl - pitch) < 1e-9) microGlide = 0;
+  }
+}
+// ---- drawing
+const GROUND = ["#2a2e35", "#2c3330", "#26332a", "#28372a"], ROADC = ["#4a505b", "#4c525a", "#4a5048", "#5a5644"];
+function microDraw(){
+  const dpr = window.devicePixelRatio || 1; const F = camFrame();
+  if (mcv.width !== (F.w * dpr | 0) || mcv.height !== (F.h * dpr | 0)){ mcv.width = F.w * dpr | 0; mcv.height = F.h * dpr | 0; }
+  const g = mctx; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, mcv.width, mcv.height);
+  updateFocalChip(F); if (frame % 15 === 0) measureSafe(F);
+  if (!M || !microOk()) return;
+  const A = patchAffine(F); if (A.front <= 0.02) return;
+  const P = 2 * M.half * A.pxPerM, ppm = A.pxPerM; // patch size on screen, pixels per metre
+  const cls = M.meta[2] | 0, hour = M.meta[1];
+  const day = sstep(5.5, 7.5, hour) * (1 - sstep(19.5, 21.5, hour));
+  const outsideA = sstep(110, 420, P), groundA = sstep(50, 200, P), roadA = sstep(70, 240, P), bldA = sstep(0.22, 0.6, ppm), nodeA = sstep(30, 120, P);
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // beyond the focal subgraph: land the twin keeps as cohorts, dimmed
+  if (outsideA > 0){ g.fillStyle = `rgba(12,15,14,${0.55 * outsideA})`; g.fillRect(0, 0, F.w, F.h); }
+  // the patch, in metres
+  g.setTransform(dpr * A.a, dpr * A.b, dpr * A.c, dpr * A.d, dpr * A.e, dpr * A.f);
+  const H = M.half;
+  if (groundA > 0){
+    g.globalAlpha = groundA; g.fillStyle = GROUND[cls]; g.fillRect(-H, -H, 2 * H, 2 * H);
+    g.globalAlpha = groundA * 0.9; g.strokeStyle = "rgba(108,182,255,0.55)"; g.lineWidth = 1.4 / ppm; g.setLineDash([6 / ppm, 5 / ppm]); g.strokeRect(-H, -H, 2 * H, 2 * H); g.setLineDash([]);
+  }
+  if (roadA > 0){
+    g.save(); g.beginPath(); g.rect(-H, -H, 2 * H, 2 * H); g.clip(); g.lineCap = "round";
+    const R = M.roads;
+    for (let pass = 0; pass < 2; pass++){
+      g.globalAlpha = roadA * (pass ? 1 : 0.8); g.strokeStyle = pass ? ROADC[cls] : "#1a1d22";
+      for (let r = 0; r < R.length; r += 5){ g.lineWidth = R[r + 4] + (pass ? 0 : 2.2); g.beginPath(); g.moveTo(R[r], R[r + 1]); g.lineTo(R[r + 2], R[r + 3]); g.stroke(); }
+    }
+    if (ppm > 1.6){ g.globalAlpha = roadA * 0.35; g.strokeStyle = "#d9d2a8"; g.lineWidth = 0.25; g.setLineDash([3, 4]);
+      for (let r = 0; r < R.length; r += 5){ if (R[r + 4] < 7) continue; g.beginPath(); g.moveTo(R[r], R[r + 1]); g.lineTo(R[r + 2], R[r + 3]); g.stroke(); }
+      g.setLineDash([]); }
+    g.restore();
+  }
+  if (bldA > 0){
+    const B = M.bld;
+    for (let b = 0; b < B.length; b += 8){
+      const cx = B[b], cy = B[b + 1], w = B[b + 2], d = B[b + 3], ang = B[b + 4], units = B[b + 6], adopt = B[b + 7];
+      g.save(); g.translate(cx, cy); g.rotate(ang); g.globalAlpha = bldA;
+      g.fillStyle = units === 0 ? "#3b3a36" : adopt > 0 ? (day > 0.5 ? "#6b6457" : "#4d473c") : "#45474c";
+      g.fillRect(-w / 2, -d / 2, w, d);
+      g.strokeStyle = adopt > 0 ? "rgba(255,207,122,0.55)" : "rgba(0,0,0,0.5)"; g.lineWidth = 0.5; g.strokeRect(-w / 2, -d / 2, w, d);
+      if (adopt > 0 && day < 0.6){ g.fillStyle = `rgba(255,200,110,${0.22 * (1 - day)})`; g.fillRect(-w / 2 + 1, -d / 2 + 1, w - 2, d - 2); }
+      g.restore();
+    }
+  }
+  g.globalAlpha = 1; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // the patch as a lit spot from far away
+  const ctr = [A.e, A.f];
+  if (P < 260){
+    const rad = Math.max(4, P * 0.55), a = 1 - sstep(60, 220, P);
+    const gr = g.createRadialGradient(ctr[0], ctr[1], 0, ctr[0], ctr[1], rad * 2.2);
+    gr.addColorStop(0, `rgba(255,214,140,${0.85 * a})`); gr.addColorStop(0.35, `rgba(255,177,92,${0.35 * a})`); gr.addColorStop(1, "rgba(255,177,92,0)");
+    g.fillStyle = gr; g.beginPath(); g.arc(ctr[0], ctr[1], rad * 2.2, 0, 7); g.fill();
+  }
+  // screen positions of every present node
+  const n = M.n, sx = new Float64Array(n), sy = new Float64Array(n), vis = new Uint8Array(n);
+  for (let i = 0; i < n; i++){
+    if (!(nodeFlags(i) & NF.present)) continue;
+    const p = nodeScreen(F, A, i); sx[i] = p[0]; sy[i] = p[1]; vis[i] = p[2] > 0 ? 1 : 0;
+  }
+  M.sx = sx; M.sy = sy; M.vis = vis;
+  if (P > 300) placeEdgeMarkers(F); else M.markers = [];
+  const onScreen = (i) => vis[i] && sx[i] > -40 && sy[i] > -40 && sx[i] < F.w + 40 && sy[i] < F.h + 40;
+  const dimOf = (i) => (microStoryDim && !microStoryDim.has(i)) ? 0.22 : 1;
+  const sel = microSel;
+  const selDim = (a, b) => sel < 0 ? 1 : (a === sel || b === sel) ? 1.6 : 0.35;
+  // far view: arcs from the street to its seats and servers
+  if (P < 160){
+    const a = 1 - sstep(60, 160, P), seen = new Set();
+    for (let l = 0; l < M.links.length; l += 4){
+      const x = M.links[l], y = M.links[l + 1]; const kx = nodeFlags(x) & NF.offPatch, ky = nodeFlags(y) & NF.offPatch;
+      if (!!kx === !!ky) continue; const far = kx ? x : y; if (seen.has(far)) continue; seen.add(far);
+      const shaped = ((M.links[l + 2] >>> 8) & 0xff) > 0;
+      drawArc(g, F, M.lat0, M.lon0, M.nf[far * 4 + 2], M.nf[far * 4 + 3], shaped ? "255,177,92" : "90,211,143", 0.55 * a);
+    }
+  }
+  // links
+  if (nodeA > 0){
+    g.lineCap = "round";
+    for (let l = 0; l < M.links.length; l += 4){
+      const x = M.links[l], y = M.links[l + 1], pk = M.links[l + 2], kind = pk & 0xff, shaped = (pk >>> 8) & 0xff, atBound = (pk >>> 16) & 1;
+      if (!vis[x] && !vis[y]) continue;
+      const fx = nodeFlags(x) & NF.offPatch, fy = nodeFlags(y) & NF.offPatch;
+      if (fx && fy && P > 160) continue; // seat mesh / server-to-seat: drawn from far away only
+      let ax = sx[x], ay = sy[x], bx = sx[y], by = sy[y];
+      let alpha = nodeA * selDim(x, y) * Math.min(dimOf(x), dimOf(y)) * 1.0;
+      let col, wdt;
+      if (kind === 0){ col = shaped ? "255,177,92" : "90,211,143"; alpha *= (shaped ? 0.5 : 0.12) * (0.3 + 0.7 * sstep(0.8, 2.5, ppm)); wdt = shaped ? 0.8 + 0.6 * sstep(0.8, 2.5, ppm) : 0.8; }
+      else if (kind === 1){ col = "108,182,255"; alpha *= 0.5; wdt = 1.6; }
+      else if (kind === 2){ col = "90,211,143"; alpha *= 0.8; wdt = 1.6; }
+      else if (kind === 3){ col = shaped ? "255,177,92" : "90,211,143"; alpha *= 0.7; wdt = 1.5; }
+      else { col = shaped ? "255,177,92" : "120,240,170"; alpha *= 0.95; wdt = 2.2; }
+      if (microStoryDim && (microStoryDim.has(x) || microStoryDim.has(y))){ alpha = Math.max(alpha * 4, 0.75); wdt += 0.8; }
+      if (alpha <= 0.01) continue;
+      // a link to a node off the screen ends at the screen edge, pointing at it
+      [bx, by] = clipToScreen(ax, ay, bx, by, F); [ax, ay] = clipToScreen(bx, by, ax, ay, F);
+      g.strokeStyle = `rgba(${col},${Math.min(1, alpha)})`; g.lineWidth = wdt;
+      if (kind === 4) g.setLineDash([]); else if (atBound && kind === 0) g.setLineDash([2, 3]);
+      g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke(); g.setLineDash([]);
+    }
+    // punches in progress
+    const tt = getTime();
+    for (let p = 0; p < M.pun.length; p += 2){
+      const x = M.pun[p], y = M.pun[p + 1]; if (!vis[x] || !vis[y]) continue;
+      g.strokeStyle = `rgba(255,236,120,${0.9 * nodeA})`; g.lineWidth = 2; g.setLineDash([5, 5]); g.lineDashOffset = -tt * 30;
+      g.beginPath(); g.moveTo(sx[x], sy[x]); g.lineTo(sx[y], sy[y]); g.stroke(); g.setLineDash([]); g.lineDashOffset = 0;
+    }
+    drawPulses(g, F, nodeA, dimOf);
+  }
+  // nodes
+  if (nodeA > 0){
+    const s = Math.max(3.2, Math.min(12, 2.4 + ppm * 2.6));
+    for (let i = 0; i < n; i++){
+      if (!(nodeFlags(i) & NF.present) || !onScreen(i)) continue;
+      const off = nodeFlags(i) & NF.offPatch; if (off && P > 300) continue; // drawn as edge markers instead
+      const big = microStoryDim && microStoryDim.has(i) ? 1.5 : 1;
+      drawNodeGlyph(g, i, sx[i], sy[i], (off ? Math.max(3, s * 0.8) : s) * big, nodeA * dimOf(i) * (sel < 0 || sel === i ? 1 : 0.55), ppm);
+    }
+    if (P > 300) drawEdgeMarkers(g, F, nodeA);
+    if (sel >= 0 && sel < n && vis[sel]){
+      let px = sx[sel], py = sy[sel]; [px, py] = clipToScreen(F.w / 2, F.h / 2, px, py, F, 30);
+      g.strokeStyle = "#fff"; g.lineWidth = 2; g.beginPath(); g.arc(px, py, Math.max(9, s * 1.5), 0, 7); g.stroke();
+    }
+  }
+  drawStoryTags(g, F, nodeA);
+  drawScaleBar(g, F, ppm);
+}
+let safeTop = 60, safeBot = 60;
+function measureSafe(F){
+  const nav = document.querySelector(".nav-strip"); safeTop = nav ? nav.getBoundingClientRect().bottom + 8 : 60;
+  let b = F.h; for (const id of ["focal-chip", "story-hud"]){ const el = $(id); if (el && !el.classList.contains("panel-hidden") && el.offsetParent !== null){ const r = el.getBoundingClientRect(); if (r.height) b = Math.min(b, r.top); } }
+  safeBot = F.h - b + 8;
+}
+function clipToScreen(ax, ay, bx, by, F, m = 14){
+  const x0 = m, y0 = m + safeTop, x1 = F.w - m, y1 = F.h - m - safeBot;
+  if (bx >= x0 && bx <= x1 && by >= y0 && by <= y1) return [bx, by];
+  let t = 1; const dx = bx - ax, dy = by - ay;
+  if (dx > 0) t = Math.min(t, (x1 - ax) / dx); else if (dx < 0) t = Math.min(t, (x0 - ax) / dx);
+  if (dy > 0) t = Math.min(t, (y1 - ay) / dy); else if (dy < 0) t = Math.min(t, (y0 - ay) / dy);
+  t = Math.max(0, t); return [ax + dx * t, ay + dy * t];
+}
+function drawArc(g, F, la1, lo1, la2, lo2, rgb, alpha){
+  const a = xyz(la1, lo1), b = xyz(la2, lo2); const dot = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])); const th = Math.acos(dot); if (th < 1e-7) return;
+  g.strokeStyle = `rgba(${rgb},${alpha})`; g.lineWidth = 1.3; g.beginPath(); let started = false;
+  for (let s = 0; s <= 24; s++){
+    const t = s / 24, w1 = Math.sin((1 - t) * th) / Math.sin(th), w2 = Math.sin(t * th) / Math.sin(th), h = 1 + Math.min(0.12, th * 0.25) * Math.sin(t * Math.PI);
+    const q = camQ((a[0] * w1 + b[0] * w2) * h, (a[1] * w1 + b[1] * w2) * h, (a[2] * w1 + b[2] * w2) * h);
+    const X = F.w / 2 + F.k * q[0], Y = F.h / 2 - F.k * q[1];
+    if (q[2] < -0.05){ started = false; continue; }
+    if (!started){ g.moveTo(X, Y); started = true; } else g.lineTo(X, Y);
+  }
+  g.stroke();
+}
+function drawPulses(g, F, alpha, dimOf){
+  const E = M.ev, span = 2.2 * microTimeScale; // a row's pulse lasts 2.2 s of real time
+  for (let e = 0; e < E.length; e += 7){
+    const age = M.t - E[e]; if (age < 0 || age > span) continue;
+    const src = E[e + 1], dst = E[e + 2], via = E[e + 3], via2 = E[e + 4], route = E[e + 5], shaped = E[e + 6];
+    const pts = [src]; if (via < 4294967295 && via !== dst) pts.push(via); if (via2 < 4294967295 && via2 !== dst) pts.push(via2); if (route !== 2) pts.push(dst);
+    if (pts.length < 2) continue;
+    if (!pts.some(i => M.vis[i])) continue;
+    const xy = pts.map(i => [M.sx[i], M.sy[i]]);
+    const col = route === 1 ? "235,170,255" : route === 2 || route === 3 ? "255,236,150" : route === 4 ? "108,182,255" : shaped ? "255,177,92" : "120,240,170";
+    const a = alpha * (1 - age / span) * Math.min(dimOf(src), dimOf(dst) * 2);
+    g.strokeStyle = `rgba(${col},${0.55 * a})`; g.lineWidth = 2; g.setLineDash(route === 1 ? [4, 4] : []);
+    g.beginPath(); xy.forEach((p, k) => { const c = clipToScreen(F.w / 2, F.h / 2, p[0], p[1], F, 6); k ? g.lineTo(c[0], c[1]) : g.moveTo(c[0], c[1]); }); g.stroke(); g.setLineDash([]);
+    // the head travels the path
+    const segs = []; let L = 0; for (let k = 1; k < xy.length; k++){ const d = Math.hypot(xy[k][0] - xy[k - 1][0], xy[k][1] - xy[k - 1][1]); segs.push(d); L += d; }
+    let at = Math.min(1, age / (span * 0.6)) * L, k = 0; while (k < segs.length - 1 && at > segs[k]){ at -= segs[k]; k++; }
+    const f = segs[k] ? at / segs[k] : 1; const hx = xy[k][0] + (xy[k + 1][0] - xy[k][0]) * f, hy = xy[k][1] + (xy[k + 1][1] - xy[k][1]) * f;
+    if (hx < -20 || hy < -20 || hx > F.w + 20 || hy > F.h + 20) continue;
+    g.fillStyle = `rgba(${col},${Math.min(1, a * 1.5)})`; g.beginPath(); g.arc(hx, hy, route === 2 ? 5 : 4.2, 0, 7); g.fill();
+    g.strokeStyle = `rgba(10,12,16,${Math.min(1, a)})`; g.lineWidth = 1; g.stroke();
+  }
+}
+function drawNodeGlyph(g, i, x, y, s, alpha, ppm){
+  if (alpha <= 0.01) return;
+  const kind = nodeKind(i), f = nodeFlags(i), act = nodeAct(i), online = f & NF.online;
+  const col = MK_COL[kind]; g.globalAlpha = Math.min(1, alpha);
+  g.lineWidth = Math.max(1, s * 0.16);
+  g.fillStyle = online ? col : "rgba(20,24,30,0.9)"; g.strokeStyle = online ? "rgba(10,12,16,0.9)" : "#7d8796";
+  if (!online) g.setLineDash([2, 2]);
+  g.beginPath();
+  if (kind === 0) roundRect(g, x - s * 0.32, y - s * 0.55, s * 0.64, s * 1.1, s * 0.16);
+  else if (kind === 1) g.rect(x - s * 0.5, y - s * 0.5, s, s);
+  else if (kind === 2){ g.moveTo(x - s * 0.62, y + s * 0.35); g.lineTo(x + s * 0.62, y + s * 0.35); g.lineTo(x + s * 0.45, y - s * 0.4); g.lineTo(x - s * 0.45, y - s * 0.4); g.closePath(); }
+  else if (kind === 3) g.rect(x - s * 0.55, y - s * 0.45, s * 1.1, s * 0.9);
+  else if (kind === 4){ for (let k = 0; k < 6; k++){ const a = k * Math.PI / 3 + Math.PI / 6; k ? g.lineTo(x + s * 0.7 * Math.cos(a), y + s * 0.7 * Math.sin(a)) : g.moveTo(x + s * 0.7 * Math.cos(a), y + s * 0.7 * Math.sin(a)); } g.closePath(); }
+  else { g.moveTo(x, y - s * 0.6); g.lineTo(x + s * 0.6, y + s * 0.45); g.lineTo(x - s * 0.6, y + s * 0.45); g.closePath(); }
+  g.fill(); g.stroke(); g.setLineDash([]);
+  // state rings
+  const tt = getTime();
+  if (act === 2 || act === 7){ g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = 1.2; g.beginPath(); g.arc(x, y, s * (0.9 + 0.3 * Math.sin(tt * 8)), 0, 7); g.stroke(); }
+  else if (act === 4){ g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 1.3; g.beginPath(); g.arc(x, y, s * 0.95, 0, 7); g.stroke(); }
+  else if (act === 5){ g.strokeStyle = "rgba(235,170,255,0.95)"; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, s * 1.0, 0, 7); g.stroke(); }
+  else if (act === 3){ g.strokeStyle = "rgba(255,236,120,0.95)"; g.lineWidth = 1.3; g.setLineDash([2, 2]); g.beginPath(); g.arc(x, y, s * 1.05, 0, 7); g.stroke(); g.setLineDash([]); }
+  const holding = M.nu[i * 8 + 5];
+  if (holding > 0){ envelope(g, x + s * 0.8, y - s * 0.85, Math.max(6, s * 0.6)); }
+  if (ppm > 2.2 && kind !== 4 && !(f & NF.offPatch)){
+    g.font = `${Math.max(8, Math.min(11, s * 0.85))}px ${MFONT}`; g.fillStyle = "rgba(230,236,245,0.85)"; g.textAlign = "left"; g.textBaseline = "middle";
+    let tag = "";
+    if (kind === 0) tag = (f & NF.unmetered ? "wifi" : "cell") + (f & NF.charging ? " ⚡" : "");
+    if (f & NF.old) tag += (tag ? " " : "") + "old";
+    if (f & NF.relay) tag += (tag ? " " : "") + "R";
+    if (tag) g.fillText(tag, x + s * 0.8, y + s * 0.45);
+  }
+  g.globalAlpha = 1;
+}
+function roundRect(g, x, y, w, h, r){ g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r); g.lineTo(x + w, y + h - r); g.quadraticCurveTo(x + w, y + h, x + w - r, y + h); g.lineTo(x + r, y + h); g.quadraticCurveTo(x, y + h, x, y + h - r); g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y); }
+function envelope(g, x, y, s){ g.fillStyle = "#ffe696"; g.strokeStyle = "#3a3220"; g.lineWidth = 1; g.beginPath(); g.rect(x - s * 0.6, y - s * 0.4, s * 1.2, s * 0.8); g.fill(); g.stroke(); g.beginPath(); g.moveTo(x - s * 0.6, y - s * 0.4); g.lineTo(x, y + s * 0.1); g.lineTo(x + s * 0.6, y - s * 0.4); g.stroke(); }
+// off-street nodes at street scale: one marker per data-centre site, at the screen edge in its direction
+function placeEdgeMarkers(F){
+  const bySite = new Map();
+  for (let i = 0; i < M.n; i++){
+    const f = nodeFlags(i); if (!(f & NF.present) || !(f & NF.offPatch)) continue;
+    const site = M.nu[i * 8 + 7] & 0xffffff; if (!bySite.has(site)) bySite.set(site, []); bySite.get(site).push(i);
+  }
+  M.markers = [];
+  const cx = F.w / 2, cy = F.h / 2;
+  for (const [site, nodes] of bySite){
+    const S = M.sites; const p = projLL(F, S[site * 4], S[site * 4 + 1]);
+    const [mx, my] = clipToScreen(cx, cy, p[0], p[1], F, 26);
+    for (const i of nodes){ M.sx[i] = mx; M.sy[i] = my; M.vis[i] = 1; }
+    M.markers.push({ x: mx, y: my, node: nodes.find(i => nodeKind(i) === 4) ?? nodes[0], nodes, km: S[site * 4 + 2] });
+  }
+}
+function drawEdgeMarkers(g, F, alpha){
+  const placed = [];
+  for (const mk of [...M.markers].sort((a, b) => a.y - b.y)){
+    const { x: mx, y: my, nodes, km } = mk;
+    const seats = nodes.filter(i => nodeKind(i) === 4), servers = nodes.filter(i => nodeKind(i) === 3), ci = nodes.filter(i => nodeKind(i) === 5);
+    const parts = [];
+    if (seats.length) parts.push("serve seat");
+    if (servers.length) parts.push(servers.length > 1 ? `${servers.length} hosted servers` : "hosted server");
+    if (ci.length) parts.push(ci.length > 1 ? `${ci.length} CI runners` : "CI runner");
+    const label = parts.join(" + ") + " · " + Math.round(km).toLocaleString() + " km";
+    let sub = "";
+    if (seats.length){ const s0 = seats[0]; let homed = 0; for (let l = 0; l < M.links.length; l += 4) if ((M.links[l + 2] & 0xff) === 0 && (M.links[l] === s0 || M.links[l + 1] === s0)) homed++; sub = `${nodeShaped(s0)}/8 shaped · ${homed} homed here`; }
+    const small = F.w < 800; let label2 = label;
+    if (small){ label2 = (seats.length ? "seat" : ci.length ? "CI" : "server") + (parts.length > 1 ? "+" : "") + " · " + Math.round(km).toLocaleString() + " km"; sub = seats.length ? `${nodeShaped(seats[0])}/8 shaped` : ""; }
+    drawNodeGlyph(g, mk.node, mx, my, 11, alpha * (microSel < 0 || nodes.includes(microSel) ? 1 : 0.6), 0);
+    g.globalAlpha = alpha; g.font = `600 ${small ? 10 : 11}px ${MFONT}`; g.textBaseline = "middle";
+    const tw = Math.max(g.measureText(label2).width, sub ? g.measureText(sub).width : 0) + 12;
+    let lx = mx + 16, align = "left"; if (lx + tw > F.w - 6){ lx = mx - 16; align = "right"; }
+    let by = Math.min(F.h - safeBot - 20, Math.max(safeTop + 12, my));
+    for (const q of placed) if (Math.abs(q.y - by) < 38 && Math.abs(q.x - mx) < 300) by = q.y + 38;
+    placed.push({ x: mx, y: by });
+    g.fillStyle = "rgba(10,14,22,0.8)"; const bx = align === "left" ? lx - 5 : lx - tw + 5; g.fillRect(bx, by - 10, tw, sub ? 30 : 18);
+    g.fillStyle = MK_COL[seats.length ? 4 : ci.length ? 5 : 3]; g.textAlign = align; g.fillText(label2, lx, by - 1);
+    if (sub){ g.fillStyle = "rgba(220,228,240,0.8)"; g.font = `10px ${MFONT}`; g.fillText(sub, lx, by + 12); }
+    g.globalAlpha = 1;
+  }
+}
+function drawStoryTags(g, F, alpha){
+  if (!microStory || !MSTORY.actors || alpha <= 0 || F.k / EARTH_M < 0.3) return;
+  const names = ["Alice's phone", "Alice's home node", "Bob's phone", "Bob's home node"];
+  g.font = `600 11px ${MFONT}`; g.textAlign = "center"; g.textBaseline = "bottom";
+  const done = [];
+  MSTORY.actors.forEach((i, k) => {
+    if (!M.vis[i]) return; const x = M.sx[i]; let y = M.sy[i] - 12; if (x < 0 || y < 0 || x > F.w || y > F.h) return;
+    for (const q of done) if (Math.abs(q[0] - x) < 120 && Math.abs(q[1] - y) < 17) y = q[1] - 18;
+    done.push([x, y]);
+    const tw = g.measureText(names[k]).width + 10; g.fillStyle = "rgba(10,14,22,0.75)"; g.fillRect(x - tw / 2, y - 15, tw, 16);
+    g.fillStyle = k < 2 ? "#ffd59a" : "#a9e3ff"; g.fillText(names[k], x, y);
+  });
+}
+function drawScaleBar(g, F, ppm){
+  if (ppm < 0.02) return;
+  const target = 110 / ppm; const p10 = Math.pow(10, Math.floor(Math.log10(target))); const m = [1, 2, 5, 10].map(k => k * p10).filter(v => v <= target).pop() || p10;
+  const L = m * ppm, x = F.w - 24 - L, y = F.h - 22;
+  g.strokeStyle = "rgba(230,236,245,0.85)"; g.lineWidth = 2; g.beginPath(); g.moveTo(x, y - 5); g.lineTo(x, y); g.lineTo(x + L, y); g.lineTo(x + L, y - 5); g.stroke();
+  g.font = `11px ${MFONT}`; g.fillStyle = "rgba(230,236,245,0.9)"; g.textAlign = "center"; g.textBaseline = "bottom";
+  g.fillText(m >= 1000 ? (m / 1000) + " km" : m + " m", x + L / 2, y - 6);
+}
+// ---- the chip that says what you are looking at
+function updateFocalChip(F){
+  const chip = $("focal-chip"); if (!chip) return;
+  const show = zoom >= FOCAL_ZOOM * 0.6;
+  chip.classList.toggle("panel-hidden", !show); if (!show) return;
+  if (!microOk()){ chip.innerHTML = "<b>R5 focal tier</b> needs WebAssembly: not available in this browser"; return; }
+  if (!M){ chip.innerHTML = microNoLand ? "<b>R5 focal tier</b> · no settled land in this tile: nothing to model 1:1" : "<b>R5 focal tier</b> · zoom in to build this tile's neighbourhood"; return; }
+  if (chip._t && performance.now() - chip._t < 250) return; chip._t = performance.now();
+  const m = M.meta, hh = m[1], hm = String(Math.floor(hh)).padStart(2, "0") + ":" + String(Math.floor((hh % 1) * 60)).padStart(2, "0");
+  const kinds = [27, 28, 29, 30, 31, 32].map(k => m[k]);
+  const ppm = F.k / EARTH_M; const scale = ppm > 1.5 ? "street" : ppm > 0.25 ? "neighbourhood" : ppm > 0.02 ? "district" : "region";
+  if (F.w < 800){
+    const dev = kinds.reduce((a, b) => a + b, 0);
+    chip.innerHTML = `<b>R5 1:1</b> · ${MDCLASS[m[2] | 0]} · ${Math.round(m[4]).toLocaleString()}/km² · ${dev} devices · ${hm} ×<span id="ts-v">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · tap a device`;
+  } else
+  chip.innerHTML = `<b>R5 focal 1:1</b> · ${MDCLASS[m[2] | 0]} · ${Math.round(m[4]).toLocaleString()} people/km² · ${Math.round(2 * m[3])} m patch · ` +
+    `<span title="present devices by kind">${kinds[0]} phones, ${kinds[1]} home nodes, ${kinds[2]} laptops, ${kinds[3]} hosted servers, ${kinds[4]} seats${kinds[5] ? ", " + kinds[5] + " CI" : ""}</span> · ` +
+    `local ${hm} · sim ×<span id="ts-v">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · ${scale} scale` +
+    `<div class="chip-sub">rows: ${m[10]} sent · ${m[11]} direct (${m[12]} shaped) · ${m[13]} relayed · ${m[15]} held at a mailbox · ${m[16]} handed over · punches ${m[20]}/${m[19]} up · tap a device</div>`;
+  $("ts-dn").onclick = () => { microTimeScale = Math.max(1, Math.round(microTimeScale / 2)); chip._t = 0; };
+  $("ts-up").onclick = () => { microTimeScale = Math.min(480, microTimeScale * 2); chip._t = 0; };
+}
+// ---- the node card: what one device is, from the sim's own state
+function microPick(px, py){
+  if (!M || !M.sx || !microVisible()) return -1;
+  let best = -1, bd = 16 * 16;
+  if (M.markers) for (const mk of M.markers){ const d = (mk.x - px) ** 2 + (mk.y - py) ** 2; if (d < bd){ bd = d; best = mk.node; } }
+  for (let i = 0; i < M.n; i++){
+    if (!(nodeFlags(i) & NF.present) || !M.vis[i]) continue;
+    const d = (M.sx[i] - px) ** 2 + (M.sy[i] - py) ** 2; if (d < bd){ bd = d; best = i; }
+  }
+  return best;
+}
+function renderNodeCard(){
+  const card = $("node-card"); if (!card) return;
+  if (microSel < 0 || !M || microSel >= M.n){ card.classList.add("panel-hidden"); return; }
+  const i = microSel, f = nodeFlags(i), kind = nodeKind(i), cls = nodeClass(i), act = nodeAct(i);
+  const hh = M.nu[i * 8 + 2], h0 = M.nu[i * 8 + 3], h1 = M.nu[i * 8 + 4], holding = M.nu[i * 8 + 5], pending = M.nu[i * 8 + 6];
+  const yes = (b) => b ? "yes" : "no";
+  const router = hh < 4294967295 ? MROUTER[M.hh[hh * 7 + 4] | 0] : null;
+  let reach;
+  if (kind === 0 && !(f & NF.unmetered)) reach = (f & NF.punchable) ? "cellular, carrier NAT a punch can traverse (FRONTIER share)" : "cellular, carrier-grade NAT: no direct path in";
+  else if (f & NF.offPatch) reach = kind === 5 ? "hosted runner: dials out, no inbound listener (MODEL)" : "public listener in a data centre";
+  else reach = router + (kind === 0 ? " (home Wi-Fi)" : "");
+  const shapesWhy = kind === 3 || kind === 4 ? "on by default (server/seat)" : (f & NF.optIn) ? "on: the person opted in at this class" : "off by default; accepts a shaped link when a peer asks";
+  let relayWhy;
+  if (f & NF.relay) relayWhy = "offering relay";
+  else if (f & NF.clientOnly) relayWhy = "no: client-only (every v45 phone), no slot to give";
+  else if (!(f & NF.deviceRelays)) relayWhy = "no: a phone relays only on unmetered power";
+  else if (!(f & NF.relayPref)) relayWhy = "no: owner turned relay off";
+  else if (!(f & NF.online)) relayWhy = "no: not online";
+  else relayWhy = "no: not reachable without the canonical";
+  const rows = [];
+  for (let l = 0; l < M.links.length; l += 4){
+    const a = M.links[l], b = M.links[l + 1]; if (a !== i && b !== i) continue;
+    const o = a === i ? b : a, pk = M.links[l + 2], k = pk & 0xff, sc = (pk >>> 8) & 0xff, bound = (pk >>> 16) & 1, asked = (pk >>> 17) & 1;
+    rows.push(`<li><span class="lk lk${k}${sc ? " shaped" : ""}"></span>${MLINK[k]} ↔ ${MK[nodeKind(o)]} #${o}: ${sc ? "<b>shaped " + MCLASS[sc] + "</b> " + MCLASS_BPS[sc].toLocaleString() + " B/s" + (asked ? " (asked)" : "") : bound ? "unshaped: the bound of 8 was full" : "unshaped (ordinary)"}</li>`);
+  }
+  for (let p = 0; p < M.pun.length; p += 2) if (M.pun[p] === i || M.pun[p + 1] === i){ const o = M.pun[p] === i ? M.pun[p + 1] : M.pun[p]; rows.push(`<li><span class="lk lkp"></span>punch in progress with ${MK[nodeKind(o)]} #${o} (20 s budget)</li>`); }
+  const seatKm = (s) => { if (s >= 4294967295) return "–"; const site = M.nu[s * 8 + 7] & 0xffffff; return `#${s} (${Math.round(M.sites[site * 4 + 2]).toLocaleString()} km)`; };
+  const state = !(f & NF.present) ? "not present" : !(f & NF.awake) ? "asleep" : (f & NF.online) ? "online" : "resuming";
+  card.innerHTML = `<div class="panel-head"><b style="color:${MK_COL[kind]}">${MK[kind]} #${i}</b><button class="panel-close" id="close-card" type="button" title="Close">✕</button></div>
+  <div class="kv"><span>doing</span><b>${MACT[act]}</b></div>
+  <div class="kv"><span>state</span><b>${state}${kind === 0 ? " · " + (f & NF.unmetered ? "Wi-Fi" : "cellular") + (f & NF.charging ? " · charging" : " · battery") : ""}</b></div>
+  <div class="kv"><span>budget class (CC 5.4.3)</span><b>${MCLASS[cls]}${kind === 4 ? " (to seats; server to others)" : ""}</b></div>
+  <div class="kv"><span>shaped links</span><b>${nodeShaped(i)} of 8 · ${shapesWhy}</b></div>
+  <div class="kv"><span>reachability</span><b>${reach}</b></div>
+  <div class="kv"><span>relay</span><b>${relayWhy}</b></div>
+  <div class="kv"><span>homes on (k=2)</span><b>${kind === 4 ? "is a canonical" : seatKm(h0) + " · " + seatKm(h1)}</b></div>
+  <div class="kv"><span>edge version</span><b>${f & NF.old ? "older (pre-v44: never proposes a direct path)" : "current (v45)"}</b></div>
+  ${holding || pending || (f & NF.mailbox) ? `<div class="kv"><span>mailbox</span><b>${f & NF.mailbox ? "can hold mail · " : ""}holding ${holding} · waiting for it ${pending}</b></div>` : ""}
+  <div class="card-links"><span>links now (${rows.length})</span><ul>${rows.join("") || "<li>none: " + (state === "asleep" ? "suspend closed every link" : "no traffic") + "</li>"}</ul></div>`;
+  card.classList.remove("panel-hidden");
+  $("close-card").onclick = () => { microSel = -1; renderNodeCard(); };
+}
+let pickDown = null;
+cv.addEventListener("mousedown", e => { pickDown = [e.clientX, e.clientY, performance.now()]; });
+cv.addEventListener("mouseup", e => {
+  if (!pickDown) return; const [x, y, t] = pickDown; pickDown = null;
+  if (Math.hypot(e.clientX - x, e.clientY - y) > 5 || performance.now() - t > 500) return;
+  const i = microPick(e.clientX, e.clientY); microSel = i; renderNodeCard(); if (i >= 0) microGlide = 0;
+});
+cv.addEventListener("touchstart", e => { if (e.touches.length === 1) pickDown = [e.touches[0].clientX, e.touches[0].clientY, performance.now()]; else pickDown = null; }, { passive: true });
+cv.addEventListener("touchend", e => {
+  if (!pickDown || e.changedTouches.length !== 1) return; const [x, y, t] = pickDown; pickDown = null; const c = e.changedTouches[0];
+  if (Math.hypot(c.clientX - x, c.clientY - y) > 8 || performance.now() - t > 500) return;
+  const i = microPick(c.clientX, c.clientY); if (i >= 0 || microSel >= 0){ microSel = i; renderNodeCard(); }
+}, { passive: true });
+setInterval(() => { if (microSel >= 0) renderNodeCard(); }, 300);
+
+// ---- the street-scale story (acts 1 and 2): a script of what happens to whom; the rules decide how
+const MSTORY = { actors: null, fired: new Set(), outcome: null, route1: null, ci: -1, lat: 0, lon: 0 };
+function storyPinStart(ap, ah, bp, bh){ wasm.micro_cmd(1, ap, 2); wasm.micro_cmd(1, bp, 2); wasm.micro_cmd(1, ah, 3); wasm.micro_cmd(1, bh, 3); } // phones asleep on Wi-Fi; home nodes up
+function storyMicroWorld(){
+  // the story's street is a real tile of the free-roam world near Zurich: the first nearby tile whose
+  // generated layout is a residential street with two households a punch can join (found once)
+  if (!microOk()) return false;
+  const build = (T) => microBuild(T.lat, T.lon, T.dens, false, T.s1, T.s2, 0.62, "story");
+  if (MSTORY.tile){ build(MSTORY.tile); if (wasm.micro_cmd(6, 0, 0) === 1){ const a = new Uint32Array(mem.buffer, wasm.micro_buf_ptr(10) >>> 0, 4).slice(); storyPinStart(...a); } return true; }
+  const c0 = cellAt(47.3769, 8.5417); const dens = c0 >= 0 ? cellDensity(c0) : 1200;
+  const ti0 = Math.floor(47.3769 / TILE_DEG), tj0 = Math.floor(8.5417 / TILE_DEG); let fallback = null;
+  for (let r = 0; r < 81; r++){
+    const ti = ti0 + (r % 9) - 4, tj = tj0 + Math.floor(r / 9) - 4;
+    const T = { lat: (ti + 0.5) * TILE_DEG, lon: (tj + 0.5) * TILE_DEG, dens, s1: hash32(ti, tj), s2: hash32(tj ^ 0x5bd1e995, ti) };
+    build(T);
+    const cls = M.meta[2] | 0;
+    if ((cls === 1 || cls === 2) && wasm.micro_cmd(6, 0, 0) === 1){
+      const [ap, ah, bp, bh] = new Uint32Array(mem.buffer, wasm.micro_buf_ptr(10) >>> 0, 4).slice();
+      storyPinStart(ap, ah, bp, bh);
+      // the story follows a pair whose two routers a punch traverses (the sim decides that, per pair of networks)
+      if (wasm.micro_cmd(8, ap, bp) === 1){ MSTORY.tile = T; return true; }
+      if (!fallback) fallback = T;
+    }
+  }
+  if (fallback){ MSTORY.tile = fallback; return storyMicroWorld(); } // no pair nearby punches: tell the relayed story instead
+  return false;
+}
+function actorXY(i){ return [M.nf[i * 4], M.nf[i * 4 + 1]]; }
+function localToLL(x, y){ return [M.lat0 + y / 111320, M.lon0 + x / (111320 * Math.cos(M.lat0 * Math.PI / 180))]; }
+function storyCam(x, y, z){ const [la, lo] = localToLL(x, y); storyTargetPitch = la * Math.PI / 180; storyTargetYaw = lo * Math.PI / 180; storyTargetZoom = z; }
+const expLerp = (a, b, t) => a * Math.pow(b / a, Math.max(0, Math.min(1, t)));
+function storyMicroSetup(act){
+  microStory = true; MSTORY.fired = new Set(); MSTORY.outcome = null;
+  if (act === 0){
+    // rebuilt at the act's start, so it plays from the same state every time
+    if (!storyMicroWorld()){ MSTORY.actors = null; return; }
+    wasm.micro_cmd(6, 0, 0); const a = new Uint32Array(mem.buffer, wasm.micro_buf_ptr(10) >>> 0, 4).slice(); MSTORY.actors = Array.from(a);
+    const [ap, ah, bp, bh] = MSTORY.actors;
+    wasm.micro_quiet(1);
+    microRead(); microStoryDim = new Set(MSTORY.actors); microTimeScale = 10;
+    const [x, y] = actorXY(ah); MSTORY.home = [x, y];
+  } else {
+    if (!MSTORY.actors || !M) return;
+    microStoryDim = null; wasm.micro_quiet(0); MSTORY.actors.forEach(i => wasm.micro_cmd(2, i, 0)); microTimeScale = 40;
+  }
+}
+function storyMicroCaption(text){ if ($("story-line")) $("story-line").innerHTML = text; }
+function storyMicroTick(act, t){
+  if (!M || !MSTORY.actors) return;
+  const [ap, ah, bp, bh] = MSTORY.actors; const once = (k, fn) => { if (!MSTORY.fired.has(k)){ MSTORY.fired.add(k); fn(); } };
+  const [axh, ayh] = actorXY(ah), [bxh, byh] = actorXY(bh);
+  const mid = [(axh + bxh) / 2, (ayh + byh) / 2], span = Math.hypot(bxh - axh, byh - ayh);
+  const F = camFrame(), frameZ = (m) => Math.min(zoomMax(), (Math.min(F.w, F.h) * 0.62) / (m * 0.86 * Math.min(F.w, F.h) / 2 / EARTH_M));
+  const kmOf = (s) => Math.round(M.sites[(M.nu[s * 8 + 7] & 0xffffff) * 4 + 2]).toLocaleString();
+  if (act === 0){
+    if (t < 7.5){ const z = t < 1.2 ? 2.25 : expLerp(2.25, frameZ(70), (t - 1.2) / 6.3); storyCam(axh, ayh, z);
+      once("c0", () => storyMicroCaption("Zurich from orbit. The twin keeps one neighbourhood here at <b>1:1</b>: every device in it is its own node")); }
+    else if (t < 16){ storyCam(axh, ayh, frameZ(70));
+      once("wake", () => { wasm.micro_cmd(1, ap, 1 | 2); storyMicroCaption("A generated street on the city's edge. Alice's phone wakes on her home Wi-Fi; her <b>home node</b> is always on"); });
+      if (t > 9.5) once("lan", () => { wasm.micro_cmd(3, ap, ah); storyMicroCaption("The phone finds her home node on the <b>LAN</b>: a direct one-hop link, no server involved"); });
+      if (t > 12) once("home", () => storyMicroCaption(`Both dial out to the two serve seats they home on (k=2), data centres ${kmOf(M.nu[ap * 8 + 3])} and ${kmOf(M.nu[ap * 8 + 4])} km away. The phone is client-only: it listens for nothing`)); }
+    else if (t < 24){ const z = expLerp(frameZ(70), frameZ(span * 1.35 + 40), (t - 16) / 2); storyCam(mid[0], mid[1], z);
+      once("bob", () => { wasm.micro_cmd(1, bp, 1 | 2); wasm.micro_cmd(4, ap, bp); storyMicroCaption(`Bob lives ${Math.round(span)} m away. They swap a contact link`); });
+      if (t > 18.2) once("first", () => { microTimeScale = 6; const r = wasm.micro_cmd(3, ap, bp); MSTORY.route1 = r; microRead();
+        const e = M.ev.length - 7, via = M.ev[e + 3]; const viaKind = via < 4294967295 ? nodeKind(via) : -1;
+        storyMicroCaption(r === 0 ? "Alice's first row reaches Bob <b>directly</b>: his router has a public listener" :
+          `The first row crosses ${viaKind === 4 ? "a <b>serve seat</b>" : "a member-owned relay"}, <b>sealed and unshaped</b>. Their nodes propose a direct path; the seat facilitates the punch`); });
+      storyPunchOutcome(ap, bp);
+      if (t > 22.5) once("second", () => wasm.micro_cmd(3, ap, bp)); }
+    else if (t < 40){
+      storyPunchOutcome(ap, bp);
+      if (MSTORY.outcome === null && t < 27){ storyCam(mid[0], mid[1], frameZ(span * 1.35 + 40)); return; } // wait for the punch to settle
+      const p = actorXY(ap); storyCam((p[0] + axh) / 2, (p[1] + ayh) / 2, frameZ(Math.max(90, Math.hypot(p[0] - axh, p[1] - ayh) * 1.4 + 60)));
+      once("out", () => { wasm.micro_cmd(1, ap, 1); storyMicroCaption("Alice heads out. On <b>cellular</b> her phone drops to the phone-cellular class and loses the LAN" + (MSTORY.outcome === "ok" ? " and the punched path" : " path")); });
+      if (t > 28.5) once("pocket", () => { wasm.micro_cmd(1, ap, 0); storyMicroCaption("In her pocket the phone <b>sleeps</b>: the OS suspends it and every link closes"); });
+      if (t > 30.5) once("reply", () => { wasm.micro_cmd(3, bp, ap); storyMicroCaption("Bob replies. A phone is never a mailbox: her <b>home node holds the row</b> until she wakes"); });
+      if (t > 34) once("tram", () => { wasm.micro_cmd(1, ap, 1); storyMicroCaption("On the tram she opens the app: the phone resumes, re-announces, and her home node hands the row over through a forwarder"); });
+    }
+  } else if (act === 1){
+    const z = t < 6 ? frameZ(Math.max(160, M.half * 0.9)) : t < 20 ? expLerp(frameZ(Math.max(160, M.half * 0.9)), frameZ(M.half * 2.6), (t - 6) / 14) : expLerp(frameZ(M.half * 2.6), 30, (t - 20) / 8);
+    storyCam(mid[0], mid[1], z);
+    once("all", () => storyMicroCaption("The whole street: phones sleep and wake and change network, laptops close, home nodes stay up and hold their members' mail"));
+    if (t > 7) once("bound", () => { const s = M.nu[ap * 8 + 3]; storyMicroCaption(`Each serve seat shapes at most <b>eight</b> links (now ${nodeShaped(s)}/8); its other homed devices run unshaped, as CC 5.4.3 allows`); });
+    if (t > 12) once("ci", () => { MSTORY.ci = wasm.micro_cmd(5, 0, 1); const km = MSTORY.ci >= 0 ? kmOf(MSTORY.ci) : "–";
+      storyMicroCaption(`A <b>QA runner</b> boots in a CI data centre ${km} km away, homes on two seats, runs its job and leaves. This one runs an older edge, so it never proposes a direct path`); });
+    if (t > 20) once("pull", () => storyMicroCaption("Pull back: this street is one of millions. Past its edge the twin keeps cohorts, not devices"));
+  }
+}
+function storyPunchOutcome(ap, bp){
+  if (MSTORY.outcome !== null || !MSTORY.fired.has("first") || M.pun.length !== 0) return;
+        let punched = false; for (let l = 0; l < M.links.length; l += 4){ const a = M.links[l], b = M.links[l + 1]; if ((M.links[l + 2] & 0xff) === 4 && ((a === ap && b === bp) || (a === bp && b === ap))) punched = true; }
+  MSTORY.outcome = punched ? "ok" : (MSTORY.route1 === 0 ? "direct" : "fail"); microTimeScale = 10;
+  storyMicroCaption(MSTORY.outcome === "ok" ? "The punch comes up: a <b>direct path</b> between the two homes, and the seat drops out of the path" :
+    MSTORY.outcome === "direct" ? "They keep the direct path; no forwarder is needed" : "The punch fails for this pair of networks (a FRONTIER rate): the rows keep crossing a forwarder, and the pair backs off for an hour");
+}
+function storyMicroEnd(){ microStory = false; microStoryDim = null; if (M) M.key = null; microTimeScale = 20; if (M && MSTORY.actors) MSTORY.actors.forEach(i => wasm.micro_cmd(2, i, 0)); if (wasm && wasm.micro_quiet) wasm.micro_quiet(0); }
+
+let frame=0, lastTickTime=0, lastLoopNow=performance.now();
 function loop(){
   const now=performance.now();
+  const storyDt=Math.min(0.1,Math.max(0,(now-lastLoopNow)/1000)); lastLoopNow=now; // story time is real time, whatever the refresh rate
   if (storyActive) {
     if (!drag) {
       let dyaw = storyTargetYaw - yaw;
@@ -1744,7 +2391,7 @@ function loop(){
       while (dyaw > Math.PI) dyaw -= Math.PI * 2;
       yaw += dyaw * 0.05;
       pitch += (storyTargetPitch - pitch) * 0.05;
-      if (storyCurrentAct === 4 && !storyPaused) {
+      if (storyCurrentAct === STORY_ACTS.length - 1 && !storyPaused) {
         storyTargetYaw += 0.0016;
       }
     }
@@ -1752,7 +2399,7 @@ function loop(){
     targetZoom = storyTargetZoom;
     if (!storyPaused) {
       const prevHalf = storyActElapsed < (STORY_ACTS[storyCurrentAct].duration * 0.5);
-      storyActElapsed += 0.016;
+      storyActElapsed += storyDt;
       const curCfg = STORY_ACTS[storyCurrentAct];
       const nowHalf = storyActElapsed < (curCfg.duration * 0.5);
       if (prevHalf !== nowHalf) updateStoryUI();
@@ -1761,7 +2408,7 @@ function loop(){
         $("story-progress-bar").style.width = pct.toFixed(1) + "%";
       }
       if (storyActElapsed >= curCfg.duration) {
-        if (storyCurrentAct < 4) {
+        if (storyCurrentAct < STORY_ACTS.length - 1) {
           storySetupAct(storyCurrentAct + 1);
         } else {
           exitStoryMode();
@@ -1769,8 +2416,8 @@ function loop(){
       }
     }
     if (storyActive) {
-      storyTickAct(storyCurrentAct, 0.016);
-      if (storyCurrentAct >= 2) {
+      storyTickAct(storyCurrentAct, storyDt);
+      if (storyCurrentAct >= 3) {
         if (playing && now-lastTickTime>=120){ lastTickTime=now; tick(); }
         decay();
       }
@@ -1781,14 +2428,15 @@ function loop(){
       if (Math.abs(velYaw)>0.00002) yaw+=velYaw;
       if (Math.abs(velPitch)>0.00002) pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch));
       const idle=now-lastTouchTime;
-      if (idle>3000){ const blend=Math.min(1.0,(idle-3000)/2000); yaw+=0.0016*blend; }
+      if (idle>3000 && zoom<3){ const blend=Math.min(1.0,(idle-3000)/2000); yaw+=0.0016*blend; }
     }
     if (playing && now-lastTickTime>=120){ lastTickTime=now; tick(); }
     decay();
   }
-  zoom+=(targetZoom-zoom)*0.12;
+  zoom*=Math.pow(targetZoom/zoom,0.12); // multiplicative: the same feel from orbit to a doorstep
   if (frame%4===0) pruneAndPackArcs(getTime());
-  draw(); frame++; requestAnimationFrame(loop);
+  microFreeRoam(); microStep(now);
+  draw(); microDraw(); frame++; requestAnimationFrame(loop);
 }
 async function build(){
   const wasPlaying=playing;
@@ -1803,7 +2451,7 @@ $("step").onclick=()=>{ if(W) tick(); };
 $("play").onclick=(e)=>{ if(!W) return; playing=!playing; e.target.textContent=playing?"❚❚ pause":"▶ run"; e.target.classList.toggle("active",playing); };
 $("eng").onclick=(e)=>{ useWasm=!useWasm; e.target.textContent="engine: "+(useWasm&&wasm?"WASM":"JS"); e.target.classList.toggle("on",useWasm&&!!wasm); avgMsPerAct=0; avgMsPerTick=0; if(W) tick(); };
 $("arcsb").onclick=(e)=>{ showArcs=!showArcs; e.target.classList.toggle("on",showArcs); };
-(async()=>{ initCoastline(); await loadWasm(); if(!wasm){ useWasm=false; $("eng").textContent="engine: JS"; $("eng").classList.remove("on"); } await build(); playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); initStoryMode(); loop(); })();
+(async()=>{ initCoastline(); initLand(); await loadWasm(); if(!wasm){ useWasm=false; $("eng").textContent="engine: JS"; $("eng").classList.remove("on"); } await build(); playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); initStoryMode(); loop(); })();
 </script>
 </body>
 </html>

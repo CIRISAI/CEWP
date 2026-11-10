@@ -524,6 +524,9 @@ pub struct Node {
     pub last_announce: f64,
     /// Short label (story names; empty otherwise).
     pub label: &'static str,
+    /// Counts the node's network changes: a punch between two given networks either works or
+    /// does not, so its outcome is drawn once per pair of network epochs.
+    pub net_epoch: u32,
 }
 
 impl Node {
@@ -770,6 +773,7 @@ pub struct MicroWorld {
     link_index: BTreeMap<(usize, usize, LinkKind), usize>,
     /// Index of the CI provider's QA maintainer household's home node (receives test rows).
     pub qa_peer: u32,
+    runs: u64,
 }
 
 fn key(a: usize, b: usize) -> (usize, usize) {
@@ -875,6 +879,7 @@ impl MicroWorld {
             mail: Vec::new(),
             link_index: BTreeMap::new(),
             qa_peer: NONE,
+            runs: 0,
         };
         w.lay_out_streets();
         w.place_buildings();
@@ -1167,13 +1172,20 @@ impl MicroWorld {
             pending: 0,
             last_announce: 0.0,
             label: "",
+            net_epoch: 0,
         }
     }
 
     fn place_at_site(&mut self, n: &mut Node, site: usize) {
+        let mut r = self.rng.clone();
+        self.place_at_site_with(n, site, &mut r);
+        self.rng = r;
+    }
+
+    fn place_at_site_with(&self, n: &mut Node, site: usize, rng: &mut Rng) {
         let s = self.sites[site];
-        let b = self.rng.range(0.0, std::f64::consts::TAU);
-        let (lat, lon) = destination(s.lat, s.lon, b, self.rng.range(0.2, 3.0));
+        let b = rng.range(0.0, std::f64::consts::TAU);
+        let (lat, lon) = destination(s.lat, s.lon, b, rng.range(0.2, 3.0));
         n.lat = lat;
         n.lon = lon;
         let (x, y) = self.local_xy(lat, lon);
@@ -1196,14 +1208,19 @@ impl MicroWorld {
         let hosting: Vec<usize> = (0..self.sites.len()).filter(|&i| self.sites[i].kind != SiteKind::Ci).collect();
         let budget = R5_MAX_NODES - CI_SLOTS - self.nodes.len();
         let mut used = 0usize;
-        let order: Vec<usize> = (0..self.buildings.len()).collect();
-        for bi in order {
+        // Every draw for a dwelling comes from that dwelling's own stream, in a fixed order, and
+        // each share is a threshold on a uniform: raising adoption or reach adds households and
+        // routers without reshuffling the ones already there.
+        for bi in 0..self.buildings.len() {
             let b = self.buildings[bi];
             for u in 0..b.units {
-                let adopting = self.rng.chance(p.share(P::Adoption));
-                let persons = (p.get(P::PersonsPerHousehold) + 1.1 * self.rng.gauss()).round().clamp(1.0, 6.0) as u8;
-                let router = if self.rng.chance(p.share(P::ReachHomeShare)) {
-                    if self.rng.chance(p.share(P::PublicListenerShare)) {
+                let hi = self.households.len();
+                let mut hr = Rng::new(self.seed ^ (hi as u64 + 1).wrapping_mul(0xA24B_AED4_963E_E407));
+                let u_adopt = hr.f();
+                let persons = (p.get(P::PersonsPerHousehold) + 1.1 * hr.gauss()).round().clamp(1.0, 6.0) as u8;
+                let (u_reach, u_public, u_comm) = (hr.f(), hr.f(), hr.f());
+                let router = if u_reach < p.share(P::ReachHomeShare) {
+                    if u_public < p.share(P::PublicListenerShare) {
                         RouterNat::Public
                     } else {
                         RouterNat::Punchable
@@ -1214,92 +1231,93 @@ impl MicroWorld {
                 // dwellings spread through the footprint (flats stack: spread along the frontage)
                 let (ca, sa) = (b.angle.cos(), b.angle.sin());
                 let fu = if b.units > 1 { (u as f64 + 0.5) / b.units as f64 - 0.5 } else { 0.0 };
-                let along = fu * b.w * 0.8 + self.rng.range(-1.0, 1.0);
-                let across = self.rng.range(-b.d * 0.25, b.d * 0.25);
+                let along = fu * b.w * 0.8 + hr.range(-1.0, 1.0);
+                let across = hr.range(-b.d * 0.25, b.d * 0.25);
                 let (x, y) = (b.cx + ca * along - sa * across, b.cy + sa * along + ca * across);
                 let mut hh = Household {
                     building: bi,
-                    adopting,
+                    adopting: u_adopt < p.share(P::Adoption),
                     persons,
                     router,
-                    in_community: false,
+                    in_community: u_comm < p.share(P::CommunityJoinShare),
                     nodes: Vec::new(),
                     x,
                     y,
                 };
-                if adopting {
-                    hh.in_community = self.rng.chance(p.share(P::CommunityJoinShare));
-                    let mut kinds: Vec<(HostKind, u8)> = Vec::new();
-                    for person in 0..persons {
-                        let phones = p.get(P::PhonesPerPerson).floor() as usize
-                            + usize::from(self.rng.chance(p.get(P::PhonesPerPerson).fract()));
-                        for _ in 0..phones {
-                            kinds.push((HostKind::Phone, person));
+                // the household's devices, drawn whether or not it adopts (fixed stream order)
+                let mut kinds: Vec<(HostKind, u8)> = Vec::new();
+                for person in 0..persons {
+                    let (u_ph, u_lap) = (hr.f(), hr.f());
+                    let phones = p.get(P::PhonesPerPerson).floor() as usize + usize::from(u_ph < p.get(P::PhonesPerPerson).fract());
+                    for _ in 0..phones {
+                        kinds.push((HostKind::Phone, person));
+                    }
+                    if u_lap < p.share(P::LaptopsPerPerson) {
+                        kinds.push((HostKind::Laptop, person));
+                    }
+                }
+                let (u_home, u_srv) = (hr.f(), hr.f());
+                if u_home < p.share(P::HomeNodeHouseholdShare) {
+                    kinds.push((HostKind::HomeNode, 0));
+                }
+                let server_p = (p.get(P::ServerTierShare) * 2.25 * f64::from(persons)).clamp(0.0, 0.9);
+                if u_srv < server_p {
+                    kinds.push((HostKind::HostedServer, 0));
+                }
+                if !hh.adopting || used + kinds.len() > budget {
+                    hh.adopting = false;
+                    hh.in_community = false;
+                    kinds.clear();
+                }
+                for (kind, owner) in kinds {
+                    let mut n = self.new_node(kind);
+                    n.household = Some(hi);
+                    n.owner = owner;
+                    // fixed-order draws for this device
+                    let d: [f64; 8] = std::array::from_fn(|_| hr.f());
+                    n.relay_pref = d[0] < p.share(P::RelayOfferingShare);
+                    match kind {
+                        HostKind::HostedServer => {
+                            let site = hosting[(d[1] * hosting.len() as f64) as usize % hosting.len()];
+                            self.place_at_site_with(&mut n, site, &mut hr);
+                            n.old_version = d[2] < p.share(P::ServerOldVersionShare);
                         }
-                        if self.rng.chance(p.share(P::LaptopsPerPerson)) {
-                            kinds.push((HostKind::Laptop, person));
+                        _ => {
+                            n.x = x + (d[1] - 0.5) * 5.0;
+                            n.y = y + (d[2] - 0.5) * 5.0;
+                            let (la, lo) = self.latlon_of(n.x, n.y);
+                            n.lat = la;
+                            n.lon = lo;
+                            n.public = router == RouterNat::Public;
+                            n.punchable = router != RouterNat::Hard;
                         }
                     }
-                    if self.rng.chance(p.share(P::HomeNodeHouseholdShare)) {
-                        kinds.push((HostKind::HomeNode, 0));
-                    }
-                    let server_p = (p.get(P::ServerTierShare) * 2.25 * f64::from(persons)).clamp(0.0, 0.9);
-                    if self.rng.chance(server_p) {
-                        kinds.push((HostKind::HostedServer, 0));
-                    }
-                    if used + kinds.len() > budget {
-                        hh.adopting = false;
-                        kinds.clear();
-                    }
-                    let hi = self.households.len();
-                    for (kind, owner) in kinds {
-                        let mut n = self.new_node(kind);
-                        n.household = Some(hi);
-                        n.owner = owner;
-                        n.relay_pref = self.rng.chance(p.share(P::RelayOfferingShare));
-                        match kind {
-                            HostKind::HostedServer => {
-                                let site = hosting[self.rng.below(hosting.len())];
-                                self.place_at_site(&mut n, site);
-                                n.old_version = self.rng.chance(p.share(P::ServerOldVersionShare));
-                            }
-                            _ => {
-                                n.x = x + self.rng.range(-2.5, 2.5);
-                                n.y = y + self.rng.range(-2.5, 2.5);
-                                let (la, lo) = self.latlon_of(n.x, n.y);
-                                n.lat = la;
-                                n.lon = lo;
-                                n.public = router == RouterNat::Public;
-                                n.punchable = router != RouterNat::Hard;
+                    match kind {
+                        HostKind::Phone => {
+                            n.client_only = p.get(P::PhoneClientOnly) >= 0.5;
+                            n.shaping_opt_in = d[3] < p.share(P::PhoneShapingOptIn);
+                            n.unmetered = d[4] < p.share(P::PhoneWifiShare);
+                            n.charging = n.unmetered && d[5] < p.share(P::PhoneChargingShare);
+                            n.awake = d[6] >= p.share(P::MobileOfflineShare);
+                            if !n.unmetered {
+                                self.go_out_with(&mut n, &mut hr);
                             }
                         }
-                        match kind {
-                            HostKind::Phone => {
-                                n.client_only = p.get(P::PhoneClientOnly) >= 0.5;
-                                n.shaping_opt_in = self.rng.chance(p.share(P::PhoneShapingOptIn));
-                                n.unmetered = self.rng.chance(p.share(P::PhoneWifiShare));
-                                n.charging = n.unmetered && self.rng.chance(p.share(P::PhoneChargingShare));
-                                n.awake = !self.rng.chance(p.share(P::MobileOfflineShare));
-                                if !n.unmetered {
-                                    self.go_out(&mut n);
-                                }
-                            }
-                            HostKind::Laptop => {
-                                n.shaping_opt_in = self.rng.chance(p.share(P::HomeShapingOptIn));
-                                n.awake = self.rng.chance(p.share(P::LaptopAwakeShare));
-                            }
-                            HostKind::HomeNode => {
-                                n.shaping_opt_in = self.rng.chance(p.share(P::HomeShapingOptIn));
-                            }
-                            _ => {}
+                        HostKind::Laptop => {
+                            n.shaping_opt_in = d[3] < p.share(P::HomeShapingOptIn);
+                            n.awake = d[6] < p.share(P::LaptopAwakeShare);
                         }
-                        if !n.awake {
-                            n.activity = Activity::Asleep;
+                        HostKind::HomeNode => {
+                            n.shaping_opt_in = d[3] < p.share(P::HomeShapingOptIn);
                         }
-                        hh.nodes.push(self.nodes.len());
-                        self.nodes.push(n);
-                        used += 1;
+                        _ => {}
                     }
+                    if !n.awake {
+                        n.activity = Activity::Asleep;
+                    }
+                    hh.nodes.push(self.nodes.len());
+                    self.nodes.push(n);
+                    used += 1;
                 }
                 self.households.push(hh);
             }
@@ -1341,7 +1359,7 @@ impl MicroWorld {
         let mut ranked: Vec<(u64, usize)> = seats
             .iter()
             .map(|&s| {
-                let mut r = Rng::new(self.seed ^ ((i as u64) << 20) ^ (s as u64).wrapping_mul(0x9E37));
+                let mut r = Rng::new(self.seed ^ ((i as u64) << 20) ^ (s as u64).wrapping_mul(0x9E37) ^ self.runs.wrapping_mul(0xA076_1D64_78BD_642F));
                 (r.next_u64(), s)
             })
             .collect();
@@ -1360,15 +1378,25 @@ impl MicroWorld {
     }
 
     fn go_out(&mut self, n: &mut Node) {
-        // left home: out on a street of the patch, on the carrier's network
-        if let Some(r) = self.roads.get(self.rng.below(self.roads.len().max(1))).copied() {
-            let t = self.rng.f();
-            n.x = (r.x0 + (r.x1 - r.x0) * t).clamp(-self.half, self.half);
-            n.y = (r.y0 + (r.y1 - r.y0) * t).clamp(-self.half, self.half);
+        let mut r = self.rng.clone();
+        self.go_out_with(n, &mut r);
+        self.rng = r;
+    }
+
+    /// Left home: out on a street of the patch, on the carrier's network.
+    fn go_out_with(&self, n: &mut Node, rng: &mut Rng) {
+        let (u_road, u_t, u_punch) = (rng.f(), rng.f(), rng.f());
+        // somewhere on the streets near home (the phone is away from its Wi-Fi, not teleported)
+        let near: Vec<usize> = (0..self.roads.len()).filter(|&i| seg_dist(n.x, n.y, &self.roads[i]) < 220.0).collect();
+        let pool: Vec<usize> = if near.is_empty() { (0..self.roads.len()).collect() } else { near };
+        if !pool.is_empty() {
+            let r = self.roads[pool[(u_road * pool.len() as f64) as usize % pool.len()]];
+            n.x = (r.x0 + (r.x1 - r.x0) * u_t).clamp(-self.half, self.half);
+            n.y = (r.y0 + (r.y1 - r.y0) * u_t).clamp(-self.half, self.half);
         }
         n.charging = false;
         n.public = false;
-        n.punchable = self.rng.chance(self.params.share(P::CellularPunchableShare));
+        n.punchable = u_punch < self.params.share(P::CellularPunchableShare);
     }
 
     fn come_home(&mut self, i: usize) {
@@ -1621,6 +1649,7 @@ impl MicroWorld {
         }
         self.stats.network_changes += 1;
         self.nodes[i].unmetered = unmetered;
+        self.nodes[i].net_epoch = self.nodes[i].net_epoch.wrapping_add(1);
         if unmetered {
             self.come_home(i);
         } else {
@@ -1718,7 +1747,7 @@ impl MicroWorld {
             n.activity_until = n.resume_at;
         }
         // a fresh runner is a fresh identity: it homes by its own hash, per run
-        self.seed = self.seed.wrapping_add(0x9E37_79B9);
+        self.runs += 1;
         self.rehome(i, &seats, k);
         self.stats.ci_joined += 1;
         Some(i)
@@ -1935,7 +1964,7 @@ impl MicroWorld {
         self.punches.retain(|p| p.done_at > t);
         for p in due {
             let online = self.nodes[p.a].online(t) && self.nodes[p.b].online(t) && self.nodes[p.facilitator].online(t);
-            let ok = online && self.punch_possible(p.a, p.b) && self.rng.chance(p_ok);
+            let ok = online && self.punch_possible(p.a, p.b) && self.punch_roll(p.a, p.b) < p_ok;
             if ok {
                 self.stats.punch_ok += 1;
                 self.open_link(p.a, p.b, LinkKind::Punched);
@@ -1949,6 +1978,26 @@ impl MicroWorld {
                 }
             }
         }
+    }
+
+    /// The pair's draw for whether a punch between their current networks comes up: fixed per
+    /// pair and network epoch (the same two NATs behave the same way until one end moves).
+    #[must_use]
+    pub fn punch_roll(&self, a: usize, b: usize) -> f64 {
+        let (x, y) = key(a, b);
+        let mut r = Rng::new(
+            self.seed
+                ^ ((x as u64) << 32 | y as u64).wrapping_mul(0xD6E8_FEB8_6659_FD93)
+                ^ u64::from(self.nodes[x].net_epoch) << 48
+                ^ u64::from(self.nodes[y].net_epoch) << 56,
+        );
+        r.f()
+    }
+
+    /// Whether a punch between the pair, on their current networks, would come up.
+    #[must_use]
+    pub fn punch_would_succeed(&self, a: usize, b: usize) -> bool {
+        self.punch_possible(a, b) && self.punch_roll(a, b) < self.params.share(P::PunchSuccessShare)
     }
 
     /// The pending punch of a pair, if any (for the picture).
@@ -1970,11 +2019,21 @@ impl MicroWorld {
                 if self.nodes[h.holder].holding == 0 && self.nodes[h.holder].activity == Activity::HoldingMail {
                     self.nodes[h.holder].activity = Activity::Idle;
                 }
-                let shaped = self.carry(h.holder, h.dst);
+                // the mailbox hands the row over directly if it can, else across a forwarder
+                let (shaped, via, via2) = if self.direct_kind_now(h.holder, h.dst).is_some() {
+                    (self.carry(h.holder, h.dst), NONE, NONE)
+                } else {
+                    let (f1, f2) = self.forwarder(h.holder, h.dst);
+                    let shaped = f1 != NONE && self.carry(h.holder, f1 as usize);
+                    if f1 != NONE {
+                        let last = if f2 != NONE { f2 as usize } else { f1 as usize };
+                        self.carry(last, h.dst);
+                    }
+                    (shaped, f1, f2)
+                };
                 self.stats.mail_delivered += 1;
                 self.stats.mail_wait_s += t - h.since;
-                let _ = h.src;
-                self.record(MsgEvent { t, src: h.holder, dst: h.dst, via: NONE, via2: NONE, route: Route::MailDelivered, shaped });
+                self.record(MsgEvent { t, src: h.holder, dst: h.dst, via, via2, route: Route::MailDelivered, shaped });
             } else {
                 i += 1;
             }
@@ -2144,6 +2203,29 @@ mod tests {
         assert_eq!(a.nodes.len(), b.nodes.len());
         let c = world(1200.0, 8);
         assert_ne!(a.buildings, c.buildings);
+    }
+
+    #[test]
+    fn raising_adoption_adds_households_without_reshuffling() {
+        let mut lo = MicroParams::default();
+        lo.set(P::Adoption, 0.2);
+        let mut hi = MicroParams::default();
+        hi.set(P::Adoption, 0.8);
+        let a = MicroWorld::build_at_density(ZRH.0, ZRH.1, 1200.0, 77, lo);
+        let b = MicroWorld::build_at_density(ZRH.0, ZRH.1, 1200.0, 77, hi);
+        assert_eq!(a.households.len(), b.households.len());
+        let mut grew = false;
+        for (x, y) in a.households.iter().zip(&b.households) {
+            assert_eq!(x.router, y.router);
+            if x.adopting {
+                assert!(y.adopting, "a household that adopts at 20% still adopts at 80%");
+                let kinds = |w: &MicroWorld, h: &Household| h.nodes.iter().map(|&i| w.nodes[i].kind).collect::<Vec<_>>();
+                assert_eq!(kinds(&a, x), kinds(&b, y), "same devices");
+            } else if y.adopting {
+                grew = true;
+            }
+        }
+        assert!(grew);
     }
 
     #[test]
@@ -2359,6 +2441,26 @@ mod tests {
         w.step(DIRECT_PUNCH_FAILED_BACKOFF_S + 1.0);
         w.send(ap, bp);
         assert_eq!(w.stats.punch_tried, tried, "pre-v44 peer: no proposal");
+    }
+
+    #[test]
+    fn a_punch_outcome_is_fixed_per_pair_of_networks() {
+        let mut w = world(1200.0, 53);
+        let [ap, _, bp, _] = w.story_actors().expect("actors");
+        let first = w.punch_roll(ap, bp);
+        assert_eq!(first, w.punch_roll(bp, ap));
+        w.step(30.0);
+        if !w.nodes[ap].pinned {
+            w.pin(ap, true, w.nodes[ap].unmetered, false);
+        }
+        let epoch = w.nodes[ap].net_epoch;
+        let again = w.punch_roll(ap, bp);
+        if w.nodes[ap].net_epoch == epoch && epoch == 0 {
+            assert_eq!(first, again, "same networks, same outcome");
+        }
+        let um = w.nodes[ap].unmetered;
+        w.pin(ap, true, !um, false);
+        assert_ne!(w.punch_roll(ap, bp), again, "a new network is a new draw");
     }
 
     #[test]

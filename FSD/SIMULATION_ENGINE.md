@@ -331,11 +331,115 @@ At `5,000,000,000` agents with $R = 150$ neighbors, storing explicit 4-byte dire
 
 | Tier | Scale & Representation | Certification Requirement (`CIRISHolon`) | Target Hardware & Purpose |
 |---|---|---|---|
-| **`R5` (Micro / CSD/4 Exact)** | `1–1,000` nodes at exact `1:1` (all `T0–T19` topologies + 50–1,000 node rooms) | Ground truth (`β = 0`): bit-for-bit parity with `EventLifecycle.lean`, `CewpNode.tla`, and `CIRISServer` native runner | Laptop / CI / Browser WASM (`< 1 s`) |
+| **`R5` (Micro / CSD/4 Exact)** | `1–1,000` nodes at exact `1:1` (all `T0–T19` topologies + 50–1,000 node rooms; the focal neighbourhood of §4.6, `micro.rs`) | Ground truth (`β = 0`): bit-for-bit parity with `EventLifecycle.lean`, `CewpNode.tla`, and `CIRISServer` native runner | Laptop / CI / Browser WASM (`< 1 s`) |
 | **`R4` (Meso / Metro Cluster)** | `10,000–100,000` nodes at `1:1` focal subgraphs + boundary stubs | Certified `Closed` view of `R5` (`D_v² ≤ 0.02`, `K ≤ 1.05`) | Workstation / Browser WASM (`< 5 s`) |
 | **`R3` (Regional CI)** | `1,000,000` nodes (`100K` `1:1` focal + `900K` cohort holons) | Certified `Closed` view of `R4` (`D_v² ≤ 0.03`, `K ≤ 1.05`) | 16-core CI runner (`< 10 s`) |
 | **`R2` (Continental)** | `50,000,000` effective nodes (`1M` `1:1` focal + `181` locality holons) | Certified `Closed` view of `R3` (`D_v² ≤ 0.05`) | 64-core CPU (`< 30 s`) |
 | **`R1` / `R0` (Planetary)** | `5.0 B–8.1 B` people / `11.25 B–18.1 B` devices (`2,961` land cells × device/budget cohorts + embedded `1:1` focal subgraphs around attacks/outages) | Certified multiscale composition (`Tier.stack`) with explicit horizon error bounds (`horizonBudget`) | Multi-core CPU / GPU cluster (eventual scale demonstration after `R5–R3` gates pass) |
+
+### 4.6 The R5 Micro Tier as Built (`crates/cewp-sim/src/micro.rs`)
+
+R5 is no longer only a row in the table above. `cewp_sim::micro::MicroWorld` is a focal 1:1 neighbourhood: generated streets, buildings and households, every device in them as its own node with a host kind, and the off-street nodes those devices talk to (serve seats, hosted servers, CI runners in data centres). The same code is compiled into `kernel-wasm` (`micro_*` exports). `docs/globe.html` draws only what that world exports (§4.6.4), so the picture at node scale is the sim's state, not an illustration of it.
+
+#### 4.6.1 Host kinds and where each behaviour comes from
+
+| Kind | Budget class (CC rc17 5.4.3) | Reachability | Churn / duty cycle | Shaping & relay | Source |
+|---|---|---|---|---|---|
+| **phone** | `phone-wifi` on an unmetered network, `phone-cellular` otherwise | **Home Wi-Fi:** the household router's NAT. **Cellular:** carrier NAT, punchable with `cellular_punchable_share` (FRONTIER). | **Suspends:** it is asleep `mobile_offline_share` of the time (FSD 4.4 p_offline); suspend closes every link; resume waits `RESUME_ANNOUNCE_WAIT` (10 s). **Network:** Wi-Fi ↔ cellular moves are a two-state chain, and a move closes its LAN and punched paths. **Power:** charging is a chain of its own. | **Client-only:** dials out, listens for nothing, gives no relay slot. **Shaping:** off unless the person opts in, but it accepts a link when a peer asks. **Mailbox:** never. | CIRISEdge `DeviceState::of`, `budget_class`, `with_network` (`link_shaping.rs`); `edge.rs` `suspend`/`resume`; CC rc17 5.4.6 item 6 |
+| **home node** | `home` | Household router (`reach_home_share`, `public_listener_share`) | Always on | **Shaping:** opt-in. **Relay:** on by default when reachable without the canonical. **Mailbox:** the member-owned mailbox. | `onion/policy.rs` `device_relays`; `FSD/CIRIS_MESH.md` §3.2 |
+| **laptop** | `home` (a non-mobile build's `platform_default()`) | Household router | Lid open `laptop_awake_share` (MODEL) | **Relay:** on by default with **no battery gate**, because no host class names a laptop | `DeviceKind::platform_default` |
+| **hosted server** | `server` | Public listener in a data centre | Always on. An old edge with probability `server_old_version_share` (long-soak peers). | **Shaping:** every identity link by default. **Relay:** on. **Mailbox:** yes. | `FLEET_DEFAULTS`, `policy.rs` |
+| **serve seat** | `seat` to seats (33,000 B/s, outside the eight); travels as `server` to everyone else | Public | Always on | **Shaping:** every identity link, bound of 8. **Relay:** may not opt out. **Other roles:** direct-path facilitator, federation and last-resort mailbox. | `BudgetClass::Seat`, `wire_byte`, `policy.rs`, `direct_path.rs` |
+| **CI runner** | `home` (platform default; no host class exists) | Outbound only, no listener (MODEL) | **Arrives** at `ci_arrivals_per_hour` and boots, homes on its seats, runs `ci_job_mean_s`, then leaves. **Version:** an older edge with probability `ci_old_version_share`. | **Old edge:** never proposes a direct path (proposing is on from v44). | `direct_path.rs`; no edge source for the kind itself (FRONTIER of the host model) |
+
+**Links** are physical and always one hop (CC 5.4.3).
+
+| Link | When it exists |
+|---|---|
+| **Homing** | Every online node dials the top `homing_k` of `serve_seats` canonicals by `H(node ‖ seat ‖ period)`. This is CIRISEdge#935, a model, not shipped code. |
+| **Seat mesh** | Between every pair of seats. |
+| **LAN** | Two family devices on the household network (AutoInterface, `lan_autointerface`). |
+| **Dialled** | One end has a public listener. A client-only end can only dial. |
+| **Punched** | A relayed room-peer pair proposes a direct path (v44+, `DirectAccept::RoomPeers`). The canonical facilitates the punch, which has a `DIRECT_PATH_BUDGET` of 20 s. A failure backs the pair off for 1 h. Whether two networks punch is drawn once per pair of network epochs, with `punch_success_share` (FRONTIER). |
+
+**Shaping and paths:**
+- **When a link is shaped:** a link is shaped when one end shapes every identity link and the other accepts.
+  - The class is the lower of the two offers.
+  - At most 8 device links per end. The ninth runs unshaped, because v45 has no displacement (CIRISEdge#939).
+  - An asked link loses its shaping 10 min after its last real frame.
+- **Rows with no direct path:** they cross a forwarder sealed and unshaped. The first choice is a relay-offering member-owned node that reaches both ends; otherwise a serve seat.
+- **Rows for a sleeping device:** they wait at a member-owned always-on node of its household, else at its first seat. They are handed over after resume.
+
+#### 4.6.2 Places
+
+- **Seed:** a 0.02° tile is the seed, so a place always looks the same.
+- **Density:** the containing 1.5° population cell's mean, times a seeded lognormal spread (`density_sigma`).
+- **Layout from density:** above the MODEL thresholds the tile becomes apartment blocks, then terraced streets, then suburban streets; below them, a village.
+- **Patch size:** chosen to hold about `target_households` dwellings.
+- **Thinning:** street geometry packs dwellings at its own rate, so the build thins to the tile's density. Flats lose units, and houses leave vacant lots.
+- **Draws per dwelling:** each dwelling draws from its own stream, in a fixed order. Raising adoption or reachability adds households and routers without reshuffling the ones already there (tested).
+- **No real places:** no real map data is used, and no device is placed on a real building.
+
+#### 4.6.3 Parameters (FSD §8.2 tags)
+
+Constants copied from the stack are not parameters. They carry their citation in the code: `DIRECT_PATH_BUDGET_S`, `DIRECT_PUNCH_FAILED_BACKOFF_S`, `RESUME_ANNOUNCE_WAIT_S`, `LINK_POOL_IDLE_BOUND_S`, `ANNOUNCE_INTERVAL_S`, `SHAPED_LINK_BOUND`, `SHAPED_ASK_IDLE_TIMEOUT_SECS`, and the class rates. Everything else is listed below. The page overrides `reach_home_share`, `server_tier_share`, `relay_offering_share`, the phone shares, the opt-ins and `adoption` (population / 8.05 B) from its sliders.
+
+| # | parameter | default | tag | source / why |
+|---|---|---|---|---|
+| 0 | `reach_home_share` | 0.40 | FRONTIER | FSD 4.4 Expected regime; real NAT mix awaits leviculum#100 |
+| 1 | `public_listener_share` | 0.30 | MODEL | of reachable home routers, the share with an inbound listener (IPv6 / forwarded port) rather than punch-only |
+| 2 | `cellular_punchable_share` | 0.15 | FRONTIER | direct_path.rs: failed punch = symmetric NAT, 'common on cellular'; no number exists |
+| 3 | `punch_success_share` | 0.90 | FRONTIER | two punchable ends still miss sometimes (one-sided punch, leviculum#89); no fleet number |
+| 4 | `server_tier_share` | 0.08 | MODEL | FSD 4.4 Expected regime (share of devices that are hosted servers) |
+| 5 | `relay_offering_share` | 0.90 | MODEL | FSD 4.4 Expected regime (owners who leave the relay default on) |
+| 6 | `mobile_offline_share` | 0.15 | MODEL | FSD 4.4 Expected regime p_offline (stationary share of time a phone is suspended) |
+| 7 | `phone_wifi_share` | 0.65 | MODEL | globe.html device-tier slider default (phone on Wi-Fi vs cellular) |
+| 8 | `phone_charging_share` | 0.35 | MODEL | globe.html slider default (share of Wi-Fi time on external power) |
+| 9 | `home_shaping_opt_in` | 0.25 | MODEL | globe.html opt-in slider default (shaping is off by default on home: FLEET_DEFAULTS) |
+| 10 | `phone_shaping_opt_in` | 0.10 | MODEL | globe.html opt-in slider default (off by default on phones) |
+| 11 | `adoption` | 0.62 | MODEL | globe population / 8.05 B people (the page passes its own) |
+| 12 | `persons_per_household` | 2.5 | MODEL | typical household size; no CIRIS source |
+| 13 | `phones_per_person` | 1.0 | MODEL | globe.html DEVICES_PER_PERSON note: ~1 phone per person |
+| 14 | `home_node_household_share` | 0.60 | MODEL | share of adopting households running an always-on home node (NAS/desktop) |
+| 15 | `laptops_per_person` | 0.50 | MODEL | rest of the ~1 home/laptop/tablet per person in DEVICES_PER_PERSON |
+| 16 | `laptop_awake_share` | 0.35 | MODEL | stationary share of time a laptop is open |
+| 17 | `serve_seats` | 3.0 | MODEL | M canonicals in the focal region (production runs one; k=2 homing needs M>=2) |
+| 18 | `homing_k` | 2.0 | MODEL | top-k canonical homing, CIRISEdge#935 / TRANSPORT_TIERS_MODEL.md §0.3 (not shipped code) |
+| 19 | `ci_arrivals_per_hour` | 3.0 | MODEL | QA/CI runners joining the focal seats per hour |
+| 20 | `ci_job_mean_s` | 1200.0 | MODEL | mean CI job length (boot, join, run, leave) |
+| 21 | `ci_old_version_share` | 0.30 | MODEL | share of runners pinned to an older edge (soak / compat jobs) |
+| 22 | `server_old_version_share` | 0.15 | MODEL | hosted/agent servers deliberately kept on an older edge (long-soak peers) |
+| 23 | `phone_asleep_mean_s` | 900.0 | MODEL | mean length of one suspension; awake mean follows from mobile_offline_share |
+| 24 | `wifi_dwell_mean_s` | 5400.0 | MODEL | mean stay on Wi-Fi; cellular dwell follows from phone_wifi_share |
+| 25 | `charge_dwell_mean_s` | 3600.0 | MODEL | mean time on external power |
+| 26 | `laptop_dwell_mean_s` | 2400.0 | MODEL | mean laptop open period |
+| 27 | `msg_mean_interval_s` | 480.0 | MODEL | mean gap between rows a person's awake device signs (times diurnal_multiplier) |
+| 28 | `ci_msg_interval_s` | 45.0 | MODEL | mean gap between rows a running CI job sends |
+| 29 | `family_share` | 0.65 | MODEL | globe kernel act mix: 65% self/family |
+| 30 | `community_share` | 0.30 | MODEL | globe kernel act mix: 30% community room |
+| 31 | `community_join_share` | 0.50 | MODEL | share of adopting households in the street's community room |
+| 32 | `lan_autointerface` | 1.0 | MODEL | host enables AutoInterface (LAN discovery; reticulum.rs umbrella feature default); 1 = on |
+| 33 | `phone_client_only` | 1.0 | SOURCED | DeviceState::of(Phone): every v44/v45 phone is client-only (link_shaping.rs) |
+| 34 | `density_sigma` | 0.9 | MODEL | lognormal spread of a tile's density around its cell's mean |
+| 35 | `target_households` | 60.0 | MODEL | households the patch is sized to hold (R5 visual budget) |
+| 36 | `urban_core_density` | 6000.0 | MODEL | people/km2 above which the patch is apartment blocks |
+| 37 | `urban_density` | 1500.0 | MODEL | people/km2 above which the patch is terraced streets |
+| 38 | `suburban_density` | 250.0 | MODEL | people/km2 above which the patch is suburban; below it a village |
+| 39 | `start_local_hour` | 9.0 | MODEL | local clock at build (the page passes its own) |
+
+#### 4.6.4 Visualization contract
+
+- **Zoom range:** the globe zooms continuously from planet to about 6 px per metre.
+- **Building the focal world:** at zoom 24 the page builds the `MicroWorld` for the tile under the screen centre. It steps that world in sim time and draws the exports on a Canvas2D layer, projected in float64 through the globe's own rotation:
+  - roads and buildings;
+  - nodes by kind and state;
+  - links by kind and shaped class;
+  - pending punches;
+  - rows as pulses along their real path (direct, relayed via the forwarder, held at the mailbox, handed over).
+- **Off-street nodes:** they are globe arcs from far away and screen-edge markers at street scale.
+- **Outside the patch:** nothing is drawn 1:1. The boundary is marked, and the land is the population grid's own cells.
+- **Node card:** tapping a node shows its kind, class, slots used of 8, reachability, the relay decision with its reason, homes, edge version, mailbox, and every live link with its class.
+- **Story, acts 1–2:** a script of what happens to whom (wake, introduce, send, leave, sleep, wake). The rules decide how each one goes, and the captions branch on the sim's outcome.
 
 ---
 

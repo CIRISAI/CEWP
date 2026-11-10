@@ -664,7 +664,8 @@ pub extern "C" fn micro_buf_len(which: u32) -> u32 {
 /// Story and inspection commands. 1 pin(a; b bit0 awake, bit1 unmetered, bit2 charging);
 /// 2 unpin(a); 3 send(a → b), returns the route; 4 introduce(a, b); 5 spawn a CI runner
 /// (b = 1 old version), returns its index; 6 pick the story actors into the actors buffer,
-/// returns 1 if found; 7 shaping opt-in of a set to b.
+/// returns 1 if found; 7 shaping opt-in of a set to b; 8 would a punch between a and b on their
+/// current networks come up (1/0).
 #[no_mangle]
 pub extern "C" fn micro_cmd(op: u32, a: u32, b: u32) -> i32 {
     let m = micro();
@@ -681,6 +682,7 @@ pub extern "C" fn micro_cmd(op: u32, a: u32, b: u32) -> i32 {
             Some(x) => { m.actors = x.map(|i| i as u32); 1 }
             None => 0,
         },
+        8 if ok(a) && ok(b) => i32::from(w.punch_would_succeed(a as usize, b as usize)),
         7 if ok(a) => {
             let node = &mut w.nodes[a as usize];
             if node.kind != HostKind::ServeSeat && node.kind != HostKind::HostedServer { node.shaping_opt_in = b != 0; }
