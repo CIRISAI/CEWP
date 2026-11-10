@@ -145,7 +145,7 @@ cost_params! {
     StaleRouteReads = "stale_route_reads", 2.0, Derived, "two store reads per stale route delivery (edge code trace)";
     HybridVerifyCpuS = "hybrid_verify_cpu_s", 0.0015, Model, "CPU-seconds per hybrid (Ed25519 + ML-DSA-65) signature verify; not profiled";
     SweepPermits = "sweep_permits", 2.0, Derived, "two sweep permits per node, one held per index page (edge code trace)";
-    KeyMemoExpiryS = "key_memo_expiry_s", 600.0, Derived, "key-plane memo expires after 10 min, rebuild takes one permit per subject (window A candidate)";
+    KeyMemoExpiryS = "key_memo_expiry_s", 600.0, Derived, "key-plane memo MEMO_TTL 10 min, cleared whole and refilled per subject under the plane lock (9a04428 key_plane_memo.rs:61, needs_rebuild :253); one permit per subject read (window A candidate)";
     ReplyDrain = "reply_drain", 1.0, Model, "an initiator drains its index on each reply Summary (window A candidate; UNEXPLAINED until the counters split)";
     WindowAExcessPerMin = "window_a_excess_per_min", 3_074.0, Unexplained, "window A: 6,386 permits less 2,442 predicted from its responder rounds and 870 key-memo candidate; source not named";
     // ---- after read minimisation (v45 plan) -------------------------------
@@ -184,14 +184,21 @@ cost_params! {
     OccurrenceRecordBytes = "occurrence_record_bytes", 1_500.0, Model, "bytes per identity occurrence record";
     RouteRecordBytes = "route_record_bytes", 600.0, Model, "bytes per transport destination record";
     RevPlaneRefs = "rev_plane_refs", 5.0, Model, "refs in a revocation plane's offer: the seat's Projection::Global set, revocations it holds of any key in own ∪ cohort, which on a seat is every key it holds (c580298 bridge.rs:11640, the #930 comment there); the refs are few, MODEL until the #971 idle-cost test prints it, but the listing walks a per-subject memo over every key each round, a store read only for subjects the memo lacks";
-    // ---- the Revocation listing walk (c580298 bridge.rs:11640), kept apart from the read ledger --
-    RevRoundStoreReads = "rev_round_store_reads", 0.0, Model, "counted store reads per Revocation-plane listing with a warm per-subject memo: 0, as the #930 comment says (reads only for subjects the memo lacks); MODEL until the #971 idle-cost witness prints it";
-    RevWalkCpuBaseS = "rev_walk_cpu_base_s", 20.0e-6, Model, "a in a + b x keys_held: fixed CPU seconds per Revocation-plane listing (the call, the empty offer); MODEL until the #971 idle-cost witness prints the walk time";
-    RevWalkCpuPerKeyS = "rev_walk_cpu_per_key_s", 0.25e-6, Model, "b in a + b x keys_held: CPU seconds per key the listing walks (subjects_for_projection(Global) is every key on a seat, one memo lookup each); MODEL until the witness prints the walk at ~8,700 keys and at 2x";
-    RevListingCacheS = "rev_listing_cache_s", 1.0, Model, "life of a Revocation listing cached across peers, in the named listing-cache scenario only (not built; asked of withhold-rate): at most one walk per plane per this many seconds";
-    RevColdReadsPerKey = "rev_cold_reads_per_key", 1.0, Model, "store reads for one key the memo lacks (cold-restart scenario only)";
-    RevColdReadS = "rev_cold_read_s", 50.0e-6, Model, "wall seconds of one cold per-subject read inside a walk; sets how long the memo takes to fill (cold-restart scenario only)";
-    RestartArrivalS = "restart_arrival_s", 30.0, Model, "after a seat restart every device's Revocation round arrives within this window (first contact at once, retries U[0.5, 1.5] x 30 s), cold-restart scenario only";
+    // ---- the two Global key planes (Revocation, occurrence withdrawal), apart from the read ledger --
+    // Source: CIRISEdge#971 at 9a04428, bridge.rs:7303 `key_plane_listing`, :7390 `refresh_key_plane_memo`,
+    // key_plane_memo.rs, key_plane_rows.rs. Each plane's memo lock is held for the whole listing.
+    GlobalSubjectsAtSeat = "global_subjects_at_seat", 7_226.0, Provisional, "subjects_for_projection(Global) at seat-1 (withhold-rate's reading, relayed 2026-11-09); scaled per announced node; every listing on a Global plane walks all of them";
+    ListingProbeReads = "listing_probe_reads", 1.0, Derived, "change-probe page reads per listing when under 500 rows landed since the cursor (refresh_key_plane_memo, list_attestations_since, PROBE_PAGE 500, 9a04428 bridge.rs:7412); after the read fix, one shared probe per second per plane (probe_per_s)";
+    RevWalkCpuBaseS = "rev_walk_cpu_base_s", 20.0e-6, Model, "a in a + b x subjects: fixed CPU seconds per Global listing (the call, the empty offer); MODEL until the #971 idle-cost witness prints the walk time";
+    RevWalkCpuPerKeyS = "rev_walk_cpu_per_key_s", 0.25e-6, Model, "b in a + b x subjects: CPU seconds per subject the listing walks (one memo lookup each); MODEL until the witness prints the walk at ~8,700 keys and at 2x";
+    StoreReadS = "store_read_s", 50.0e-6, Model, "wall seconds of one store read made while a plane lock is held (a probe page or one subject query); sets lock hold and refill stall";
+    RevQueriesPerSubject = "rev_queries_per_subject", 1.0, Model, "store queries to refill one Revocation-plane subject: revocations_for, then get_attestation per revocation held, and revocations are few (9a04428 key_plane_rows.rs:153-165)";
+    IorQueriesPerSubject = "ior_queries_per_subject", 5.0, Model, "store queries to refill one occurrence-withdrawal subject: 4 to 6 (9a04428 key_plane_rows.rs:260-283, withhold-rate's reading)";
+    RevPlaneClearsPerHour = "rev_plane_clears_per_hour", 0.5, Model, "key:revocation rows landing per hour: each drops the Revocation memo whole (Dirt::Plane, 9a04428 key_plane_memo.rs:224)";
+    IorPlaneClearsPerHour = "ior_plane_clears_per_hour", 0.5, Model, "occurrence-revocation carrier rows landing per hour: each drops the occurrence-withdrawal memo whole (Dirt::Plane, key_plane_memo.rs:230)";
+    PagedRefillSubjects = "paged_refill_subjects", 500.0, Model, "TTL-paged scenario only (not built): subjects refilled per listing, so a rebuild never holds the lock for the whole plane";
+    RevListingCacheS = "rev_listing_cache_s", 1.0, Model, "listing-cache scenario only (not built; asked of withhold-rate): a Global listing cached across peers for this long, so at most one walk per plane per this many seconds";
+    RestartArrivalS = "restart_arrival_s", 30.0, Model, "cold-restart scenario only: after a seat restart every device's Revocation round arrives within this window (first contact at once, retries U[0.5, 1.5] x 30 s)";
     SeatOwnRoutes = "seat_own_routes", 4.0, Model, "routes a seat offers a stranger: its own";
     UnownedRouteShare = "unowned_route_share", 0.02, Provisional, "share of routes that are unowned and so served to a stranger";
     StretchFactor = "stretch_factor", 10.0, Model, "stretched idle cadence multiplier (not built)";
@@ -270,6 +277,12 @@ impl CostParams {
     #[must_use]
     pub fn td_rows(&self, nodes: f64) -> f64 {
         self.get(C::SeatTdRows) / self.get(C::AnnouncedNodes) * nodes
+    }
+
+    /// Subjects a Global key-plane listing walks when `nodes` nodes are announced.
+    #[must_use]
+    pub fn global_subjects(&self, nodes: f64) -> f64 {
+        self.get(C::GlobalSubjectsAtSeat) / self.get(C::AnnouncedNodes) * nodes
     }
 
     /// Key-plane refs offered to a stranger when `nodes` nodes are announced
@@ -386,6 +399,58 @@ pub enum SeatSelect {
     HomeOne,
 }
 
+/// How a Global key plane's memo is refilled after its TTL (scenario flag).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MemoRebuild {
+    /// As shipped: cleared whole every `key_memo_expiry_s`, refilled in one listing under the lock.
+    #[default]
+    Whole,
+    /// Refilled `paged_refill_subjects` at a time across listings (not built).
+    Paged,
+    /// No TTL rebuild; only `Dirt::Plane` clears refill the plane (not built).
+    Removed,
+}
+
+impl MemoRebuild {
+    /// Label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Whole => "TTL rebuild whole (as shipped)",
+            Self::Paged => "TTL rebuild paged (not built)",
+            Self::Removed => "TTL rebuild removed (not built)",
+        }
+    }
+}
+
+/// The two Global key planes.
+pub const GLOBAL_PLANES: [Plane; 2] = [Plane::Revocation, Plane::IdentityOccurrenceRevocation];
+
+/// One Global key plane's lock, walk and refill (MODEL until the #971 witness prints lock wait).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GlobalPlaneLoad {
+    /// Listings per second (one per responder round on the plane, or the cached rate).
+    pub listings_per_s: f64,
+    /// Subjects each listing walks.
+    pub subjects: f64,
+    /// Wall seconds one listing holds the lock (walk plus its probe reads).
+    pub hold_s: f64,
+    /// Probe reads per second.
+    pub probe_reads_per_s: f64,
+    /// TTL and plane-clear refills per second (lazy: none without a listing).
+    pub rebuilds_per_s: f64,
+    /// Refill store reads per second.
+    pub refill_reads_per_s: f64,
+    /// Lock held by one refill, seconds: every round on the plane waits this long.
+    pub stall_s: f64,
+    /// Rounds that arrive during one stall.
+    pub rounds_per_stall: f64,
+    /// Lock utilisation: listings x hold + refill occupancy. The seat's cores do not help.
+    pub rho_lock: f64,
+    /// CPU in cores (walk, probes, refills).
+    pub cpu: f64,
+}
+
 /// The rounds and reads arriving at one node, per minute.
 #[derive(Debug, Clone, Default)]
 pub struct RoundMix {
@@ -423,10 +488,17 @@ pub struct RoundMix {
     pub n_td: f64,
     /// Key rows held.
     pub n_keys: f64,
+    /// Subjects a Global listing walks.
+    pub n_global: f64,
     /// Include the window-A candidate terms (memo rebuild, unexplained excess).
     pub window_a_terms: bool,
-    /// Revocation-plane listings are cached across peers (`rev_listing_cache_s`; not built).
+    /// Global listings are cached across peers (`rev_listing_cache_s`; not built).
     pub rev_listing_cache: bool,
+    /// How the Global memos are refilled.
+    pub memo_rebuild: MemoRebuild,
+    /// Book the TTL refills (a measured 60 s window holds a whole refill or none, so the
+    /// calibration windows leave them out and report them apart).
+    pub refills_booked: bool,
 }
 
 /// What one node pays per second.
@@ -464,22 +536,32 @@ pub struct Ledger {
     pub cpu_context: f64,
     /// Holdings-set memory under the v45 plan, bytes.
     pub holdings_bytes: f64,
-    /// Global listings walked per second on the Revocation and occurrence-revocation planes
-    /// (one per responder round on those planes, or the cached rate). Not part of the read ledger.
+    /// The two Global planes (Revocation, occurrence withdrawal), by [`GLOBAL_PLANES`] order.
+    pub global: [GlobalPlaneLoad; 2],
+    /// Global listings walked per second, both planes. Not part of the read ledger.
     pub rev_walks_per_s: f64,
-    /// Keys each walk visits (every key the node holds: Global on a seat).
+    /// Subjects each walk visits.
     pub rev_walk_keys: f64,
-    /// Counted store reads those walks make (`rev_round_store_reads` each; 0 with a warm memo).
+    /// Probe reads per second on the Global planes.
     pub rev_reads_per_s: f64,
-    /// CPU in cores the walks cost: walks/s x (a + b x keys).
+    /// TTL and plane-clear refill reads per second on the Global planes.
+    pub ttl_reads_per_s: f64,
+    /// CPU in cores on the Global planes (walk, probes, refills).
     pub cpu_rev_walk: f64,
+    /// The busier Global plane's lock utilisation.
+    pub rho_lock: f64,
 }
 
 impl Ledger {
     /// All counted store calls per second (what the store counter shows).
     #[must_use]
     pub fn counted_per_s(&self) -> f64 {
-        self.att_queries_per_s + self.composer_per_s + self.consent_per_s + self.other_reads_per_s + self.rev_reads_per_s
+        self.att_queries_per_s
+            + self.composer_per_s
+            + self.consent_per_s
+            + self.other_reads_per_s
+            + self.rev_reads_per_s
+            + self.ttl_reads_per_s
     }
 
     /// Edge CPU in cores.
@@ -567,23 +649,69 @@ pub fn ledger(p: &CostParams, mix: &RoundMix, read: ReadSet) -> Ledger {
     l.cpu_verify = l.verifies_per_s * p.get(C::HybridVerifyCpuS);
     l.cpu_frames = (l.summaries_per_s + mix.pull_requests_per_min / 60.0) * p.get(C::RoundOverheadCpuS);
     l.cpu_context = mix.context_cores;
-    // The Global listing walk on the two revocation planes (c580298 bridge.rs:11640 and the
-    // occurrence-withdrawal listing beside it): its own term, so the read fix (which moves the
-    // drains above) and a listing cache (which moves this) show apart. Read set does not touch it.
-    let rev_rounds = (mix.rounds_per_min[Plane::Revocation as usize]
-        + mix.rounds_per_min[Plane::IdentityOccurrenceRevocation as usize])
-        / 60.0;
-    l.rev_walks_per_s = if mix.rev_listing_cache {
-        // at most one walk per plane per cache life, and never more than the rounds asked
-        rev_rounds.min(2.0 / p.get(C::RevListingCacheS))
-    } else {
-        rev_rounds
-    };
-    l.rev_walk_keys = mix.n_keys;
-    l.rev_reads_per_s = l.rev_walks_per_s * p.get(C::RevRoundStoreReads);
-    l.cpu_rev_walk = l.rev_walks_per_s * (p.get(C::RevWalkCpuBaseS) + p.get(C::RevWalkCpuPerKeyS) * mix.n_keys)
-        + l.rev_reads_per_s * (p.get(C::RowBytes) + p.get(C::CallOverheadBytes)) * c;
+    // The two Global key planes, apart from the read ledger: each listing holds the plane's
+    // memo lock for its whole walk (9a04428 bridge.rs:7303), so a plane is one server whatever
+    // the cores; the TTL refill holds the same lock (bridge.rs:7402, key_plane_memo.rs:253).
+    let mut cpu_g = 0.0;
+    for (gi, plane) in GLOBAL_PLANES.into_iter().enumerate() {
+        let g = global_plane(p, mix, read, plane);
+        l.rev_walks_per_s += g.listings_per_s;
+        l.rev_reads_per_s += g.probe_reads_per_s;
+        l.ttl_reads_per_s += g.refill_reads_per_s;
+        l.rho_lock = l.rho_lock.max(g.rho_lock);
+        l.rev_walk_keys = g.subjects;
+        cpu_g += g.cpu;
+        l.global[gi] = g;
+    }
+    l.cpu_rev_walk = cpu_g;
     l
+}
+
+/// One Global plane's listings, lock and refills at this mix.
+#[must_use]
+pub fn global_plane(p: &CostParams, mix: &RoundMix, read: ReadSet, plane: Plane) -> GlobalPlaneLoad {
+    let rounds = mix.rounds_per_min[plane as usize] / 60.0;
+    let listings = if mix.rev_listing_cache { rounds.min(1.0 / p.get(C::RevListingCacheS)) } else { rounds };
+    let subjects = mix.n_global;
+    let t = p.get(C::StoreReadS);
+    let probes = match read {
+        ReadSet::AsShipped => listings * p.get(C::ListingProbeReads),
+        ReadSet::AfterReadMin => listings.min(p.get(C::ProbePerS)),
+    };
+    let walk_s = p.get(C::RevWalkCpuBaseS) + p.get(C::RevWalkCpuPerKeyS) * subjects;
+    let hold_s = if listings > 0.0 { walk_s + probes / listings * t } else { walk_s };
+    let (q, clears_h) = if plane == Plane::Revocation {
+        (p.get(C::RevQueriesPerSubject), p.get(C::RevPlaneClearsPerHour))
+    } else {
+        (p.get(C::IorQueriesPerSubject), p.get(C::IorPlaneClearsPerHour))
+    };
+    let ttl = match mix.memo_rebuild {
+        MemoRebuild::Removed => 0.0,
+        MemoRebuild::Whole | MemoRebuild::Paged => 1.0 / p.get(C::KeyMemoExpiryS),
+    };
+    // Lazy: a refill happens on the next listing, so never more refills than listings.
+    let rebuilds = if mix.refills_booked { (ttl + clears_h / 3_600.0).min(listings) } else { 0.0 };
+    let refill_reads = rebuilds * subjects * q;
+    let whole_stall = subjects * q * t;
+    let stall_s = match mix.memo_rebuild {
+        MemoRebuild::Paged => p.get(C::PagedRefillSubjects).min(subjects) * q * t,
+        MemoRebuild::Whole | MemoRebuild::Removed => whole_stall,
+    };
+    let c = p.get(C::CpuPerByte);
+    let per_read_cpu = (p.get(C::RowBytes) + p.get(C::CallOverheadBytes)) * c;
+    GlobalPlaneLoad {
+        listings_per_s: listings,
+        subjects,
+        hold_s,
+        probe_reads_per_s: probes,
+        rebuilds_per_s: rebuilds,
+        refill_reads_per_s: refill_reads,
+        stall_s: if rebuilds > 0.0 { stall_s } else { 0.0 },
+        rounds_per_stall: rounds * stall_s,
+        // refill occupancy is the same total lock time paged or whole: every answer is re-read
+        rho_lock: listings * hold_s + refill_reads * t,
+        cpu: listings * walk_s + (probes + refill_reads) * per_read_cpu,
+    }
 }
 
 /// Saturation of one node: one queue over its cores, and its sweep permits.
@@ -595,6 +723,8 @@ pub struct Load {
     pub rho_cpu: f64,
     /// Sweep-permit utilisation (acquires x hold time / permits).
     pub rho_permit: f64,
+    /// The busier Global plane lock's utilisation (one server per plane; MODEL).
+    pub rho_lock: f64,
     /// The binding utilisation.
     pub rho: f64,
     /// CPU-seconds one received round costs on average.
@@ -609,10 +739,10 @@ pub fn load(p: &CostParams, l: &Ledger, cores: f64) -> Load {
     let cpu = l.cpu_total();
     let rho_cpu = cpu / cores;
     let rho_permit = l.permits_per_s * p.page_cpu_s() / p.get(C::SweepPermits);
-    let rho = rho_cpu.max(rho_permit);
+    let rho = rho_cpu.max(rho_permit).max(l.rho_lock);
     let service = if l.summaries_per_s > 0.0 { l.cpu_edge() / l.summaries_per_s } else { 0.0 };
     let latency = if rho >= 1.0 { f64::INFINITY } else { service / (1.0 - rho) };
-    Load { cpu_cores: cpu, rho_cpu, rho_permit, rho, round_service_s: service, round_latency_s: latency }
+    Load { cpu_cores: cpu, rho_cpu, rho_permit, rho_lock: l.rho_lock, rho, round_service_s: service, round_latency_s: latency }
 }
 
 // ---------------------------------------------------------------------------
@@ -679,6 +809,9 @@ pub fn measured_mix(p: &CostParams, rounds: [f64; 4], rev_rounds: f64, withholds
     m.n_att = p.get(C::SeatAttRows);
     m.n_td = p.get(C::SeatTdRows);
     m.n_keys = p.get(C::SeatKeyRows);
+    m.n_global = p.get(C::GlobalSubjectsAtSeat);
+    // a 60 s window holds a whole refill or none: the windows are fitted without them
+    m.refills_booked = false;
     m
 }
 
@@ -780,8 +913,10 @@ pub struct Scenario {
     pub proxies: u32,
     /// Offloaded devices home on their proxy durably (else return to the seat each start).
     pub durable_homing: bool,
-    /// Named scenario, not built: Revocation listings cached across peers (`rev_listing_cache_s`).
+    /// Scenario flag, not built: Global listings cached across peers (`rev_listing_cache_s`).
     pub rev_listing_cache: bool,
+    /// Scenario flag: how the Global memos refill (as shipped: whole, every 10 min).
+    pub memo_rebuild: MemoRebuild,
 }
 
 impl Scenario {
@@ -798,6 +933,7 @@ impl Scenario {
             proxies: 0,
             durable_homing: false,
             rev_listing_cache: false,
+            memo_rebuild: MemoRebuild::Whole,
         }
     }
 }
@@ -942,6 +1078,7 @@ pub fn run(p: &CostParams, s: &Scenario) -> Outcome {
     let n_att = p.att_rows(nodes);
     let n_td = p.td_rows(nodes);
     let n_keys = p.get(C::SeatKeyRows) / p.get(C::AnnouncedNodes) * nodes;
+    let n_global = p.global_subjects(nodes);
     let per_min = 60.0 / p.get(C::CadenceS);
     let proxies = if s.offload_f > 0.0 { f64::from(s.proxies.max(1)) } else { 0.0 };
     let offloaded = s.devices * s.offload_f.clamp(0.0, 1.0);
@@ -956,7 +1093,10 @@ pub fn run(p: &CostParams, s: &Scenario) -> Outcome {
         n_keys,
         stale_routes_per_s: p.get(C::StaleRoutesPerS),
         context_cores: p.get(C::ServerRefreshCores),
+        n_global,
         rev_listing_cache: s.rev_listing_cache,
+        memo_rebuild: s.memo_rebuild,
+        refills_booked: true,
         ..RoundMix::default()
     };
     add_devices(p, &mut m, at_seat_fleet * share, s.shape);
@@ -1001,7 +1141,10 @@ pub fn run(p: &CostParams, s: &Scenario) -> Outcome {
             n_att: n_att * store,
             n_td: n_td * store,
             n_keys: n_keys * store,
+            n_global: n_global * store,
             rev_listing_cache: s.rev_listing_cache,
+            memo_rebuild: s.memo_rebuild,
+            refills_booked: true,
             ..RoundMix::default()
         };
         add_devices(p, &mut pm, offloaded / proxies, s.shape);
@@ -1030,85 +1173,202 @@ pub fn run(p: &CostParams, s: &Scenario) -> Outcome {
     }
 }
 
-/// Named scenario, not a default: the seat restarts with an empty per-subject memo and every
-/// device's Revocation round arrives within `restart_arrival_s`. Each walk reads the keys the
-/// memo still lacks; with no single flight (MODEL), every round that arrives while the memo
-/// fills reads, on average, half of them.
+/// Named scenario, not a default: the seat restarts with an empty memo on both Global planes
+/// and every device's Revocation round arrives within `restart_arrival_s`. The plane lock makes
+/// the refill single flight (9a04428 bridge.rs:7303: N rounds arriving together cost one fill),
+/// so each plane reads every subject once, and every round arriving meanwhile waits on the lock.
 #[derive(Debug, Clone, Copy)]
 pub struct ColdRestart {
-    /// Keys the seat holds (each walk visits all of them).
-    pub keys: f64,
-    /// Seconds one walk takes to fill the memo from cold.
-    pub fill_s: f64,
-    /// Revocation rounds that arrive while the memo fills.
-    pub rounds_in_fill: f64,
-    /// Store reads over the fill.
+    /// Subjects a Global listing walks.
+    pub subjects: f64,
+    /// Store reads of the two refills.
     pub store_reads: f64,
-    /// Store reads per second during the fill.
-    pub reads_per_s: f64,
-    /// Seat CPU in cores during the fill (reads plus the walks themselves).
-    pub cpu_cores: f64,
-    /// CPU utilisation during the fill.
-    pub rho_cpu: f64,
+    /// The longer of the two planes' refill stalls, seconds.
+    pub stall_s: f64,
+    /// Revocation rounds that arrive during that stall (each waits on the lock).
+    pub rounds_waiting: f64,
 }
 
 /// Cost the cold-restart scenario for `devices` devices on one seat.
 #[must_use]
 pub fn cold_restart(p: &CostParams, devices: f64) -> ColdRestart {
     let nodes = devices.max(p.get(C::StoreFloorNodes));
-    let keys = p.get(C::SeatKeyRows) / p.get(C::AnnouncedNodes) * nodes;
-    let per_key_reads = p.get(C::RevColdReadsPerKey);
-    let fill_s = keys * per_key_reads * p.get(C::RevColdReadS);
+    let subjects = p.global_subjects(nodes);
+    let t = p.get(C::StoreReadS);
+    let rev = subjects * p.get(C::RevQueriesPerSubject);
+    let ior = subjects * p.get(C::IorQueriesPerSubject);
+    let stall_s = rev.max(ior) * t;
     let arrivals_per_s = devices / p.get(C::RestartArrivalS).max(1.0e-9);
-    let rounds_in_fill = (arrivals_per_s * fill_s).min(devices);
-    let store_reads = keys * per_key_reads * (1.0 + rounds_in_fill / 2.0);
-    let window = fill_s.max(1.0e-9);
-    let reads_per_s = store_reads / window;
-    let c = p.get(C::CpuPerByte);
-    let walk_cpu = (rounds_in_fill.max(1.0)) * (p.get(C::RevWalkCpuBaseS) + p.get(C::RevWalkCpuPerKeyS) * keys) / window;
-    let cpu = reads_per_s * (p.get(C::RowBytes) + p.get(C::CallOverheadBytes)) * c + walk_cpu + p.get(C::ServerRefreshCores);
     ColdRestart {
-        keys,
-        fill_s,
-        rounds_in_fill,
-        store_reads,
-        reads_per_s,
-        cpu_cores: cpu,
-        rho_cpu: cpu / p.get(C::SeatCores),
+        subjects,
+        store_reads: rev + ior,
+        stall_s,
+        rounds_waiting: (arrivals_per_s * rev * t).min(devices),
     }
 }
 
-/// The Revocation walk apart from the read ledger: per fleet size, the walk as shipped and
-/// with a listing cache, and the cold restart (MODEL throughout until the witness prints it).
+/// The largest fleet whose busier Global plane lock stays under utilisation 1 (bisection).
+#[must_use]
+pub fn lock_knee(p: &CostParams, base: &Scenario) -> f64 {
+    let ok = |d: f64| {
+        let mut s = *base;
+        s.devices = d;
+        run(p, &s).seat.rho_lock < 1.0
+    };
+    if !ok(1.0) {
+        return 0.0;
+    }
+    let (mut lo, mut hi) = (1.0_f64, 1.0e9_f64);
+    if ok(hi) {
+        return hi;
+    }
+    for _ in 0..80 {
+        let mid = (lo * hi).sqrt();
+        if ok(mid) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    lo
+}
+
+/// The Global planes per fleet size (required-set, as shipped), apart from the read ledger.
 #[must_use]
 pub fn rev_walk_table(p: &CostParams) -> String {
     let mut s = format!(
-        "a = {} s, b = {} s per key, warm reads per listing = {} (all MODEL)\n\n| devices | keys held | walks/s | walk CPU cores | with listing cache | warm store reads/s | cold restart: reads | cold fill s | cold rho cpu |\n|---|---|---|---|---|---|---|---|---|\n",
+        "a = {} s, b = {} s per subject, one store read = {} s inside the lock (all MODEL); a plane's lock is one server, the seat's {} cores do not help\n\n| devices | subjects | Rev listings/s | hold ms | rho lock Rev | rho lock IOR | refill reads/s | stall per refill s (Rev / IOR) | rounds per stall (Rev) | Global CPU cores | seat CPU cores |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
         p.get(C::RevWalkCpuBaseS),
         p.get(C::RevWalkCpuPerKeyS),
-        p.get(C::RevRoundStoreReads)
+        p.get(C::StoreReadS),
+        p.get(C::SeatCores)
     );
     for d in SWEEP_DEVICES {
-        let sc = Scenario::one_seat(d, RoundShape::RequiredSet, ReadSet::AfterReadMin);
-        let o = run(p, &sc);
-        let mut cached = sc;
-        cached.rev_listing_cache = true;
-        let oc = run(p, &cached);
-        let cold = cold_restart(p, d);
+        let o = run(p, &Scenario::one_seat(d, RoundShape::RequiredSet, ReadSet::AsShipped));
+        let [r, i] = o.seat.global;
         s.push_str(&format!(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {:.2} |\n",
+            "| {} | {} | {} | {} | {:.3} | {:.3} | {} | {} / {} | {} | {} | {} |\n",
             fmt_n(d),
-            fmt_n(o.seat.rev_walk_keys),
-            fmt_n(o.seat.rev_walks_per_s),
+            fmt_n(r.subjects),
+            fmt_n(r.listings_per_s),
+            fmt_n(r.hold_s * 1_000.0),
+            r.rho_lock,
+            i.rho_lock,
+            fmt_n(o.seat.ttl_reads_per_s),
+            fmt_n(r.stall_s),
+            fmt_n(i.stall_s),
+            fmt_n(r.rounds_per_stall),
             fmt_n(o.seat.cpu_rev_walk),
-            fmt_n(oc.seat.cpu_rev_walk),
+            fmt_n(o.seat_load.cpu_cores),
+        ));
+    }
+    let c = cold_restart(p, 10_000.0);
+    s.push_str(&format!(
+        "\nCold restart at 10,000 devices (named scenario): {} subjects, {} store reads, stall {} s, {} Revocation rounds waiting on the lock.\n",
+        fmt_n(c.subjects),
+        fmt_n(c.store_reads),
+        fmt_n(c.stall_s),
+        fmt_n(c.rounds_waiting)
+    ));
+    s
+}
+
+/// Which fix moves which term: the three scenario flags apart, at `devices`, required-set.
+#[must_use]
+pub fn fix_table(p: &CostParams, devices: f64) -> String {
+    let mut s = format!(
+        "**{} devices, required-set, one seat**\n\n| read fix | listing cache | TTL rebuild | drain pages/s | probe reads/s | refill reads/s | Global CPU cores | rho lock | stall s | lock knee | seat knee |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+        fmt_n(devices)
+    );
+    let rows: [(ReadSet, bool, MemoRebuild); 6] = [
+        (ReadSet::AsShipped, false, MemoRebuild::Whole),
+        (ReadSet::AfterReadMin, false, MemoRebuild::Whole),
+        (ReadSet::AsShipped, true, MemoRebuild::Whole),
+        (ReadSet::AsShipped, false, MemoRebuild::Paged),
+        (ReadSet::AsShipped, false, MemoRebuild::Removed),
+        (ReadSet::AfterReadMin, true, MemoRebuild::Removed),
+    ];
+    for (read, cache, rebuild) in rows {
+        let mut sc = Scenario::one_seat(devices, RoundShape::RequiredSet, read);
+        sc.rev_listing_cache = cache;
+        sc.memo_rebuild = rebuild;
+        let o = run(p, &sc);
+        let stall = o.seat.global.iter().map(|g| g.stall_s).fold(0.0, f64::max);
+        s.push_str(&format!(
+            "| {} | {} | {} | {} | {} | {} | {} | {:.3} | {} | {} | {} |\n",
+            if read == ReadSet::AfterReadMin { "yes" } else { "no" },
+            if cache { "yes" } else { "no" },
+            rebuild.as_str(),
+            fmt_n(o.seat.index_pages_per_s),
             fmt_n(o.seat.rev_reads_per_s),
-            fmt_n(cold.store_reads),
-            fmt_n(cold.fill_s),
-            cold.rho_cpu,
+            fmt_n(o.seat.ttl_reads_per_s),
+            fmt_n(o.seat.cpu_rev_walk),
+            o.seat.rho_lock,
+            fmt_n(stall),
+            fmt_n(lock_knee(p, &sc)),
+            fmt_n(knee(p, &sc)),
         ));
     }
     s
+}
+
+/// The TTL refill set against the measured unattributed counted calls. Not fitted: a refill is
+/// a burst inside one listing, so a 60 s window holds a whole refill or none, and only a window
+/// of ten minutes or more can show the mean.
+#[derive(Debug, Clone, Copy)]
+pub struct TtlCheck {
+    /// Mean refill reads per minute at seat-1 (both planes, today's mix: both planes listed).
+    pub mean_per_min: f64,
+    /// One Revocation-plane refill, reads.
+    pub rev_burst: f64,
+    /// One occurrence-withdrawal refill, reads.
+    pub ior_burst: f64,
+}
+
+/// Window B and C unattributed counted calls per minute (MEASURED on seat-1, relayed approximate).
+pub mod unattributed {
+    /// Window B (60 s).
+    pub const WINDOW_B_PER_MIN: f64 = 760.0;
+    /// Window C (length not given to the twin).
+    pub const WINDOW_C_PER_MIN: f64 = 4_000.0;
+}
+
+/// The TTL refill at seat-1 size.
+#[must_use]
+pub fn ttl_check(p: &CostParams) -> TtlCheck {
+    let n = p.get(C::GlobalSubjectsAtSeat);
+    let rev = n * p.get(C::RevQueriesPerSubject);
+    let ior = n * p.get(C::IorQueriesPerSubject);
+    let per_min = 60.0 / p.get(C::KeyMemoExpiryS);
+    TtlCheck { mean_per_min: (rev + ior) * per_min, rev_burst: rev, ior_burst: ior }
+}
+
+/// The TTL check as text.
+#[must_use]
+pub fn ttl_check_report(p: &CostParams) -> String {
+    let t = ttl_check(p);
+    let b = unattributed::WINDOW_B_PER_MIN;
+    let cw = unattributed::WINDOW_C_PER_MIN;
+    let fits = |x: f64, target: f64| (x / target - 1.0).abs() <= 0.25;
+    format!(
+        "TTL refill at seat-1 ({} subjects, {} queries per Revocation subject and {} per occurrence-withdrawal subject, MODEL): mean {} reads/min; one refill is {} (Rev) and {} (IOR) reads in one burst.\n\n\
+- Window C, {} unattributed/min: the mean {} it{}. Window C's length was not given to the twin; the mean is only a fair comparison over ten minutes or more.\n\
+- Window B, {} unattributed/min over 60 s: a 60 s window holds a whole refill ({} or {}) or none, so the TTL term predicts 0 or a burst there, not {}; it {} window B. Not tuned to fit both.\n",
+        fmt_n(p.get(C::GlobalSubjectsAtSeat)),
+        p.get(C::RevQueriesPerSubject),
+        p.get(C::IorQueriesPerSubject),
+        fmt_n(t.mean_per_min),
+        fmt_n(t.rev_burst),
+        fmt_n(t.ior_burst),
+        fmt_n(cw),
+        if fits(t.mean_per_min, cw) { "is within 25% of" } else { "is not within 25% of" },
+        if fits(t.mean_per_min, cw) { " (fits as a mean)" } else { " (does not fit)" },
+        fmt_n(b),
+        fmt_n(t.rev_burst),
+        fmt_n(t.ior_burst),
+        fmt_n(b),
+        if fits(t.rev_burst, b) || fits(t.ior_burst, b) || fits(t.rev_burst + t.ior_burst, b) { "could account for" } else { "does not account for" },
+    )
 }
 
 /// The largest fleet whose seat stays under `cpu_ceiling` on both cores and
@@ -1411,6 +1671,7 @@ pub fn offload_table(p: &CostParams, devices: f64, shape: RoundShape) -> String 
                     proxies,
                     durable_homing: false,
                     rev_listing_cache: false,
+                    memo_rebuild: MemoRebuild::Whole,
                 };
                 let o = run(p, &sc);
                 cells.push(fmt_n(o.seat_load.cpu_cores));
@@ -1503,7 +1764,7 @@ pub fn million_terms(p: &CostParams, read: ReadSet) -> Vec<Term> {
         Term { name: "shaped device links at the seat", value: format!("8 of {} (the rest run unshaped on the same homing link)", fmt_n(o.seat_links)), tag: "SOURCED (edge link_shaping.rs:751 NODE_CAP_LINKS; seat class is seat to seat only, :2867)" },
         Term { name: "subject Pull legs", value: format!("{} per s ({} per device per day)", fmt_n(d * pull_legs_per_device_s(p)), fmt_n(pull_legs_per_device_s(p) * 86_400.0)), tag: "DERIVED (#971 c580298 planes, 600 s timer) + MODEL (starts, writes, kicks)" },
         Term { name: "Revocation rounds", value: format!("{} per s (one per device per 30 s, the seat's Projection::Global offer)", fmt_n(d / p.get(C::CadenceS))), tag: "DERIVED (#971 c580298 BUNDLE_ROUND_PLANES) / MODEL (offer size)" },
-        Term { name: "Revocation listing walk", value: format!("{} walks/s over {} keys, {} cores, {} store reads/s", fmt_n(l.rev_walks_per_s), fmt_n(l.rev_walk_keys), fmt_n(l.cpu_rev_walk), fmt_n(l.rev_reads_per_s)), tag: "MODEL (a + b x keys_held; c580298 bridge.rs:11640 walks Global per round)" },
+        Term { name: "Global plane listings", value: format!("{} walks/s over {} subjects, {} cores, {} probe reads/s, {} refill reads/s, lock rho {:.2} (one server per plane)", fmt_n(l.rev_walks_per_s), fmt_n(l.rev_walk_keys), fmt_n(l.cpu_rev_walk), fmt_n(l.rev_reads_per_s), fmt_n(l.ttl_reads_per_s), l.rho_lock), tag: "MODEL (a + b x subjects, lock held per listing, 9a04428 bridge.rs:7303; TTL refill key_plane_memo.rs:61)" },
         Term { name: "holdings memory (v45 plan)", value: fmt_bytes(l.holdings_bytes), tag: "DERIVED" },
     ]
 }
@@ -1523,8 +1784,15 @@ pub fn report_markdown(p: &CostParams) -> String {
             s.push('\n');
         }
     }
-    s.push_str("## Revocation listing walk, apart from the read ledger (required-set, after read minimisation)\n\n");
+    s.push_str("## Global key planes: lock, walk and TTL refill, apart from the read ledger (MODEL)\n\n");
     s.push_str(&rev_walk_table(p));
+    s.push_str("\n### Which fix moves which term\n\n");
+    for d in [10_000.0, 100_000.0] {
+        s.push_str(&fix_table(p, d));
+        s.push('\n');
+    }
+    s.push_str("### TTL refill against the unattributed counted calls\n\n");
+    s.push_str(&ttl_check_report(p));
     s.push_str("\n## Offload: referral + proxy (MODEL)\n\n");
     s.push_str(&offload_table(p, 10_000.0, RoundShape::WholePlane));
     s.push('\n');
@@ -1764,44 +2032,81 @@ mod tests {
         }
     }
 
-    /// The walk is its own term: the read fix leaves it, a listing cache moves it, it grows with
-    /// keys held (a + b x keys), and a warm memo makes no store reads.
+    /// Each fix moves its own term: the read fix the drains and probes, a listing cache the
+    /// walks, a TTL change the refills; the walk is a + b x subjects.
     #[test]
-    fn the_revocation_walk_is_kept_apart_from_the_read_ledger() {
+    fn each_fix_moves_its_own_term() {
         let p = CostParams::calibrated();
         let d = 100_000.0;
-        let shipped = run(&p, &Scenario::one_seat(d, RoundShape::RequiredSet, ReadSet::AsShipped));
-        let fixed = run(&p, &Scenario::one_seat(d, RoundShape::RequiredSet, ReadSet::AfterReadMin));
-        assert!(shipped.seat.cpu_rev_walk > 0.0);
-        assert!(within(fixed.seat.cpu_rev_walk, shipped.seat.cpu_rev_walk, 1e-9), "the read fix does not move the walk");
-        assert!(fixed.seat.cpu_index < shipped.seat.cpu_index, "the read fix moves the drains");
-        let mut sc = Scenario::one_seat(d, RoundShape::RequiredSet, ReadSet::AfterReadMin);
-        sc.rev_listing_cache = true;
-        let cached = run(&p, &sc);
-        assert!(cached.seat.cpu_rev_walk < fixed.seat.cpu_rev_walk / 100.0, "a listing cache moves the walk");
-        assert!(within(cached.seat.cpu_index, fixed.seat.cpu_index, 1e-9), "and not the drains");
-        assert_eq!(fixed.seat.rev_reads_per_s, 0.0, "warm memo: no store reads");
-        // a + b x keys: twice the fleet (above the store floor) is twice the keys, and the
-        // per-walk cost rises by b x keys.
-        let two = run(&p, &Scenario::one_seat(2.0 * d, RoundShape::RequiredSet, ReadSet::AfterReadMin));
-        assert!(within(two.seat.rev_walk_keys, 2.0 * fixed.seat.rev_walk_keys, 1e-9));
-        let per_walk = |o: &Outcome| o.seat.cpu_rev_walk / o.seat.rev_walks_per_s;
-        let b = p.get(C::RevWalkCpuPerKeyS);
-        assert!(within(per_walk(&two) - per_walk(&fixed), b * fixed.seat.rev_walk_keys, 1e-6));
+        let at = |read, cache, rebuild| {
+            let mut sc = Scenario::one_seat(d, RoundShape::RequiredSet, read);
+            sc.rev_listing_cache = cache;
+            sc.memo_rebuild = rebuild;
+            run(&p, &sc).seat
+        };
+        let base = at(ReadSet::AsShipped, false, MemoRebuild::Whole);
+        let read = at(ReadSet::AfterReadMin, false, MemoRebuild::Whole);
+        let cache = at(ReadSet::AsShipped, true, MemoRebuild::Whole);
+        let removed = at(ReadSet::AsShipped, false, MemoRebuild::Removed);
+        let paged = at(ReadSet::AsShipped, false, MemoRebuild::Paged);
+        assert!(read.cpu_index < base.cpu_index, "the read fix moves the drains");
+        assert!(read.rev_reads_per_s < base.rev_reads_per_s, "and the probes");
+        assert!(within(read.ttl_reads_per_s, base.ttl_reads_per_s, 1e-9), "not the refills");
+        assert!(within(read.rev_walks_per_s, base.rev_walks_per_s, 1e-9), "not the walks");
+        assert!(cache.rev_walks_per_s < base.rev_walks_per_s / 100.0, "a listing cache moves the walks");
+        assert!(within(cache.cpu_index, base.cpu_index, 1e-9), "not the drains");
+        assert!(removed.ttl_reads_per_s < base.ttl_reads_per_s, "removing the TTL moves the refills");
+        assert!(within(removed.cpu_index, base.cpu_index, 1e-9));
+        assert!(paged.global[0].stall_s < base.global[0].stall_s, "paging shortens the stall");
+        assert!(within(paged.ttl_reads_per_s, base.ttl_reads_per_s, 1e-9), "but reads the same");
+        // a + b x subjects
+        let two = run(&p, &Scenario::one_seat(2.0 * d, RoundShape::RequiredSet, ReadSet::AsShipped)).seat;
+        let walk = |g: &GlobalPlaneLoad| p.get(C::RevWalkCpuBaseS) + p.get(C::RevWalkCpuPerKeyS) * g.subjects;
+        assert!(within(two.global[0].subjects, 2.0 * base.global[0].subjects, 1e-9));
+        assert!(within(walk(&two.global[0]) - walk(&base.global[0]), p.get(C::RevWalkCpuPerKeyS) * base.global[0].subjects, 1e-6));
     }
 
-    /// The cold restart is a named scenario: it reads at least every key once, more when
-    /// rounds arrive during the fill, and it does not enter the steady-state run.
+    /// A plane's lock is one server: more seat cores leave its utilisation unchanged, and at
+    /// production's mix (window B) it is low; it reaches 1 at some fleet size.
     #[test]
-    fn a_cold_restart_reads_every_key_and_more_when_rounds_overlap_the_fill() {
+    fn the_plane_lock_is_one_server_whatever_the_cores() {
+        let mut p = CostParams::calibrated();
+        let sc = Scenario::one_seat(10_000.0, RoundShape::RequiredSet, ReadSet::AsShipped);
+        let four = run(&p, &sc);
+        p.set(C::SeatCores, 64.0);
+        let many = run(&p, &sc);
+        assert!(within(many.seat.rho_lock, four.seat.rho_lock, 1e-9));
+        assert!(many.seat_load.rho_cpu < four.seat_load.rho_cpu);
         let p = CostParams::calibrated();
-        let small = cold_restart(&p, 10.0);
-        let big = cold_restart(&p, 100_000.0);
-        assert!(small.store_reads >= small.keys);
-        assert!(big.rounds_in_fill > small.rounds_in_fill);
-        assert!(big.store_reads / big.keys > small.store_reads / small.keys);
-        let steady = run(&p, &Scenario::one_seat(100_000.0, RoundShape::RequiredSet, ReadSet::AfterReadMin));
-        assert_eq!(steady.seat.rev_reads_per_s, 0.0, "the steady run stays warm");
+        let mix = measured_mix(&p, window_b::ROUNDS, window_b::REV_ROUNDS, window_b::WITHHOLDS);
+        assert!(ledger(&p, &mix, ReadSet::AsShipped).rho_lock < 0.5, "production today is far from the lock");
+        let k = lock_knee(&p, &Scenario::one_seat(1.0, RoundShape::RequiredSet, ReadSet::AsShipped));
+        assert!(k > 1_000.0 && k < 1.0e9, "the lock saturates at a finite fleet: {k}");
+    }
+
+    /// The cold restart is single flight under the lock: each plane reads every subject once.
+    #[test]
+    fn a_cold_restart_reads_each_subject_once_per_plane() {
+        let p = CostParams::calibrated();
+        let c = cold_restart(&p, 10_000.0);
+        let per = p.get(C::RevQueriesPerSubject) + p.get(C::IorQueriesPerSubject);
+        assert!(within(c.store_reads, c.subjects * per, 1e-9));
+        assert!(c.stall_s > 0.0 && c.rounds_waiting > 0.0);
+        let steady = run(&p, &Scenario::one_seat(10_000.0, RoundShape::RequiredSet, ReadSet::AsShipped));
+        assert!(steady.seat.ttl_reads_per_s < c.store_reads, "the steady run books the mean, not the burst");
+    }
+
+    /// The TTL refill is reported against windows B and C, not fitted: the calibration windows
+    /// book no refill, so the fitted CPU parameter does not move with the refill parameters.
+    #[test]
+    fn the_ttl_refill_is_reported_not_fitted() {
+        let mut p = CostParams::default();
+        let c0 = calibrate(&p).cpu_per_byte_s;
+        p.set(C::IorQueriesPerSubject, 50.0);
+        assert!(within(calibrate(&p).cpu_per_byte_s, c0, 1e-12));
+        let t = ttl_check(&CostParams::default());
+        assert!(t.ior_burst > t.rev_burst);
+        assert!(ttl_check_report(&CostParams::default()).contains("Not tuned"));
     }
 
     #[test]

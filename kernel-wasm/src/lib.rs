@@ -722,8 +722,9 @@ pub extern "C" fn micro_cmd(op: u32, a: u32, b: u32) -> i32 {
 /// `read`: 0 as shipped, 1 after read minimisation; `select`: 0 every seat, 1 one home seat.
 /// Fills buffer 12 with: cpu cores, rho cpu, rho permits, round latency s (-1 = unbounded),
 /// counted reads/s, index pages/s, egress bytes/s, links, attribution reads/s, cpu index,
-/// cpu query, cpu context, seat cores, knee devices, cpu ceiling, Revocation walk cores (kept
-/// apart from the read terms; MODEL a + b x keys), keys walked. Returns the buffer length.
+/// cpu query, cpu context, seat cores, knee devices, cpu ceiling, Global-plane cores (kept
+/// apart from the read terms; MODEL a + b x subjects), subjects walked, busier plane lock rho
+/// (one server per plane). Returns the buffer length.
 #[no_mangle]
 pub extern "C" fn cap_seat(devices: f64, shape: u32, read: u32, seats: u32, select: u32) -> u32 {
     let m = micro();
@@ -759,6 +760,7 @@ pub extern "C" fn cap_seat(devices: f64, shape: u32, read: u32, seats: u32, sele
         p.get(CostC::CpuCeiling),
         o.seat.cpu_rev_walk,
         o.seat.rev_walk_keys,
+        o.seat.rho_lock,
     ];
     m.cap.len() as u32
 }
