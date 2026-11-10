@@ -724,14 +724,17 @@ function geoVisibleTiles(w, h, mpp){
   return [...new Set(out)];
 }
 // which set draws now; it starts any fetch the view will need next
+// the 50m set carries every lake the 10m set has (kind 5) and the lakes ETOPO adds (kinds 1, 2);
+// with the places it is also what the street tiling stands on (tlReady), so the story asks early
+function geoLoad50(){ if (GEO.p50) return; GEO.p50 = true;
+  Promise.all([geoFetch("geo/ne50.bin?v=1"), geoFetch("geo/lakes.bin?v=1")]).then(([b, k]) => {
+    const L = geoDecode(b), K = geoDecode(k); GEO.lakes = K;
+    L[1] = L[1].concat(K[1], K[5]); L[2] = L[2].concat(K[2]); GEO.l50 = geoUpload(L, 0); }).catch(e => console.warn(e.message)); }
+function geoLoadPlaces(){ if (GEO.pPlaces) return; GEO.pPlaces = true; geoFetch("geo/places.bin?v=1").then(b => { GEO.places = geoPlaces(b); }).catch(e => console.warn(e.message)); }
 function geoSets(w, h, mpp){
   GEO.mpp = mpp;
-  if (mpp < GEO_MPP_50 * 2 && !GEO.p50){ GEO.p50 = true;
-    // the 50m set carries every lake the 10m set has (kind 5) and the lakes ETOPO adds (kinds 1, 2)
-    Promise.all([geoFetch("geo/ne50.bin?v=1"), geoFetch("geo/lakes.bin?v=1")]).then(([b, k]) => {
-      const L = geoDecode(b), K = geoDecode(k); GEO.lakes = K;
-      L[1] = L[1].concat(K[1], K[5]); L[2] = L[2].concat(K[2]); GEO.l50 = geoUpload(L, 0); }).catch(e => console.warn(e.message)); }
-  if (mpp < GEO_MPP_50 && !GEO.pPlaces){ GEO.pPlaces = true; geoFetch("geo/places.bin?v=1").then(b => { GEO.places = geoPlaces(b); }).catch(e => console.warn(e.message)); }
+  if (mpp < GEO_MPP_50 * 2) geoLoad50();
+  if (mpp < GEO_MPP_50) geoLoadPlaces();
   let tiles = null;
   if (mpp < GEO_MPP_10 * 2){
     if (!GEO.pIdx){ GEO.pIdx = true; fetch("geo/ne10/index.json?v=1").then(r => r.json()).then(j => { GEO.idx10 = new Set(j.map(t => t[0] + "_" + t[1])); }).catch(e => console.warn(e.message)); }
@@ -1589,6 +1592,7 @@ function storySetupAct(actIx){
 
   const nowSec = getTime();
   const o = actIx - 1 - STORY_LEAD; // the planetary acts keep their original numbering (0 was First Contact, now told at street scale)
+  if (cfg.intro || cfg.micro){ geoLoad50(); geoLoadPlaces(); } // the street steps stand on the tiling
   if (cfg.micro) storyMicroSetup(actIx - STORY_LEAD); else if (microStory) storyMicroEnd();
   if (cfg.intro || cfg.outro) {
     // the whole planet at its ordinary look: the opening and closing steps tell, they do not stage
@@ -2418,9 +2422,11 @@ setInterval(() => { if (microSel >= 0) renderNodeCard(); }, 300);
 const MSTORY = { actors: null, fired: new Set(), outcome: null, route1: null, ci: -1, lat: 0, lon: 0 };
 function storyPinStart(ap, ah, bp, bh){ wasm.micro_cmd(1, ap, 2); wasm.micro_cmd(1, bp, 2); wasm.micro_cmd(1, ah, 3); wasm.micro_cmd(1, bh, 3); } // phones asleep on Wi-Fi; home nodes up
 function storyMicroWorld(){
-  // the story's street is a real tile of the free-roam world near Zurich: the first nearby tile whose
-  // generated layout is a residential street with two households a punch can join (found once)
+  // the story's street is a leaf holon of the street tiling near Zurich, the same world free roam
+  // builds there, so its neighbours tile around it out to the acuity ring: the first nearby leaf whose
+  // layout is a residential street with two households a punch can join (found once)
   if (!microOk()) return false;
+  if (tlReady()) return storyMicroLeaf();
   const build = (T) => microBuild(T.lat, T.lon, T.dens, false, T.s1, T.s2, 0.62, "story");
   if (MSTORY.tile){ build(MSTORY.tile); if (wasm.micro_cmd(6, 0, 0) === 1){ const a = new Uint32Array(mem.buffer, wasm.micro_buf_ptr(10) >>> 0, 4).slice(); storyPinStart(...a); } return true; }
   const c0 = cellAt(47.3769, 8.5417); const dens = c0 >= 0 ? cellDensity(c0) : 1200;
@@ -2441,6 +2447,33 @@ function storyMicroWorld(){
   if (fallback){ MSTORY.tile = fallback; return storyMicroWorld(); } // no pair nearby punches: tell the relayed story instead
   return false;
 }
+function storyMicroLeaf(){
+  const pin = () => { if (wasm.micro_cmd(6, 0, 0) !== 1) return null; const a = new Uint32Array(mem.buffer, wasm.micro_buf_ptr(10) >>> 0, 4).slice(); storyPinStart(...a); return a; };
+  const build = (leaf) => microBuildLeaf(leaf, 0.62, "h" + HOLON.pack(leaf) + ":story");
+  if (MSTORY.leaf){ build(MSTORY.leaf); pin(); return true; }
+  // candidates: the distinct land leaves under a 9 by 9 lattice around the city centre, nearest first
+  const T = tlTree(), L = tlLand(), lat0 = 47.3769, lon0 = 8.5417, l0 = T.leafAt(lat0, lon0);
+  const st = HOLON.STEP[l0.level] / HOLON.UPD, seen = new Set(), cand = [];
+  for (let r = 0; r < 81; r++){
+    const a = (r % 9) - 4, q = Math.floor(r / 9) - 4, leaf = T.leafAt(lat0 + a * st, lon0 + q * st / Math.cos(lat0 * Math.PI / 180)), id = HOLON.pack(leaf);
+    if (seen.has(id)) continue; seen.add(id);
+    const b = HOLON.boundsDeg(leaf);
+    if (T.budget(leaf) && L.squareOnLand(b[0], b[1], b[2] - b[0])) cand.push({ leaf, d: Math.hypot(a, q) });
+  }
+  cand.sort((x, y) => x.d - y.d); let fallback = null;
+  for (const { leaf } of cand){
+    build(leaf);
+    const cls = M.meta[2] | 0, a = (cls === 1 || cls === 2) ? pin() : null;
+    if (!a) continue;
+    // two homes on the same street, not in the same building
+    const [ax, ay] = actorXY(a[1]), [bx, by] = actorXY(a[3]); if (Math.hypot(bx - ax, by - ay) < 40){ if (!fallback) fallback = leaf; continue; }
+    // the story follows a pair whose two routers a punch traverses (the sim decides that, per pair of networks)
+    if (wasm.micro_cmd(8, a[0], a[2]) === 1){ MSTORY.leaf = leaf; return true; }
+    if (!fallback) fallback = leaf;
+  }
+  if (fallback){ MSTORY.leaf = fallback; return storyMicroLeaf(); } // no pair nearby punches: tell the relayed story instead
+  return false;
+}
 function actorXY(i){ return [M.nf[i * 4], M.nf[i * 4 + 1]]; }
 function localToLL(x, y){ return [M.lat0 + y / 111320, M.lon0 + x / (111320 * Math.cos(M.lat0 * Math.PI / 180))]; }
 function storyCam(x, y, z){ const [la, lo] = localToLL(x, y); storyTargetPitch = la * Math.PI / 180; storyTargetYaw = lo * Math.PI / 180; storyTargetZoom = z; }
@@ -2448,6 +2481,10 @@ const expLerp = (a, b, t) => a * Math.pow(b / a, Math.max(0, Math.min(1, t)));
 function storyMicroSetup(act){
   microStory = true; MSTORY.fired = new Set(); MSTORY.outcome = null; MSTORY.beat = undefined; MSTORY.waitFrom = 0; MSTORY.beatT = undefined;
   if (act === 0){
+    // the street is a leaf of the tiling: wait for the tiling's land and places (asked for at the
+    // story's start), and only after a long wait tell it on a lone square tile
+    MSTORY.actors = null;
+    if (microOk() && !tlReady() && !MSTORY.waitDone){ MSTORY.waitTiled = performance.now(); return; }
     // rebuilt at the act's start, so it plays from the same state every time
     if (!storyMicroWorld()){ MSTORY.actors = null; return; }
     wasm.micro_cmd(6, 0, 0); const a = new Uint32Array(mem.buffer, wasm.micro_buf_ptr(10) >>> 0, 4).slice(); MSTORY.actors = Array.from(a);
@@ -2476,6 +2513,10 @@ const camAlice = (c) => storyCam(c.axh, c.ayh, c.frameZ(70));
 const camPair = (c, u) => storyCam(c.mid[0], c.mid[1], expLerp(c.frameZ(70), c.frameZ(c.span * 1.35 + 40), u === undefined ? 1 : Math.min(1, u * 2)));
 const camOut = (c) => { const p = actorXY(c.ap); storyCam((p[0] + c.axh) / 2, (p[1] + c.ayh) / 2, c.frameZ(Math.max(90, Math.hypot(p[0] - c.axh, p[1] - c.ayh) * 1.4 + 60))); };
 const helperPhrase = (c, hs) => hs.length === 1 ? `a helper server in a data centre ${c.kmOf(hs[0])} km away` : `${hs.length} helper servers in data centres ${hs.map(c.kmOf).join(" and ")} km away`;
+// the street step frames the simulated neighbourhood, then pulls back until the neighbourhoods the
+// tiling draws around it fill the view (600 m across: well inside the street-detail scale)
+const STREET_WIDE_M = 600;
+const streetNear = () => Math.max(160, M.half * 0.9), streetWide = () => Math.max(STREET_WIDE_M, M.half * 2.6);
 const MICRO_BEATS = [
   [ // two neighbours connect
     { cap: () => "We zoom in on one neighbourhood near Zurich. Every phone and computer here is simulated",
@@ -2500,16 +2541,16 @@ const MICRO_BEATS = [
     { run: (c) => wasm.micro_cmd(3, c.bp, c.ap), cap: () => "Bob replies. While her phone sleeps, her home server keeps the message for her", cam: camOut },
     { run: (c) => wasm.micro_cmd(1, c.ap, 1), cap: () => "On the tram she opens the app, and her home server passes Bob's message to her phone", cam: camOut }
   ],
-  [ // the whole street
+  [ // the whole street, then the neighbourhoods tiled around it (STREET_WIDE_M across)
     { cap: () => "Now the whole street: phones sleep and wake, laptops close, and home servers stay on to hold messages",
-      cam: (c) => storyCam(c.mid[0], c.mid[1], c.frameZ(Math.max(160, M.half * 0.9))) },
+      cam: (c) => storyCam(c.mid[0], c.mid[1], c.frameZ(streetNear())) },
     { cap: () => "The helper evens out traffic for up to eight devices, hiding their patterns; the rest still connect normally",
-      cam: (c, u) => storyCam(c.mid[0], c.mid[1], expLerp(c.frameZ(Math.max(160, M.half * 0.9)), c.frameZ(M.half * 2.6), u * 0.5)) },
+      cam: (c, u) => storyCam(c.mid[0], c.mid[1], expLerp(c.frameZ(streetNear()), c.frameZ(streetWide()), u * 0.5)) },
     { run: () => { MSTORY.ci = wasm.micro_cmd(5, 0, 1); },
       cap: (c) => `A test computer in a data centre ${MSTORY.ci >= 0 ? c.kmOf(MSTORY.ci) + " km" : "far"} away joins for a few minutes, runs its checks, then leaves`,
-      cam: (c, u) => storyCam(c.mid[0], c.mid[1], expLerp(c.frameZ(Math.max(160, M.half * 0.9)), c.frameZ(M.half * 2.6), 0.5 + u * 0.5)) },
+      cam: (c, u) => storyCam(c.mid[0], c.mid[1], expLerp(c.frameZ(streetNear()), c.frameZ(streetWide()), 0.5 + u * 0.5)) },
     { cap: () => "Pulling back: this is one street among millions. From up here the twin counts groups of devices, not each one",
-      cam: (c, u) => storyCam(c.mid[0], c.mid[1], expLerp(c.frameZ(M.half * 2.6), 30, u)) }
+      cam: (c, u) => storyCam(c.mid[0], c.mid[1], expLerp(c.frameZ(streetWide()), 30, u)) }
   ]
 ];
 // the step's length is the sum of its beats, re-planned as each beat starts (a wait adds its own time)
@@ -2519,6 +2560,11 @@ function storyMicroPlan(act, from, t0){
   cfg.duration = Math.max(d, t0 + 0.1);
 }
 function storyMicroTick(act, t){
+  if (MSTORY.waitTiled){
+    const cfg = STORY_ACTS[act + STORY_LEAD];
+    if (!tlReady() && performance.now() - MSTORY.waitTiled < 15000){ cfg.duration = Math.max(cfg.duration, t + 1); return; }
+    MSTORY.waitTiled = 0; MSTORY.waitDone = true; storyMicroSetup(0); MSTORY.waitDone = false; storyActElapsed = 0; return;
+  }
   if (!M || !MSTORY.actors) return;
   const beats = MICRO_BEATS[act], c = storyMicroCtx();
   if (MSTORY.beat === undefined){ MSTORY.beat = -1; MSTORY.beatEnd = 0; }

@@ -191,7 +191,7 @@ function tlFrame(now){
   const F = camFrame(); TL.ring.max = Math.hypot(F.w, F.h) / 2 + 20; HOLON.governor(TL.ring, ms);
 }
 function tlDraw(w, h, mpp){
-  TL.on = !TL.disabled && tlReady() && !microStory && mpp < 400 && zoom >= 8;
+  TL.on = !TL.disabled && tlReady() && !(microStory && !(M && M.leaf !== undefined)) && mpp < 400 && zoom >= 8; // the story's street is a leaf, tiled like any other
   if (!TL.on){ TL.drawn = TL.agg = TL.pending = 0; return; }
   tlGL(); const F = camFrame(), T = tlTree();
   if (T.B.size > TL_BUDGET_CAP) T.evict(4);
