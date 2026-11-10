@@ -147,6 +147,8 @@ cost_params! {
     SweepPermits = "sweep_permits", 2.0, Derived, "two sweep permits per node, one held per index page (edge code trace)";
     KeyMemoExpiryS = "key_memo_expiry_s", 600.0, Derived, "key-plane memo MEMO_TTL 10 min, cleared whole and refilled per subject under the plane lock (9a04428 key_plane_memo.rs:61, needs_rebuild :253); lazy, so 0 at seat-1 today (no Global finals in window C)";
     ReplyDrain = "reply_drain", 1.0, Model, "an initiator drains its index on each reply Summary (window A candidate; UNEXPLAINED until the counters split)";
+    PermitResidualBPerMin = "permit_residual_b_per_min", 762.0, Unexplained, "window B under the drain hypothesis: 2,262 sweep permits less 1,500 predicted by one drain per responder final ((10 + 11 + 10) x 42 + 11 x 18); not a residual under the withheld-row hypothesis (permits = withholds, 2,262 vs 2,263)";
+    PermitResidualAPrimePerMin = "permit_residual_a_prime_per_min", 4_784.0, Unexplained, "window A' under the drain hypothesis: 6,386 less 1,602 ((10 + 12 + 11) x 42 + 12 x 18); the server session's own arithmetic gives the same; withholds not captured in A'";
     PermitResidualCPerMin = "permit_residual_c_per_min", 4_524.0, Unexplained, "window C: 7,512 sweep permits less 2,988 predicted ((11 + 43 + 12) x 42 + 12 x 18); the 43 IO finals are themselves unexplained";
     // ---- after read minimisation (v45 plan) -------------------------------
     ProbePerS = "probe_per_s", 1.0, Derived, "v45 plan: one shared holdings probe at most once a second per index kind";
@@ -791,13 +793,9 @@ pub mod window_b {
     pub const WITHHOLDS: f64 = 2_263.0;
     /// Responder rounds completed: attestation, occurrence, key, route.
     pub const ROUNDS: [f64; 4] = [10.0, 11.0, 10.0, 11.0];
-    /// Revocation and occurrence-revocation finals: NOT RECORDED in B. ASSUMED-from-C (0,
-    /// measured only in window C); the calibration also reports B with
-    /// [`REV_ROUNDS_EARLIER`], and every result that depends on the choice says so.
-    pub const REV_ROUNDS: f64 = super::window_c::REV_ROUNDS;
-    /// The twin's earlier assumption for B's Global finals (~10 per plane per minute, DERIVED
-    /// from the other planes' finals), kept as the second reading of B.
-    pub const REV_ROUNDS_EARLIER: f64 = 10.0;
+    /// Revocation and occurrence-revocation responder finals (MEASURED 0 in all four windows:
+    /// neither plane showed a non-zero completed_responder_final delta).
+    pub const REV_ROUNDS: f64 = 0.0;
     /// Window length, seconds (two snapshots 60 s apart).
     pub const SECONDS: f64 = 60.0;
 }
@@ -860,15 +858,18 @@ pub mod window_c {
     pub const ATT_QUERIES: f64 = 15_068.0;
     /// Responder finals: attestation, occurrence, key, route.
     pub const ROUNDS: [f64; 4] = [11.0, 43.0, 12.0, 12.0];
-    /// Revocation and occurrence-revocation responder finals (MEASURED, the only window that
-    /// recorded them; A, A' and B use this value as ASSUMED-from-C).
+    /// Revocation and occurrence-revocation responder finals (MEASURED 0, as in every window).
     pub const REV_ROUNDS: f64 = 0.0;
 }
 
-/// The server session's own description of the permit excess, as sent ("surplus over the
-/// completed-round drain prediction", per minute). REPORTED, not reconciled with the twin's
-/// arithmetic: which drain prediction it used is not known to the twin.
-pub const SERVER_REPORTED_SURPLUS_PER_MIN: (f64, f64) = (4_100.0, 4_500.0);
+/// Lifetime totals at one scrape (MEASURED, seat-1; the same scrape as `busy_hour`, 64 min
+/// after boot: its permit count is this one).
+pub mod lifetime {
+    /// Sweep permits since boot.
+    pub const PERMITS: f64 = 273_750.0;
+    /// recipient_not_in_send_set withholds since boot.
+    pub const WITHHOLDS: f64 = 272_482.0;
+}
 
 /// The 64-minute busy window (MEASURED, seat-1 at 64 min after boot).
 pub mod busy_hour {
@@ -927,17 +928,11 @@ pub struct Calibration {
     pub b_cpu_rest: f64,
     /// Fitted summaries per round from window B (pages measured / pages per round derived).
     pub b_fitted_summaries_per_round: f64,
-    /// Predicted permits per minute from responder finals alone: B, A', C, with the Global
-    /// finals at 0 (MEASURED in C, ASSUMED-from-C in B and A').
+    /// Drain hypothesis: predicted permits per minute from responder finals alone, B, A', C
+    /// (Global finals MEASURED 0 in all windows).
     pub permits_pred: [f64; 3],
-    /// Measured permits less the prediction: B, A', C (UNEXPLAINED).
+    /// Measured permits less the drain prediction: B, A', C (UNEXPLAINED under that hypothesis).
     pub permit_residual: [f64; 3],
-    /// B and A' predictions with the earlier assumption of ~10 + ~10 Global finals.
-    pub permits_pred_global10: [f64; 2],
-    /// B and A' residuals with the earlier assumption.
-    pub permit_residual_global10: [f64; 2],
-    /// Fitted `cpu_per_byte_s` had B's Global finals been ~10 + ~10 (sensitivity, not used).
-    pub cpu_per_byte_global10: f64,
     /// Busy hour predicted CPU (cores) at its measured page and query rates.
     pub busy_cpu_pred: f64,
 }
@@ -959,17 +954,11 @@ pub fn calibrate(base: &CostParams) -> Calibration {
     let pages_at = |rounds: [f64; 4], rev: f64| {
         ledger(&p, &measured_mix(&p, rounds, rev, 0.0), ReadSet::AsShipped).index_pages_per_s * 60.0
     };
-    let g0 = window_c::REV_ROUNDS;
-    let g10 = window_b::REV_ROUNDS_EARLIER;
-    let permits_pred = [pages_at(window_b::ROUNDS, g0), pages_at(window_a_prime::ROUNDS, g0), pages_at(window_c::ROUNDS, g0)];
-    let permits_pred_global10 = [pages_at(window_b::ROUNDS, g10), pages_at(window_a_prime::ROUNDS, g10)];
-    // Sensitivity of the one fitted parameter to B's unrecorded Global finals.
-    let cpu_per_byte_global10 = {
-        let mut q = base.clone();
-        q.set(C::CpuPerByte, 1.0);
-        let l = ledger(&q, &measured_mix(&q, window_b::ROUNDS, g10, window_b::WITHHOLDS), ReadSet::AsShipped);
-        (window_b::CPU_CORES - (l.cpu_verify + l.cpu_frames + l.cpu_context + l.cpu_rev_walk)) / (l.cpu_index + l.cpu_query)
-    };
+    let permits_pred = [
+        pages_at(window_b::ROUNDS, window_b::REV_ROUNDS),
+        pages_at(window_a_prime::ROUNDS, window_b::REV_ROUNDS),
+        pages_at(window_c::ROUNDS, window_c::REV_ROUNDS),
+    ];
     let measured = [window_b::PERMITS, window_a_prime::PERMITS, window_c::PERMITS];
 
     // Busy hour: put the measured page and query rates through the CPU terms.
@@ -993,9 +982,7 @@ pub fn calibrate(base: &CostParams) -> Calibration {
         b_fitted_summaries_per_round: window_b::PERMITS / (lb.index_pages_per_s * 60.0 / p.get(C::SummariesPerRound)),
         permits_pred,
         permit_residual: [0, 1, 2].map(|i| measured[i] - permits_pred[i]),
-        permits_pred_global10,
-        permit_residual_global10: [0, 1].map(|i| measured[i] - permits_pred_global10[i]),
-        cpu_per_byte_global10,
+
         busy_cpu_pred: busy,
     }
 }
@@ -1542,7 +1529,7 @@ pub fn ttl_check_report(p: &CostParams) -> String {
     let t = ttl_check(p);
     let c = calibrate(p);
     format!(
-        "Does not fit as derived. All three permit windows are 60.0 s. A whole refill at seat-1 ({} subjects, MODEL {} and {} queries per subject) is one burst of {} (Rev) or {} (IOR) reads, or nothing, in a 60 s window; the windows show permit residuals of {}, {} and {} per minute (B, A', C, Global finals 0; MEASURED in C only), none of them a burst of that size. Not tuned to fit.\n\n\
+        "Does not fit as derived. All three permit windows are 60.0 s. A whole refill at seat-1 ({} subjects, MODEL {} and {} queries per subject) is one burst of {} (Rev) or {} (IOR) reads, or nothing, in a 60 s window; the windows show permit residuals of {}, {} and {} per minute (B, A', C, under the drain hypothesis), none of them a burst of that size. Not tuned to fit.\n\n\
 - The refill is lazy and window C counts {} Revocation and occurrence-revocation finals, so on seat-1 today nobody lists the Global planes and the refill does not run: the v44-today row books 0. The term stays for v45, where every device lists Revocation.\n\
 - A rebuild from the rows that exist (not built; persist surface unconfirmed) would read {} (Rev) and {} (IOR) per refill at seat-1: {} and {} non-empty subjects (MEASURED upper bound) plus {} row listing per plane.\n",
         fmt_n(p.get(C::GlobalSubjectsAtSeat)),
@@ -1755,20 +1742,20 @@ pub fn calibration_report(p: &CostParams) -> String {
             (m - x) / x * 100.0
         ));
     };
-    row(&mut s, "window B permits / min, Global finals 0 (ASSUMED-from-C)", c.b_pages_pred, window_b::PERMITS, "UNEXPLAINED residual");
-    row(&mut s, "window B permits / min, Global finals ~10 + ~10 (earlier assumption)", c.permits_pred_global10[0], window_b::PERMITS, "UNEXPLAINED residual");
+    row(&mut s, "window B permits / min, drain hypothesis", c.b_pages_pred, window_b::PERMITS, "UNEXPLAINED residual");
+    row(&mut s, "window B permits / min, withheld-row hypothesis", window_b::WITHHOLDS, window_b::PERMITS, "alternative, not adopted");
     row(&mut s, "window B attestation queries / min", c.b_att_pred, window_b::ATT_QUERIES, "MEASURED ratios");
     row(&mut s, "window B composer lookups / min", c.b_composer_pred, window_b::COMPOSER, "MEASURED ratios");
     row(&mut s, "window B CPU, cores", c.b_cpu_index + c.b_cpu_query + c.b_cpu_rest, window_b::CPU_CORES, "FITTED (exact by construction)");
     row(&mut s, "busy hour CPU, cores (at its page and query rates)", c.busy_cpu_pred, busy_hour::CPU_CORES, "check, not fitted");
-    row(&mut s, "window A' permits / min, Global finals 0 (ASSUMED-from-C)", c.permits_pred[1], window_a_prime::PERMITS, "UNEXPLAINED residual");
-    row(&mut s, "window A' permits / min, Global finals ~10 + ~10 (earlier assumption)", c.permits_pred_global10[1], window_a_prime::PERMITS, "UNEXPLAINED residual");
-    row(&mut s, "window C permits / min, Global finals 0 (MEASURED)", c.permits_pred[2], window_c::PERMITS, "UNEXPLAINED residual");
+    row(&mut s, "window A' permits / min, drain hypothesis", c.permits_pred[1], window_a_prime::PERMITS, "UNEXPLAINED residual");
+    row(&mut s, "window C permits / min, drain hypothesis", c.permits_pred[2], window_c::PERMITS, "UNEXPLAINED residual");
+    row(&mut s, "lifetime permits, withheld-row hypothesis", lifetime::WITHHOLDS, lifetime::PERMITS, "alternative, not adopted");
     s.push_str(&format!(
         "\nFitted `cpu_per_byte_s` = {:.3e} CPU-s per decoded byte ({:.1} MB/s per core); one index page = {:.2} ms.\n\
          Window B CPU split: index pages {:.3} cores, counted queries {:.3} cores, verifies + frames + server context {:.3} cores (split PROVISIONAL: one CPU window cannot separate the two byte classes).\n\
          Summaries per completed round, fitted from window B: {:.3} (derived: {:.1}).\n\
-         Permit residuals, the twin's arithmetic: measured sweep permits less one drain per responder final, a drain being 42 pages per attestation-index final and 18 per route final. Global finals 0 (MEASURED in C only, ASSUMED-from-C in B and A'): B {:.0}, A' {:.0}, C {:.0} per minute. With the earlier ~10 + ~10 Global finals: B {:.0}, A' {:.0}. All UNEXPLAINED and absorbed into no constant. The server session REPORTED a surplus of {}-{} per minute over its completed-round drain prediction; which prediction it used is not known, so the two are not reconciled. Had B's Global finals been ~10 + ~10, the fitted cpu_per_byte_s would be {:.3e} instead. The excess is in permits, not in attestation_query (window C: {} queries over 66 finals that drain the attestation index). Window B's permits equal its recipient_not_in_send_set withholds (2,262 vs 2,263); the ledger has no per-withhold permit, so if that equality is causal it is a missing term, and with the drains as modelled a per-withhold permit would over-predict B.\n",
+         Drain hypothesis (as modelled): one drain per responder final takes one permit per page, 42 pages per attestation-index final and 18 per route final, Global finals MEASURED 0 in all windows. Residuals B {:.0}, A' {:.0}, C {:.0} per minute, UNEXPLAINED and absorbed into no constant; the server session's arithmetic is the same. The excess is in permits, not in attestation_query (window C: {} queries over 66 finals that drain the attestation index). Window B's permits equal its recipient_not_in_send_set withholds (2,262 vs 2,263); the ledger has no per-withhold permit, so if that equality is causal it is a missing term, and with the drains as modelled a per-withhold permit would over-predict B.\n",
         c.cpu_per_byte_s,
         1.0 / c.cpu_per_byte_s / 1.0e6,
         p.page_cpu_s() * 1_000.0,
@@ -1780,12 +1767,44 @@ pub fn calibration_report(p: &CostParams) -> String {
         c.permit_residual[0],
         c.permit_residual[1],
         c.permit_residual[2],
-        c.permit_residual_global10[0],
-        c.permit_residual_global10[1],
-        fmt_n(SERVER_REPORTED_SURPLUS_PER_MIN.0),
-        fmt_n(SERVER_REPORTED_SURPLUS_PER_MIN.1),
-        c.cpu_per_byte_global10,
         fmt_n(window_c::ATT_QUERIES),
+    ));
+    s
+}
+
+/// The two readings of the sweep-permit counter, side by side. The drain hypothesis is what
+/// the ledger books; the withheld-row hypothesis is reported with its predictions and is not
+/// adopted until the permit sites are read from source.
+#[must_use]
+pub fn permit_hypotheses_report(p: &CostParams) -> String {
+    let c = calibrate(p);
+    let drain_a = ledger(p, &measured_mix(p, window_a::ROUNDS, window_b::REV_ROUNDS, 0.0), ReadSet::AsShipped).index_pages_per_s * 60.0;
+    let pct = |m: f64, x: f64| format!("{:+.1}%", (m - x) / x * 100.0);
+    let mut s = String::from(
+        "| window | permits measured | drain hypothesis | withheld rows (recipient_not_in_send_set) | consent-grant reads |\n|---|---|---|---|---|\n",
+    );
+    s.push_str(&format!("| B (60 s) | {} | {} | {} ({}) | not captured |\n", fmt_n(window_b::PERMITS), fmt_n(c.permits_pred[0]), fmt_n(window_b::WITHHOLDS), pct(window_b::WITHHOLDS, window_b::PERMITS)));
+    s.push_str(&format!("| A (60 s, doors only) | not captured | {} | {} | {} ({}) |\n", fmt_n(drain_a), fmt_n(window_a::WITHHOLDS), fmt_n(window_a::CONSENT), pct(window_a::CONSENT, window_a::WITHHOLDS)));
+    s.push_str(&format!("| A' (60 s, permits only) | {} | {} | not captured | not captured |\n", fmt_n(window_a_prime::PERMITS), fmt_n(c.permits_pred[1])));
+    s.push_str(&format!("| C (60 s) | {} | {} | not captured | not captured |\n", fmt_n(window_c::PERMITS), fmt_n(c.permits_pred[2])));
+    s.push_str(&format!("| lifetime (one scrape, 64 min after boot) | {} | not computed | {} ({}) | not captured |\n", fmt_n(lifetime::PERMITS), fmt_n(lifetime::WITHHOLDS), pct(lifetime::WITHHOLDS, lifetime::PERMITS)));
+    let withheld_per_round = p.get(C::RefusedRowsPerAttRound);
+    s.push_str(&format!(
+        "\n**Drain hypothesis (booked).** Each responder final drains its index, one permit per page. It misses B by {}, A' by {} and C by {} per minute (UNEXPLAINED).\n\n\
+**Withheld-row hypothesis (alternative, not adopted; withhold-rate is checking the permit sites).** One permit per withheld row, wrapping one consent-grant read in the send-set gate; the index drains take few or no permits. Its predictions: permits per minute = withheld rows per minute (B {} vs {}; lifetime ratio {:.3}), and consent-grant reads per minute = withheld rows per minute (A {} vs {}). It predicts A' and C withheld about {} and {} rows, which were not captured. Under it the three residuals are not residuals, and A' and C are minutes with more withheld rows.\n\n\
+**What it implies for v45 at scale.** Permits would follow withheld rows: Attestation-plane responder rounds per minute x rows withheld per round (rows not in the asking peer's send set; {} per round at seat-1, MEASURED, and growing with the attestation store as a MODEL assumption). The v45 bundle device rounds Revocation only and Pulls Key, IdentityOccurrence, TransportDestination and IdentityOccurrenceRevocation, never the Attestation plane, so the device count would not drive permits; the peers that round the Attestation plane (today's {} finals per minute across 15 to 20 links, consent peers, old peers that do) would. The read fix's gate reorder (a refused row costs nothing, `ReadSet::AfterReadMin`) would remove the term. The drain-page term stays for the door counts and CPU, which B measured directly; only its use for permits is in question, and with it the permit-bound as-shipped knees and the busy-hour CPU check, which reads the lifetime permits as index pages.\n",
+        fmt_n(c.permit_residual[0]),
+        fmt_n(c.permit_residual[1]),
+        fmt_n(c.permit_residual[2]),
+        fmt_n(window_b::WITHHOLDS),
+        fmt_n(window_b::PERMITS),
+        lifetime::PERMITS / lifetime::WITHHOLDS,
+        fmt_n(window_a::CONSENT),
+        fmt_n(window_a::WITHHOLDS),
+        fmt_n(window_a_prime::PERMITS),
+        fmt_n(window_c::PERMITS),
+        fmt_n(withheld_per_round),
+        fmt_n(window_b::ROUNDS[0]),
     ));
     s
 }
@@ -1975,8 +1994,10 @@ pub fn report_markdown(p: &CostParams) -> String {
     let mut s = String::new();
     s.push_str("## Calibration (seat-1)\n\n");
     s.push_str(&calibration_report(p));
+    s.push_str("\n### Two readings of the sweep-permit counter\n\n");
+    s.push_str(&permit_hypotheses_report(p));
     s.push_str("\n## Knee: largest fleet with the seat under the ceiling\n\n");
-    s.push_str("PROVISIONAL where permits bind: the drain model (42 and 18 pages per drain) fits none of the permit windows as measured, and the seat's utilisation is the larger of CPU, sweep permits and the Global plane lock. As-shipped knees scale with drain pages and are PROVISIONAL; after read minimisation the pages are a fixed audit drain and the knee moves with the permit gap only through the fitted CPU per byte (one CPU window, split PROVISIONAL). The lock knee and the byte figures do not depend on permits.\n\n");
+    s.push_str("PROVISIONAL where permits bind: the drain model (42 and 18 pages per drain) fits none of the permit windows as measured, and the withheld-row reading would move permits off the drains entirely, and the seat's utilisation is the larger of CPU, sweep permits and the Global plane lock. As-shipped knees scale with drain pages and are PROVISIONAL; after read minimisation the pages are a fixed audit drain and the knee moves with the permit gap only through the fitted CPU per byte (one CPU window, split PROVISIONAL). The lock knee and the byte figures do not depend on permits.\n\n");
     s.push_str(&knee_table(p));
     s.push_str("\n## One-seat sweep\n\n");
     for shape in [RoundShape::WholePlane, RoundShape::RequiredSet] {
@@ -2036,11 +2057,9 @@ mod tests {
     #[test]
     fn window_b_pages_follow_the_finals_without_global_rounds() {
         let c = calibrate(&CostParams::default());
-        // B's Global finals were not recorded: the prediction is reported both ways and neither is
-        // pinned as measured. The two differ by exactly the 20 Global drains of 42 pages.
+        // (10 + 11 + 10) x 42 + 11 x 18 = 1,500 against 2,262 measured; Global finals MEASURED 0.
+        assert!((c.b_pages_pred - 1_500.0).abs() < 1.0, "{}", c.b_pages_pred);
         assert!(within(c.b_pages_pred, c.permits_pred[0], 1e-12));
-        assert!((c.permits_pred_global10[0] - c.permits_pred[0] - 20.0 * 42.0).abs() < 1.0);
-        assert!((c.permits_pred_global10[1] - c.permits_pred[1] - 20.0 * 42.0).abs() < 1.0);
     }
 
     #[test]
@@ -2066,12 +2085,9 @@ mod tests {
     fn the_permit_residuals_stay_unexplained() {
         let p = CostParams::default();
         let c = calibrate(&p);
-        // Only C recorded its Global finals, so only C's residual is pinned.
-        assert!((c.permit_residual[2] - p.get(C::PermitResidualCPerMin)).abs() < 1.0, "{}", c.permit_residual[2]);
-        // A' and C do not fit whichever reading of the Global finals; B fits (about -3%) only
-        // under the earlier ~10 + ~10, so B carries no assertion either way.
-        for r in [c.permit_residual[1], c.permit_residual_global10[1], c.permit_residual[2]] {
-            assert!(r > 3_000.0, "{r}");
+        let named = [C::PermitResidualBPerMin, C::PermitResidualAPrimePerMin, C::PermitResidualCPerMin];
+        for (i, k) in named.into_iter().enumerate() {
+            assert!((c.permit_residual[i] - p.get(k)).abs() < 1.0, "{i}: {} vs {}", c.permit_residual[i], p.get(k));
         }
         // No per-withhold permit: the permits do not move with the withholds.
         let m0 = measured_mix(&p, window_b::ROUNDS, window_b::REV_ROUNDS, 0.0);
@@ -2352,6 +2368,16 @@ mod tests {
         assert!(some.rho_lock >= none.rho_lock);
         assert!(global_today_table(&CostParams::calibrated()).contains("v44 today (MEASURED rounds"));
         assert!(mixed_fleet_table(&CostParams::calibrated()).contains("| 0.25 |"));
+    }
+
+    /// The withheld-row reading's predictions are printed with the measured values beside them.
+    #[test]
+    fn the_withheld_row_reading_is_reported_beside_the_drains() {
+        let r = permit_hypotheses_report(&CostParams::default());
+        assert!(r.contains("not adopted"));
+        assert!(r.contains("2263") && r.contains("2262"));
+        assert!(within(lifetime::PERMITS / lifetime::WITHHOLDS, 1.005, 0.001));
+        assert!(within(window_a::CONSENT, window_a::WITHHOLDS, 0.02));
     }
 
     #[test]
