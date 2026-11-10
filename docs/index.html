@@ -1898,6 +1898,7 @@ let microDesign = false;
 // 0 = v44 (off), 2 = on with the whole-plane diff (never shipped). Button cycles 1 → 0 → 2.
 let microBootstrap = 1;
 const BS_LABEL = ["v44: off", "v45: on, required-set Pull", "whole-plane: on, full diff (not shipped)"];
+const BS_SHORT = ["v44 off", "v45 on", "whole-plane (not shipped)"];
 const BS_TITLE = ["edge v44: bundle bootstrap off; an unclaimed device announces but no seat serves it", "edge v45 LTS (the default): every device rounds with the bundle's seats, its required set by subject Pull and one Revocation round per cadence", "on with the whole-plane diff of #881 before #971: never shipped as a default, kept for comparison"];
 // the capacity round shape the seat load table uses for each setting: v44 rounds are ordinary whole-plane rounds
 const bsShape = () => microBootstrap === 1 ? 1 : 0;
@@ -2291,7 +2292,7 @@ function drawEdgeMarkers(g, F, alpha){
     const label = parts.join(" + ") + " · " + Math.round(km).toLocaleString() + " km";
     let sub = "";
     if (seats.length){ const s0 = seats[0]; let homed = 0; for (let l = 0; l < M.links.length; l += 4) if ((M.links[l + 2] & 0xff) === 0 && (M.links[l] === s0 || M.links[l + 1] === s0)) homed++; sub = `${nodeShaped(s0)}/8 shaped · ${homed} homed here`;
-      const sc = M.seatCap && M.seatCap.get(s0); if (sc && sc.c) sub += ` · CPU ${fmtN(sc.c.cpu)} cores · ${fmtN(sc.c.reads)} reads/s`; }
+      const sc = M.seatCap && M.seatCap.get(s0); if (sc && sc.c) sub += ` · CPU ${fmtN(sc.c.cpu)} cores · ${fmtN(sc.c.reads)} reads/s (model, as shipped: provisional)`; }
     const small = F.w < 800; let label2 = label;
     if (small){ label2 = (seats.length ? "seat" : ci.length ? "CI" : "server") + (parts.length > 1 ? "+" : "") + " · " + Math.round(km).toLocaleString() + " km"; sub = seats.length ? `${nodeShaped(seats[0])}/8 shaped` : ""; }
     drawNodeGlyph(g, mk.node, mx, my, 11, alpha * (microSel < 0 || nodes.includes(microSel) ? 1 : 0.6), 0);
@@ -2341,7 +2342,7 @@ function updateFocalChip(F){
   const ppm = F.k / EARTH_M; const scale = ppm > 1.5 ? "street" : ppm > 0.25 ? "neighbourhood" : ppm > 0.02 ? "district" : "region";
   if (F.w < 800){
     const dev = kinds.reduce((a, b) => a + b, 0);
-    chip.innerHTML = `<b>R5 1:1</b> · ${MDCLASS[m[2] | 0]} · ${Math.round(m[4]).toLocaleString()}/km² · ${dev} devices · ${hm} ×<span id="ts-v">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · tap a device`;
+    chip.innerHTML = `<b>R5 1:1</b> · ${MDCLASS[m[2] | 0]} · ${Math.round(m[4]).toLocaleString()}/km² · ${dev} devices · ${hm} ×<span id="ts-v">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · bootstrap <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_SHORT[microBootstrap]}</button> · tap a device`;
   } else
   chip.innerHTML = `<b>R5 focal 1:1</b> · ${MDCLASS[m[2] | 0]} · ${Math.round(m[4]).toLocaleString()} people/km² · ${Math.round(2 * m[3])} m patch · ` +
     `<span title="present devices by kind">${kinds[0]} phones, ${kinds[1]} home nodes, ${kinds[2]} laptops, ${kinds[3]} hosted servers, ${kinds[4]} seats${kinds[5] ? ", " + kinds[5] + " CI" : ""}</span> · ` +
@@ -2407,9 +2408,9 @@ function renderNodeCard(){
     const tr = sizes.map((d, j) => `<tr><td>${j ? fmtN(d) : d + " (this patch)"}</td><td>${cell(capSeat(d, bsShape(), 0))}</td><td>${cell(capSeat(d, bsShape(), 1))}</td></tr>`).join("");
     const kw = capSeat(1, 0, 0), kr = capSeat(1, 1, 0), ka = capSeat(1, 1, 1);
     capHtml = `<div class="card-links"><span>seat load, ${BS_LABEL[microBootstrap]} (${microBootstrap === 0 ? "ordinary whole-plane rounds, claimed devices only" : CAP_SHAPE[bsShape()]}), one seat of ${kr ? kr.cores : "?"} cores · model, calibrated to seat-1</span>
-      <table class="cap"><tr><th>devices</th><th>as shipped</th><th>after read minimisation</th></tr>${tr}</table>
-      <div class="kv"><span>largest fleet under ${kr ? Math.round(kr.ceiling * 100) : 70}%</span><b>whole-plane ${kw ? fmtN(kw.knee) : "–"} · required-set ${kr ? fmtN(kr.knee) : "–"} · required-set after ${ka ? fmtN(ka.knee) : "–"}</b></div>
-      <div class="kv"><span>Global key planes, ${fmtN(here)} devices (model: a + b × subjects under one lock, apart from reads)</span><b>${(() => { const w = capSeat(here, bsShape(), 1); return w && w.walk >= 0 ? fmtN(w.walk) + " cores over " + fmtN(w.walkKeys) + " subjects" + (w.lock >= 0 ? " · plane lock ρ " + w.lock.toFixed(2) + " (one server, cores do not help)" : "") : "–"; })()}</b></div>
+      <table class="cap"><tr><th>devices</th><th>as shipped (PROVISIONAL)</th><th>after read minimisation (MODEL)</th></tr>${tr}</table>
+      <div class="kv"><span>largest fleet under ${kr ? Math.round(kr.ceiling * 100) : 70}% (MODEL; the as-shipped knees are PROVISIONAL until what a sweep permit counts is settled)</span><b>whole-plane ${kw ? fmtN(kw.knee) : "–"} · required-set ${kr ? fmtN(kr.knee) : "–"} · required-set after ${ka ? fmtN(ka.knee) : "–"}</b></div>
+      <div class="kv"><span>Global key planes, ${fmtN(here)} devices (MODEL: a + b × subjects under one lock, apart from reads; a and b not yet measured)</span><b>${(() => { const w = capSeat(here, bsShape(), 1); return w && w.walk >= 0 ? fmtN(w.walk) + " cores over " + fmtN(w.walkKeys) + " subjects" + (w.lock >= 0 ? " · plane lock ρ " + w.lock.toFixed(2) + " (one server, cores do not help)" : "") : "–"; })()}</b></div>
       <div class="kv"><span>seat-1 measured</span><b>0.65 cores, ~329 attestation queries/s (quiet 60 s window)</b></div></div>`;
   }
   const state = !(f & NF.present) ? "not present" : !(f & NF.awake) ? "asleep" : (f & NF.online) ? "online" : "resuming";
