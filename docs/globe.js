@@ -1230,6 +1230,8 @@ function tick(){
   }
 }
 function decay(){
+  // a street-world build between ticks can grow wasm memory, which detaches the last tick's view
+  if (lastActivity && lastActivity.length === 0 && wasm && bufs && W && W.n > 0) lastActivity = new Uint8Array(mem.buffer, bufs.activity, W.n);
   if (!lastActivity||activeBlocks.length===0) return; const a=lastActivity; const u32=new Uint32Array(a.buffer,a.byteOffset,a.byteLength>>>2);
   let w=0; for (let idx=0;idx<activeBlocks.length;idx++){
     const i=activeBlocks[idx]; if (u32[i]===0) continue;
