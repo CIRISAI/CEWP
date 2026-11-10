@@ -53,6 +53,9 @@ pub enum CTag {
     Unexplained,
     /// Measured on the seat but not an edge cost.
     Context,
+    /// Measured on an edge debug build (in-memory store, wall time, one sample per point); the
+    /// release-build rerun on a disk store is pending.
+    MeasuredDebug,
 }
 
 impl CTag {
@@ -68,6 +71,7 @@ impl CTag {
             Self::Model => "MODEL",
             Self::Unexplained => "UNEXPLAINED",
             Self::Context => "MEASURED-CONTEXT",
+            Self::MeasuredDebug => "MEASURED (debug); release rerun pending",
         }
     }
 }
@@ -129,7 +133,7 @@ cost_params! {
     SeatKeyRows = "seat_key_rows", 8_698.0, Measured, "seat-1 keys, window A; also the code bound on the Key-plane offer";
     AnnouncedNodes = "announced_nodes", 1_349.0, Measured, "seat-1 relay report announced_nodes";
     AnnouncedOwners = "announced_owners", 1_338.0, Measured, "seat-1 relay report owners";
-    TodayPeersBooked = "today_peers_booked", 1.0, Model, "1 books window B's measured round mix (today's peers at seat-1: 10/11/10/11 responder finals a minute on attestation/occurrence/key/route, 0 Global, 2,263 rows withheld; MEASURED) as a fixed baseline in every scenario; how it scales is MODEL: the rounds stay fixed and the rows withheld per attestation round grow with the attestation store. Devices drawn as consent or old peers on top may double-count some of it. AfterReadMin drops its withheld-row cost, which rests on withhold-rate's source answer (not back). 0 shows the devices alone";
+    TodayPeersBooked = "today_peers_booked", 1.0, Model, "1 books window B's measured round mix (today's peers at seat-1: 10/11/10/11 responder finals a minute on attestation/occurrence/key/route, 0 Global, 2,263 rows withheld; MEASURED) as a fixed baseline in every scenario; the rounds and the rows withheld per attestation round stay fixed (the withhold gates scale with Attestation rounds, not devices: edge source read 2026-11-10 at v44.1.2 (withhold-rate)). Devices drawn as consent or old peers on top may double-count some of it. On the v45 read path bb6ca83 removes the first-contact withholds and the read fix the reach half's reads. 0 shows the devices alone";
     StoreFloorNodes = "store_floor_nodes", 1_349.0, Model, "the store never holds fewer nodes than today's announced set: N_nodes = max(devices, floor)";
     PageRows = "page_rows", 1_024.0, Derived, "holdings drain page size (edge code trace, team-lead 2026-11-10)";
     // ---- round schedule --------------------------------------------------
@@ -139,10 +143,12 @@ cost_params! {
     AttRequiredQueries = "att_required_queries", 15.0, Derived, "required read of 10-20 counted queries per attestation round (midpoint)";
     RefusedRowsPerAttRound = "refused_rows_per_att_round", 208.0, Measured, "2,078 rows withheld / 10 attestation rounds, window A";
     QueriesPerRefusedRow = "queries_per_refused_row", 9.4, Measured, "19,550 attestation queries / 2,078 withheld rows, window A";
-    ComposerPerRefusedRow = "composer_per_refused_row", 1.86, Measured, "3,867 composer lookups / 2,078 withheld rows, window A (all returned 0 rows)";
+    ComposerPerRefusedRow = "composer_per_refused_row", 1.86, Measured, "3,867 composer lookups / 2,078 withheld rows, window A (all returned 0 rows); kept for the calibration table only: composers are not a per-withheld-row cost (edge source read 2026-11-10 at v44.1.2 (withhold-rate)), so the ledger books them per Attestation round";
+    ComposerPerAttRound = "composer_per_att_round", 418.95, Measured, "composer lookups per Attestation round, the mean of the two windows that count them: A 3,867 / 10 rounds, B 4,512 / 10 (each within 8% of the mean); booked per round in both read sets, untouched by the read fix";
+    FirstContactWithholdShare = "first_contact_withhold_share", 0.884, Derived, "share of today's withholds that are first-contact withholds, which bb6ca83 removes: ~2,000 of window B's 2,263 a minute (edge source read 2026-11-10 at v44.1.2 (withhold-rate)); applied on the v45 read path";
     ConsentPerRefusedRow = "consent_per_refused_row", 1.0, Measured, "2,104 live-consent-grant reads / 2,078 withheld rows, window A; each read runs inside the page permit and takes none of its own (edge source read 2026-11-10 at v44.1.2 (withhold-rate))";
     GrantReadsPerAttListingAfterFix = "grant_reads_per_att_listing_after_fix", 5.0, Derived, "after the read fix (commit 3, 4897789: the reach half runs before the gates that read the store) a refused row reads no grant: about one grant read per local key per Attestation listing, ~50 a minute at window B's 10 listings, from ~2,100 (edge source read 2026-11-10 at v44.1.2 (withhold-rate)); the quarantine consults fall by a similar count and are not in the seat figures (no counter books them)";
-    RefusedReadsLeftAfterFix = "refused_reads_left_after_fix", 1.0, Model, "share of the attestation queries and composer lookups per withheld row left after the read fix: withhold-rate's answer names only the grant read and the quarantine consult as removed, so 1 keeps the rest; 0 makes a withheld row free. Not measured either way";
+    RefusedReadsLeftAfterFix = "refused_reads_left_after_fix", 1.0, Model, "after the read fix, the share of withheld rows refused by the row half (may_receive), which still read at today's cost per row; the reach half reads nothing (edge source read 2026-11-10 at v44.1.2 (withhold-rate)). The share is not measured: 1 is the upper bound (every withheld row refused by the row half), 0 makes a withheld row free";
     RowsPerAttQuery = "rows_per_att_query", 7.5, Measured, "attestation queries return ~7.5 rows each, window A";
     StaleRoutesPerS = "stale_routes_per_s", 2.8, Measured, "seat-1 stale routes re-delivered per second";
     StaleRouteReads = "stale_route_reads", 2.0, Derived, "two store reads per stale route delivery (edge code trace)";
@@ -184,6 +190,13 @@ cost_params! {
     OldPeerShare = "old_peer_share", 0.0, Model, "share of devices still on v44 that round with the seat on every bootstrap plane (old peers are kept on purpose, so production is mixed for a long time); with consent peers, the share that lists both Global planes";
     PullReadsPerLeg = "pull_reads_per_leg", 1.0, Model, "counted reads per Pull leg (one subject on one plane); unknown until the edge witness";
     PullRefsPerLeg = "pull_refs_per_leg", 2.0, Model, "refs returned per Pull leg when in sync";
+    PullCallsPerCycle = "pull_calls_per_cycle", 10.0, MeasuredDebug, "store directory calls per device per 10-minute Pull cycle (contact-4413's idle-round witness at 26efbc4); about 22 reads/s at 1,349 devices; pull_reads_per_leg stays for first-contact, write and kick legs";
+    PullPermitsPerCycle = "pull_permits_per_cycle", 8.0, MeasuredDebug, "sweep permits per device per 10-minute Pull cycle, 0 index pages (contact-4413 at 26efbc4)";
+    PullReplyBytesPerCycle = "pull_reply_bytes_per_cycle", 562.0, MeasuredDebug, "reply bytes per device per 10-minute Pull cycle (contact-4413 at 26efbc4)";
+    DrainPageKeyS = "drain_page_key_s", 2.63e-3, MeasuredDebug, "seconds (wall) per 1,024-row index page drained on a Key round, intercept ~0 (contact-4413 at 26efbc4); used only for the 'without the read fix (not released)' row";
+    DrainPageIoS = "drain_page_io_s", 1.84e-3, MeasuredDebug, "the same on an occurrence round";
+    DrainPageRevS = "drain_page_rev_s", 3.31e-3, MeasuredDebug, "the same on a Revocation round";
+    DrainPageIorS = "drain_page_ior_s", 3.77e-3, MeasuredDebug, "the same on an occurrence-withdrawal round; a route (TD) round reads no index";
     ClaimedShare = "claimed_share", 0.5, Model, "share of bootstrap devices with an owner (adds the owner to the Pull subjects)";
     AttributionReadsPerCadence = "attribution_reads_per_cadence", 1.0, Derived, "attribution cache lasts 3 s against a 30 s cadence: one store read per device per round";
     // ---- bytes ------------------------------------------------------------
@@ -546,8 +559,10 @@ pub struct RoundMix {
     pub small_reads_per_min: f64,
     /// Subject-plane Pull reads per minute.
     pub pull_reads_per_min: f64,
-    /// Pull requests per minute (frame handling beside their reads; one permit each).
+    /// Pull requests per minute (frame handling beside their reads).
     pub pull_requests_per_min: f64,
+    /// Sweep permits the Pulls take per minute.
+    pub pull_permits_per_min: f64,
     /// Attribution-check reads per minute.
     pub attribution_reads_per_min: f64,
     /// Owner-binding pulls per minute (offloaded unrooted claimed devices).
@@ -717,7 +732,7 @@ pub fn ledger(p: &CostParams, mix: &RoundMix, read: ReadSet) -> Ledger {
     let att_rounds = mix.rounds_per_min[Plane::Attestation as usize] / 60.0;
     l.listing_permits_per_s = att_rounds * (p.get(C::AttListingPermits) + p.get(C::RequiredRowsPermits))
         + mix.rounds_per_min[Plane::TransportDestination as usize] / 60.0 * p.get(C::TdListingPermits);
-    l.pull_permits_per_s = mix.pull_requests_per_min / 60.0;
+    l.pull_permits_per_s = mix.pull_permits_per_min / 60.0;
     let refusing = mix.refusing_att_rounds_per_min / 60.0;
     let refused = refusing * mix.refused_rows_per_round;
     let required = att_rounds * p.get(C::AttRequiredQueries);
@@ -734,7 +749,7 @@ pub fn ledger(p: &CostParams, mix: &RoundMix, read: ReadSet) -> Ledger {
         ReadSet::AsShipped => {
             l.index_pages_per_s = drain_pages / 60.0;
             l.att_queries_per_s = required + refused * p.get(C::QueriesPerRefusedRow);
-            l.composer_per_s = refused * p.get(C::ComposerPerRefusedRow);
+            l.composer_per_s = att_rounds * p.get(C::ComposerPerAttRound);
             l.consent_per_s = refused * p.get(C::ConsentPerRefusedRow);
             l.verifies_per_s = mix.stale_routes_per_s + mix.ingest_rows_per_min / 60.0;
             other += mix.stale_routes_per_s * p.get(C::StaleRouteReads);
@@ -746,12 +761,14 @@ pub fn ledger(p: &CostParams, mix: &RoundMix, read: ReadSet) -> Ledger {
             if summaries > 0.0 {
                 other += 2.0 * p.get(C::ProbePerS);
             }
-            // The read fix: a refused row reads no grant (about one per local key per
-            // listing instead) and no quarantine marker; what else it still reads is
-            // `refused_reads_left_after_fix` (MODEL).
+            // bb6ca83 removes the first-contact withholds. The read fix: a row the reach half
+            // refuses reads nothing and no refused row reads a grant (about one per local key
+            // per listing instead); the row half's refusals still read at today's cost per row,
+            // `refused_reads_left_after_fix` of them (MODEL, not measured).
             let left = p.get(C::RefusedReadsLeftAfterFix).clamp(0.0, 1.0);
+            let refused = refused * (1.0 - p.get(C::FirstContactWithholdShare).clamp(0.0, 1.0));
             l.att_queries_per_s = required + refused * p.get(C::QueriesPerRefusedRow) * left;
-            l.composer_per_s = refused * p.get(C::ComposerPerRefusedRow) * left;
+            l.composer_per_s = att_rounds * p.get(C::ComposerPerAttRound);
             l.consent_per_s = if refusing > 0.0 { att_rounds * p.get(C::GrantReadsPerAttListingAfterFix) } else { 0.0 };
             l.verifies_per_s = mix.ingest_rows_per_min / 60.0;
             l.holdings_bytes = (mix.n_att + mix.n_td) * p.get(C::HoldingsBytesPerHash);
@@ -1209,8 +1226,10 @@ pub fn required_set_bytes_per_cadence(p: &CostParams) -> f64 {
     let rb = p.get(C::RefBytes);
     let fo = p.get(C::FrameOverheadBytes);
     let revocation_round = p.get(C::RevPlaneRefs) * rb + fo;
-    let legs = pull_legs_per_device_s(p) * p.get(C::CadenceS);
-    revocation_round + legs * (p.get(C::PullRefsPerLeg) * rb + fo)
+    let cycles = p.get(C::CadenceS) / p.get(C::PullCycleS);
+    let timer = cycles * (p.get(C::PullReplyBytesPerCycle) + p.get(C::PullCallsPerCycle) * fo);
+    let events = pull_event_legs_per_device_s(p) * p.get(C::CadenceS);
+    revocation_round + timer + events * (p.get(C::PullRefsPerLeg) * rb + fo)
 }
 
 /// Pull legs (one subject on one plane) one no-consent device sends one seat per second in
@@ -1222,11 +1241,21 @@ pub fn required_set_bytes_per_cadence(p: &CostParams) -> f64 {
 /// - each host kick: self and seat on the four Pull planes.
 #[must_use]
 pub fn pull_legs_per_device_s(p: &CostParams) -> f64 {
+    pull_timer_legs_per_device_s(p) + pull_event_legs_per_device_s(p)
+}
+
+/// The timer's share of [`pull_legs_per_device_s`]: one cycle every `pull_cycle_s`.
+#[must_use]
+pub fn pull_timer_legs_per_device_s(p: &CostParams) -> f64 {
+    (2.0 * p.get(C::PullPlanes) + p.get(C::ClaimedShare) * p.get(C::OwnerPlanes)) / p.get(C::PullCycleS)
+}
+
+/// First-contact, write and kick legs per device per second (the rest of the Pull legs).
+#[must_use]
+pub fn pull_event_legs_per_device_s(p: &CostParams) -> f64 {
     let pull = p.get(C::PullPlanes);
-    let timer = 2.0 * pull + p.get(C::ClaimedShare) * p.get(C::OwnerPlanes);
     let first = p.get(C::FirstContactCycles).min(p.get(C::FirstContactTries)) * 2.0 * (pull - 1.0);
-    timer / p.get(C::PullCycleS)
-        + (p.get(C::RuntimeStartsPerDeviceDay) * first
+    (p.get(C::RuntimeStartsPerDeviceDay) * first
             + p.get(C::PullPlaneWritesPerDeviceDay)
             + p.get(C::HostKicksPerDeviceDay) * 2.0 * pull)
             / 86_400.0
@@ -1282,9 +1311,14 @@ fn add_devices(p: &CostParams, m: &mut RoundMix, n: f64, shape: RoundShape) {
             m.rounds_per_min[Plane::Revocation as usize] += kr;
             m.small_reads_per_min += kr * p.get(C::SmallReadsPerCadence) / 5.0;
             m.attribution_reads_per_min += kr * p.get(C::AttributionReadsPerCadence);
+            // The 10-minute cycle at its measured cost (debug build); event legs one read and
+            // one permit each (MODEL).
             let legs = nr * pull_legs_per_device_s(p) * 60.0;
+            let cycles = nr * 60.0 / p.get(C::PullCycleS);
+            let events = nr * pull_event_legs_per_device_s(p) * 60.0;
             m.pull_requests_per_min += legs;
-            m.pull_reads_per_min += legs * p.get(C::PullReadsPerLeg);
+            m.pull_reads_per_min += cycles * p.get(C::PullCallsPerCycle) + events * p.get(C::PullReadsPerLeg);
+            m.pull_permits_per_min += cycles * p.get(C::PullPermitsPerCycle) + events;
             return;
         }
     }
@@ -1293,7 +1327,7 @@ fn add_devices(p: &CostParams, m: &mut RoundMix, n: f64, shape: RoundShape) {
 
 /// Today's peers at the seat: window B's measured round mix (MEASURED), held fixed, with the
 /// rows withheld per attestation round scaled by the attestation store (MODEL).
-fn book_today_peers(p: &CostParams, m: &mut RoundMix) {
+fn book_today_peers(m: &mut RoundMix) {
     let r = window_b::ROUNDS;
     m.rounds_per_min[Plane::Attestation as usize] += r[0];
     m.rounds_per_min[Plane::IdentityOccurrence as usize] += r[1];
@@ -1303,7 +1337,9 @@ fn book_today_peers(p: &CostParams, m: &mut RoundMix) {
     m.rounds_per_min[Plane::IdentityOccurrenceRevocation as usize] += window_b::REV_ROUNDS;
     // Devices add no refusing rounds, so the baseline is the only source of withheld rows.
     m.refusing_att_rounds_per_min += r[0];
-    m.refused_rows_per_round = window_b::WITHHOLDS / r[0] * (m.n_att / p.get(C::SeatAttRows));
+    // The withhold gates are on the Attestation plane only and scale with its rounds, not with
+    // devices or the store (edge source read 2026-11-10 at v44.1.2 (withhold-rate)).
+    m.refused_rows_per_round = window_b::WITHHOLDS / r[0];
 }
 
 /// Cost one scenario.
@@ -1329,7 +1365,7 @@ pub fn run(p: &CostParams, s: &Scenario) -> Outcome {
     };
     add_devices(p, &mut m, at_seat_fleet * share, s.shape);
     if p.get(C::TodayPeersBooked) >= 0.5 {
-        book_today_peers(p, &mut m);
+        book_today_peers(&mut m);
     }
     // Fellow seats: each rounds on all six planes, not first contact (no refusals),
     // and this seat drains on the reply to each round it opens with them.
@@ -1509,17 +1545,36 @@ pub fn binding(p: &CostParams, sc: &Scenario) -> Binding {
     }
 }
 
-/// The named versions the knee report compares.
+/// The named versions the knee report compares. v45.0.0 (in release) is the required-set Pull
+/// with the read-minimisation series, the listing cache (b) and the read budget (Eric's ruling,
+/// 2026-11-10: the read fix ships in v45); the row without the read fix was never released and is
+/// kept for the receive-side drain finding.
 #[must_use]
-pub fn versions() -> [(&'static str, Scenario); 5] {
+pub fn versions() -> [(&'static str, Scenario); 3] {
     let rs = |read| Scenario::one_seat(1.0, RoundShape::RequiredSet, read);
     [
-        ("v44: every device on v44, whole-plane rounds on five planes", Scenario::one_seat(1.0, RoundShape::WholePlane, ReadSet::AsShipped)),
-        ("v45 as committed (c580298), read as shipped", rs(ReadSet::AsShipped)),
-        ("v45 as committed with the read-minimisation series (fix/min-reads-v45)", rs(ReadSet::AfterReadMin)),
-        ("v45 + (b) listing cache + read budget, read as shipped", rs(ReadSet::AsShipped).with_candidate()),
-        ("v45 + (b) + budget + the read-minimisation series", rs(ReadSet::AfterReadMin).with_candidate()),
+        ("v44 (today's code): every device that rounds with the seat on v44, whole-plane rounds on five planes", Scenario::one_seat(1.0, RoundShape::WholePlane, ReadSet::AsShipped)),
+        ("v45 without the read fix (not released; c580298 as committed)", rs(ReadSet::AsShipped)),
+        ("v45.0.0 (in release): required-set Pull, read fix, listing cache, read budget", rs(ReadSet::AfterReadMin).with_candidate()),
     ]
+}
+
+/// The receive-side drain without the read fix, at the measured debug-build cost per index page:
+/// `devices` attributed devices each sending one round per 30 s on each of `planes`, every round
+/// draining `pages` index pages at the seat. Wall-clock cores (debug build).
+#[must_use]
+pub fn drain_cores_debug(p: &CostParams, devices: f64, pages: f64, planes: &[Plane]) -> f64 {
+    let per_page: f64 = planes
+        .iter()
+        .map(|pl| match pl {
+            Plane::Key => p.get(C::DrainPageKeyS),
+            Plane::IdentityOccurrence => p.get(C::DrainPageIoS),
+            Plane::Revocation => p.get(C::DrainPageRevS),
+            Plane::IdentityOccurrenceRevocation => p.get(C::DrainPageIorS),
+            _ => 0.0,
+        })
+        .sum();
+    devices / p.get(C::CadenceS) * pages * per_page
 }
 
 /// Knees by version: the seat knee, what binds at it, the lock knee, and the seat knee with a
@@ -2208,12 +2263,12 @@ pub fn million_terms(p: &CostParams, read: ReadSet) -> Vec<Term> {
     let l = &o.seat;
     let c = p.get(C::CpuPerByte);
     let per_read = (p.get(C::RowBytes) + p.get(C::CallOverheadBytes)) * c;
-    let pull_reads = d * pull_legs_per_device_s(p) * p.get(C::PullReadsPerLeg);
+    let pull_reads = d * (p.get(C::PullCallsPerCycle) / p.get(C::PullCycleS) + pull_event_legs_per_device_s(p) * p.get(C::PullReadsPerLeg));
     let pull_cpu = pull_reads * per_read;
     let attr_cpu = l.attribution_per_s * per_read;
     vec![
         Term { name: "index pages (drains / audit)", value: format!("{} pages/s, {} cores", fmt_n(l.index_pages_per_s), fmt_n(l.cpu_index)), tag: "DERIVED (page model) x FITTED (cpu/byte)" },
-        Term { name: "subject Pull reads", value: format!("{} reads/s, {} cores", fmt_n(pull_reads), fmt_n(pull_cpu)), tag: "MODEL (reads per Pull unknown)" },
+        Term { name: "subject Pull reads", value: format!("{} reads/s, {} cores", fmt_n(pull_reads), fmt_n(pull_cpu)), tag: "MEASURED (debug; release rerun pending): 10 calls per 10-minute cycle; MODEL: first-contact, write and kick legs" },
         Term { name: "attribution-check reads", value: format!("{} reads/s, {} cores", fmt_n(l.attribution_per_s), fmt_n(attr_cpu)), tag: "DERIVED (3 s cache vs 30 s cadence)" },
         Term { name: "frame handling", value: format!("{} cores", fmt_n(l.cpu_frames)), tag: "MODEL" },
         Term { name: "server relay refresh", value: format!("{} cores", fmt_n(l.cpu_context)), tag: "MEASURED-CONTEXT (not edge)" },
@@ -2230,7 +2285,20 @@ pub fn million_terms(p: &CostParams, read: ReadSet) -> Vec<Term> {
 }
 
 /// What the knees rest on, stated once for the report and the page.
-pub const KNEE_STATUS: &str = "What a sweep permit counts is settled from source (edge source read 2026-11-10 at v44.1.2): drains one per page, listings 2 to 4, key-plane probes and subject reads one each, withholds none. The as-shipped knees no longer rest on that question. They still rest on one unmeasured term, what one index page costs in CPU: `hash_ref_bytes` (MODEL) times the CPU per byte fitted to one window that cannot separate pages from rows, so they stay PROVISIONAL. The lock knees rest on b (DERIVED from the warm Key listing), the subject-read time (DERIVED, ~2 ms) and the probe-page time (MODEL). The v45 candidate rows are MODEL until built.";
+/// What the knees by version rest on, with the measured debug-build drain beside the model.
+#[must_use]
+pub fn knee_status(p: &CostParams) -> String {
+    let n = p.get(C::AnnouncedNodes);
+    let pages = p.pages(p.get(C::SeatAttRows));
+    let rev = drain_cores_debug(p, n, pages, &[Plane::Revocation]);
+    let five = drain_cores_debug(p, n, pages, &[Plane::Key, Plane::IdentityOccurrence, Plane::Revocation, Plane::IdentityOccurrenceRevocation]);
+    let mut shipped = Scenario::one_seat(n, RoundShape::RequiredSet, ReadSet::AsShipped);
+    shipped.devices = n;
+    let model = run(p, &shipped).seat_load.cpu_cores;
+    format!(
+        "v45.0.0 (in release) is the required-set Pull with the read fix, the listing cache (b) and the read budget (Eric's ruling, 2026-11-10: the read fix ships in v45). Its knee binds on the sweep permits. It rests on two terms not measured on a release build, so it is PROVISIONAL in them: how long a Pull holds its permit (`store_read_s`, ~2 ms, DERIVED from a key-plane refill, not measured on a Pull) and the Pull's own cost (`pull_calls_per_cycle`, `pull_permits_per_cycle`: MEASURED on an edge debug build, release rerun pending). The listing cache and the read budget are MODEL until measured.\n\nThe row without the read fix was never released. Each attributed device's 30 s Revocation round drains the whole attestation index at the seat ({pages:.0} pages at seat-1), so it binds on the permits, and its knee rests on what one index page costs in CPU (PROVISIONAL). Measured per page on an edge debug build (wall time, in-memory store, release rerun pending), that drain at {n:.0} devices costs {rev:.1} cores; with whole-plane rounds on the four planes that read the index it would cost {five:.1}. The model puts the whole seat at {model:.1} cores at that fleet.\n\nWhat a sweep permit counts is settled from source (edge source read 2026-11-10 at v44.1.2): drains one per page, listings 2 to 4, key-plane probes and subject reads one each, withholds none. The lock knees rest on b (DERIVED from the warm Key listing), the subject-read time (DERIVED, ~2 ms) and the probe-page time (MODEL)."
+    )
+}
 
 /// The whole capacity report, markdown (what `capacity_sweep` prints).
 #[must_use]
@@ -2239,7 +2307,7 @@ pub fn report_markdown(p: &CostParams) -> String {
     s.push_str("## Calibration (seat-1)\n\n");
     s.push_str(&calibration_report(p));
     s.push_str("\n## Knees by version\n\n");
-    s.push_str(KNEE_STATUS);
+    s.push_str(&knee_status(p));
     s.push_str("\n\n");
     s.push_str(&versions_table(p));
     s.push_str("\n## Knee: largest fleet with the seat under the ceiling, by shape, read set and seats\n\n");
@@ -2390,10 +2458,14 @@ mod tests {
         let shipped = run(&p, &Scenario::one_seat(4_000.0, RoundShape::WholePlane, ReadSet::AsShipped));
         assert!(b.seat.consent_per_s < shipped.seat.consent_per_s / 20.0, "{} vs {}", b.seat.consent_per_s, shipped.seat.consent_per_s);
         assert!(within(b.seat.composer_per_s, shipped.seat.composer_per_s, 1e-9));
+        // Composers are not a per-withheld-row cost (edge source read 2026-11-10 at v44.1.2
+        // (withhold-rate)): a withheld row made free leaves them as they are, and the queries
+        // fall to the required read alone.
         let mut q = p.clone();
         q.set(C::RefusedReadsLeftAfterFix, 0.0);
         let free = run(&q, &Scenario::one_seat(4_000.0, RoundShape::WholePlane, ReadSet::AfterReadMin));
-        assert_eq!(free.seat.composer_per_s, 0.0);
+        assert!(within(free.seat.composer_per_s, b.seat.composer_per_s, 1e-12));
+        assert!(free.seat.att_queries_per_s < b.seat.att_queries_per_s);
     }
 
     #[test]

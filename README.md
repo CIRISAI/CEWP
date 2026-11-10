@@ -9,8 +9,9 @@ an AI governance / superalignment platform — built on the bet that
 **Measured from a live mesh.** The [globe](https://cirisai.github.io/CEWP/)'s serve-seat
 cost model is calibrated from measurements taken on the live production CIRIS mesh on
 2026-11-10 (four 60-second windows of the serve node's own counters, one with CPU; its
-store composition; its announced-node count). Device behaviour is derived from the
-shipping edge source (CIRISEdge v45 candidate, commit `c580298`). Everything beyond
+store composition; its announced-node count). Device behaviour is derived from
+edge source: CIRISEdge v45.0.0 (in release), read at commit `c580298` and its read-fix
+series; the idle Pull's cost was measured on an edge debug build (release rerun pending). Everything beyond
 today's fleet size is a model projection, labelled MEASURED, DERIVED or MODEL where it is
 shown; DERIVED (stated arithmetic on measured counts and source) and PROVISIONAL (resting
 on an open calibration question) are both `MODEL` in the scoreboard's sense below. The

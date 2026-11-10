@@ -288,7 +288,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
     <button class="panel-close" id="close-foot" type="button" title="Hide info">✕</button>
   </div>
   <div id="foot-measured" style="margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px">
-    <b style="color:#fff">Measured from a live mesh.</b> The serve seat's cost model (open a serve seat's card at street zoom) is calibrated from the live production CIRIS mesh on 2026-11-10: four 60-second windows of the serve node's own counters, one of them with CPU, plus its store composition and announced-node count. Device behaviour is derived from the shipping edge source (CIRISEdge v45 candidate, commit <code>c580298</code>). Everything beyond today's fleet size is a model projection.
+    <b style="color:#fff">Measured from a live mesh.</b> The serve seat's cost model (open a serve seat's card at street zoom) is calibrated from the live production CIRIS mesh on 2026-11-10: four 60-second windows of the serve node's own counters, one of them with CPU, plus its store composition and announced-node count. Device behaviour is derived from edge source: v45.0.0 (in release), read at commit <code>c580298</code> and its read-fix series. The idle Pull's cost was measured on an edge debug build; a release rerun is pending. Everything beyond today's fleet size is a model projection.
     <br><b style="color:#fff">Measured today (seat-1, aggregates only):</b> 0.65 of a core in a quiet 60 s window · ~329 attestation queries/s · ~10–12 replication rounds per minute per plane (quiet window) · store of ~42.5k attestations, ~18.3k transport destinations, ~8.7k keys · 1,349 announced nodes under 1,338 owners · 0 key-revocation rows. On screen, only the seat card's <i>seat-1 measured</i> line shows these directly.
     <br><b style="color:#fff">Map data:</b> coastlines, land, lakes, rivers, country borders and place names are from <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain), at 110m, 50m and 10m scale by zoom. Real geography is drawn only down to region scale; it fades out before the street view fades in, and every street, home and device there is generated, never placed on a real road or building.
     <br><b style="color:#fff">Labels:</b> MEASURED is read from the serve node; DERIVED is computed by stated arithmetic from measured counts and the edge source; MODEL is a projection; PROVISIONAL is a MODEL figure that rests on an open calibration question. DERIVED and PROVISIONAL are both MODEL in the README scoreboard's sense. Seat capacity figures include today's measured peer load at seat-1 as a fixed baseline (MEASURED round mix; how it scales is MODEL). The population, links and story elsewhere on the globe are simulated.
@@ -1794,14 +1794,17 @@ const MP_COUNT = 44;
 // default = production's shape (one serve seat, k = 1, far away); true = the design's multi-seat case
 // (MicroParams::design_multi_seat: three seats, k = 2, 120-650 km), a named scenario, not the baseline
 let microDesign = false;
-// edge #881 bundle bootstrap: 1 = v45 LTS default (on, required-set Pull, CIRISEdge#971),
-// 0 = v44 (off), 2 = on with the whole-plane diff (never shipped). Button cycles 1 → 0 → 2.
+// edge #881 bundle bootstrap: 1 = v45 (shipping: v45.0.0, in release), 0 = v44 (today),
+// 2 = the whole-plane diff (a design comparison, never shipped). Button cycles 1 → 0 → 2.
 let microBootstrap = 1;
-const BS_LABEL = ["v44: off", "v45: on, required-set Pull", "whole-plane: on, full diff (not shipped)"];
-const BS_SHORT = ["v44 off", "v45 on", "whole-plane (not shipped)"];
-const BS_TITLE = ["edge v44: bundle bootstrap off; an unclaimed device announces but no seat serves it", "edge v45 LTS (the default): every device rounds with the bundle's seats, its required set by subject Pull and one Revocation round per cadence", "on with the whole-plane diff of #881 before #971: never shipped as a default, kept for comparison"];
-// the capacity round shape the seat load table uses for each setting: v44 rounds are ordinary whole-plane rounds
-const bsShape = () => microBootstrap === 1 ? 1 : 0;
+const BS_LABEL = ["v44 (today)", "v45 (shipping)", "whole-plane (design comparison)"];
+const BS_SHORT = BS_LABEL;
+const BS_TITLE = ["edge v44, today's release: bundle bootstrap off; an unclaimed device announces but no seat serves it", "edge v45.0.0 (in release), the default: every device rounds with the bundle's seats, its required set by subject Pull and one Revocation round per cadence, with the read fix, the listing cache and the read budget", "on with the whole-plane diff of #881 before #971: never shipped, a design comparison"];
+// the capacity model's arguments for each setting (cap_seat: shape, read set, candidate listing
+// changes): v44 = whole-plane rounds as shipped; v45 = required-set Pull with the read fix, the
+// listing cache and the read budget; whole-plane = v45's read path with whole-plane rounds
+const CAP_ARGS = [[0, 0, 0], [1, 1, 1], [0, 1, 1]];
+const bsCap = () => CAP_ARGS[microBootstrap];
 // deepest zoom: about 6 px per metre on this screen (a house is ~60 px)
 function zoomMax(){ const m = Math.min(cv.clientWidth || 800, cv.clientHeight || 800); return 6 * EARTH_M / (0.86 * m / 2); }
 let M = null, microTimeScale = 20, microSel = -1, microLastReal = performance.now(), microGlide = 0, microNoLand = false, microStory = false;
@@ -1880,15 +1883,14 @@ function microRead(){
   if (!M.capT || now - M.capT > 1000){ M.capT = now; M.seatCap = seatCapPatch(); }
 }
 // ---- seat capacity (cewp_sim::capacity, calibrated to seat-1; MODEL/DERIVED/MEASURED as tagged there)
-const CAP_SHAPE = ["whole-plane diff (not shipped)", "required-set Pull (v45 baseline)", "digest (not built)", "stretched (not built)"];
 const capMemo = new Map();
 const KEY_PLANE = ["Key", "occurrence", "Revocation", "occurrence-withdrawal"];
 const CAP_BINDS = ["CPU", "sweep permits", "a key-plane lock"];
-function capSeat(devices, shape, read){
+function capSeat(devices, shape, read, cand){
   if (!wasm || !wasm.cap_seat) return null;
-  const key = devices + ":" + shape + ":" + read; if (capMemo.has(key)) return capMemo.get(key);
+  const key = devices + ":" + shape + ":" + read + ":" + cand; if (capMemo.has(key)) return capMemo.get(key);
   if (capMemo.size > 512) capMemo.clear();
-  wasm.cap_seat(devices, shape, read, 1, 0, 0);
+  wasm.cap_seat(devices, shape, read, 1, 0, cand ? 1 : 0);
   const b = microBuf(12, Float64Array);
   const r = { cpu: b[0], rhoCpu: b[1], rhoPermit: b[2], latency: b[3], reads: b[4], pages: b[5], egress: b[6], links: b[7], attr: b[8], cpuIndex: b[9], cpuQuery: b[10], cpuCtx: b[11], cores: b[12], knee: b[13], ceiling: b[14], walk: b[15], walkKeys: b[16], lock: b[17], lockPlane: b[18], lockKnee: b[19], binds: b[20] };
   capMemo.set(key, r); return r;
@@ -1904,7 +1906,7 @@ function seatRounders(s){
 }
 function seatCapPatch(){
   const out = new Map();
-  for (let i = 0; i < M.n; i++) if (nodeKind(i) === 4){ const d = seatRounders(i); out.set(i, { d, c: capSeat(d, bsShape(), 0) }); }
+  for (let i = 0; i < M.n; i++) if (nodeKind(i) === 4){ const d = seatRounders(i); out.set(i, { d, c: capSeat(d, ...bsCap()) }); }
   return out;
 }
 // free roam: the tile under the screen centre (the centre of an orthographic view is lat = pitch, lon = yaw)
@@ -2221,7 +2223,7 @@ function drawEdgeMarkers(g, F, alpha){
     const label = parts.join(" + ") + " · " + Math.round(km).toLocaleString() + " km";
     let sub = "";
     if (seats.length){ const s0 = seats[0]; let homed = 0; for (let l = 0; l < M.links.length; l += 4) if ((M.links[l + 2] & 0xff) === 0 && (M.links[l] === s0 || M.links[l + 1] === s0)) homed++; sub = `${nodeShaped(s0)}/8 shaped · ${homed} homed here`;
-      const sc = M.seatCap && M.seatCap.get(s0); if (sc && sc.c) sub += ` · CPU ${fmtN(sc.c.cpu)} cores · ${fmtN(sc.c.reads)} reads/s (model, as shipped: provisional; includes today's measured peer load)`; }
+      const sc = M.seatCap && M.seatCap.get(s0); if (sc && sc.c) sub += ` · CPU ${fmtN(sc.c.cpu)} cores · ${fmtN(sc.c.reads)} reads/s (MODEL, ${BS_LABEL[microBootstrap]}; includes today's measured peer load)`; }
     const small = F.w < 800; let label2 = label;
     if (small){ label2 = (seats.length ? "seat" : ci.length ? "CI" : "server") + (parts.length > 1 ? "+" : "") + " · " + Math.round(km).toLocaleString() + " km"; sub = seats.length ? `${nodeShaped(seats[0])}/8 shaped` : ""; }
     drawNodeGlyph(g, mk.node, mx, my, 11, alpha * (microSel < 0 || nodes.includes(microSel) ? 1 : 0.6), 0);
@@ -2337,14 +2339,14 @@ function renderNodeCard(){
   if (kind === 4 && wasm && wasm.cap_seat){
     const here = seatRounders(i), sizes = [here, 1000, 10000, 100000];
     const cell = (c) => c ? `${fmtN(c.cpu)} cores · ${fmtN(c.reads)} reads/s${c.rhoCpu >= 1 || c.rhoPermit >= 1 ? " · <b>saturated</b>" : ""}` : "–";
-    const tr = sizes.map((d, j) => `<tr><td>${j ? fmtN(d) : d + " (this patch)"}</td><td>${cell(capSeat(d, bsShape(), 0))}</td><td>${cell(capSeat(d, bsShape(), 1))}</td></tr>`).join("");
-    const kw = capSeat(1, 0, 0), kr = capSeat(1, 1, 0), ka = capSeat(1, 1, 1);
-    capHtml = `<div class="card-links"><span>seat load, ${BS_LABEL[microBootstrap]} (${microBootstrap === 0 ? "ordinary whole-plane rounds, claimed devices only" : CAP_SHAPE[bsShape()]}), one seat of ${kr ? kr.cores : "?"} cores · model, calibrated to seat-1</span>
+    const tr = sizes.map((d, j) => `<tr><td>${j ? fmtN(d) : d + " (this patch)"}</td><td>${cell(capSeat(d, ...bsCap()))}</td></tr>`).join("");
+    const k45 = capSeat(1, ...CAP_ARGS[1]), k44 = capSeat(1, ...CAP_ARGS[0]), kwp = capSeat(1, ...CAP_ARGS[2]);
+    capHtml = `<div class="card-links"><span>seat load, ${BS_LABEL[microBootstrap]}${microBootstrap === 0 ? " (ordinary whole-plane rounds, claimed devices only)" : ""}, one seat of ${k45 ? k45.cores : "?"} cores · MODEL, calibrated to seat-1</span>
       <div class="kv"><span>includes today's measured peer load at seat-1 as a fixed baseline (MEASURED round mix, MODEL scaling)</span></div>
-      <div class="kv cap-which"><span>which to believe: for today's fleet, the measured line at the foot of this card (0.65 of a core at seat-1). The as-shipped column is PROVISIONAL: it rests on what one index page costs in CPU, which the one measured CPU window cannot separate from the cost of rows, so it may be high or low</span></div>
-      <table class="cap"><tr><th>devices</th><th>as shipped (PROVISIONAL)</th><th>after read minimisation (MODEL)</th></tr>${tr}</table>
-      <div class="kv"><span>largest fleet under ${kr ? Math.round(kr.ceiling * 100) : 70}% (MODEL; the as-shipped knees are PROVISIONAL: they rest on the CPU cost of one index page)</span><b>whole-plane ${kw ? fmtKnee(kw.knee) : "–"} · required-set ${kr ? fmtKnee(kr.knee) : "–"} · required-set after ${ka ? fmtKnee(ka.knee) + " (binds on " + (CAP_BINDS[ka.binds] || "?") + ")" : "–"}</b></div>
-      <div class="kv"><span>key-plane locks, ${fmtN(here)} devices (MODEL: each plane's listing and its 10-minute refill hold one lock; Key and occurrence walk thousands of subjects, the Global planes tens)</span><b>${(() => { const w = capSeat(here, bsShape(), 1); return w && w.lock >= 0 ? "busiest: " + (KEY_PLANE[w.lockPlane] || "?") + " plane, ρ " + w.lock.toFixed(2) + " over " + fmtN(w.walkKeys) + " subjects (one server, cores do not help) · lock knee " + fmtKnee(w.lockKnee) + " devices" : "–"; })()}</b></div>
+      <table class="cap"><tr><th>devices</th><th>${BS_LABEL[microBootstrap]} (MODEL)</th></tr>${tr}</table>
+      <div class="kv"><span>largest fleet of devices rounding with the seat, under ${k45 ? Math.round(k45.ceiling * 100) : 70}% of it (MODEL)</span><b>v45 (shipping) ${k45 ? fmtKnee(k45.knee) + ", binds on " + (CAP_BINDS[k45.binds] || "?") : "–"} · v44 (today) ${k44 ? fmtKnee(k44.knee) : "–"} · whole-plane ${kwp ? fmtKnee(kwp.knee) : "–"}</b></div>
+      <div class="kv cap-which"><span>v45's figure is PROVISIONAL in two terms: how long a Pull holds its sweep permit (about 2 ms, derived from a key-plane refill, not measured on a Pull), and the Pull's own cost (MEASURED on a debug build; the release rerun is pending). The listing cache and read budget are MODEL until measured.</span></div>
+      <div class="kv"><span>key-plane locks, ${fmtN(here)} devices (MODEL: each plane's listing and its 10-minute refill hold one lock; Key and occurrence walk thousands of subjects, the Global planes tens)</span><b>${(() => { const w = capSeat(here, ...bsCap()); return w && w.lock >= 0 ? "busiest: " + (KEY_PLANE[w.lockPlane] || "?") + " plane, ρ " + w.lock.toFixed(2) + " over " + fmtN(w.walkKeys) + " subjects (one server, cores do not help) · lock knee " + fmtKnee(w.lockKnee) + " devices" : "–"; })()}</b></div>
       <div class="kv"><span>seat-1 measured</span><b>0.65 cores, ~329 attestation queries/s (quiet 60 s window)</b></div></div>`;
   }
   const state = !(f & NF.present) ? "not present" : !(f & NF.awake) ? "asleep" : (f & NF.online) ? "online" : "resuming";
