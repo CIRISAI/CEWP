@@ -1343,8 +1343,9 @@ pub fn global_today_table(p: &CostParams) -> String {
         ));
     }
     s.push_str(&format!(
-        "\nToday's fleet is {} announced nodes. Under v45 no-consent devices reach the occurrence-withdrawal plane by subject Pull only, so its listing and its lazy refill do not run; the v44 row lists both planes.\n",
-        fmt_n(nodes)
+        "\nToday's fleet is {} announced nodes. Under v45 no-consent devices reach the occurrence-withdrawal plane by subject Pull only, so its listing and its lazy refill do not run. The v44 row books window C's count of Revocation and occurrence-revocation finals ({}), so nobody lists either plane today; under v45 every device lists Revocation.\n",
+        fmt_n(nodes),
+        fmt_n(window_c::REV_ROUNDS)
     ));
     s
 }
@@ -1960,7 +1961,7 @@ pub fn report_markdown(p: &CostParams) -> String {
         s.push_str(&fix_table(p, d));
         s.push('\n');
     }
-    s.push_str("### TTL refill against the unattributed counted calls\n\n");
+    s.push_str("### TTL refill against the measured windows\n\n");
     s.push_str(&ttl_check_report(p));
     s.push_str("\n## Offload: referral + proxy (MODEL)\n\n");
     s.push_str(&offload_table(p, 10_000.0, RoundShape::WholePlane));
