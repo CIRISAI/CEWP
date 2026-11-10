@@ -24,7 +24,7 @@
 //! of the two cells at the SHALLOWER side's level; a deeper holon's own streets stay inside it.
 //! Everything here is procedural: no real road or building appears below region scale.
 
-use crate::micro::{rects_overlap, seg_dist, Building, DensityClass, MicroParams, Rng, Road, P};
+use crate::micro::{footprint_meets_road, rects_overlap, Building, DensityClass, MicroParams, Rng, Road, P};
 use std::collections::BTreeMap;
 
 /// Lattice units per degree: one unit is 0.02° / 512, the L12 cell (about 4.3 m north-south).
@@ -643,6 +643,13 @@ pub fn side_crossings(id: HolonId, d: Dir, ctx: &LeafContext) -> Vec<Line> {
 
 // ------------------------------------------------------------------ leaf layout
 
+/// Main road width, metres (an arterial, every class).
+pub const MAIN_ROAD_M: f64 = 12.0;
+
+/// How far every building stays inside its leaf's sides, metres: half the widest road plus the
+/// one-metre clearance a building keeps from any road.
+pub const SIDE_INSET: f64 = MAIN_ROAD_M / 2.0 + 1.0;
+
 /// A leaf's streets and buildings, in metres east and north of its centre.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LeafLayout {
@@ -664,6 +671,8 @@ pub struct LeafLayout {
     pub buildings: Vec<Building>,
     /// Where streets leave the leaf.
     pub ports: Vec<Port>,
+    /// True when no spot in the leaf clears its streets for even one small house.
+    pub unplaced: bool,
 }
 
 impl LeafLayout {
@@ -716,7 +725,7 @@ impl LeafLayout {
         let density_km2 = ctx.budget as f64 * pph / area;
         let class = DensityClass::of(density_km2, params);
         let rng = Rng::new(id.seed());
-        let mut out = Self { id, w, h, households: ctx.budget, density_km2, class, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new() };
+        let mut out = Self { id, w, h, households: ctx.budget, density_km2, class, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), unplaced: false };
         let (hw, hh) = (w / 2.0, h / 2.0);
 
         // ports: where streets cross each side (the shallower side's rule; see side_crossings)
@@ -752,7 +761,7 @@ impl LeafLayout {
         ys.sort_by(|a, b| a.0.total_cmp(&b.0));
         let xm: Vec<f64> = xs.iter().map(|&(x, _)| Self::to_m(id, x, 0.0).0).collect();
         let ym: Vec<f64> = ys.iter().map(|&(y, _)| Self::to_m(id, 0.0, y).1).collect();
-        let wd = |main: bool| if main { 12.0 } else { width };
+        let wd = |main: bool| if main { MAIN_ROAD_M } else { width };
         let mut roads = Vec::new();
         for (k, &(x, main)) in xs.iter().enumerate() {
             let top = if has(Dir::N, x) { Some(hh) } else { ym.last().copied() };
@@ -788,18 +797,19 @@ impl LeafLayout {
     }
 
     fn fits(&self, b: &Building) -> bool {
-        // the footprint's corners stay inside the leaf (so no building ever meets a neighbour's)
+        // the footprint's corners stay SIDE_INSET inside the leaf: no building meets a neighbour's,
+        // and none meets a street of the neighbour's that runs beside the shared side (a street
+        // this leaf cannot see, whose paving reaches at most half a main road's width across)
         let (ca, sa) = (b.angle.cos(), b.angle.sin());
         for (u, v) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
             let (px, py) = (b.cx + ca * u * b.w / 2.0 - sa * v * b.d / 2.0, b.cy + sa * u * b.w / 2.0 + ca * v * b.d / 2.0);
-            if px.abs() > self.w / 2.0 - 1.0 || py.abs() > self.h / 2.0 - 1.0 {
+            if px.abs() > self.w / 2.0 - SIDE_INSET || py.abs() > self.h / 2.0 - SIDE_INSET {
                 return false;
             }
         }
-        for r in &self.roads {
-            if seg_dist(b.cx, b.cy, r) < r.width / 2.0 + 0.5 * b.w.min(b.d) + 1.0 {
-                return false;
-            }
+        // the whole footprint clears every road's paving by a metre (main roads included)
+        if self.roads.iter().any(|r| footprint_meets_road(b, r, 1.0)) {
+            return false;
         }
         !self.buildings.iter().any(|o| rects_overlap(b, o, 0.6))
     }
@@ -856,6 +866,36 @@ impl LeafLayout {
         }
     }
 
+    /// The first spot a block fits, scanning a grid over the leaf nearest the centre first and
+    /// shrinking the block from `full` down to one small house.
+    fn free_spot(&self, full: f64) -> Option<Building> {
+        let mut side = full;
+        loop {
+            let (w, d) = (side, (side * 0.7).max(5.0));
+            let step = (side / 2.0).max(2.0);
+            let (nx, ny) = ((self.w / 2.0 / step).floor() as i64, (self.h / 2.0 / step).floor() as i64);
+            let mut cands: Vec<(f64, f64)> = Vec::new();
+            for i in -nx..=nx {
+                for j in -ny..=ny {
+                    cands.push((i as f64 * step, j as f64 * step));
+                }
+            }
+            cands.sort_by(|a, b| (a.0 * a.0 + a.1 * a.1).total_cmp(&(b.0 * b.0 + b.1 * b.1)).then(a.0.total_cmp(&b.0)).then(a.1.total_cmp(&b.1)));
+            for (cx, cy) in cands {
+                for angle in [0.0, std::f64::consts::FRAC_PI_2] {
+                    let b = Building { cx, cy, w, d, angle, floors: 1, units: 0 };
+                    if self.fits(&b) {
+                        return Some(b);
+                    }
+                }
+            }
+            if side <= 6.0 {
+                return None;
+            }
+            side = (side * 0.7).max(6.0);
+        }
+    }
+
     /// Make the dwellings equal the budget exactly: flats gain or lose units, houses beyond the
     /// budget become empty lots, and a budget the streets cannot hold stacks into the largest blocks.
     fn fit_households(&mut self, rng: &mut Rng) {
@@ -878,22 +918,12 @@ impl LeafLayout {
         }
         if have < want {
             if !self.buildings.iter().any(|b| b.units > 0) {
-                // no street frontage held a home: one block at a free spot near the centre
-                let side = ((want as f64).sqrt() * 6.0).clamp(10.0, (self.w.min(self.h) - 4.0).max(4.0));
-                let mut placed = false;
-                for k in 0..24 {
-                    let a = k as f64 * 0.7;
-                    let rr = k as f64 * 0.04 * self.w.min(self.h);
-                    let b = Building { cx: rr * a.cos(), cy: rr * a.sin(), w: side, d: side * 0.7, angle: 0.0, floors: 1, units: 0 };
-                    if self.fits(&b) {
-                        self.buildings.push(b);
-                        placed = true;
-                        break;
-                    }
-                }
-                if !placed {
-                    self.buildings.push(Building { cx: 0.0, cy: 0.0, w: 6.0, d: 5.0, angle: 0.0, floors: 1, units: 0 });
-                }
+                // no street frontage held a home: one block on the first free spot, nearest the
+                // centre first, shrinking until it fits between the streets
+                let full = ((want as f64).sqrt() * 6.0).clamp(10.0, (self.w.min(self.h) - 4.0).max(4.0));
+                let spot = self.free_spot(full);
+                self.unplaced = spot.is_none();
+                self.buildings.push(spot.unwrap_or(Building { cx: 0.0, cy: 0.0, w: 6.0, d: 5.0, angle: 0.0, floors: 1, units: 0 }));
                 let last = self.buildings.len() - 1;
                 self.buildings[last].units = 1;
                 have += 1;
@@ -1214,6 +1244,105 @@ mod tests {
             }
         }
         assert!(pairs > 100 && mixed > 10 && ports > 50 && arterials > 0, "pairs {pairs} mixed {mixed} ports {ports} arterials {arterials}");
+    }
+
+    /// The leaves along the three witness strips: across the dense town, across the town's edge
+    /// (depths change along it), and over the antimeridian.
+    fn strip_leaves<R: Fn(HolonId) -> u64, E: Fn(HolonId) -> u32>(t: &mut HolonTree<R, E>) -> Vec<HolonId> {
+        let mut out = Vec::new();
+        for &(lat, lon0, lon1) in &[(10.011, 19.95, 20.08), (10.311, 20.1, 20.45), (10.011, 179.97, 180.03)] {
+            let mut lon = lon0;
+            while lon < lon1 {
+                let a = t.leaf_at(lat, lon);
+                out.push(a);
+                let (_, _, _, x1) = a.bounds_units();
+                lon = (x1 as f64 / UNITS_PER_DEG as f64) + 1e-7 + if lon >= 180.0 { 360.0 } else { 0.0 };
+                if a.j < 0 && lon < 0.0 && lon0 > 0.0 {
+                    lon += 360.0;
+                }
+            }
+        }
+        out
+    }
+
+    /// A road of leaf `b`, moved into leaf `a`'s metre frame (through the lattice, wrapping the
+    /// antimeridian).
+    fn road_in(a: HolonId, b: HolonId, r: &Road) -> Road {
+        let k = M_PER_DEG / UNITS_PER_DEG as f64;
+        let units = |id: HolonId, x: f64, y: f64| {
+            let (y0, x0, y1, x1) = id.bounds_units();
+            let (xc, yc) = ((x0 + x1) as f64 / 2.0, (y0 + y1) as f64 / 2.0);
+            let (lat, _) = id.centre_deg();
+            (xc + x / (k * lat.to_radians().cos().max(0.01)), yc + y / k)
+        };
+        let (_, ax0, _, ax1) = a.bounds_units();
+        let axc = (ax0 + ax1) as f64 / 2.0;
+        let wrap = |x: f64| {
+            let span = LON_UNITS as f64;
+            x - span * ((x - axc) / span).round()
+        };
+        let (u0, v0) = units(b, r.x0, r.y0);
+        let (u1, v1) = units(b, r.x1, r.y1);
+        let (x0, y0) = LeafLayout::to_m(a, wrap(u0), v0);
+        let (x1, y1) = LeafLayout::to_m(a, wrap(u1), v1);
+        Road { x0, y0, x1, y1, width: r.width }
+    }
+
+    /// The leaves touching `a` across a side or a corner (probed just outside it).
+    fn touching<R: Fn(HolonId) -> u64, E: Fn(HolonId) -> u32>(t: &mut HolonTree<R, E>, a: HolonId) -> Vec<HolonId> {
+        let (y0, x0, y1, x1) = a.bounds_units();
+        let (y0, x0, y1, x1) = (y0 as f64, x0 as f64, y1 as f64, x1 as f64);
+        let mut pts = Vec::new();
+        for k in 0..16 {
+            let f = (k as f64 + 0.5) / 16.0;
+            let (u, v) = (x0 + f * (x1 - x0), y0 + f * (y1 - y0));
+            pts.extend([(u, y1 + 0.5), (u, y0 - 0.5), (x1 + 0.5, v), (x0 - 0.5, v)]);
+        }
+        pts.extend([(x0 - 0.5, y0 - 0.5), (x1 + 0.5, y0 - 0.5), (x0 - 0.5, y1 + 0.5), (x1 + 0.5, y1 + 0.5)]);
+        let mut seen: Vec<HolonId> = Vec::new();
+        for (u, v) in pts {
+            let b = t.leaf_at(v / UNITS_PER_DEG as f64, u / UNITS_PER_DEG as f64);
+            if b != a && !seen.contains(&b) {
+                seen.push(b);
+            }
+        }
+        seen
+    }
+
+    /// Witness: no building footprint (dwelling or not) meets any road, main or local, its own
+    /// leaf's or a touching leaf's, in every leaf of the dense, mixed and antimeridian strips; and
+    /// every leaf still holds exactly its households.
+    #[test]
+    fn no_footprint_meets_a_road() {
+        let p = params();
+        let mut t = tree(60);
+        let leaves = strip_leaves(&mut t);
+        let (mut checked, mut mains, mut homes, mut foreign) = (0usize, 0usize, 0u64, 0usize);
+        for &a in &leaves {
+            let la = LeafLayout::build(a, &t.context(a), &p);
+            assert!(!la.unplaced, "{a:?}: no spot clears the streets");
+            let units: u64 = la.buildings.iter().map(|b| u64::from(b.units)).sum();
+            assert_eq!(units, t.budget(a), "{a:?}");
+            homes += units;
+            let mut roads = la.roads.clone();
+            mains += la.roads.iter().filter(|r| r.width >= MAIN_ROAD_M).count();
+            for b in touching(&mut t, a) {
+                let lb = LeafLayout::build(b, &t.context(b), &p);
+                foreign += lb.roads.len();
+                roads.extend(lb.roads.iter().map(|r| road_in(a, b, r)));
+            }
+            let own = la.roads.len();
+            for f in &la.buildings {
+                for (k, r) in roads.iter().enumerate() {
+                    let whose = if k < own { "its own" } else { "a touching leaf's" };
+                    assert!(!footprint_meets_road(f, r, 0.0), "{a:?} ({} x {} m): building {f:?} meets {whose} road {r:?}", la.w, la.h);
+                    checked += 1;
+                }
+            }
+        }
+        let deepest = leaves.iter().map(|l| l.level).max().unwrap_or(0);
+        eprintln!("footprints: leaves {} (deepest L{deepest}) mains {mains} homes {homes} foreign roads {foreign} footprint-road pairs {checked}", leaves.len());
+        assert!(leaves.len() > 40 && mains > 10 && homes > 1000 && foreign > 100, "leaves {} mains {mains} homes {homes} foreign {foreign} pairs {checked}", leaves.len());
     }
 
     /// The focal world built on a leaf holds exactly the leaf's households, on the leaf's streets.

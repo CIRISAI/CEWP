@@ -98,7 +98,7 @@ function tlBuildLeaf(leaf){
     const nx = -uy, ny = ux;
     for (const [px, py, s] of [[x0, y0, -1], [x1, y1, -1], [x1, y1, 1], [x0, y0, -1], [x1, y1, 1], [x0, y0, 1]]) vert(px, py, nx * s, ny * s, wd, c, a, k);
   };
-  for (let r = 0; r < R.length; r += 5) road(r, 1.1, [0.1, 0.114, 0.133], 0.85, 1);
+  for (let r = 0; r < R.length; r += 5) road(r, 0.8, [0.1, 0.114, 0.133], 0.85, 1); // the casing stays inside the metre every building keeps clear
   for (let r = 0; r < R.length; r += 5) road(r, 0, R[r + 4] >= 11 ? [0.62, 0.59, 0.5] : TL_ROAD[cls], 1, 2);
   for (let b = 0; b < B.length; b += 8){
     const cx = B[b], cy = B[b + 1], bw = B[b + 2] / 2, bd = B[b + 3] / 2, ca = Math.cos(B[b + 4]), sa = Math.sin(B[b + 4]), units = B[b + 6];

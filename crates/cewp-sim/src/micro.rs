@@ -884,6 +884,23 @@ pub(crate) fn rects_overlap(a: &Building, b: &Building, margin: f64) -> bool {
     true
 }
 
+/// A road's paved area as a footprint: the carriageway with square ends half a width past each
+/// end point, so it covers the junction a street meets (a superset of the round-capped stroke).
+#[must_use]
+pub fn road_rect(r: &Road) -> Building {
+    let (dx, dy) = (r.x1 - r.x0, r.y1 - r.y0);
+    let len = (dx * dx + dy * dy).sqrt();
+    let angle = if len > 0.0 { dy.atan2(dx) } else { 0.0 };
+    Building { cx: (r.x0 + r.x1) / 2.0, cy: (r.y0 + r.y1) / 2.0, w: len + r.width, d: r.width, angle, floors: 0, units: 0 }
+}
+
+/// True when a footprint and a road's paved area come within `gap` metres of each other (exact:
+/// the separating-axis test on the two rectangles, not a centre distance).
+#[must_use]
+pub fn footprint_meets_road(b: &Building, r: &Road, gap: f64) -> bool {
+    rects_overlap(b, &road_rect(r), gap)
+}
+
 /// Seed for a tile of the globe (the page uses the same mix).
 #[must_use]
 pub fn tile_seed(ti: i32, tj: i32) -> u64 {
@@ -1082,12 +1099,10 @@ impl MicroWorld {
         if cx.abs() > lim || cy.abs() > lim {
             return false;
         }
-        for r2 in &self.roads {
-            if seg_dist(cx, cy, r2) < r2.width / 2.0 + 0.5 * w.min(d) + 1.0 {
-                return false;
-            }
-        }
         let me = Building { cx, cy, w, d, angle, floors: 1, units: 0 };
+        if self.roads.iter().any(|r2| footprint_meets_road(&me, r2, 1.0)) {
+            return false;
+        }
         !self.buildings.iter().any(|b| rects_overlap(&me, b, 0.6))
     }
 
@@ -2439,10 +2454,13 @@ mod tests {
 
     #[test]
     fn buildings_do_not_sit_on_roads() {
-        let w = world(900.0, 11);
-        for b in &w.buildings {
-            for r in &w.roads {
-                assert!(seg_dist(b.cx, b.cy, r) >= r.width / 2.0, "building centre on a road");
+        // the whole footprint, not its centre: no corner of any building on any road's paving
+        for (d, seed) in [(12_000.0, 1u64), (3_000.0, 2), (900.0, 11), (90.0, 4)] {
+            let w = world(d, seed);
+            for b in &w.buildings {
+                for r in &w.roads {
+                    assert!(!footprint_meets_road(b, r, 0.0), "{d}: building {b:?} meets road {r:?}");
+                }
             }
         }
     }

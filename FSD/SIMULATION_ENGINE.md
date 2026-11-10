@@ -498,15 +498,16 @@ The tiling lays procedural streets and homes over all settled land at street sca
   - Across an L2 boundary, the arterials that cross are those of the side with fewer.
   - Across an L3 tile boundary, local crossings are also drawn from a hash of the two cells at the shallower side's level.
   - A deeper holon's own lines stop at its last cross street.
-- **Dwellings:** lots are placed along every street by the street class of §4.6.2. Then units are added or removed until the leaf's dwellings equal its households exactly. Every footprint stays inside its own leaf.
-- **Focal world:** `MicroWorld::from_leaf` builds the simulated neighbourhood on one leaf's streets and dwellings. `build_at_density` stays as the story's and the tests' fixed-density path. No existing test changed.
+- **Dwellings:** lots are placed along every street by the street class of §4.6.2. A lot is kept only if its whole footprint (an exact rectangle test, not its centre) clears every road's paving, main and local, by 1 m, and stays 7 m inside its leaf (half a main road plus that metre), so no street of a neighbouring leaf that runs beside the shared side can reach it. Then units are added or removed until the leaf's dwellings equal its households exactly. Households the frontage cannot hold go into taller buildings in the same leaf. A leaf with no frontage home gets one block on the first clear spot, scanning out from its centre and shrinking to one small house; none is ever dropped. If no spot clears the streets, the layout flags it (`unplaced`), and the witness asserts the flag never rises.
+- **Focal world:** `MicroWorld::from_leaf` builds the simulated neighbourhood on one leaf's streets and dwellings. `build_at_density` stays as the story's and the tests' fixed-density path. A focal patch built before the tiling was ready is replaced by the leaf under the centre once it is, so the focal world always sits in the tiled streets.
 - **Witnesses (unit tests):**
   - parent sums hold from L0 to the leaves;
   - generate, evict and regenerate gives the identical layout digest;
   - generating A then B equals generating B then A;
   - a zoom out to L0 and back in returns the byte-identical leaf;
   - neighbouring leaves of equal and of different depth (and across the antimeridian) list the same crossings on their shared side, and no street leaves its leaf except at a crossing;
-  - the focal world on a leaf holds exactly its households.
+  - the focal world on a leaf holds exactly its households;
+  - no building footprint meets any road, its own leaf's or a touching leaf's, main or local, in every leaf of the dense, mixed-depth and antimeridian strips (207 leaves, 6,641 homes, 117,902 footprint-road pairs), and each of those leaves holds exactly its households. The story world (`build_at_density`) is held to the same exact footprint test at four densities.
 - **Kernel doors:** `holon_split`, `holon_layout`, `holon_arterials`, `micro_build_leaf` (and `holon_ext_ptr`, `holon_ctx_ptr`, `holon_buf_ptr`, `holon_buf_len`). The page keeps the tree (`docs/holon.js` `HOLON.tree`, the same walk as `HolonTree`) and calls these for the arithmetic both sides must agree on. `tools/holon/seam_test.mjs` drives the page's tree through the wasm and checks that 804 neighbouring pairs (124 of mixed depth) list identical crossings, and that evicting and regenerating gives the identical digest.
 - **The page's inputs (`docs/tiling.js`):**
   - An L0 cell's households are the population grid's density at each of 6×6 land samples (the containing grid cell, or the nearest within 1.6°, since the grid stops short of many coasts), times that sample's share of the area, divided by 2.5 persons per household.
