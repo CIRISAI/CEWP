@@ -13,6 +13,7 @@
 #focal-chip{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:16;max-width:min(860px,calc(100vw - 24px));background:rgba(10,14,22,.72);border:1px solid rgba(108,182,255,.28);border-radius:10px;padding:6px 11px;font:11px/1.4 var(--mono);color:var(--mute);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);text-align:center}
 #focal-chip b{color:var(--ok)}
 #focal-chip .chip-sub{font-size:10px;color:#9aa4b4;margin-top:1px}
+#node-card table.cap{width:100%;border-collapse:collapse;font:10px/1.35 var(--mono);margin:3px 0}#node-card table.cap td,#node-card table.cap th{padding:1px 4px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.08)}
 .chip-btn{padding:0 6px!important;font:11px/1.3 var(--mono)!important;margin-left:3px;border-radius:4px!important}
 #node-card{position:fixed;right:12px;bottom:150px;width:min(400px,calc(100vw - 24px));max-height:min(62dvh,560px);overflow:auto;background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:11.5px;z-index:24;backdrop-filter:blur(8px);box-shadow:0 8px 28px rgba(0,0,0,.45)}
 #node-card .kv{font-size:11px}#node-card .kv b{font-weight:500;max-width:62%}
@@ -510,7 +511,7 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
 
     <h2>cewp-sim v0.2 Transport &amp; Chunk Custody Storage</h2>
     <div class="kv"><span>&gt;64 KiB refused on shaped (unshaped ALM / bulk)</span><b id="s_64k_refused">–</b></div>
-    <div class="kv"><span>L ≤ 8 displacements &amp; 3-referral proxy pulls</span><b id="s_displaced">–</b></div>
+    <div class="kv"><span>L ≤ 8 displacements (none in edge v45, #939)</span><b id="s_displaced">–</b></div>
     <div class="kv"><span>Layered fidelity Full reconstruction</span><b id="s_chunk_custody">–</b></div>
     <div class="kv"><span>Baselines vs CEWP (A1 CDN / A2 SFU / A3 P2P)</span><b id="s_baselines">–</b></div>
 
@@ -642,7 +643,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=6"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=8"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -767,7 +768,7 @@ function tickJs(acts){
         // every other pair's chat crosses a direct unshaped link.
         const oneEndShapedOnly = (rnd()%1000)<shapingPm;
         const shapedHop = directNat && payloadShapedAllowed && (isOnion || (!isLiveAlm && oneEndShapedOnly));
-        if (shapedHop && (rnd()%25)===0) o[25]++;
+        if (shapedHop) rnd(); // v45: no displacement (#939), slot 25 stays 0; draw kept for stream parity
 
         const mm=metro[m];
         if (mm===sm){
@@ -851,7 +852,7 @@ function tickJs(acts){
   return { out:o, arcs: jsArcs.subarray(0,arcsN*2), activity: act };
 }
 // ------------------------------------------------------------------ the globe (WebGL)
-const cv=document.getElementById("c"); const gl=cv.getContext("webgl",{antialias:true,alpha:false});
+const cv=document.getElementById("c"); const gl=cv.getContext("webgl",{antialias:true,alpha:false,stencil:true});
 function sh(t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s); return s; }
 function prog(v,f){ const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,v)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f)); gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw gl.getProgramInfoLog(p); return p; }
 const PV=`attribute vec3 p;attribute float a;attribute float k;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float dpr;uniform float uTime;uniform float uStory;uniform float uStoryCos;uniform float uStoryDensity;uniform vec3 uSeedDir;uniform vec2 uPeakDir;uniform vec3 uSunWorld;varying float va;varying float vk;varying float vz;varying float vSun;
@@ -875,8 +876,82 @@ const CF=`precision mediump float;varying float vz;varying float vSun;void main(
 const GV=`attribute vec3 p;attribute float t;uniform mat3 R;uniform float S;uniform vec2 asp;uniform vec3 uSunWorld;varying float vz;varying float vt;varying float vSun;void main(){vec3 q=R*p;vz=q.z;vt=t;vSun=dot(p,uSunWorld);gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
 const GF=`precision mediump float;uniform float uA;varying float vz;varying float vt;varying float vSun;void main(){if(vz<0.0)discard;float day=smoothstep(-0.10,0.12,vSun);vec3 c=mix(vec3(0.13,0.165,0.145),vec3(0.21,0.265,0.22),vt);c*=mix(0.62,1.0,day);gl_FragColor=vec4(c,uA*smoothstep(0.0,0.06,vz));}`;
 const pP=prog(PV,PF), pL=prog(LV,LF), pD=prog(DV,DF), pC=prog(CV,CF), pG=prog(GV,GF);
-let landBuf=gl.createBuffer(), landTBuf=gl.createBuffer(), landVerts=0;
+let landBuf=gl.createBuffer(), landTBuf=gl.createBuffer(), landVerts=0, fanBuf=gl.createBuffer(), fanVerts=0, groundBuf=gl.createBuffer(), groundVerts=0, LAND=null;
+// Land is the coastline's own rings, filled even-odd. coastRings() closes the coastline into rings:
+// a piece is a ring when its ends meet; open pieces join end to end where they share a point off the
+// antimeridian; a chain whose ends both sit on one side of the antimeridian closes along it (Eurasia,
+// Chukotka, Wrangel Island, both halves of Fiji's Vanua Levu), and one whose ends sit on both sides closes through
+// the south pole (Antarctica). Two strays have a loose end and are drawn as coastline but not filled
+// (FSD §4.6.5 lists them). Every edge is split into steps of at most COAST_STEP degrees, and the coastline
+// is drawn from the same points, so the fill's edge is the drawn coast at every zoom.
+const COAST_STEP=0.5;
+function coastPieces(){
+  const bin=atob(COAST_B64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  const i16=new Int16Array(u8.buffer); const pieces=[]; let idx=0;
+  while(idx<i16.length){ const count=i16[idx++]; const pts=[]; for(let j=0;j<count;j++){ pts.push([i16[idx]*0.01, i16[idx+1]*0.01]); idx+=2; } pieces.push(pts); }
+  return pieces;
+}
+function densify(a,b,out){ const m=Math.max(1,Math.ceil(Math.max(Math.abs(b[0]-a[0]),Math.abs(b[1]-a[1]))/COAST_STEP)); for(let t=0;t<m;t++) out.push([a[0]+(b[0]-a[0])*t/m, a[1]+(b[1]-a[1])*t/m]); }
+function coastRings(pieces){
+  const key=(p)=>p[0].toFixed(2)+","+p[1].toFixed(2), am=(p)=>Math.abs(p[1])>=179.99;
+  const closed=(p)=>Math.abs(p[0][0]-p[p.length-1][0])+Math.abs(p[0][1]-p[p.length-1][1])<=0.3;
+  const rings=[], omitted=[]; let chains=[];
+  pieces.forEach((p,k)=>{ if (closed(p)) rings.push(p); else chains.push({ids:[k], pts:p}); });
+  for (let joined=true; joined;){ joined=false;
+    find: for (let x=0;x<chains.length;x++) for (let y=0;y<chains.length;y++){ if (x===y) continue;
+      for (const ra of [false,true]) for (const rb of [false,true]){
+        const A=ra?chains[x].pts.slice().reverse():chains[x].pts, B=rb?chains[y].pts.slice().reverse():chains[y].pts;
+        if (key(A[A.length-1])===key(B[0]) && !am(B[0])){ chains[x]={ids:chains[x].ids.concat(chains[y].ids), pts:A.concat(B.slice(1))}; chains.splice(y,1); joined=true; break find; }
+      } } }
+  for (const c of chains){ const p=c.pts, s=p[0], e=p[p.length-1];
+    if (closed(p) || (am(s) && am(e) && (s[1]>0)===(e[1]>0))) rings.push(p);
+    else if (am(s) && am(e)) rings.push(p.concat([[-90,e[1]],[-90,s[1]]]));
+    else omitted.push(c.ids);
+  }
+  // each ring densified, without repeating its first point (the closing edge is implied)
+  const out=rings.map(r=>{ const d=[]; for (let i=0;i<r.length;i++){ const a=r[i], b=r[(i+1)%r.length]; if (i===r.length-1 && Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])<1e-9) break; densify(a,b,d); } return d; });
+  return { rings: out, omitted };
+}
+// The fill, drawn into the stencil buffer: per ring, a fan from one point to every ring edge, each
+// fan triangle cut into strips of at most 6° so it stays near the sphere. Inverting the stencil
+// per triangle leaves it odd exactly inside an odd number of rings (lakes and inland seas are holes).
+// Adjacent fan triangles share their long edges point for point, so only the ring's own edges show.
+function landFan(rings){
+  const V=[], STEP=6;
+  const zipper=(A,B)=>{ let a=0,b=0; const na=A.length-1, nb=B.length-1;
+    while (a<na || b<nb){ if (a<na && (b>=nb || (a+1)/na <= (b+1)/nb)){ V.push(...A[a],...A[a+1],...B[b]); a++; } else { V.push(...A[a],...B[b],...B[b+1]); b++; } } };
+  for (const r of rings){
+    let ay=0, ax=0; for (const p of r){ ay+=p[0]; ax+=p[1]; } ay/=r.length; ax/=r.length;
+    const spoke=(p)=>{ const K=Math.max(1,Math.ceil(Math.max(Math.abs(p[0]-ay),Math.abs(p[1]-ax))/STEP)); const o=[]; for (let k=0;k<=K;k++) o.push(xyz(ay+(p[0]-ay)*k/K, ax+(p[1]-ax)*k/K)); return o; };
+    const first=spoke(r[0]); let E0=first;
+    for (let i=0;i<r.length;i++){ const E1=(i+1<r.length)?spoke(r[i+1]):first; zipper(E0,E1); E0=E1; }
+  }
+  return new Float32Array(V);
+}
+// The same rings, for questions asked of a point: inside = an odd number of ring edges crossed on a
+// ray due north (rings never cross the antimeridian, so a ray along a meridian sees every edge once).
+function landTest(rings){
+  const bins=Array.from({length:360},()=>[]);
+  for (const r of rings) for (let i=0;i<r.length;i++){ const a=r[i], b=r[(i+1)%r.length]; const g=[a[0],a[1],b[0],b[1]];
+    const lo=Math.floor(Math.min(a[1],b[1])+180), hi=Math.floor(Math.max(a[1],b[1])+180); for (let k=Math.max(0,lo);k<=Math.min(359,hi);k++) bins[k].push(g); }
+  const bin=(lo)=>bins[Math.min(359,Math.max(0,Math.floor(lo+180)))];
+  const inside=(la,lo)=>{ let n=0; for (const [a1,o1,a2,o2] of bin(lo)){ if ((o1<=lo)!==(o2<=lo)){ const y=a1+(a2-a1)*(lo-o1)/(o2-o1); if (y>la) n++; } } return (n&1)===1; };
+  // a square is wholly land when its centre is inside and no ring edge enters it (Liang-Barsky clip)
+  const enters=(g,y0,x0,y1,x1)=>{ let t0=0,t1=1; const dy=g[2]-g[0], dx=g[3]-g[1];
+    for (const [p,q] of [[-dx,g[1]-x0],[dx,x1-g[1]],[-dy,g[0]-y0],[dy,y1-g[0]]]){ if (p===0){ if (q<0) return false; } else { const t=q/p; if (p<0){ if (t>t1) return false; if (t>t0) t0=t; } else { if (t<t0) return false; if (t<t1) t1=t; } } }
+    return true; };
+  const squareOnLand=(la0,lo0,d)=>{ if (!inside(la0+d/2, lo0+d/2)) return false;
+    for (let k=Math.floor(lo0+180); k<=Math.floor(lo0+d+180); k++) for (const g of bins[Math.min(359,Math.max(0,k))]) if (enters(g,la0,lo0,la0+d,lo0+d)) return false;
+    return true; };
+  return { inside, squareOnLand };
+}
 function initLand(){
+  const C=coastRings(coastPieces()); LAND=Object.assign(landTest(C.rings), { omitted: C.omitted });
+  const F=landFan(C.rings); gl.bindBuffer(gl.ARRAY_BUFFER,fanBuf); gl.bufferData(gl.ARRAY_BUFFER,F,gl.STATIC_DRAW); fanVerts=F.length/3;
+  // land-neutral ground: the whole sphere in 3° quads, shown only where the stencil says land
+  const Gd=[]; for (let la=-90; la<90; la+=3) for (let lo=-180; lo<180; lo+=3){ const k=[[la,lo],[la,lo+3],[la+3,lo+3],[la+3,lo]].map(([y,x])=>xyz(y,x)); for (const i of [0,1,2,0,2,3]) Gd.push(...k[i]); }
+  gl.bindBuffer(gl.ARRAY_BUFFER,groundBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(Gd),gl.STATIC_DRAW); groundVerts=Gd.length/3;
+  // the population grid's tiles on top, brighter where more people live, clipped by the same stencil
   const G=initPopGrid(); const P=[], T=[]; let wmax=0;
   const dens=(c)=>{ const w=G.cumW[c]-(c?G.cumW[c-1]:0); const r=cellHalf(G,c); return w/(r*r); };
   for (let c=0;c<G.nCells;c++) wmax=Math.max(wmax,dens(c));
@@ -894,17 +969,10 @@ let linePosBuf=gl.createBuffer(), lineParamBuf=gl.createBuffer();
 const COAST_B64="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MujxA83nNATo5wUA2AdMw58Hh8NkBy/DsgcJw9gHTMMDABwIEMMtCMnCHAgQwwMARgjEwj4Ii8JGCMTCAwB8CEXCTghlwnwIRcIDAK0Iv8GfCJTBrQi/wQQA2Ql14UgJt+GaCV/h2Ql14QMAdwom4WIKmuF3CibhBACQCp3hYwrs4RwK2+GQCp3hBQBgEv/mJBLH5/URcecfEvLmYBL/5hkAbRE8EiASLhNhEv8TTRK4FK4RuBRtEacT2RAOFLcQghQSEKEUWxCsFHQQ/BT/D2IV+A+sFKMPlRSeD9gUWQ++FDcPDBVxDgcVZw7cE64OOBMqDxYTsg9dE7oPrxPLEI0SbRE8EgMAexPM5i8T2+d7E8zmBABBGKDgSBgJ4RMY4uBBGKDgBABlGDHfkhgE4EgYjd9lGDHfBgBYGp7iNhrt4Wca1OGtGlrikRqp4lganuIFADgbSNr/GqPaHBsE2WYbotk4G0jaGwCMHGTWYxzU1rsbMtdaG47YLhuD2CYb39cAGx/Y2xr91wYbnNbGGr3TVBsq0n0bFtSOG/LRsxu90dsbpdL0G1zRZxz10aMcAdOQHGfTYRw104AcFNRNHJ/UgBwQ1f0bvdUnHO/VjRyo1YwcZNYFAHAc1uDJHG3gxRyC4XMcN+JwHNbgBACpHKI22hx+N5kcGDipHKI2BQBvHeY5VB3hOi0dbjpdHRQ5bx3mOQYAvh07NoQdrTg6HV44JR1INmYdgTW+HTs2BgDrHX7Zyh3S2UwdqNmEHfbX0h3v1+sdftkFAPgeLCi/HikpcB7YJvMejif4HiwoBwCmH6IkvR96JSofIyfQHgonxB4wJmIfniOmH6IkCQB8H37avh/n2/4ee96VHjjdmh6428MeTdsCH53bUB852nwfftoaAP0fOdxJIJreKCCC33kgBeFHINfn1h+S5dcfbOYsHzLk/B714fAef+LeHjrirR6N4ike2OD+HZPhwh2I4N8dC90PHv7cJh633W4eht1KHs7enR6k3f8ew95ZHwvebh8H4HQfyN39HzncRABHILztoyDq8KAgavVRINv3HCCK8+0fYfezH/P2/x/X+cEfO/tSHyv4TR8T+cMeTvhUHlH4Ex7J+O8diPe6HUH4ZR1Y+Fwd7fcGHW/4/hyR99YcBfiyHOT3oxzL9jIcSvdBHFH26xtb95obgfeHG8725xsG9qMbKPZvG7T1ZRtF978aKfWcGpbzDBqk8pIZc/DMGOnvfBhG7y4Ybu96Fw7vxhcm7dsY1es/GuvqtBpO69ka5OtRGyHsEBse6zEbpOqqG8TqkRvt6/0bMepbHKDqgB0d6bodEei2HT7lFR4c5Doe7OV8Hl7jAx9V5igffOZMH27lxB+x5/Efh+f9H0jrNCBR7OYfnO4cIK7tRyC87QQAwBxc1q4cLtdsHNbWwBxc1g==";
 let coastVerts=0;
 function initCoastline(){
-  const bin=atob(COAST_B64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
-  const i16=new Int16Array(u8.buffer); const verts=[]; let idx=0;
-  while(idx<i16.length){
-    const count=i16[idx++]; let prev=null;
-    for(let j=0;j<count;j++){
-      const lat=i16[idx++]*0.01, lon=i16[idx++]*0.01;
-      const pt=xyz(lat,lon); const v=[pt[0]*1.001,pt[1]*1.001,pt[2]*1.001];
-      if(prev) verts.push(prev[0],prev[1],prev[2],v[0],v[1],v[2]);
-      prev=v;
-    }
-  }
+  // every coastline piece, split at the same COAST_STEP points the land fill uses
+  const verts=[];
+  for (const p of coastPieces()){ const d=[]; for (let j=0;j+1<p.length;j++) densify(p[j],p[j+1],d); d.push(p[p.length-1]);
+    for (let j=0;j+1<d.length;j++){ const a=xyz(d[j][0],d[j][1]), b=xyz(d[j+1][0],d[j+1][1]); verts.push(a[0]*1.001,a[1]*1.001,a[2]*1.001,b[0]*1.001,b[1]*1.001,b[2]*1.001); } }
   const coastData=new Float32Array(verts); gl.bindBuffer(gl.ARRAY_BUFFER,coastBuf); gl.bufferData(gl.ARRAY_BUFFER,coastData,gl.STATIC_DRAW);
   coastVerts=coastData.length/3;
 }
@@ -1027,9 +1095,19 @@ function draw(){
   const landA=Math.max(0,Math.min(1,(zoom-3)/9));
   if (landVerts && landA>0){ gl.useProgram(pG); gl.uniformMatrix3fv(gl.getUniformLocation(pG,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pG,"S"),S); gl.uniform2fv(gl.getUniformLocation(pG,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pG,"uSunWorld"),sunWorld); gl.uniform1f(gl.getUniformLocation(pG,"uA"),landA);
     const gp=gl.getAttribLocation(pG,"p"), gt=gl.getAttribLocation(pG,"t");
-    gl.bindBuffer(gl.ARRAY_BUFFER,landBuf); gl.enableVertexAttribArray(gp); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0);
+    // 1. the rings' parity into the stencil (no colour), 2. ground where odd, 3. population tiles where odd
+    gl.enable(gl.STENCIL_TEST); gl.stencilMask(1); gl.clearStencil(0); gl.clear(gl.STENCIL_BUFFER_BIT);
+    gl.colorMask(false,false,false,false); gl.stencilFunc(gl.ALWAYS,0,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.INVERT);
+    gl.disableVertexAttribArray(gt); gl.vertexAttrib1f(gt,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,fanBuf); gl.enableVertexAttribArray(gp); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,fanVerts);
+    gl.colorMask(true,true,true,true); gl.stencilFunc(gl.EQUAL,1,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP);
+    // ground reaches full cover sooner than the tiles fade in, so empty land never reads as shallow sea
+    gl.uniform1f(gl.getUniformLocation(pG,"uA"),Math.min(1,landA*3));
+    gl.bindBuffer(gl.ARRAY_BUFFER,groundBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,groundVerts);
+    gl.uniform1f(gl.getUniformLocation(pG,"uA"),landA);
+    gl.bindBuffer(gl.ARRAY_BUFFER,landBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,landTBuf); gl.enableVertexAttribArray(gt); gl.vertexAttribPointer(gt,1,gl.FLOAT,false,0,0);
-    gl.drawArrays(gl.TRIANGLES,0,landVerts); gl.disableVertexAttribArray(gt); }
+    gl.drawArrays(gl.TRIANGLES,0,landVerts); gl.disableVertexAttribArray(gt); gl.disable(gl.STENCIL_TEST); }
   if (coastVerts){ gl.useProgram(pC); gl.uniformMatrix3fv(gl.getUniformLocation(pC,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pC,"S"),S); gl.uniform2fv(gl.getUniformLocation(pC,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pC,"uSunWorld"),sunWorld);
     const cp=gl.getAttribLocation(pC,"p"); gl.bindBuffer(gl.ARRAY_BUFFER,coastBuf); gl.enableVertexAttribArray(cp); gl.vertexAttribPointer(cp,3,gl.FLOAT,false,0,0);
     gl.drawArrays(gl.LINES,0,coastVerts); }
@@ -1045,7 +1123,9 @@ function draw(){
     gl.bindBuffer(gl.ARRAY_BUFFER,posBuf); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap,3,gl.FLOAT,false,0,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.enableVertexAttribArray(aa); gl.vertexAttribPointer(aa,1,gl.UNSIGNED_BYTE,true,0,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,kindBuf); gl.enableVertexAttribArray(ak); gl.vertexAttribPointer(ak,1,gl.UNSIGNED_BYTE,false,0,0);
-    gl.drawArrays(gl.POINTS,0,npts);
+    // below the planetary view, people sit on the same land the fill shows: the stencil still holds it
+    if (landVerts && landA>0){ gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL,1,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP); }
+    gl.drawArrays(gl.POINTS,0,npts); gl.disable(gl.STENCIL_TEST);
     gl.disable(gl.DEPTH_TEST); }
   if (arcCount>0 && showArcs){ gl.useProgram(pL); gl.uniformMatrix3fv(gl.getUniformLocation(pL,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pL,"S"),S); gl.uniform2fv(gl.getUniformLocation(pL,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pL,"uTime"),nowSec);
     const lp=gl.getAttribLocation(pL,"p"), lparam=gl.getAttribLocation(pL,"param");
@@ -1358,7 +1438,7 @@ function tick(){
 
   // cewp-sim v0.2 transport & chunk custody telemetry
   if ($("s_64k_refused")) $("s_64k_refused").textContent = fmt(o[24]) + " acts refused on shaped (unshaped ALM / bulk)";
-  if ($("s_displaced")) $("s_displaced").textContent = fmt(o[25]) + " L≤8 displacements & proxy pulls";
+  if ($("s_displaced")) $("s_displaced").textContent = fmt(o[25]) + " (edge v45 has no displacement, #939)";
   if ($("s_chunk_custody")) $("s_chunk_custody").textContent = (o[26]).toFixed(1) + "% Full (" + fmt(o[27]) + " partial/del)";
   if ($("s_baselines")) {
     const b1 = o[33], b2 = o[34], b3 = o[35], cewp = Math.max(1, o[9]);
@@ -1809,8 +1889,18 @@ const MROUTE = ["direct", "relayed", "held at a mailbox", "mail handed over", "t
 const MROUTER = ["public listener (IPv6 / forwarded port)", "NAT a facilitated punch can traverse", "hard NAT / CGNAT: no direct path in"];
 const MDCLASS = ["apartment blocks", "terraced streets", "suburban streets", "village"];
 // cewp_sim::micro::P, in index order (asserted against micro_param_count at build)
-const MP = { reach_home_share: 0, server_tier_share: 4, relay_offering_share: 5, phone_wifi_share: 7, phone_charging_share: 8, home_shaping_opt_in: 9, phone_shaping_opt_in: 10, adoption: 11, start_local_hour: 39 };
-const MP_COUNT = 40;
+const MP = { reach_home_share: 0, server_tier_share: 4, relay_offering_share: 5, phone_wifi_share: 7, phone_charging_share: 8, home_shaping_opt_in: 9, phone_shaping_opt_in: 10, adoption: 11, serve_seats: 17, homing_k: 18, start_local_hour: 39, claimed_share: 40, bundle_bootstrap: 41, seat_km_min: 42, seat_km_max: 43 };
+const MP_COUNT = 44;
+// default = production's shape (one serve seat, k = 1, far away); true = the design's multi-seat case
+// (MicroParams::design_multi_seat: three seats, k = 2, 120-650 km), a named scenario, not the baseline
+let microDesign = false;
+// edge #881 bundle bootstrap: 1 = v45 LTS default (on, required-set Pull, CIRISEdge#971),
+// 0 = v44 (off), 2 = on with the whole-plane diff (never shipped). Button cycles 1 → 0 → 2.
+let microBootstrap = 1;
+const BS_LABEL = ["v44: off", "v45: on, required-set Pull", "whole-plane: on, full diff (not shipped)"];
+const BS_TITLE = ["edge v44: bundle bootstrap off; an unclaimed device announces but no seat serves it", "edge v45 LTS (the default): every device rounds with the bundle's seats, its required set by subject Pull and one Revocation round per cadence", "on with the whole-plane diff of #881 before #971: never shipped as a default, kept for comparison"];
+// the capacity round shape the seat load table uses for each setting: v44 rounds are ordinary whole-plane rounds
+const bsShape = () => microBootstrap === 1 ? 1 : 0;
 // deepest zoom: about 6 px per metre on this screen (a house is ~60 px)
 function zoomMax(){ const m = Math.min(cv.clientWidth || 800, cv.clientHeight || 800); return 6 * EARTH_M / (0.86 * m / 2); }
 let M = null, microTimeScale = 20, microSel = -1, microLastReal = performance.now(), microGlide = 0, microNoLand = false, microStory = false;
@@ -1847,6 +1937,8 @@ function microSetParams(adoption, lon){
   p[MP.home_shaping_opt_in] = v("sl_sh_home");
   p[MP.phone_shaping_opt_in] = v("sl_sh_phone");
   p[MP.adoption] = adoption;
+  p[MP.bundle_bootstrap] = microBootstrap ? 1 : 0; // the world rounds the same for 1 and 2; the shape is costed in capacity
+  if (microDesign){ p[MP.serve_seats] = 3; p[MP.homing_k] = 2; p[MP.seat_km_min] = 120; p[MP.seat_km_max] = 650; }
   p[MP.start_local_hour] = ((getSimUtcHours(getTime()) + lon / 15) % 24 + 24) % 24;
 }
 function microBuf(i, T){ return new T(mem.buffer, wasm.micro_buf_ptr(i) >>> 0, wasm.micro_buf_len(i) >>> 0).slice(); }
@@ -1866,6 +1958,38 @@ function microRead(){
   M.nf = microBuf(0, Float64Array); M.nu = microBuf(1, Uint32Array); M.links = microBuf(2, Uint32Array); M.ev = microBuf(3, Float64Array);
   M.bld = microBuf(5, Float64Array); M.hh = microBuf(6, Float64Array); M.pun = microBuf(8, Uint32Array); M.meta = microBuf(9, Float64Array);
   M.n = M.nu.length / 8; M.t = M.meta[0]; M.half = M.meta[3];
+  // rounds served / announces per node: a served round flashes the device for a moment
+  const cnt = microBuf(11, Uint32Array), prev = M.cnt, now = performance.now();
+  if (!M.flash || M.flash.length !== M.n) M.flash = new Float64Array(M.n);
+  if (prev && prev.length === cnt.length) for (let i = 0; i < M.n; i++) if (cnt[i * 2] > prev[i * 2]) M.flash[i] = now;
+  M.cnt = cnt;
+  if (!M.capT || now - M.capT > 1000){ M.capT = now; M.seatCap = seatCapPatch(); }
+}
+// ---- seat capacity (cewp_sim::capacity, calibrated to seat-1; MODEL/DERIVED/MEASURED as tagged there)
+const CAP_SHAPE = ["whole-plane diff (not shipped)", "required-set Pull (v45 baseline)", "digest (not built)", "stretched (not built)"];
+const capMemo = new Map();
+function capSeat(devices, shape, read){
+  if (!wasm || !wasm.cap_seat) return null;
+  const key = devices + ":" + shape + ":" + read; if (capMemo.has(key)) return capMemo.get(key);
+  if (capMemo.size > 512) capMemo.clear();
+  wasm.cap_seat(devices, shape, read, 1, 0);
+  const b = microBuf(12, Float64Array);
+  const r = { cpu: b[0], rhoCpu: b[1], rhoPermit: b[2], latency: b[3], reads: b[4], pages: b[5], egress: b[6], links: b[7], attr: b[8], cpuIndex: b[9], cpuQuery: b[10], cpuCtx: b[11], cores: b[12], knee: b[13], ceiling: b[14], walk: b[15], walkKeys: b[16], lock: b[17] };
+  capMemo.set(key, r); return r;
+}
+// devices in this patch that round with seat s now (online, homed on s, with a seat as peer)
+function seatRounders(s){
+  let n = 0;
+  for (let i = 0; i < M.n; i++){
+    const f = nodeFlags(i); if (!(f & NF.online) || !(f & NF.served)) continue;
+    if (M.nu[i * 8 + 3] === s || M.nu[i * 8 + 4] === s) n++;
+  }
+  return n;
+}
+function seatCapPatch(){
+  const out = new Map();
+  for (let i = 0; i < M.n; i++) if (nodeKind(i) === 4){ const d = seatRounders(i); out.set(i, { d, c: capSeat(d, bsShape(), 0) }); }
+  return out;
 }
 // free roam: the tile under the screen centre (the centre of an orthographic view is lat = pitch, lon = yaw)
 function microFreeRoam(){
@@ -1880,12 +2004,16 @@ function microFreeRoam(){
   if (M && M.key === key) return;
   const tlat = (ti + 0.5) * TILE_DEG, tlon = (tj + 0.5) * TILE_DEG;
   const c = cellAt(tlat, tlon);
-  if (c < 0){ microNoLand = true; M = null; return; }
+  // streets are built only on a tile wholly on land: inside the coastline, with no coast crossing it
+  if (c < 0 || !LAND || !LAND.squareOnLand(ti * TILE_DEG, tj * TILE_DEG, TILE_DEG)){ microNoLand = true; M = null; return; }
   microNoLand = false;
   microBuild(tlat, tlon, cellDensity(c), false, hash32(ti, tj), hash32(tj ^ 0x5bd1e995, ti), adoption, key);
   microGlide = 1;
 }
-function paramKey(){ return ["sl_nat", "sl_srv", "sl_relay", "sl_wifi", "sl_chg", "sl_sh_home", "sl_sh_phone"].map(id => $(id).value).join(",") + "," + currentPop; }
+function paramKey(){ return ["sl_nat", "sl_srv", "sl_relay", "sl_wifi", "sl_chg", "sl_sh_home", "sl_sh_phone"].map(id => $(id).value).join(",") + "," + currentPop + (microDesign ? ",design" : ""); }
+// the seats a node homes on, as the world built them (one in production's shape)
+function homesOf(i){ return [M.nu[i * 8 + 3], M.nu[i * 8 + 4]].filter(s => s < 4294967295); }
+const seatPhrase = (n) => n === 1 ? "the one serve seat it homes on" : n === 2 ? "the two serve seats it homes on (k=2, design case)" : "no serve seat";
 // camera, in float64: q = R p with R from rot()
 function camQ(x, y, z){ const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
   return [cy * x - sy * z, -sp * sy * x + cp * y - sp * cy * z, cp * sy * x + sp * y + cp * cy * z]; }
@@ -1897,7 +2025,8 @@ function patchAffine(F){
 }
 const nodeKind = (i) => M.nu[i * 8] & 0xff, nodeAct = (i) => (M.nu[i * 8] >>> 8) & 0xff, nodeClass = (i) => (M.nu[i * 8] >>> 16) & 0xff, nodeShaped = (i) => M.nu[i * 8] >>> 24;
 const nodeFlags = (i) => M.nu[i * 8 + 1];
-const NF = { present: 1, awake: 2, online: 4, unmetered: 8, charging: 16, public: 32, punchable: 64, clientOnly: 128, shapesAll: 256, relay: 512, old: 1024, pinned: 2048, mailbox: 4096, offPatch: 8192, optIn: 16384, relayPref: 32768, deviceRelays: 65536 };
+const NF = { present: 1, awake: 2, online: 4, unmetered: 8, charging: 16, public: 32, punchable: 64, clientOnly: 128, shapesAll: 256, relay: 512, old: 1024, pinned: 2048, mailbox: 4096, offPatch: 8192, optIn: 16384, relayPref: 32768, deviceRelays: 65536, claimed: 131072, served: 262144 };
+const fmtN = (x) => !isFinite(x) ? "∞" : x >= 1e6 ? (x / 1e6).toFixed(2) + "M" : x >= 1e4 ? (x / 1e3).toFixed(1) + "k" : x >= 100 ? Math.round(x).toLocaleString() : x >= 1 ? x.toFixed(2) : x.toFixed(3);
 function nodeScreen(F, A, i){
   if (nodeFlags(i) & NF.offPatch){ const p = projLL(F, M.nf[i * 4 + 2], M.nf[i * 4 + 3]); return p; }
   const x = M.nf[i * 4], y = M.nf[i * 4 + 1]; return [A.a * x + A.c * y + A.e, A.b * x + A.d * y + A.f, A.front];
@@ -2115,6 +2244,10 @@ function drawNodeGlyph(g, i, x, y, s, alpha, ppm){
   else if (act === 4){ g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 1.3; g.beginPath(); g.arc(x, y, s * 0.95, 0, 7); g.stroke(); }
   else if (act === 5){ g.strokeStyle = "rgba(235,170,255,0.95)"; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, s * 1.0, 0, 7); g.stroke(); }
   else if (act === 3){ g.strokeStyle = "rgba(255,236,120,0.95)"; g.lineWidth = 1.3; g.setLineDash([2, 2]); g.beginPath(); g.arc(x, y, s * 1.05, 0, 7); g.stroke(); g.setLineDash([]); }
+  if (M.flash && performance.now() - M.flash[i] < 900 && online){
+    const k = (performance.now() - M.flash[i]) / 900; g.strokeStyle = `rgba(110,230,255,${0.9 * (1 - k)})`; g.lineWidth = 1.4;
+    g.beginPath(); g.arc(x, y, s * (0.8 + 0.7 * k), 0, 7); g.stroke();
+  }
   const holding = M.nu[i * 8 + 5];
   if (holding > 0){ envelope(g, x + s * 0.8, y - s * 0.85, Math.max(6, s * 0.6)); }
   if (ppm > 2.2 && kind !== 4 && !(f & NF.offPatch)){
@@ -2123,6 +2256,7 @@ function drawNodeGlyph(g, i, x, y, s, alpha, ppm){
     if (kind === 0) tag = (f & NF.unmetered ? "wifi" : "cell") + (f & NF.charging ? " ⚡" : "");
     if (f & NF.old) tag += (tag ? " " : "") + "old";
     if (f & NF.relay) tag += (tag ? " " : "") + "R";
+    if (!(f & NF.claimed) && kind !== 3 && kind !== 5) tag += (tag ? " " : "") + ((f & NF.served) ? "unclaimed·bootstrap" : "unclaimed·no peer");
     if (tag) g.fillText(tag, x + s * 0.8, y + s * 0.45);
   }
   g.globalAlpha = 1;
@@ -2156,7 +2290,8 @@ function drawEdgeMarkers(g, F, alpha){
     if (ci.length) parts.push(ci.length > 1 ? `${ci.length} CI runners` : "CI runner");
     const label = parts.join(" + ") + " · " + Math.round(km).toLocaleString() + " km";
     let sub = "";
-    if (seats.length){ const s0 = seats[0]; let homed = 0; for (let l = 0; l < M.links.length; l += 4) if ((M.links[l + 2] & 0xff) === 0 && (M.links[l] === s0 || M.links[l + 1] === s0)) homed++; sub = `${nodeShaped(s0)}/8 shaped · ${homed} homed here`; }
+    if (seats.length){ const s0 = seats[0]; let homed = 0; for (let l = 0; l < M.links.length; l += 4) if ((M.links[l + 2] & 0xff) === 0 && (M.links[l] === s0 || M.links[l + 1] === s0)) homed++; sub = `${nodeShaped(s0)}/8 shaped · ${homed} homed here`;
+      const sc = M.seatCap && M.seatCap.get(s0); if (sc && sc.c) sub += ` · CPU ${fmtN(sc.c.cpu)} cores · ${fmtN(sc.c.reads)} reads/s`; }
     const small = F.w < 800; let label2 = label;
     if (small){ label2 = (seats.length ? "seat" : ci.length ? "CI" : "server") + (parts.length > 1 ? "+" : "") + " · " + Math.round(km).toLocaleString() + " km"; sub = seats.length ? `${nodeShaped(seats[0])}/8 shaped` : ""; }
     drawNodeGlyph(g, mk.node, mx, my, 11, alpha * (microSel < 0 || nodes.includes(microSel) ? 1 : 0.6), 0);
@@ -2199,7 +2334,7 @@ function updateFocalChip(F){
   const show = zoom >= FOCAL_ZOOM * 0.6;
   chip.classList.toggle("panel-hidden", !show); if (!show) return;
   if (!microOk()){ chip.innerHTML = "<b>R5 focal tier</b> needs WebAssembly: not available in this browser"; return; }
-  if (!M){ chip.innerHTML = microNoLand ? "<b>R5 focal tier</b> · no settled land in this tile: nothing to model 1:1" : "<b>R5 focal tier</b> · zoom in to build this tile's neighbourhood"; return; }
+  if (!M){ chip.innerHTML = microNoLand ? "<b>R5 focal tier</b> · this tile is not wholly settled land (sea, coast or empty): streets are built only on whole land tiles" : "<b>R5 focal tier</b> · zoom in to build this tile's neighbourhood"; return; }
   if (chip._t && performance.now() - chip._t < 250) return; chip._t = performance.now();
   const m = M.meta, hh = m[1], hm = String(Math.floor(hh)).padStart(2, "0") + ":" + String(Math.floor((hh % 1) * 60)).padStart(2, "0");
   const kinds = [27, 28, 29, 30, 31, 32].map(k => m[k]);
@@ -2211,9 +2346,13 @@ function updateFocalChip(F){
   chip.innerHTML = `<b>R5 focal 1:1</b> · ${MDCLASS[m[2] | 0]} · ${Math.round(m[4]).toLocaleString()} people/km² · ${Math.round(2 * m[3])} m patch · ` +
     `<span title="present devices by kind">${kinds[0]} phones, ${kinds[1]} home nodes, ${kinds[2]} laptops, ${kinds[3]} hosted servers, ${kinds[4]} seats${kinds[5] ? ", " + kinds[5] + " CI" : ""}</span> · ` +
     `local ${hm} · sim ×<span id="ts-v">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · ${scale} scale` +
-    `<div class="chip-sub">rows: ${m[10]} sent · ${m[11]} direct (${m[12]} shaped) · ${m[13]} relayed · ${m[15]} held at a mailbox · ${m[16]} handed over · punches ${m[20]}/${m[19]} up · tap a device</div>`;
+    `<div class="chip-sub">rows: ${m[10]} sent · ${m[11]} direct (${m[12]} shaped) · ${m[13]} relayed · ${m[15]} held at a mailbox · ${m[16]} handed over · punches ${m[20]}/${m[19]} up · tap a device</div>` +
+    `<div class="chip-sub">model's reading: replication rounds ${m[37] | 0} served · ${m[38] | 0} cadences where an unclaimed device announced with no seat as peer · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +
+    (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? "design case: 3, k=2" : "production: 1"}</button>`) + `</div>`;
   $("ts-dn").onclick = () => { microTimeScale = Math.max(1, Math.round(microTimeScale / 2)); chip._t = 0; };
   $("ts-up").onclick = () => { microTimeScale = Math.min(480, microTimeScale * 2); chip._t = 0; };
+  const bs = $("bs-tg"); if (bs) bs.onclick = () => { microBootstrap = [2, 0, 1][microBootstrap]; wasm.micro_cmd(10, 0, microBootstrap ? 1 : 0); chip._t = 0; renderNodeCard(); };
+  const ds = $("ds-tg"); if (ds) ds.onclick = () => { microDesign = !microDesign; M = null; microSel = -1; chip._t = 0; renderNodeCard(); microFreeRoam(); };
 }
 // ---- the node card: what one device is, from the sim's own state
 function microPick(px, py){
@@ -2249,10 +2388,30 @@ function renderNodeCard(){
   for (let l = 0; l < M.links.length; l += 4){
     const a = M.links[l], b = M.links[l + 1]; if (a !== i && b !== i) continue;
     const o = a === i ? b : a, pk = M.links[l + 2], k = pk & 0xff, sc = (pk >>> 8) & 0xff, bound = (pk >>> 16) & 1, asked = (pk >>> 17) & 1;
-    rows.push(`<li><span class="lk lk${k}${sc ? " shaped" : ""}"></span>${MLINK[k]} ↔ ${MK[nodeKind(o)]} #${o}: ${sc ? "<b>shaped " + MCLASS[sc] + "</b> " + MCLASS_BPS[sc].toLocaleString() + " B/s" + (asked ? " (asked)" : "") : bound ? "unshaped: the bound of 8 was full" : "unshaped (ordinary)"}</li>`);
+    const opener = (pk >>> 18) & 1 ? a : b, by = opener === i ? "opened by this node" : "opened by #" + opener;
+    rows.push(`<li><span class="lk lk${k}${sc ? " shaped" : ""}"></span>${MLINK[k]} ↔ ${MK[nodeKind(o)]} #${o} (${by}): ${sc ? "<b>shaped " + MCLASS[sc] + "</b> " + MCLASS_BPS[sc].toLocaleString() + " B/s" + (asked ? " (asked)" : "") : bound ? "unshaped: the bound of 8 was full" : "unshaped (ordinary)"}</li>`);
   }
   for (let p = 0; p < M.pun.length; p += 2) if (M.pun[p] === i || M.pun[p + 1] === i){ const o = M.pun[p] === i ? M.pun[p + 1] : M.pun[p]; rows.push(`<li><span class="lk lkp"></span>punch in progress with ${MK[nodeKind(o)]} #${o} (20 s budget)</li>`); }
   const seatKm = (s) => { if (s >= 4294967295) return "–"; const site = M.nu[s * 8 + 7] & 0xffffff; return `#${s} (${Math.round(M.sites[site * 4 + 2]).toLocaleString()} km)`; };
+  const cnt = M.cnt || [], rounds = cnt[i * 2] | 0, ann = cnt[i * 2 + 1] | 0;
+  let repl = "";
+  if (kind !== 4){
+    if (f & NF.claimed) repl = `claimed: its seats are replication peers through consent · ${rounds} rounds served`;
+    else if (f & NF.served) repl = `unclaimed, bundle bootstrap on (${BS_LABEL[microBootstrap]}): the bundle's seats serve it · ${rounds} rounds served`;
+    else repl = `unclaimed: announces (${ann}) on the link it opened, but no seat opens a round for it (no owner, no consent; bundle bootstrap off, as on v44) · ${rounds} served`;
+  }
+  let capHtml = "";
+  if (kind === 4 && wasm && wasm.cap_seat){
+    const here = seatRounders(i), sizes = [here, 1000, 10000, 100000];
+    const cell = (c) => c ? `${fmtN(c.cpu)} cores · ${fmtN(c.reads)} reads/s${c.rhoCpu >= 1 || c.rhoPermit >= 1 ? " · <b>saturated</b>" : ""}` : "–";
+    const tr = sizes.map((d, j) => `<tr><td>${j ? fmtN(d) : d + " (this patch)"}</td><td>${cell(capSeat(d, bsShape(), 0))}</td><td>${cell(capSeat(d, bsShape(), 1))}</td></tr>`).join("");
+    const kw = capSeat(1, 0, 0), kr = capSeat(1, 1, 0), ka = capSeat(1, 1, 1);
+    capHtml = `<div class="card-links"><span>seat load, ${BS_LABEL[microBootstrap]} (${microBootstrap === 0 ? "ordinary whole-plane rounds, claimed devices only" : CAP_SHAPE[bsShape()]}), one seat of ${kr ? kr.cores : "?"} cores · model, calibrated to seat-1</span>
+      <table class="cap"><tr><th>devices</th><th>as shipped</th><th>after read minimisation</th></tr>${tr}</table>
+      <div class="kv"><span>largest fleet under ${kr ? Math.round(kr.ceiling * 100) : 70}%</span><b>whole-plane ${kw ? fmtN(kw.knee) : "–"} · required-set ${kr ? fmtN(kr.knee) : "–"} · required-set after ${ka ? fmtN(ka.knee) : "–"}</b></div>
+      <div class="kv"><span>Global key planes, ${fmtN(here)} devices (model: a + b × subjects under one lock, apart from reads)</span><b>${(() => { const w = capSeat(here, bsShape(), 1); return w && w.walk >= 0 ? fmtN(w.walk) + " cores over " + fmtN(w.walkKeys) + " subjects" + (w.lock >= 0 ? " · plane lock ρ " + w.lock.toFixed(2) + " (one server, cores do not help)" : "") : "–"; })()}</b></div>
+      <div class="kv"><span>seat-1 measured</span><b>0.65 cores, ~329 attestation queries/s (quiet 60 s window)</b></div></div>`;
+  }
   const state = !(f & NF.present) ? "not present" : !(f & NF.awake) ? "asleep" : (f & NF.online) ? "online" : "resuming";
   card.innerHTML = `<div class="panel-head"><b style="color:${MK_COL[kind]}">${MK[kind]} #${i}</b><button class="panel-close" id="close-card" type="button" title="Close">✕</button></div>
   <div class="kv"><span>doing</span><b>${MACT[act]}</b></div>
@@ -2261,12 +2420,15 @@ function renderNodeCard(){
   <div class="kv"><span>shaped links</span><b>${nodeShaped(i)} of 8 · ${shapesWhy}</b></div>
   <div class="kv"><span>reachability</span><b>${reach}</b></div>
   <div class="kv"><span>relay</span><b>${relayWhy}</b></div>
-  <div class="kv"><span>homes on (k=2)</span><b>${kind === 4 ? "is a canonical" : seatKm(h0) + " · " + seatKm(h1)}</b></div>
+  <div class="kv"><span>homes on (k=${homesOf(i).length || "–"}${microDesign ? ", design case" : ""})</span><b>${kind === 4 ? "is a canonical" : homesOf(i).map(seatKm).join(" · ") || "–"}</b></div>
+  ${repl ? `<div class="kv"><span>replication (model's reading)</span><b>${repl}${kind !== 3 && kind !== 5 ? ` <button class="chip-btn" id="claim-tg" type="button">${f & NF.claimed ? "unclaim" : "claim"}</button>` : ""}</b></div>` : ""}
   <div class="kv"><span>edge version</span><b>${f & NF.old ? "older (pre-v44: never proposes a direct path)" : "current (v45)"}</b></div>
   ${holding || pending || (f & NF.mailbox) ? `<div class="kv"><span>mailbox</span><b>${f & NF.mailbox ? "can hold mail · " : ""}holding ${holding} · waiting for it ${pending}</b></div>` : ""}
+  ${capHtml}
   <div class="card-links"><span>links now (${rows.length})</span><ul>${rows.join("") || "<li>none: " + (state === "asleep" ? "suspend closed every link" : "no traffic") + "</li>"}</ul></div>`;
   card.classList.remove("panel-hidden");
   $("close-card").onclick = () => { microSel = -1; renderNodeCard(); };
+  const ct = $("claim-tg"); if (ct) ct.onclick = () => { wasm.micro_cmd(9, i, f & NF.claimed ? 0 : 1); microRead(); renderNodeCard(); };
 }
 let pickDown = null;
 cv.addEventListener("mousedown", e => { pickDown = [e.clientX, e.clientY, performance.now()]; });
@@ -2343,7 +2505,7 @@ function storyMicroTick(act, t){
     else if (t < 16){ storyCam(axh, ayh, frameZ(70));
       once("wake", () => { wasm.micro_cmd(1, ap, 1 | 2); storyMicroCaption("A generated street on the city's edge. Alice's phone wakes on her home Wi-Fi; her <b>home node</b> is always on"); });
       if (t > 9.5) once("lan", () => { wasm.micro_cmd(3, ap, ah); storyMicroCaption("The phone finds her home node on the <b>LAN</b>: a direct one-hop link, no server involved"); });
-      if (t > 12) once("home", () => storyMicroCaption(`Both dial out to the two serve seats they home on (k=2), data centres ${kmOf(M.nu[ap * 8 + 3])} and ${kmOf(M.nu[ap * 8 + 4])} km away. The phone is client-only: it listens for nothing`)); }
+      if (t > 12) once("home", () => { const hs = homesOf(ap); storyMicroCaption(hs.length === 1 ? `Both dial out to the one serve seat the whole mesh homes on, a data centre ${kmOf(hs[0])} km away. The phone is client-only: it listens for nothing` : `Both dial out to the ${hs.length} serve seats they home on (design case, k=${hs.length}), data centres ${hs.map(kmOf).join(" and ")} km away. The phone is client-only: it listens for nothing`); }); }
     else if (t < 24){ const z = expLerp(frameZ(70), frameZ(span * 1.35 + 40), (t - 16) / 2); storyCam(mid[0], mid[1], z);
       once("bob", () => { wasm.micro_cmd(1, bp, 1 | 2); wasm.micro_cmd(4, ap, bp); storyMicroCaption(`Bob lives ${Math.round(span)} m away. They swap a contact link`); });
       if (t > 18.2) once("first", () => { microTimeScale = 6; const r = wasm.micro_cmd(3, ap, bp); MSTORY.route1 = r; microRead();
@@ -2365,9 +2527,9 @@ function storyMicroTick(act, t){
     const z = t < 6 ? frameZ(Math.max(160, M.half * 0.9)) : t < 20 ? expLerp(frameZ(Math.max(160, M.half * 0.9)), frameZ(M.half * 2.6), (t - 6) / 14) : expLerp(frameZ(M.half * 2.6), 30, (t - 20) / 8);
     storyCam(mid[0], mid[1], z);
     once("all", () => storyMicroCaption("The whole street: phones sleep and wake and change network, laptops close, home nodes stay up and hold their members' mail"));
-    if (t > 7) once("bound", () => { const s = M.nu[ap * 8 + 3]; storyMicroCaption(`Each serve seat shapes at most <b>eight</b> links (now ${nodeShaped(s)}/8); its other homed devices run unshaped, as CC 5.4.3 allows`); });
+    if (t > 7) once("bound", () => { const s = M.nu[ap * 8 + 3]; storyMicroCaption(`A serve seat shapes at most <b>eight</b> device links (now ${nodeShaped(s)}/8): the first homed devices that offer shaping. A seat never dials, so a device that does not offer gets none, and past the eight the rest ride unshaped on the same homing link (edge v45: no displacement)`); });
     if (t > 12) once("ci", () => { MSTORY.ci = wasm.micro_cmd(5, 0, 1); const km = MSTORY.ci >= 0 ? kmOf(MSTORY.ci) : "–";
-      storyMicroCaption(`A <b>QA runner</b> boots in a CI data centre ${km} km away, homes on two seats, runs its job and leaves. This one runs an older edge, so it never proposes a direct path`); });
+      storyMicroCaption(`A <b>QA runner</b> boots in a CI data centre ${km} km away, homes on ${MSTORY.ci >= 0 ? seatPhrase(homesOf(MSTORY.ci).length).replace(" it homes on", "") : "the seat"}, runs its job and leaves. This one runs an older edge, so it never proposes a direct path`); });
     if (t > 20) once("pull", () => storyMicroCaption("Pull back: this street is one of millions. Past its edge the twin keeps cohorts, not devices"));
   }
 }
