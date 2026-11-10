@@ -129,6 +129,7 @@ cost_params! {
     SeatKeyRows = "seat_key_rows", 8_698.0, Measured, "seat-1 keys, window A; also the code bound on the Key-plane offer";
     AnnouncedNodes = "announced_nodes", 1_349.0, Measured, "seat-1 relay report announced_nodes";
     AnnouncedOwners = "announced_owners", 1_338.0, Measured, "seat-1 relay report owners";
+    TodayPeersBooked = "today_peers_booked", 1.0, Model, "1 books window B's measured round mix (today's peers at seat-1: 10/11/10/11 responder finals a minute on attestation/occurrence/key/route, 0 Global, 2,263 rows withheld; MEASURED) as a fixed baseline in every scenario; how it scales is MODEL: the rounds stay fixed and the rows withheld per attestation round grow with the attestation store. Devices drawn as consent or old peers on top may double-count some of it. AfterReadMin drops its withheld-row cost, which rests on withhold-rate's source answer (not back). 0 shows the devices alone";
     StoreFloorNodes = "store_floor_nodes", 1_349.0, Model, "the store never holds fewer nodes than today's announced set: N_nodes = max(devices, floor)";
     PageRows = "page_rows", 1_024.0, Derived, "holdings drain page size (edge code trace, team-lead 2026-11-10)";
     // ---- round schedule --------------------------------------------------
@@ -1167,6 +1168,21 @@ fn add_devices(p: &CostParams, m: &mut RoundMix, n: f64, shape: RoundShape) {
     m.attribution_reads_per_min += k * p.get(C::AttributionReadsPerCadence);
 }
 
+/// Today's peers at the seat: window B's measured round mix (MEASURED), held fixed, with the
+/// rows withheld per attestation round scaled by the attestation store (MODEL).
+fn book_today_peers(p: &CostParams, m: &mut RoundMix) {
+    let r = window_b::ROUNDS;
+    m.rounds_per_min[Plane::Attestation as usize] += r[0];
+    m.rounds_per_min[Plane::IdentityOccurrence as usize] += r[1];
+    m.rounds_per_min[Plane::Key as usize] += r[2];
+    m.rounds_per_min[Plane::TransportDestination as usize] += r[3];
+    m.rounds_per_min[Plane::Revocation as usize] += window_b::REV_ROUNDS;
+    m.rounds_per_min[Plane::IdentityOccurrenceRevocation as usize] += window_b::REV_ROUNDS;
+    // Devices add no refusing rounds, so the baseline is the only source of withheld rows.
+    m.refusing_att_rounds_per_min += r[0];
+    m.refused_rows_per_round = window_b::WITHHOLDS / r[0] * (m.n_att / p.get(C::SeatAttRows));
+}
+
 /// Cost one scenario.
 #[must_use]
 pub fn run(p: &CostParams, s: &Scenario) -> Outcome {
@@ -1199,6 +1215,9 @@ pub fn run(p: &CostParams, s: &Scenario) -> Outcome {
         ..RoundMix::default()
     };
     add_devices(p, &mut m, at_seat_fleet * share, s.shape);
+    if p.get(C::TodayPeersBooked) >= 0.5 {
+        book_today_peers(p, &mut m);
+    }
     // Fellow seats: each rounds on all six planes, not first contact (no refusals),
     // and this seat drains on the reply to each round it opens with them.
     let fellows = seats - 1.0;
@@ -2232,6 +2251,33 @@ mod tests {
     /// The twin's v45 constants are the ones CIRISEdge#971 has at the cited commit. Set
     /// `CEWP_EDGE_RUNTIME_RS` to `src/replication/runtime.rs` of an edge checkout to compare;
     /// unset, only the parameters' agreement with [`edge_971`] is checked.
+    /// With no bundle devices, "v45 at today's fleet" is today's seat: the booked baseline
+    /// reproduces window B's CPU and door counts within the calibration's stated 12% band.
+    #[test]
+    fn today_peers_alone_reproduce_window_b() {
+        let p = CostParams::calibrated();
+        assert!(within(p.get(C::TodayPeersBooked), 1.0, 0.0), "the baseline is on by default");
+        let o = run(&p, &Scenario::one_seat(0.0, RoundShape::RequiredSet, ReadSet::AsShipped));
+        let cpu = o.seat.cpu_total();
+        assert!(within(cpu, window_b::CPU_CORES, 0.12), "cpu {cpu}");
+        assert!(within(o.seat.att_queries_per_s * 60.0, window_b::ATT_QUERIES, 0.12), "att {}", o.seat.att_queries_per_s * 60.0);
+        assert!(within(o.seat.composer_per_s * 60.0, window_b::COMPOSER, 0.12), "composer {}", o.seat.composer_per_s * 60.0);
+        // Off, the seat carries only the server's own context and stale routes.
+        let mut q = p.clone();
+        q.set(C::TodayPeersBooked, 0.0);
+        let bare = run(&q, &Scenario::one_seat(0.0, RoundShape::RequiredSet, ReadSet::AsShipped));
+        assert!(bare.seat.cpu_total() < cpu * 0.6, "bare {} vs {cpu}", bare.seat.cpu_total());
+        // As shipped the baseline lowers the knee. After read minimisation the knee is the
+        // Global-plane lock's, and the baseline books no Global rounds (MEASURED 0), so it
+        // may not move; it must not rise.
+        let sc = |read| Scenario::one_seat(1.0, RoundShape::RequiredSet, read);
+        let (s_on, s_off) = (knee(&p, &sc(ReadSet::AsShipped)), knee(&q, &sc(ReadSet::AsShipped)));
+        let (a_on, a_off) = (knee(&p, &sc(ReadSet::AfterReadMin)), knee(&q, &sc(ReadSet::AfterReadMin)));
+        assert!(s_on < s_off, "as shipped {s_on} vs {s_off}");
+        assert!(a_on <= a_off, "after {a_on} vs {a_off}");
+        eprintln!("today's peers alone: {cpu:.3} cores (B {}), bare {:.3}; knee as shipped {s_on:.0} vs {s_off:.0} without, after read-min {a_on:.0} vs {a_off:.0}", window_b::CPU_CORES, bare.seat.cpu_total());
+    }
+
     #[test]
     fn edge_971_constants_match_the_source() {
         let p = CostParams::default();
