@@ -117,12 +117,12 @@ const TLV = `attribute vec2 p;attribute vec2 n;attribute float wd;attribute vec4
 void main(){vec4 sel=vec4(equal(vec4(k),vec4(0.0,1.0,2.0,3.0)));vec2 q=p+n*max(wd,dot(uMinHalf,sel)/uPpm);float px=uX.x*q.x+uX.y*q.y+uX.z;float py=uY.x*q.x+uY.y*q.y+uY.z;
 float f=uRing.z>0.0?1.0-smoothstep(0.85*uRing.z,uRing.z,length(vec2(px,py)-uRing.xy)):1.0;
 gl_Position=vec4(px/uView.x*2.0-1.0,1.0-py/uView.y*2.0,0.0,1.0);vc=vec4(c.rgb,c.a*dot(uKindA,sel)*f);}`;
-const TLF = `precision mediump float;varying vec4 vc;void main(){if(vc.a<0.004)discard;gl_FragColor=vc;}`;
+const TLF = `precision mediump float;uniform float uDim;varying vec4 vc;void main(){if(vc.a<0.004)discard;gl_FragColor=vec4(vc.rgb*uDim,vc.a);}`;
 let tlProg = null, tlLoc = null, tlAggBuf = null;
 function tlGL(){
   if (tlProg) return; tlProg = prog(TLV, TLF); tlAggBuf = gl.createBuffer();
   const u = (n) => gl.getUniformLocation(tlProg, n), a = (n) => gl.getAttribLocation(tlProg, n);
-  tlLoc = { p: a("p"), n: a("n"), wd: a("wd"), c: a("c"), k: a("k"), X: u("uX"), Y: u("uY"), view: u("uView"), ppm: u("uPpm"), minHalf: u("uMinHalf"), kindA: u("uKindA"), ring: u("uRing") };
+  tlLoc = { p: a("p"), n: a("n"), wd: a("wd"), c: a("c"), k: a("k"), X: u("uX"), Y: u("uY"), view: u("uView"), ppm: u("uPpm"), minHalf: u("uMinHalf"), kindA: u("uKindA"), ring: u("uRing"), dim: u("uDim") };
 }
 function tlAttribs(){ const L = tlLoc, s = 40;
   gl.enableVertexAttribArray(L.p); gl.vertexAttribPointer(L.p, 2, gl.FLOAT, false, s, 0);
@@ -140,7 +140,7 @@ function tlScreen(arr, alpha){
   if (!arr.length || alpha <= 0.01) return;
   gl.bindBuffer(gl.ARRAY_BUFFER, tlAggBuf); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STREAM_DRAW); tlAttribs();
   gl.uniform3f(tlLoc.X, 1, 0, 0); gl.uniform3f(tlLoc.Y, 0, 1, 0); gl.uniform1f(tlLoc.ppm, 1); gl.uniform4f(tlLoc.minHalf, 0, 0, 0, 0);
-  gl.uniform4f(tlLoc.kindA, alpha, 0, 0, 0); gl.uniform3f(tlLoc.ring, 0, 0, 0);
+  gl.uniform4f(tlLoc.kindA, alpha, 0, 0, 0); gl.uniform3f(tlLoc.ring, 0, 0, 0); gl.uniform1f(tlLoc.dim, 1); // night is in the colours
   gl.drawArrays(gl.TRIANGLES, 0, arr.length / 10);
 }
 
@@ -156,7 +156,7 @@ function tlVisit(F, mpp, capDetail){
   const box = (c) => { const [la, lo] = tlCentre(c); const q = camQ(...xyz(la, lo)); if (q[2] <= 0.02) return null;
     const s = HOLON.STEP[c.level] / HOLON.UPD * mPerDeg * ppm, sx = s * Math.cos(la * Math.PI / 180);
     const x = cx + F.k * q[0], y = cy - F.k * q[1], dx = Math.max(0, Math.abs(x - cx) - sx / 2), dy = Math.max(0, Math.abs(y - cy) - s / 2);
-    return { x, y, hw: sx / 2, hh: s / 2, dist: Math.hypot(dx, dy) }; };
+    return { x, y, hw: sx / 2, hh: s / 2, dist: Math.hypot(dx, dy), la, lo }; };
   // best-first from the centre: the nearest holons are resolved first, so the detail stops at a
   // ring (the acuity ring) when the leaf cap or the governor's radius is reached
   const heap = [], push = (e) => { heap.push(e); let k = heap.length - 1; while (k){ const p = (k - 1) >> 1; if (heap[p].bx.dist <= e.bx.dist) break; heap[k] = heap[p]; k = p; } heap[k] = e; };
@@ -190,7 +190,16 @@ function tlFrame(now){
   const ms = TL.lastT ? now - TL.lastT : 16.7; TL.lastT = now; TL.frameMs = ms;
   const F = camFrame(); TL.ring.max = Math.hypot(F.w, F.h) / 2 + 20; HOLON.governor(TL.ring, ms);
 }
-function tlDraw(w, h, mpp){
+// night: the land fill's own factor (globe.js GF: mix(0.62, 1, smoothstep(-0.10, 0.12, sun · p))),
+// so the tiling, the land and the water darken together
+function tlNight(sun, la, lo){ const a = la * Math.PI / 180, o = lo * Math.PI / 180;
+  const d = sun[0] * Math.cos(a) * Math.sin(o) + sun[1] * Math.sin(a) + sun[2] * Math.cos(a) * Math.cos(o);
+  return 0.62 + 0.38 * sstep(-0.10, 0.12, d); }
+// a holon's own lightness, ±4% from its id, so neighbours read as patchwork rather than graph paper
+function tlJitter(v){ let x = Math.imul((v % 4294967296) >>> 0, 0x9e3779b1) ^ Math.imul(Math.floor(v / 4294967296) | 0, 0x85ebca77);
+  x ^= x >>> 15; x = Math.imul(x, 0x2c1b3c6d); x ^= x >>> 12; return 1 + 0.08 * (((x >>> 0) / 4294967296) - 0.5); }
+function tlDraw(w, h, mpp, sun){
+  sun = sun || [0, 0, 1];
   TL.on = !TL.disabled && tlReady() && !(microStory && !(M && M.leaf !== undefined)) && mpp < 400 && zoom >= 8; // the story's street is a leaf, tiled like any other
   if (!TL.on){ TL.drawn = TL.agg = TL.pending = 0; return; }
   tlGL(); const F = camFrame(), T = tlTree();
@@ -203,9 +212,10 @@ function tlDraw(w, h, mpp){
   // the mosaic: one quad per holon in view, toned by households per km². Under a leaf that is
   // fading in (or out at the ring's edge) the same tone shows through, so the two cross-fade.
   const quads = agg.concat(detail), Q = new Float32Array(quads.length * 60); let o = 0;
-  for (const { bx, b } of quads){
-    const km2 = (bx.hw * 2 / (F.k / EARTH_M) / 1000) * (bx.hh * 2 / (F.k / EARTH_M) / 1000), col = tlRamp(tlTone(b / Math.max(1e-6, km2)));
-    const ins = bx.hw >= 8 ? 0.3 : 0; // each holon inset a little, so the tiling reads
+  for (const { c, bx, b } of quads){
+    const km2 = (bx.hw * 2 / (F.k / EARTH_M) / 1000) * (bx.hh * 2 / (F.k / EARTH_M) / 1000), col0 = tlRamp(tlTone(b / Math.max(1e-6, km2)));
+    const f = tlJitter(HOLON.pack(c)) * tlNight(sun, bx.la, bx.lo), col = [col0[0] * f, col0[1] * f, col0[2] * f];
+    const ins = bx.hw >= 20 ? 0.3 : 0; // the tiling reads by tone; a fine seam only once a holon is 40 px wide
     const P = [[bx.x - bx.hw + ins, bx.y - bx.hh + ins], [bx.x + bx.hw - ins, bx.y - bx.hh + ins], [bx.x + bx.hw - ins, bx.y + bx.hh - ins], [bx.x - bx.hw + ins, bx.y + bx.hh - ins]];
     for (const k of [0, 1, 2, 0, 2, 3]){ Q[o++] = P[k][0]; Q[o++] = P[k][1]; Q[o++] = 0; Q[o++] = 0; Q[o++] = 0; Q[o++] = col[0]; Q[o++] = col[1]; Q[o++] = col[2]; Q[o++] = 0.9; Q[o++] = 0; }
   }
@@ -217,7 +227,7 @@ function tlDraw(w, h, mpp){
     for (const t of tiles.values()){
       const L = tlArterials(t); if (!L.length) continue;
       const [la, lo] = tlCentre(t), s = HOLON.STEP[2], af = tlAffine(F, tlFrameOf(la, lo)); if (af.front <= 0.02) continue;
-      const xc = t.j * s + s / 2, yc = t.i * s + s / 2, cl = Math.cos(la * Math.PI / 180), hw = Math.max(0.6, 6 * af.ppm);
+      const xc = t.j * s + s / 2, yc = t.i * s + s / 2, cl = Math.cos(la * Math.PI / 180), hw = Math.max(0.6, 6 * af.ppm), nf = tlNight(sun, la, lo);
       const hx = s / 2 * mPerU * cl, hy = s / 2 * mPerU;
       for (let k = 0; k < L.length; k += 2){
         const v = L[k], ns = L[k + 1] === 1;
@@ -225,7 +235,7 @@ function tlDraw(w, h, mpp){
         const p = seg.map(([xm, ym]) => [af.a * xm + af.c * ym + af.e, af.b * xm + af.d * ym + af.f]);
         const Ln = Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]); if (Ln < 0.5) continue;
         const nx = -(p[1][1] - p[0][1]) / Ln * hw, ny = (p[1][0] - p[0][0]) / Ln * hw;
-        for (const [q, sg] of [[0, -1], [1, -1], [1, 1], [0, -1], [1, 1], [0, 1]]) A.push(p[q][0] + nx * sg, p[q][1] + ny * sg, 0, 0, 0, 0.62, 0.59, 0.5, 0.85, 0);
+        for (const [q, sg] of [[0, -1], [1, -1], [1, 1], [0, -1], [1, 1], [0, 1]]) A.push(p[q][0] + nx * sg, p[q][1] + ny * sg, 0, 0, 0, 0.62 * nf, 0.59 * nf, 0.5 * nf, 0.85, 0);
       }
     }
     tlScreen(new Float32Array(A), artA);
@@ -256,6 +266,8 @@ function tlDraw(w, h, mpp){
       }
       bt.used = frame;
       const A = tlAffine(F, bt.fr); if (A.front <= 0.02) continue;
+      if (bt.night === undefined || frame % 30 === 0){ const [la, lo] = tlCentre(list[0].t); bt.night = tlNight(sun, la, lo); }
+      gl.uniform1f(tlLoc.dim, bt.night);
       gl.bindBuffer(gl.ARRAY_BUFFER, bt.vbo); tlAttribs();
       gl.uniform3f(tlLoc.X, A.a, A.c, A.e); gl.uniform3f(tlLoc.Y, A.b, A.d, A.f); gl.uniform1f(tlLoc.ppm, A.ppm);
       gl.drawArrays(gl.TRIANGLES, 0, bt.n);

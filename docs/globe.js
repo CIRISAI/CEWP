@@ -682,7 +682,7 @@ function initLand(){
 // 110m rides in geo/ne110.js (the planet view and the land test); 50m loads once the view nears a
 // continent; 10m loads per 10-degree tile at region scale. Every real layer fades out between 90
 // and 30 m a pixel, before any generated street fades in (a patch's ground starts at 26 m a pixel), so real and generated never share a scale.
-const GEO_MPP_50 = 6000, GEO_MPP_10 = 1200, GEO_TILE_CAP = 30;
+const GEO_MPP_50 = 6000, GEO_MPP_10 = 1200, GEO_TILE_CAP = 30, GEO_MPP_ETOPO_LAKE = 300;
 const GEO = { base: null, l50: null, lakes: null, p50: false, idx10: null, pIdx: false, t10: new Map(), places: null, pPlaces: false, mpp: 1e9, used: "110m", rf: 1,
   stats(){ let b = 0; for (const t of this.t10.values()) b += t.bytes; return { used: this.used, tiles10: this.t10.size, bytes10: b, l50: !!this.l50, places: this.places ? this.places.length : 0, mpp: Math.round(this.mpp) }; } };
 function geoDecode(buf){
@@ -698,16 +698,20 @@ function geoDecode(buf){
   return L;
 }
 // a layer set's GL buffers: the fill as stencil fans, and each line kind as segments lifted off the sphere
-function geoUpload(L, step){
+// K (a 10m tile only): ETOPO's lake rings and shores, kept apart so they draw only above
+// GEO_MPP_ETOPO_LAKE (nearer in, a lake ETOPO finds on a 10m tile is a string of beads)
+function geoUpload(L, step, K){
   const dens = (pl, closed) => { if (!step) return pl; const d = []; for (let j = 0; j + 1 < pl.length; j++) densify(pl[j], pl[j + 1], d); if (!closed) d.push(pl[pl.length - 1]); return d; };
-  const rings = L[1].map(r => { const c = (r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]) ? r.slice(0, -1) : r; return dens(c.concat([c[0]]), true); });
+  const ring = (r) => { const c = (r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]) ? r.slice(0, -1) : r; return dens(c.concat([c[0]]), true); };
+  const rings = L[1].map(ring);
   const mk = (data) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); return { b, n: data.length / 3, bytes: data.byteLength }; };
   const seg = (pls) => { const v = []; for (const pl0 of pls){ const pl = dens(pl0, false); for (let j = 0; j + 1 < pl.length; j++){ const a = xyz(pl[j][0], pl[j][1]), b = xyz(pl[j + 1][0], pl[j + 1][1]); v.push(a[0] * 1.001, a[1] * 1.001, a[2] * 1.001, b[0] * 1.001, b[1] * 1.001, b[2] * 1.001); } } return new Float32Array(v); };
   const S = { fan: mk(landFan(rings)), lines: [mk(seg(L[2])), mk(seg(L[3])), mk(seg(L[4]))], rings };
-  S.bytes = S.fan.bytes + S.lines.reduce((a, l) => a + l.bytes, 0);
+  if (K && K.rings.length){ const kr = K.rings.map(ring); S.fanK = mk(landFan(rings.concat(kr))); S.shoreK = mk(seg(K.shores)); }
+  S.bytes = S.fan.bytes + S.lines.reduce((a, l) => a + l.bytes, 0) + (S.fanK ? S.fanK.bytes + S.shoreK.bytes : 0);
   return S;
 }
-function geoFree(S){ gl.deleteBuffer(S.fan.b); S.lines.forEach(l => gl.deleteBuffer(l.b)); }
+function geoFree(S){ gl.deleteBuffer(S.fan.b); S.lines.forEach(l => gl.deleteBuffer(l.b)); if (S.fanK){ gl.deleteBuffer(S.fanK.b); gl.deleteBuffer(S.shoreK.b); } }
 function geoFetch(path){ return fetch(path).then(r => { if (!r.ok) throw new Error(path + " " + r.status); return r.arrayBuffer(); }); }
 function geoInitBase(){
   if (typeof NE110_B64 === "undefined") return null;
@@ -742,7 +746,7 @@ function geoSets(w, h, mpp){
       for (const k of tiles){ const t = GEO.t10.get(k);
         if (t){ GEO.t10.delete(k); GEO.t10.set(k, t); continue; } // most recent last
         GEO.t10.set(k, { pending: true, bytes: 0 });
-        geoFetch("geo/ne10/" + k + ".bin?v=1").then(b => { const e = GEO.t10.get(k); if (!e) return; const L = geoDecode(b); geoAddLakes(L, k); const S = geoUpload(L, 0); S.pending = false; GEO.t10.set(k, S); geoEvict(tiles); })
+        geoFetch("geo/ne10/" + k + ".bin?v=1").then(b => { const e = GEO.t10.get(k); if (!e) return; const L = geoDecode(b), K = geoAddLakes(k); const S = geoUpload(L, 0, K); S.pending = false; GEO.t10.set(k, S); geoEvict(tiles); })
           .catch(e => { console.warn(e.message); GEO.t10.delete(k); }); }
       geoEvict(tiles); }
   }
@@ -752,14 +756,15 @@ function geoSets(w, h, mpp){
 }
 // ETOPO's lakes in a 10m tile: each ring clipped to the tile (so a lake on a tile edge is one hole,
 // not two), each shore kept by the tile holding its first point. The 10m tiles load after the 50m set.
-function geoAddLakes(L, key){
-  const K = GEO.lakes; if (!K) return;
+function geoAddLakes(key){
+  const K = GEO.lakes, out = { rings: [], shores: [] }; if (!K) return out;
   const [la, lo] = key.split("_").map(Number), box = [la, lo, la + 10, lo + 10];
   const inT = (p) => p[0] >= box[0] && p[0] < box[2] && p[1] >= box[1] && p[1] < box[3];
   for (const r of K[1]){ let a0 = 90, a1 = -90, o0 = 180, o1 = -180; for (const p of r){ a0 = Math.min(a0, p[0]); a1 = Math.max(a1, p[0]); o0 = Math.min(o0, p[1]); o1 = Math.max(o1, p[1]); }
     if (a1 < box[0] || a0 >= box[2] || o1 < box[1] || o0 >= box[3]) continue;
-    const c = (a0 >= box[0] && a1 < box[2] && o0 >= box[1] && o1 < box[3]) ? r : geoClipRing(r, box); if (c) L[1].push(c); }
-  for (const s of K[2]) if (s.length && inT(s[0])) L[2].push(s);
+    const c = (a0 >= box[0] && a1 < box[2] && o0 >= box[1] && o1 < box[3]) ? r : geoClipRing(r, box); if (c) out.rings.push(c); }
+  for (const s of K[2]) if (s.length && inT(s[0])) out.shores.push(s);
+  return out;
 }
 function geoClipRing(r, [y0, x0, y1, x1]){
   let pts = r.slice();
@@ -931,7 +936,7 @@ function draw(){
     gl.colorMask(false,false,false,false); gl.stencilFunc(gl.ALWAYS,0,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.INVERT);
     gl.disableVertexAttribArray(gt); gl.vertexAttrib1f(gt,0);
     gl.enableVertexAttribArray(gp);
-    if (gsets.length) for (const G of gsets){ gl.bindBuffer(gl.ARRAY_BUFFER,G.fan.b); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,G.fan.n); }
+    if (gsets.length) for (const G of gsets){ const fan=(G.fanK && mpp>=GEO_MPP_ETOPO_LAKE)?G.fanK:G.fan; gl.bindBuffer(gl.ARRAY_BUFFER,fan.b); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,fan.n); }
     else { gl.bindBuffer(gl.ARRAY_BUFFER,fanBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,fanVerts); }
     gl.colorMask(true,true,true,true); gl.stencilFunc(gl.EQUAL,1,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP);
     // ground reaches full cover sooner than the tiles fade in, so empty land never reads as shallow sea
@@ -949,8 +954,9 @@ function draw(){
     const vp=gl.getAttribLocation(pV,"p"); gl.enableVertexAttribArray(vp);
     const near=sstep(GEO_MPP_50*2,GEO_MPP_50/2,mpp);
     const LS=[[[0.46,0.74,0.98],0.86],[[0.93,0.78,0.52],0.30+0.40*near],[[0.38,0.62,0.95],0.18+0.42*near]];
-    for (let k=0;k<3;k++){ gl.uniform3fv(gl.getUniformLocation(pV,"uCol"),LS[k][0]); gl.uniform1f(gl.getUniformLocation(pV,"uA"),LS[k][1]*GEO.rf);
-      for (const G of gsets){ const L=G.lines[k]; if (!L.n) continue; gl.bindBuffer(gl.ARRAY_BUFFER,L.b); gl.vertexAttribPointer(vp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.LINES,0,L.n); } } }
+    LS.push(LS[0]); const nk=mpp>=GEO_MPP_ETOPO_LAKE?4:3; // 3: ETOPO's shores on a 10m tile, with its lake fill
+    for (let k=0;k<nk;k++){ gl.uniform3fv(gl.getUniformLocation(pV,"uCol"),LS[k][0]); gl.uniform1f(gl.getUniformLocation(pV,"uA"),LS[k][1]*GEO.rf);
+      for (const G of gsets){ const L=(k===3)?G.shoreK:G.lines[k]; if (!L || !L.n) continue; gl.bindBuffer(gl.ARRAY_BUFFER,L.b); gl.vertexAttribPointer(vp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.LINES,0,L.n); } } }
   if (npts){ gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.useProgram(pP); gl.uniformMatrix3fv(gl.getUniformLocation(pP,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pP,"S"),S); gl.uniform2fv(gl.getUniformLocation(pP,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pP,"dpr"),dpr); gl.uniform1f(gl.getUniformLocation(pP,"uTime"),nowSec);
     gl.uniform1f(gl.getUniformLocation(pP,"uStory"),storyActive?1.0:0.0);
@@ -968,7 +974,7 @@ function draw(){
     gl.drawArrays(gl.POINTS,0,npts); gl.disable(gl.STENCIL_TEST);
     gl.disable(gl.DEPTH_TEST); }
   // the street tiling (tiling.js): holons over the land, clipped by the same land stencil
-  if (typeof tlDraw==="function") tlDraw(w,h,mpp);
+  if (typeof tlDraw==="function") tlDraw(w,h,mpp,sunWorld);
   if (arcCount>0 && showArcs){ gl.useProgram(pL); gl.uniformMatrix3fv(gl.getUniformLocation(pL,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pL,"S"),S); gl.uniform2fv(gl.getUniformLocation(pL,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pL,"uTime"),nowSec);
     const lp=gl.getAttribLocation(pL,"p"), lparam=gl.getAttribLocation(pL,"param");
     gl.bindBuffer(gl.ARRAY_BUFFER,linePosBuf); gl.enableVertexAttribArray(lp); gl.vertexAttribPointer(lp,3,gl.FLOAT,false,0,0);
