@@ -567,7 +567,7 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
   <div id="foot-measured" style="margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px">
     <b style="color:#fff">Measured from a live mesh.</b> The serve seat's cost model (open a serve seat's card at street zoom) is calibrated from the live production CIRIS mesh on 2026-11-10: four 60-second windows of the serve node's own counters, one of them with CPU, plus its store composition and announced-node count. Device behaviour is derived from the shipping edge source (CIRISEdge v45 candidate, commit <code>c580298</code>). Everything beyond today's fleet size is a model projection.
     <br><b style="color:#fff">Measured today (seat-1, aggregates only):</b> 0.65 of a core in a quiet 60 s window · ~329 attestation queries/s · ~10–12 replication rounds per minute per plane (quiet window) · store of ~42.5k attestations, ~18.3k transport destinations, ~8.7k keys · 1,349 announced nodes under 1,338 owners · 0 key-revocation rows. On screen, only the seat card's <i>seat-1 measured</i> line shows these directly.
-    <br><b style="color:#fff">Labels:</b> MEASURED is read from the serve node; DERIVED is computed by stated arithmetic from measured counts and the edge source; MODEL is a projection; PROVISIONAL is a MODEL figure that rests on an open calibration question. DERIVED and PROVISIONAL are both MODEL in the README scoreboard's sense. Seat capacity figures exclude today's measured peer load, so they are optimistic. The population, links and story elsewhere on the globe are simulated.
+    <br><b style="color:#fff">Labels:</b> MEASURED is read from the serve node; DERIVED is computed by stated arithmetic from measured counts and the edge source; MODEL is a projection; PROVISIONAL is a MODEL figure that rests on an open calibration question. DERIVED and PROVISIONAL are both MODEL in the README scoreboard's sense. Seat capacity figures include today's measured peer load at seat-1 as a fixed baseline (MEASURED round mix; how it scales is MODEL). The population, links and story elsewhere on the globe are simulated.
   </div>
   Every person and device sits on populated land (2,961 density cells stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Per <b>CC 5.4.3</b> ("A shaped link is one hop"), shaped budget classes (<code>server</code> 7,000 B/s, <code>home</code> 2,800 B/s, <code>phone-wifi</code> 1,400 B/s, <code>phone-cellular</code> 350 B/s, <code>seat</code> 33,000 B/s at ρ=0.5) are 1 direct hop and never forwarded; peers without a direct path carry on ordinary links. Large rooms fan out via the <b>CC 6.1.6 <code>deterministic-alm</code> member relay tree</b> over sealed chunks (distinct from CC 5.3.3.2's no-SFU-relay-role; no seat decodes or selects). 15,296 B X-Wing onion packets replace cover frames on shaped links at <b>0 extra wire bytes</b> (CC 5.4.6). <a href="how-it-works.html#solves">How it works</a> · <a href="how-it-works.html#peers">vs. other meshes</a> · <a href="mesh.html">6-peer kernel</a> · <a href="toy/">scaling toy</a>
 </div>
@@ -663,7 +663,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=8"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=9"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2317,7 +2317,7 @@ function drawEdgeMarkers(g, F, alpha){
     const label = parts.join(" + ") + " · " + Math.round(km).toLocaleString() + " km";
     let sub = "";
     if (seats.length){ const s0 = seats[0]; let homed = 0; for (let l = 0; l < M.links.length; l += 4) if ((M.links[l + 2] & 0xff) === 0 && (M.links[l] === s0 || M.links[l + 1] === s0)) homed++; sub = `${nodeShaped(s0)}/8 shaped · ${homed} homed here`;
-      const sc = M.seatCap && M.seatCap.get(s0); if (sc && sc.c) sub += ` · CPU ${fmtN(sc.c.cpu)} cores · ${fmtN(sc.c.reads)} reads/s (model, as shipped: provisional; excludes today's measured peer load, optimistic)`; }
+      const sc = M.seatCap && M.seatCap.get(s0); if (sc && sc.c) sub += ` · CPU ${fmtN(sc.c.cpu)} cores · ${fmtN(sc.c.reads)} reads/s (model, as shipped: provisional; includes today's measured peer load)`; }
     const small = F.w < 800; let label2 = label;
     if (small){ label2 = (seats.length ? "seat" : ci.length ? "CI" : "server") + (parts.length > 1 ? "+" : "") + " · " + Math.round(km).toLocaleString() + " km"; sub = seats.length ? `${nodeShaped(seats[0])}/8 shaped` : ""; }
     drawNodeGlyph(g, mk.node, mx, my, 11, alpha * (microSel < 0 || nodes.includes(microSel) ? 1 : 0.6), 0);
@@ -2433,7 +2433,7 @@ function renderNodeCard(){
     const tr = sizes.map((d, j) => `<tr><td>${j ? fmtN(d) : d + " (this patch)"}</td><td>${cell(capSeat(d, bsShape(), 0))}</td><td>${cell(capSeat(d, bsShape(), 1))}</td></tr>`).join("");
     const kw = capSeat(1, 0, 0), kr = capSeat(1, 1, 0), ka = capSeat(1, 1, 1);
     capHtml = `<div class="card-links"><span>seat load, ${BS_LABEL[microBootstrap]} (${microBootstrap === 0 ? "ordinary whole-plane rounds, claimed devices only" : CAP_SHAPE[bsShape()]}), one seat of ${kr ? kr.cores : "?"} cores · model, calibrated to seat-1</span>
-      <div class="kv" style="color:#ffcf70"><span>excludes today's measured peer load (0.65 of a core at seat-1); capacity shown is optimistic</span></div>
+      <div class="kv"><span>includes today's measured peer load at seat-1 as a fixed baseline (MEASURED round mix, MODEL scaling)</span></div>
       <table class="cap"><tr><th>devices</th><th>as shipped (PROVISIONAL)</th><th>after read minimisation (MODEL)</th></tr>${tr}</table>
       <div class="kv"><span>largest fleet under ${kr ? Math.round(kr.ceiling * 100) : 70}% (MODEL; the as-shipped knees are PROVISIONAL until what a sweep permit counts is settled)</span><b>whole-plane ${kw ? fmtN(kw.knee) : "–"} · required-set ${kr ? fmtN(kr.knee) : "–"} · required-set after ${ka ? fmtN(ka.knee) : "–"}</b></div>
       <div class="kv"><span>Global key planes, ${fmtN(here)} devices (MODEL: a + b × subjects under one lock, apart from reads; a and b not yet measured)</span><b>${(() => { const w = capSeat(here, bsShape(), 1); return w && w.walk >= 0 ? fmtN(w.walk) + " cores over " + fmtN(w.walkKeys) + " subjects" + (w.lock >= 0 ? " · plane lock ρ " + w.lock.toFixed(2) + " (one server, cores do not help)" : "") : "–"; })()}</b></div>

@@ -14,8 +14,8 @@ shipping edge source (CIRISEdge v45 candidate, commit `c580298`). Everything bey
 today's fleet size is a model projection, labelled MEASURED, DERIVED or MODEL where it is
 shown; DERIVED (stated arithmetic on measured counts and source) and PROVISIONAL (resting
 on an open calibration question) are both `MODEL` in the scoreboard's sense below. The
-seat capacity figures do not yet include today's measured peer load, so they are
-optimistic. See [`FSD/SIMULATION_ENGINE.md` §4.7](FSD/SIMULATION_ENGINE.md).
+seat capacity figures include today's measured peer load at the serve node as a fixed
+baseline (the measured round mix; how it scales is `MODEL`). See [`FSD/SIMULATION_ENGINE.md` §4.7](FSD/SIMULATION_ENGINE.md).
 
 **Begin using it:**
 
