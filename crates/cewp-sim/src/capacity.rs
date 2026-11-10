@@ -2041,7 +2041,12 @@ pub fn report_markdown(p: &CostParams) -> String {
 mod tests {
     use super::*;
 
+    /// Relative tolerance; a zero target is checked absolutely (a relative error against 0
+    /// is NaN, which compares false and failed every `within(x, 0.0, 0.0)`).
     fn within(x: f64, target: f64, tol: f64) -> bool {
+        if target == 0.0 {
+            return x.abs() <= tol;
+        }
         ((x - target) / target).abs() <= tol
     }
 

@@ -2406,7 +2406,10 @@ mod tests {
             assert!(w.nodes.len() <= R5_MAX_NODES);
             w.spawn_ci(Some(false));
             let c = w.kind_counts();
-            assert!(c[HostKind::ServeSeat as usize] == 3);
+            // One seat by default (steward ruling 2026-11-09); the test once pinned 3.
+            let seats = w.params.get(P::ServeSeats).round() as usize;
+            assert_eq!(seats, 1);
+            assert_eq!(c[HostKind::ServeSeat as usize], seats);
             assert_eq!(c[HostKind::CiRunner as usize], 1);
             if d > 500.0 {
                 assert!(c[HostKind::Phone as usize] > 0 && c[HostKind::HomeNode as usize] > 0, "{d}: {c:?}");
