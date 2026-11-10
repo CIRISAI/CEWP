@@ -2124,6 +2124,7 @@ function microDraw(){
     drawPulses(g, F, nodeA, dimOf);
   }
   // nodes
+  MTAGS.length = 0; MBOXES.length = 0;
   if (nodeA > 0){
     const s = Math.max(3.2, Math.min(12, 2.4 + ppm * 2.6));
     for (let i = 0; i < n; i++){
@@ -2138,7 +2139,8 @@ function microDraw(){
       g.strokeStyle = "#fff"; g.lineWidth = 2; g.beginPath(); g.arc(px, py, Math.max(9, s * 1.5), 0, 7); g.stroke();
     }
   }
-  drawStoryTags(g, F, nodeA);
+  const boxes = drawStoryTags(g, F, nodeA);
+  microTags(g, F, boxes, sel, dimOf);
   drawScaleBar(g, F, ppm);
 }
 let safeTop = 60, safeBot = 60;
@@ -2225,7 +2227,8 @@ function drawNodeGlyph(g, i, x, y, s, alpha, ppm){
     if (f & NF.old) tag += (tag ? " " : "") + "old";
     if (f & NF.relay) tag += (tag ? " " : "") + "R";
     if (!(f & NF.claimed) && kind !== 3 && kind !== 5) tag += (tag ? " " : "") + ((f & NF.served) ? "unclaimed·bootstrap" : "unclaimed·no peer");
-    if (tag) g.fillText(tag, x + s * 0.8, y + s * 0.45);
+    // placed after every glyph and the story's name tags, so no two labels overlap (microTags)
+    if (tag) MTAGS.push({ i, tag, x: x + s * 0.8, y: y + s * 0.45, a: Math.min(1, alpha), font: g.font });
   }
   g.globalAlpha = 1;
 }
@@ -2269,24 +2272,44 @@ function drawEdgeMarkers(g, F, alpha){
     let by = Math.min(F.h - safeBot - 20, Math.max(safeTop + 12, my));
     for (const q of placed) if (Math.abs(q.y - by) < 38 && Math.abs(q.x - mx) < 300) by = q.y + 38;
     placed.push({ x: mx, y: by });
-    g.fillStyle = "rgba(10,14,22,0.8)"; const bx = align === "left" ? lx - 5 : lx - tw + 5; g.fillRect(bx, by - 10, tw, sub ? 30 : 18);
+    g.fillStyle = "rgba(10,14,22,0.8)"; const bx = align === "left" ? lx - 5 : lx - tw + 5; g.fillRect(bx, by - 10, tw, sub ? 30 : 18); MBOXES.push([bx, by - 10, bx + tw, by + (sub ? 20 : 8)]);
     g.fillStyle = MK_COL[seats.length ? 4 : ci.length ? 5 : 3]; g.textAlign = align; g.fillText(label2, lx, by - 1);
     if (sub){ g.fillStyle = "rgba(220,228,240,0.8)"; g.font = `10px ${MFONT}`; g.fillText(sub, lx, by + 12); }
     g.globalAlpha = 1;
   }
 }
+// device tags, greedily: the selected device first, then the story's actors, then nearest the centre;
+// a tag that would overlap a placed tag (or a story name tag) is left out, and while the story
+// dims the rest of the street their tags are left out too
+const MTAGS = [], MBOXES = []; // MBOXES: the off-patch marker cards drawn this frame
+function microTags(g, F, boxes, sel, dimOf){
+  if (!MTAGS.length) return;
+  const pri = (t) => (t.i === sel ? -2e9 : 0) + (microStoryDim && microStoryDim.has(t.i) ? -1e9 : 0) + Math.hypot(t.x - F.w / 2, t.y - F.h / 2);
+  const list = MTAGS.filter(t => dimOf(t.i) >= 1).sort((a, b) => pri(a) - pri(b));
+  g.textAlign = "left"; g.textBaseline = "middle"; g.fillStyle = "rgba(230,236,245,0.85)";
+  for (const t of list){
+    g.font = t.font; const w = g.measureText(t.tag).width, h = 12, b = [t.x - 1, t.y - h / 2, t.x + w + 1, t.y + h / 2];
+    if (b[2] < 0 || b[0] > F.w || b[3] < 0 || b[1] > F.h) continue;
+    if (boxes.some(q => b[0] < q[2] && b[2] > q[0] && b[1] < q[3] && b[3] > q[1])) continue;
+    boxes.push(b); g.globalAlpha = t.a; g.fillText(t.tag, t.x, t.y);
+  }
+  g.globalAlpha = 1;
+}
 function drawStoryTags(g, F, alpha){
-  if (!microStory || !MSTORY.actors || alpha <= 0 || F.k / EARTH_M < 0.3) return;
+  if (!microStory || !MSTORY.actors || alpha <= 0 || F.k / EARTH_M < 0.3) return MBOXES.slice();
   const names = ["Alice's phone", "Alice's home node", "Bob's phone", "Bob's home node"];
   g.font = `600 11px ${MFONT}`; g.textAlign = "center"; g.textBaseline = "bottom";
-  const done = [];
+  const done = [], boxes = MBOXES.slice();
   MSTORY.actors.forEach((i, k) => {
     if (!M.vis[i]) return; const x = M.sx[i]; let y = M.sy[i] - 12; if (x < 0 || y < 0 || x > F.w || y > F.h) return;
     for (const q of done) if (Math.abs(q[0] - x) < 120 && Math.abs(q[1] - y) < 17) y = q[1] - 18;
-    done.push([x, y]);
-    const tw = g.measureText(names[k]).width + 10; g.fillStyle = "rgba(10,14,22,0.75)"; g.fillRect(x - tw / 2, y - 15, tw, 16);
-    g.fillStyle = k < 2 ? "#ffd59a" : "#a9e3ff"; g.fillText(names[k], x, y);
+    const tw = g.measureText(names[k]).width + 10;
+    // a name tag under a marker card moves up past it
+    for (let r = 0; r < 6; r++){ const q = MBOXES.find(c => x - tw / 2 < c[2] && x + tw / 2 > c[0] && y - 15 < c[3] && y + 1 > c[1]); if (!q) break; y = q[1] - 2; }
+    done.push([x, y]); g.fillStyle = "rgba(10,14,22,0.75)"; g.fillRect(x - tw / 2, y - 15, tw, 16);
+    g.fillStyle = k < 2 ? "#ffd59a" : "#a9e3ff"; g.fillText(names[k], x, y); boxes.push([x - tw / 2, y - 15, x + tw / 2, y + 1]);
   });
+  return boxes;
 }
 function drawScaleBar(g, F, ppm){
   if (ppm < 0.02) return;
