@@ -310,3 +310,6 @@ body.story-first .story-progress-track{left:0;right:0;top:0;bottom:auto;border-r
 }
 /* narrow screens: the globe centres in the space above the story sheet, so the sheet never covers it */
 @media (max-width:700px){body.story-first.story-on #c,body.story-first.story-on #micro{height:calc(100dvh - var(--sheet-h,0px))}}
+/* an open node or seat card sits above the story, and the story sheet folds to its header while the card is open */
+#node-card{z-index:31}
+body.card-open #story-line,body.card-open .story-line{display:none}

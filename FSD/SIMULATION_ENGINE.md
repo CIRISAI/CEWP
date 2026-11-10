@@ -460,10 +460,21 @@ Constants copied from the stack are not parameters. They carry their citation in
   - rows as pulses along their real path (direct, relayed via the forwarder, held at the mailbox, handed over).
 - **Off-street nodes:** they are globe arcs from far away and screen-edge markers at street scale.
 - **Outside the patch:** nothing is drawn 1:1. The boundary is marked, and the population grid's own cells are drawn on the land.
-- **Land:** the page's embedded coastline (2,001 points in 134 pieces, kept to about 0.01°) is closed into rings and filled even-odd through the stencil buffer. The fill is a fan from one point to every ring edge, so no grid size shows at any zoom. The population tiles, the ground and the people are all drawn only where the stencil says land, and the coastline is drawn from the same 0.5° points as the fill's edge. To close the rings, open pieces join where they share a point. A chain with both ends on one side of the antimeridian closes along it (Eurasia, Chukotka, Wrangel Island, the two halves of Vanua Levu). Antarctica, whose ends sit on both sides, closes through the south pole. Two pieces have a loose end. They are drawn as coastline but left out of the fill:
-  - piece 91, two points on the Black Sea's northeast shore, 44.66°N 37.54°E to 43.43°N 39.96°E (the Novorossiysk–Sochi coast). The Eurasia ring already crosses that stretch with one chord.
-  - piece 95, two points on Chukotka's north coast, 68.20°N 177.55°W to 68.96°N 180°. The Chukotka ring already ends at the same antimeridian point.
-- **Streets only on whole land tiles:** free roam builds a tile's `MicroWorld` only when the tile's centre is inside the rings and no coast edge enters it. A coastal tile shows the chip "not wholly settled land", so no street or device is ever drawn on the sea. The coastline is coarse (tens of km), so the coast at street scale is a straight line from that data, not a real shore.
+- **Land and map layers (Natural Earth, public domain):** land, lakes, rivers, country borders and populated places come from Natural Earth v5.1.2 GeoJSON. `tools/geo/build_ne.py` quantizes them into the page's own delta-encoded binary format (CG1, documented in the script) and the raw files are never committed. Land and the lakes on it are filled even-odd through the stencil buffer as fans, so no grid size shows at any zoom. The population tiles, the ground and the people are drawn only where the stencil says land. The shoreline is the land and lake rings' own edges, minus the cut edges on the antimeridian and the south pole. The resolution follows metres per pixel:
+  - 110m is embedded in `docs/geo/ne110.js` and is also the land test.
+  - 50m (`ne50.bin`) loads below 12 km a pixel and draws below 6 km.
+  - 10m loads per 10° tile (`ne10/<lat>_<lon>.bin`, an LRU of 30 tiles) below 2.4 km a pixel, and draws below 1.2 km once every visible tile is in.
+  - Place names (`places.bin`) are drawn largest first with no overlap. More appear as the view nears region scale.
+  - **Real geography stops at region scale.** Shorelines, borders, rivers and names fade out between 90 and 30 m a pixel. A patch's ground starts to fade in only at 26 m a pixel, for the largest patch. The land fill itself stays: at street scale it is the coarse land/sea mask that the streets-on-land rule reads.
+
+  | asset | bytes | when loaded |
+  |---|---|---|
+  | `geo/ne110.js` | 54,993 | page load (replaces the old 11 KB embedded coastline) |
+  | `geo/ne50.bin` | 582,973 | below 12 km a pixel |
+  | `geo/places.bin` | 163,299 | below 6 km a pixel |
+  | `geo/ne10/*.bin` (464 tiles) | 5,280,924 total, 11.4 KB mean, 146.5 KB largest | per visible 10° tile below 2.4 km a pixel |
+  | `geo/ne10/index.json` | 4,290 | below 2.4 km a pixel |
+- **Streets only on whole land tiles:** free roam builds a tile's `MicroWorld` only when the tile's centre is inside the 110m land (lakes are holes) and no shoreline edge enters it. A coastal tile shows the chip "not wholly settled land", so no street or device is ever drawn on the sea. The 110m land is coarse (tens of km), so it is a mask, not a real shore.
 - **Node card:** tapping a node shows its kind, class, slots used of 8, reachability, the relay decision with its reason, homes, edge version, mailbox, and every live link with its class.
 - **Story, acts 1–2:** a script of what happens to whom (wake, introduce, send, leave, sleep, wake). The rules decide how each one goes, and the captions branch on the sim's outcome.
 

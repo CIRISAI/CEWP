@@ -288,6 +288,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
   <div id="foot-measured" style="margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px">
     <b style="color:#fff">Measured from a live mesh.</b> The serve seat's cost model (open a serve seat's card at street zoom) is calibrated from the live production CIRIS mesh on 2026-11-10: four 60-second windows of the serve node's own counters, one of them with CPU, plus its store composition and announced-node count. Device behaviour is derived from the shipping edge source (CIRISEdge v45 candidate, commit <code>c580298</code>). Everything beyond today's fleet size is a model projection.
     <br><b style="color:#fff">Measured today (seat-1, aggregates only):</b> 0.65 of a core in a quiet 60 s window · ~329 attestation queries/s · ~10–12 replication rounds per minute per plane (quiet window) · store of ~42.5k attestations, ~18.3k transport destinations, ~8.7k keys · 1,349 announced nodes under 1,338 owners · 0 key-revocation rows. On screen, only the seat card's <i>seat-1 measured</i> line shows these directly.
+    <br><b style="color:#fff">Map data:</b> coastlines, land, lakes, rivers, country borders and place names are from <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain), at 110m, 50m and 10m scale by zoom. Real geography is drawn only down to region scale; it fades out before the street view fades in, and every street, home and device there is generated, never placed on a real road or building.
     <br><b style="color:#fff">Labels:</b> MEASURED is read from the serve node; DERIVED is computed by stated arithmetic from measured counts and the edge source; MODEL is a projection; PROVISIONAL is a MODEL figure that rests on an open calibration question. DERIVED and PROVISIONAL are both MODEL in the README scoreboard's sense. Seat capacity figures include today's measured peer load at seat-1 as a fixed baseline (MEASURED round mix; how it scales is MODEL). The population, links and story elsewhere on the globe are simulated.
   </div>
   Every person and device sits on populated land (2,961 density cells stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Per <b>CC 5.4.3</b> ("A shaped link is one hop"), shaped budget classes (<code>server</code> 7,000 B/s, <code>home</code> 2,800 B/s, <code>phone-wifi</code> 1,400 B/s, <code>phone-cellular</code> 350 B/s, <code>seat</code> 33,000 B/s at ρ=0.5) are 1 direct hop and never forwarded; peers without a direct path carry on ordinary links. Large rooms fan out via the <b>CC 6.1.6 <code>deterministic-alm</code> member relay tree</b> over sealed chunks (distinct from CC 5.3.3.2's no-SFU-relay-role; no seat decodes or selects). 15,296 B X-Wing onion packets replace cover frames on shaped links at <b>0 extra wire bytes</b> (CC 5.4.6). <a href="how-it-works.html#solves">How it works</a> · <a href="how-it-works.html#peers">vs. other meshes</a> · <a href="mesh.html">6-peer kernel</a> · <a href="toy/">scaling toy</a>
@@ -616,43 +617,14 @@ const CF=`precision mediump float;varying float vz;varying float vSun;void main(
 // land: the population grid's own 1.5° tiles, brighter where more people live; fades in below the planetary view
 const GV=`attribute vec3 p;attribute float t;uniform mat3 R;uniform float S;uniform vec2 asp;uniform vec3 uSunWorld;varying float vz;varying float vt;varying float vSun;void main(){vec3 q=R*p;vz=q.z;vt=t;vSun=dot(p,uSunWorld);gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
 const GF=`precision mediump float;uniform float uA;varying float vz;varying float vt;varying float vSun;void main(){if(vz<0.0)discard;float day=smoothstep(-0.10,0.12,vSun);vec3 c=mix(vec3(0.13,0.165,0.145),vec3(0.21,0.265,0.22),vt);c*=mix(0.62,1.0,day);gl_FragColor=vec4(c,uA*smoothstep(0.0,0.06,vz));}`;
-const pP=prog(PV,PF), pL=prog(LV,LF), pD=prog(DV,DF), pC=prog(CV,CF), pG=prog(GV,GF);
+const VF=`precision mediump float;uniform vec3 uCol;uniform float uA;varying float vz;varying float vSun;void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;float day=smoothstep(-0.10,0.12,vSun);gl_FragColor=vec4(uCol*mix(0.42,1.0,day),uA*mix(0.55,1.0,day)*edge);}`;
+const pP=prog(PV,PF), pL=prog(LV,LF), pD=prog(DV,DF), pC=prog(CV,CF), pG=prog(GV,GF), pV=prog(CV,VF);
 let landBuf=gl.createBuffer(), landTBuf=gl.createBuffer(), landVerts=0, fanBuf=gl.createBuffer(), fanVerts=0, groundBuf=gl.createBuffer(), groundVerts=0, LAND=null;
-// Land is the coastline's own rings, filled even-odd. coastRings() closes the coastline into rings:
-// a piece is a ring when its ends meet; open pieces join end to end where they share a point off the
-// antimeridian; a chain whose ends both sit on one side of the antimeridian closes along it (Eurasia,
-// Chukotka, Wrangel Island, both halves of Fiji's Vanua Levu), and one whose ends sit on both sides closes through
-// the south pole (Antarctica). Two strays have a loose end and are drawn as coastline but not filled
-// (FSD §4.6.5 lists them). Every edge is split into steps of at most COAST_STEP degrees, and the coastline
-// is drawn from the same points, so the fill's edge is the drawn coast at every zoom.
+// Land is Natural Earth's land rings plus the lakes on them, filled even-odd (geoUpload below). Every
+// 110m edge is split into steps of at most COAST_STEP degrees, and the shoreline is drawn from the same
+// points, so the fill's edge is the drawn coast at the planet view.
 const COAST_STEP=0.5;
-function coastPieces(){
-  const bin=atob(COAST_B64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
-  const i16=new Int16Array(u8.buffer); const pieces=[]; let idx=0;
-  while(idx<i16.length){ const count=i16[idx++]; const pts=[]; for(let j=0;j<count;j++){ pts.push([i16[idx]*0.01, i16[idx+1]*0.01]); idx+=2; } pieces.push(pts); }
-  return pieces;
-}
 function densify(a,b,out){ const m=Math.max(1,Math.ceil(Math.max(Math.abs(b[0]-a[0]),Math.abs(b[1]-a[1]))/COAST_STEP)); for(let t=0;t<m;t++) out.push([a[0]+(b[0]-a[0])*t/m, a[1]+(b[1]-a[1])*t/m]); }
-function coastRings(pieces){
-  const key=(p)=>p[0].toFixed(2)+","+p[1].toFixed(2), am=(p)=>Math.abs(p[1])>=179.99;
-  const closed=(p)=>Math.abs(p[0][0]-p[p.length-1][0])+Math.abs(p[0][1]-p[p.length-1][1])<=0.3;
-  const rings=[], omitted=[]; let chains=[];
-  pieces.forEach((p,k)=>{ if (closed(p)) rings.push(p); else chains.push({ids:[k], pts:p}); });
-  for (let joined=true; joined;){ joined=false;
-    find: for (let x=0;x<chains.length;x++) for (let y=0;y<chains.length;y++){ if (x===y) continue;
-      for (const ra of [false,true]) for (const rb of [false,true]){
-        const A=ra?chains[x].pts.slice().reverse():chains[x].pts, B=rb?chains[y].pts.slice().reverse():chains[y].pts;
-        if (key(A[A.length-1])===key(B[0]) && !am(B[0])){ chains[x]={ids:chains[x].ids.concat(chains[y].ids), pts:A.concat(B.slice(1))}; chains.splice(y,1); joined=true; break find; }
-      } } }
-  for (const c of chains){ const p=c.pts, s=p[0], e=p[p.length-1];
-    if (closed(p) || (am(s) && am(e) && (s[1]>0)===(e[1]>0))) rings.push(p);
-    else if (am(s) && am(e)) rings.push(p.concat([[-90,e[1]],[-90,s[1]]]));
-    else omitted.push(c.ids);
-  }
-  // each ring densified, without repeating its first point (the closing edge is implied)
-  const out=rings.map(r=>{ const d=[]; for (let i=0;i<r.length;i++){ const a=r[i], b=r[(i+1)%r.length]; if (i===r.length-1 && Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])<1e-9) break; densify(a,b,d); } return d; });
-  return { rings: out, omitted };
-}
 // The fill, drawn into the stencil buffer: per ring, a fan from one point to every ring edge, each
 // fan triangle cut into strips of at most 6° so it stays near the sphere. Inverting the stencil
 // per triangle leaves it odd exactly inside an odd number of rings (lakes and inland seas are holes).
@@ -687,8 +659,7 @@ function landTest(rings){
   return { inside, squareOnLand };
 }
 function initLand(){
-  const C=coastRings(coastPieces()); LAND=Object.assign(landTest(C.rings), { omitted: C.omitted });
-  const F=landFan(C.rings); gl.bindBuffer(gl.ARRAY_BUFFER,fanBuf); gl.bufferData(gl.ARRAY_BUFFER,F,gl.STATIC_DRAW); fanVerts=F.length/3;
+  const B=geoInitBase(); if (B) LAND=landTest(B.rings);
   // land-neutral ground: the whole sphere in 3° quads, shown only where the stencil says land
   const Gd=[]; for (let la=-90; la<90; la+=3) for (let lo=-180; lo<180; lo+=3){ const k=[[la,lo],[la,lo+3],[la+3,lo+3],[la+3,lo]].map(([y,x])=>xyz(y,x)); for (const i of [0,1,2,0,2,3]) Gd.push(...k[i]); }
   gl.bindBuffer(gl.ARRAY_BUFFER,groundBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(Gd),gl.STATIC_DRAW); groundVerts=Gd.length/3;
@@ -705,18 +676,101 @@ function initLand(){
   gl.bindBuffer(gl.ARRAY_BUFFER,landTBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(T),gl.STATIC_DRAW);
   landVerts=P.length/3;
 }
+// ---- Natural Earth layers (public domain, naturalearthdata.com), built by tools/geo/build_ne.py.
+// 110m rides in geo/ne110.js (the planet view and the land test); 50m loads once the view nears a
+// continent; 10m loads per 10-degree tile at region scale. Every real layer fades out between 90
+// and 30 m a pixel, before any generated street fades in (a patch's ground starts at 26 m a pixel), so real and generated never share a scale.
+const GEO_MPP_50 = 6000, GEO_MPP_10 = 1200, GEO_TILE_CAP = 30;
+const GEO = { base: null, l50: null, p50: false, idx10: null, pIdx: false, t10: new Map(), places: null, pPlaces: false, mpp: 1e9, used: "110m", rf: 1,
+  stats(){ let b = 0; for (const t of this.t10.values()) b += t.bytes; return { used: this.used, tiles10: this.t10.size, bytes10: b, l50: !!this.l50, places: this.places ? this.places.length : 0, mpp: Math.round(this.mpp) }; } };
+function geoDecode(buf){
+  const u8 = new Uint8Array(buf); if (u8[0] !== 67 || u8[1] !== 71 || u8[2] !== 49) throw new Error("not a CG1 layer file");
+  const q = new DataView(u8.buffer, u8.byteOffset + 4, 4).getUint32(0, true); let i = 8;
+  const vi = () => { let r = 0, s = 1, b; do { b = u8[i++]; r += (b & 0x7f) * s; s *= 128; } while (b & 0x80); return r; };
+  const zz = (n) => (n % 2 ? -(n + 1) / 2 : n / 2);
+  const L = { 1: [], 2: [], 3: [], 4: [] };
+  while (i < u8.length){ const k = u8[i++], n = vi();
+    for (let p = 0; p < n; p++){ const m = vi(), pts = new Array(m); let a = 0, o = 0;
+      for (let j = 0; j < m; j++){ a += zz(vi()); o += zz(vi()); pts[j] = [a / q, o / q]; }
+      if (L[k]) L[k].push(pts); } }
+  return L;
+}
+// a layer set's GL buffers: the fill as stencil fans, and each line kind as segments lifted off the sphere
+function geoUpload(L, step){
+  const dens = (pl, closed) => { if (!step) return pl; const d = []; for (let j = 0; j + 1 < pl.length; j++) densify(pl[j], pl[j + 1], d); if (!closed) d.push(pl[pl.length - 1]); return d; };
+  const rings = L[1].map(r => { const c = (r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]) ? r.slice(0, -1) : r; return dens(c.concat([c[0]]), true); });
+  const mk = (data) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); return { b, n: data.length / 3, bytes: data.byteLength }; };
+  const seg = (pls) => { const v = []; for (const pl0 of pls){ const pl = dens(pl0, false); for (let j = 0; j + 1 < pl.length; j++){ const a = xyz(pl[j][0], pl[j][1]), b = xyz(pl[j + 1][0], pl[j + 1][1]); v.push(a[0] * 1.001, a[1] * 1.001, a[2] * 1.001, b[0] * 1.001, b[1] * 1.001, b[2] * 1.001); } } return new Float32Array(v); };
+  const S = { fan: mk(landFan(rings)), lines: [mk(seg(L[2])), mk(seg(L[3])), mk(seg(L[4]))], rings };
+  S.bytes = S.fan.bytes + S.lines.reduce((a, l) => a + l.bytes, 0);
+  return S;
+}
+function geoFree(S){ gl.deleteBuffer(S.fan.b); S.lines.forEach(l => gl.deleteBuffer(l.b)); }
+function geoFetch(path){ return fetch(path).then(r => { if (!r.ok) throw new Error(path + " " + r.status); return r.arrayBuffer(); }); }
+function geoInitBase(){
+  if (typeof NE110_B64 === "undefined") return null;
+  const bin = atob(NE110_B64), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  const L = geoDecode(u8.buffer); GEO.base = geoUpload(L, COAST_STEP); return GEO.base;
+}
+// the 10-degree tiles the view can see (centre = (pitch, yaw); half-extent from metres a pixel)
+function geoVisibleTiles(w, h, mpp){
+  const la = pitch * 180 / Math.PI, lo = ((yaw * 180 / Math.PI + 540) % 360) - 180;
+  const ext = Math.min(60, 1.25 * Math.max(w, h) / 2 * mpp / 111000), lx = Math.min(180, ext / Math.max(0.15, Math.cos(la * Math.PI / 180)));
+  const out = [];
+  for (let a = Math.floor((la - ext) / 10) * 10; a < la + ext; a += 10){ if (a < -90 || a >= 90) continue;
+    for (let o = Math.floor((lo - lx) / 10) * 10; o < lo + lx; o += 10){ const oo = ((o + 180) % 360 + 360) % 360 - 180; out.push(a + "_" + oo); } }
+  return [...new Set(out)];
+}
+// which set draws now; it starts any fetch the view will need next
+function geoSets(w, h, mpp){
+  GEO.mpp = mpp;
+  if (mpp < GEO_MPP_50 * 2 && !GEO.p50){ GEO.p50 = true; geoFetch("geo/ne50.bin?v=1").then(b => { GEO.l50 = geoUpload(geoDecode(b), 0); }).catch(e => console.warn(e.message)); }
+  if (mpp < GEO_MPP_50 && !GEO.pPlaces){ GEO.pPlaces = true; geoFetch("geo/places.bin?v=1").then(b => { GEO.places = geoPlaces(b); }).catch(e => console.warn(e.message)); }
+  let tiles = null;
+  if (mpp < GEO_MPP_10 * 2){
+    if (!GEO.pIdx){ GEO.pIdx = true; fetch("geo/ne10/index.json?v=1").then(r => r.json()).then(j => { GEO.idx10 = new Set(j.map(t => t[0] + "_" + t[1])); }).catch(e => console.warn(e.message)); }
+    if (GEO.idx10){ tiles = geoVisibleTiles(w, h, mpp).filter(k => GEO.idx10.has(k));
+      for (const k of tiles){ const t = GEO.t10.get(k);
+        if (t){ GEO.t10.delete(k); GEO.t10.set(k, t); continue; } // most recent last
+        GEO.t10.set(k, { pending: true, bytes: 0 });
+        geoFetch("geo/ne10/" + k + ".bin?v=1").then(b => { const e = GEO.t10.get(k); if (!e) return; const S = geoUpload(geoDecode(b), 0); S.pending = false; GEO.t10.set(k, S); geoEvict(tiles); })
+          .catch(e => { console.warn(e.message); GEO.t10.delete(k); }); }
+      geoEvict(tiles); }
+  }
+  if (tiles && mpp < GEO_MPP_10 && tiles.length && tiles.every(k => { const t = GEO.t10.get(k); return t && !t.pending; })){ GEO.used = "10m"; return tiles.map(k => GEO.t10.get(k)); }
+  if (mpp < GEO_MPP_50 && GEO.l50){ GEO.used = "50m"; return [GEO.l50]; }
+  GEO.used = "110m"; return GEO.base ? [GEO.base] : [];
+}
+function geoEvict(keep){
+  const ks = new Set(keep || []);
+  for (const [k, t] of GEO.t10){ if (GEO.t10.size <= GEO_TILE_CAP) break; if (ks.has(k) || t.pending) continue; geoFree(t); GEO.t10.delete(k); }
+}
+function geoPlaces(buf){
+  const dv = new DataView(buf), u8 = new Uint8Array(buf); if (u8[0] !== 67 || u8[1] !== 80) throw new Error("not a CP1 file");
+  const n = dv.getUint32(4, true), out = []; let i = 8; const td = new TextDecoder();
+  for (let k = 0; k < n; k++){ const la = dv.getInt32(i, true) / 1e4, lo = dv.getInt32(i + 4, true) / 1e4, sr = u8[i + 8], pop = dv.getUint32(i + 9, true), nl = u8[i + 13];
+    out.push({ la, lo, sr, pop, name: td.decode(u8.subarray(i + 14, i + 14 + nl)) }); i += 14 + nl; }
+  return out;
+}
+// place names on the overlay canvas, biggest first, none overlapping; only at continent to region scale
+function geoLabels(F){
+  const mpp = GEO.mpp, rf = GEO.rf; if (!GEO.places || rf <= 0.01 || mpp > GEO_MPP_50) return;
+  const maxSr = mpp > 3000 ? 1 : mpp > 1500 ? 3 : mpp > 700 ? 5 : mpp > 300 ? 7 : 10;
+  const g = mctx, dpr = window.devicePixelRatio || 1; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace"; g.textBaseline = "middle";
+  const boxes = []; let shown = 0;
+  const a = rf * Math.min(1, (GEO_MPP_50 - mpp) / 1500);
+  for (const p of GEO.places){ if (p.sr > maxSr) break; if (shown >= 60) break;
+    const s = projLL(F, p.la, p.lo); if (s[2] < 0.05 || s[0] < 0 || s[1] < 0 || s[0] > F.w || s[1] > F.h) continue;
+    const tw = g.measureText(p.name).width, bx = [s[0] - 3, s[1] - 7, s[0] + 8 + tw, s[1] + 7];
+    if (boxes.some(b => !(bx[2] < b[0] || bx[0] > b[2] || bx[3] < b[1] || bx[1] > b[3]))) continue;
+    boxes.push(bx); shown++;
+    g.globalAlpha = a; g.fillStyle = "#e8eef6"; g.beginPath(); g.arc(s[0], s[1], 2, 0, 6.2832); g.fill();
+    g.globalAlpha = a * 0.9; g.strokeStyle = "rgba(8,11,16,0.85)"; g.lineWidth = 3; g.strokeText(p.name, s[0] + 6, s[1]); g.fillText(p.name, s[0] + 6, s[1]); }
+  g.globalAlpha = 1;
+}
 let posBuf=gl.createBuffer(), actBuf=gl.createBuffer(), kindBuf=gl.createBuffer(), discBuf=gl.createBuffer(), coastBuf=gl.createBuffer();
 let linePosBuf=gl.createBuffer(), lineParamBuf=gl.createBuffer();
-const COAST_B64="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MujxA83nNATo5wUA2AdMw58Hh8NkBy/DsgcJw9gHTMMDABwIEMMtCMnCHAgQwwMARgjEwj4Ii8JGCMTCAwB8CEXCTghlwnwIRcIDAK0Iv8GfCJTBrQi/wQQA2Ql14UgJt+GaCV/h2Ql14QMAdwom4WIKmuF3CibhBACQCp3hYwrs4RwK2+GQCp3hBQBgEv/mJBLH5/URcecfEvLmYBL/5hkAbRE8EiASLhNhEv8TTRK4FK4RuBRtEacT2RAOFLcQghQSEKEUWxCsFHQQ/BT/D2IV+A+sFKMPlRSeD9gUWQ++FDcPDBVxDgcVZw7cE64OOBMqDxYTsg9dE7oPrxPLEI0SbRE8EgMAexPM5i8T2+d7E8zmBABBGKDgSBgJ4RMY4uBBGKDgBABlGDHfkhgE4EgYjd9lGDHfBgBYGp7iNhrt4Wca1OGtGlrikRqp4lganuIFADgbSNr/GqPaHBsE2WYbotk4G0jaGwCMHGTWYxzU1rsbMtdaG47YLhuD2CYb39cAGx/Y2xr91wYbnNbGGr3TVBsq0n0bFtSOG/LRsxu90dsbpdL0G1zRZxz10aMcAdOQHGfTYRw104AcFNRNHJ/UgBwQ1f0bvdUnHO/VjRyo1YwcZNYFAHAc1uDJHG3gxRyC4XMcN+JwHNbgBACpHKI22hx+N5kcGDipHKI2BQBvHeY5VB3hOi0dbjpdHRQ5bx3mOQYAvh07NoQdrTg6HV44JR1INmYdgTW+HTs2BgDrHX7Zyh3S2UwdqNmEHfbX0h3v1+sdftkFAPgeLCi/HikpcB7YJvMejif4HiwoBwCmH6IkvR96JSofIyfQHgonxB4wJmIfniOmH6IkCQB8H37avh/n2/4ee96VHjjdmh6428MeTdsCH53bUB852nwfftoaAP0fOdxJIJreKCCC33kgBeFHINfn1h+S5dcfbOYsHzLk/B714fAef+LeHjrirR6N4ike2OD+HZPhwh2I4N8dC90PHv7cJh633W4eht1KHs7enR6k3f8ew95ZHwvebh8H4HQfyN39HzncRABHILztoyDq8KAgavVRINv3HCCK8+0fYfezH/P2/x/X+cEfO/tSHyv4TR8T+cMeTvhUHlH4Ex7J+O8diPe6HUH4ZR1Y+Fwd7fcGHW/4/hyR99YcBfiyHOT3oxzL9jIcSvdBHFH26xtb95obgfeHG8725xsG9qMbKPZvG7T1ZRtF978aKfWcGpbzDBqk8pIZc/DMGOnvfBhG7y4Ybu96Fw7vxhcm7dsY1es/GuvqtBpO69ka5OtRGyHsEBse6zEbpOqqG8TqkRvt6/0bMepbHKDqgB0d6bodEei2HT7lFR4c5Doe7OV8Hl7jAx9V5igffOZMH27lxB+x5/Efh+f9H0jrNCBR7OYfnO4cIK7tRyC87QQAwBxc1q4cLtdsHNbWwBxc1g==";
-let coastVerts=0;
-function initCoastline(){
-  // every coastline piece, split at the same COAST_STEP points the land fill uses
-  const verts=[];
-  for (const p of coastPieces()){ const d=[]; for (let j=0;j+1<p.length;j++) densify(p[j],p[j+1],d); d.push(p[p.length-1]);
-    for (let j=0;j+1<d.length;j++){ const a=xyz(d[j][0],d[j][1]), b=xyz(d[j+1][0],d[j+1][1]); verts.push(a[0]*1.001,a[1]*1.001,a[2]*1.001,b[0]*1.001,b[1]*1.001,b[2]*1.001); } }
-  const coastData=new Float32Array(verts); gl.bindBuffer(gl.ARRAY_BUFFER,coastBuf); gl.bufferData(gl.ARRAY_BUFFER,coastData,gl.STATIC_DRAW);
-  coastVerts=coastData.length/3;
-}
 { const disc=[]; for (let i=0;i<=96;i++){ const t=i/96*6.2831853; disc.push(Math.cos(t),Math.sin(t)); } const tri=[]; for (let i=0;i<96;i++){ tri.push(0,0,disc[i*2],disc[i*2+1],disc[i*2+2],disc[i*2+3]); } gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(tri),gl.STATIC_DRAW); }
 const SEG=14, SEG_VERTS=SEG*2, MAX_ARCS=420, MAX_LINE_FLOATS=MAX_ARCS*SEG_VERTS*3, MAX_PARAM_FLOATS=MAX_ARCS*SEG_VERTS*4;
 const posBuffer=new Float32Array(MAX_LINE_FLOATS), paramBuffer=new Float32Array(MAX_PARAM_FLOATS);
@@ -838,24 +892,31 @@ function draw(){
   const peakDir=[Math.sin(peakLon), Math.cos(peakLon)];
   gl.useProgram(pD); gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); const dp=gl.getAttribLocation(pD,"p"); gl.enableVertexAttribArray(dp); gl.vertexAttribPointer(dp,2,gl.FLOAT,false,0,0); gl.uniform1f(gl.getUniformLocation(pD,"S"),S); gl.uniform2fv(gl.getUniformLocation(pD,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pD,"uSunCam"),sunCam); gl.drawArrays(gl.TRIANGLES,0,96*3);
   const landA=Math.max(0,Math.min(1,(zoom-3)/9));
-  if (landVerts && landA>0){ gl.useProgram(pG); gl.uniformMatrix3fv(gl.getUniformLocation(pG,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pG,"S"),S); gl.uniform2fv(gl.getUniformLocation(pG,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pG,"uSunWorld"),sunWorld); gl.uniform1f(gl.getUniformLocation(pG,"uA"),landA);
+  const mpp=EARTH_M/(0.86*zoom*Math.min(w,h)/2), gsets=geoSets(w,h,mpp); GEO.rf=sstep(30,90,mpp);
+  if (landVerts){ gl.useProgram(pG); gl.uniformMatrix3fv(gl.getUniformLocation(pG,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pG,"S"),S); gl.uniform2fv(gl.getUniformLocation(pG,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pG,"uSunWorld"),sunWorld); gl.uniform1f(gl.getUniformLocation(pG,"uA"),landA);
     const gp=gl.getAttribLocation(pG,"p"), gt=gl.getAttribLocation(pG,"t");
     // 1. the rings' parity into the stencil (no colour), 2. ground where odd, 3. population tiles where odd
     gl.enable(gl.STENCIL_TEST); gl.stencilMask(1); gl.clearStencil(0); gl.clear(gl.STENCIL_BUFFER_BIT);
     gl.colorMask(false,false,false,false); gl.stencilFunc(gl.ALWAYS,0,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.INVERT);
     gl.disableVertexAttribArray(gt); gl.vertexAttrib1f(gt,0);
-    gl.bindBuffer(gl.ARRAY_BUFFER,fanBuf); gl.enableVertexAttribArray(gp); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,fanVerts);
+    gl.enableVertexAttribArray(gp);
+    if (gsets.length) for (const G of gsets){ gl.bindBuffer(gl.ARRAY_BUFFER,G.fan.b); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,G.fan.n); }
+    else { gl.bindBuffer(gl.ARRAY_BUFFER,fanBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,fanVerts); }
     gl.colorMask(true,true,true,true); gl.stencilFunc(gl.EQUAL,1,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP);
     // ground reaches full cover sooner than the tiles fade in, so empty land never reads as shallow sea
-    gl.uniform1f(gl.getUniformLocation(pG,"uA"),Math.min(1,landA*3));
+    gl.uniform1f(gl.getUniformLocation(pG,"uA"),0.6+0.4*Math.min(1,landA*3)); // land shows at every zoom
     gl.bindBuffer(gl.ARRAY_BUFFER,groundBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,groundVerts);
     gl.uniform1f(gl.getUniformLocation(pG,"uA"),landA);
     gl.bindBuffer(gl.ARRAY_BUFFER,landBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,landTBuf); gl.enableVertexAttribArray(gt); gl.vertexAttribPointer(gt,1,gl.FLOAT,false,0,0);
     gl.drawArrays(gl.TRIANGLES,0,landVerts); gl.disableVertexAttribArray(gt); gl.disable(gl.STENCIL_TEST); }
-  if (coastVerts){ gl.useProgram(pC); gl.uniformMatrix3fv(gl.getUniformLocation(pC,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pC,"S"),S); gl.uniform2fv(gl.getUniformLocation(pC,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pC,"uSunWorld"),sunWorld);
-    const cp=gl.getAttribLocation(pC,"p"); gl.bindBuffer(gl.ARRAY_BUFFER,coastBuf); gl.enableVertexAttribArray(cp); gl.vertexAttribPointer(cp,3,gl.FLOAT,false,0,0);
-    gl.drawArrays(gl.LINES,0,coastVerts); }
+  // shorelines, country borders and rivers from the set in use; they fade out before streets fade in
+  if (gsets.length && GEO.rf>0.004){ gl.useProgram(pV); gl.uniformMatrix3fv(gl.getUniformLocation(pV,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pV,"S"),S); gl.uniform2fv(gl.getUniformLocation(pV,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pV,"uSunWorld"),sunWorld);
+    const vp=gl.getAttribLocation(pV,"p"); gl.enableVertexAttribArray(vp);
+    const near=sstep(GEO_MPP_50*2,GEO_MPP_50/2,mpp);
+    const LS=[[[0.46,0.74,0.98],0.86],[[0.93,0.78,0.52],0.30+0.40*near],[[0.38,0.62,0.95],0.18+0.42*near]];
+    for (let k=0;k<3;k++){ gl.uniform3fv(gl.getUniformLocation(pV,"uCol"),LS[k][0]); gl.uniform1f(gl.getUniformLocation(pV,"uA"),LS[k][1]*GEO.rf);
+      for (const G of gsets){ const L=G.lines[k]; if (!L.n) continue; gl.bindBuffer(gl.ARRAY_BUFFER,L.b); gl.vertexAttribPointer(vp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.LINES,0,L.n); } } }
   if (npts){ gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.useProgram(pP); gl.uniformMatrix3fv(gl.getUniformLocation(pP,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pP,"S"),S); gl.uniform2fv(gl.getUniformLocation(pP,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pP,"dpr"),dpr); gl.uniform1f(gl.getUniformLocation(pP,"uTime"),nowSec);
     gl.uniform1f(gl.getUniformLocation(pP,"uStory"),storyActive?1.0:0.0);
@@ -869,7 +930,7 @@ function draw(){
     gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.enableVertexAttribArray(aa); gl.vertexAttribPointer(aa,1,gl.UNSIGNED_BYTE,true,0,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,kindBuf); gl.enableVertexAttribArray(ak); gl.vertexAttribPointer(ak,1,gl.UNSIGNED_BYTE,false,0,0);
     // below the planetary view, people sit on the same land the fill shows: the stencil still holds it
-    if (landVerts && landA>0){ gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL,1,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP); }
+    if (landVerts){ gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL,1,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP); }
     gl.drawArrays(gl.POINTS,0,npts); gl.disable(gl.STENCIL_TEST);
     gl.disable(gl.DEPTH_TEST); }
   if (arcCount>0 && showArcs){ gl.useProgram(pL); gl.uniformMatrix3fv(gl.getUniformLocation(pL,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pL,"S"),S); gl.uniform2fv(gl.getUniformLocation(pL,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pL,"uTime"),nowSec);
@@ -2205,6 +2266,8 @@ function microPick(px, py){
   }
   return best;
 }
+// while a node or seat card is open the story sheet folds to its header (body.card-open), so it never covers the card
+{ const c = document.getElementById("node-card"); if (c && window.MutationObserver) new MutationObserver(() => { document.body.classList.toggle("card-open", !c.classList.contains("panel-hidden")); if (typeof sfSheet === "function") sfSheet(); }).observe(c, { attributes: true, attributeFilter: ["class"] }); }
 function renderNodeCard(){
   const card = $("node-card"); if (!card) return;
   if (microSel < 0 || !M || microSel >= M.n){ card.classList.add("panel-hidden"); return; }
@@ -2477,7 +2540,7 @@ function loop(){
   zoom*=Math.pow(targetZoom/zoom,0.12); // multiplicative: the same feel from orbit to a doorstep
   if (frame%4===0) pruneAndPackArcs(getTime());
   microFreeRoam(); microStep(now);
-  draw(); microDraw(); frame++; requestAnimationFrame(loop);
+  draw(); microDraw(); geoLabels(camFrame()); frame++; requestAnimationFrame(loop);
 }
 async function build(){
   const wasPlaying=playing;
@@ -2492,4 +2555,4 @@ $("step").onclick=()=>{ if(W) tick(); };
 $("play").onclick=(e)=>{ if(!W) return; playing=!playing; e.target.textContent=playing?"❚❚ pause":"▶ run"; e.target.classList.toggle("active",playing); };
 $("eng").onclick=(e)=>{ useWasm=!useWasm; e.target.textContent="engine: "+(useWasm&&wasm?"WASM":"JS"); e.target.classList.toggle("on",useWasm&&!!wasm); avgMsPerAct=0; avgMsPerTick=0; if(W) tick(); };
 $("arcsb").onclick=(e)=>{ showArcs=!showArcs; e.target.classList.toggle("on",showArcs); };
-(async()=>{ initCoastline(); initLand(); await loadWasm(); if(!wasm){ useWasm=false; $("eng").textContent="engine: JS"; $("eng").classList.remove("on"); } await build(); playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); initStoryMode(); loop(); })();
+(async()=>{ initLand(); await loadWasm(); if(!wasm){ useWasm=false; $("eng").textContent="engine: JS"; $("eng").classList.remove("on"); } await build(); playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); initStoryMode(); loop(); })();
