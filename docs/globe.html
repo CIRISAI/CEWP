@@ -1974,7 +1974,7 @@ function capSeat(devices, shape, read){
   if (capMemo.size > 512) capMemo.clear();
   wasm.cap_seat(devices, shape, read, 1, 0);
   const b = microBuf(12, Float64Array);
-  const r = { cpu: b[0], rhoCpu: b[1], rhoPermit: b[2], latency: b[3], reads: b[4], pages: b[5], egress: b[6], links: b[7], attr: b[8], cpuIndex: b[9], cpuQuery: b[10], cpuCtx: b[11], cores: b[12], knee: b[13], ceiling: b[14] };
+  const r = { cpu: b[0], rhoCpu: b[1], rhoPermit: b[2], latency: b[3], reads: b[4], pages: b[5], egress: b[6], links: b[7], attr: b[8], cpuIndex: b[9], cpuQuery: b[10], cpuCtx: b[11], cores: b[12], knee: b[13], ceiling: b[14], walk: b[15], walkKeys: b[16] };
   capMemo.set(key, r); return r;
 }
 // devices in this patch that round with seat s now (online, homed on s, with a seat as peer)
@@ -2409,6 +2409,7 @@ function renderNodeCard(){
     capHtml = `<div class="card-links"><span>seat load, ${BS_LABEL[microBootstrap]} (${microBootstrap === 0 ? "ordinary whole-plane rounds, claimed devices only" : CAP_SHAPE[bsShape()]}), one seat of ${kr ? kr.cores : "?"} cores · model, calibrated to seat-1</span>
       <table class="cap"><tr><th>devices</th><th>as shipped</th><th>after read minimisation</th></tr>${tr}</table>
       <div class="kv"><span>largest fleet under ${kr ? Math.round(kr.ceiling * 100) : 70}%</span><b>whole-plane ${kw ? fmtN(kw.knee) : "–"} · required-set ${kr ? fmtN(kr.knee) : "–"} · required-set after ${ka ? fmtN(ka.knee) : "–"}</b></div>
+      <div class="kv"><span>Revocation listing walk, ${fmtN(here)} devices (model: a + b × keys, apart from reads)</span><b>${(() => { const w = capSeat(here, bsShape(), 1); return w && w.walk >= 0 ? fmtN(w.walk) + " cores over " + fmtN(w.walkKeys) + " keys" : "–"; })()}</b></div>
       <div class="kv"><span>seat-1 measured</span><b>0.65 cores, ~329 attestation queries/s (quiet 60 s window)</b></div></div>`;
   }
   const state = !(f & NF.present) ? "not present" : !(f & NF.awake) ? "asleep" : (f & NF.online) ? "online" : "resuming";
