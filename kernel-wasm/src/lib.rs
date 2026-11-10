@@ -443,3 +443,249 @@ pub extern "C" fn tick(
     }
     arcs_n
 }
+
+// ------------------------------------------------------------------ R5 micro tier (cewp_sim::micro)
+//
+// The page's focal 1:1 neighbourhood runs here: the same `MicroWorld` the `cewp-sim` tests check.
+// The page builds a world for the tile under the camera, steps it, and reads flat arrays back;
+// what it draws at node level is this state, nothing else.
+
+use cewp_sim::micro::{MicroParams, MicroWorld, PARAM_COUNT, NONE as MICRO_NONE, HostKind};
+use cewp_sim::transport::BudgetClass;
+
+struct MicroExport {
+    params: [f64; PARAM_COUNT],
+    world: Option<MicroWorld>,
+    nodes_f64: Vec<f64>,
+    nodes_u32: Vec<u32>,
+    links: Vec<u32>,
+    events: Vec<f64>,
+    roads: Vec<f64>,
+    buildings: Vec<f64>,
+    households: Vec<f64>,
+    sites: Vec<f64>,
+    punches: Vec<u32>,
+    meta: Vec<f64>,
+    actors: [u32; 4],
+}
+
+static mut MICRO: Option<MicroExport> = None;
+
+fn micro() -> &'static mut MicroExport {
+    // SAFETY: wasm32-unknown-unknown runs this module on one thread; the page calls in turn.
+    unsafe {
+        let m = &mut *std::ptr::addr_of_mut!(MICRO);
+        m.get_or_insert_with(|| MicroExport {
+            params: MicroParams::default().values,
+            world: None,
+            nodes_f64: Vec::new(),
+            nodes_u32: Vec::new(),
+            links: Vec::new(),
+            events: Vec::new(),
+            roads: Vec::new(),
+            buildings: Vec::new(),
+            households: Vec::new(),
+            sites: Vec::new(),
+            punches: Vec::new(),
+            meta: Vec::new(),
+            actors: [MICRO_NONE; 4],
+        })
+    }
+}
+
+/// Number of micro-tier scenario parameters (`cewp_sim::micro::PARAM_SPECS`).
+#[no_mangle]
+pub extern "C" fn micro_param_count() -> u32 { PARAM_COUNT as u32 }
+
+/// The parameter block the next `micro_build` reads (f64 × `micro_param_count`), in spec order.
+#[no_mangle]
+pub extern "C" fn micro_params_ptr() -> *mut f64 { micro().params.as_mut_ptr() }
+
+/// Reset the parameter block to the specs' defaults.
+#[no_mangle]
+pub extern "C" fn micro_params_reset() { micro().params = MicroParams::default().values; }
+
+/// Build the focal world. `exact != 0` uses `density_km2` as the tile density as given; otherwise
+/// it is the cell mean and the tile's own spread is drawn from the seed. Returns the node count.
+#[no_mangle]
+pub extern "C" fn micro_build(lat: f64, lon: f64, density_km2: f64, seed_lo: u32, seed_hi: u32, exact: u32) -> u32 {
+    let m = micro();
+    let params = MicroParams { values: m.params };
+    let seed = ((seed_hi as u64) << 32) | seed_lo as u64;
+    let w = if exact != 0 {
+        MicroWorld::build_at_density(lat, lon, density_km2, seed, params)
+    } else {
+        MicroWorld::build(lat, lon, density_km2, seed, params)
+    };
+    let n = w.nodes.len() as u32;
+    m.roads = w.roads.iter().flat_map(|r| [r.x0, r.y0, r.x1, r.y1, r.width]).collect();
+    m.sites = w.sites.iter().flat_map(|s| [s.lat, s.lon, s.km, s.kind as u8 as f64]).collect();
+    m.world = Some(w);
+    micro_export();
+    n
+}
+
+/// Advance the world `dt_s` simulated seconds.
+#[no_mangle]
+pub extern "C" fn micro_step(dt_s: f64) {
+    if let Some(w) = micro().world.as_mut() { w.step(dt_s); }
+}
+
+/// Background traffic on (0) or off (1).
+#[no_mangle]
+pub extern "C" fn micro_quiet(q: u32) {
+    if let Some(w) = micro().world.as_mut() { w.quiet = q != 0; }
+}
+
+fn class_code(c: BudgetClass) -> u32 { c as u8 as u32 }
+
+/// Refresh every export buffer from the world; returns the node count. Pointers are valid until
+/// the next call to `micro_export`, `micro_build` or `micro_step`.
+#[no_mangle]
+pub extern "C" fn micro_export() -> u32 {
+    let m = micro();
+    let Some(w) = m.world.as_ref() else { return 0 };
+    let t = w.t;
+    m.nodes_f64.clear();
+    m.nodes_u32.clear();
+    for n in &w.nodes {
+        m.nodes_f64.extend_from_slice(&[n.x, n.y, n.lat, n.lon]);
+        let flags = (n.present as u32)
+            | (n.awake as u32) << 1
+            | (n.online(t) as u32) << 2
+            | (n.unmetered as u32) << 3
+            | (n.charging as u32) << 4
+            | (n.public as u32) << 5
+            | (n.punchable as u32) << 6
+            | (n.client_only as u32) << 7
+            | (n.shapes_all() as u32) << 8
+            | (n.relay_offering(t) as u32) << 9
+            | (n.old_version as u32) << 10
+            | (n.pinned as u32) << 11
+            | (n.can_be_mailbox() as u32) << 12
+            | (n.kind.off_patch() as u32) << 13
+            | (n.shaping_opt_in as u32) << 14
+            | (n.relay_pref as u32) << 15
+            | (n.device_relays() as u32) << 16;
+        m.nodes_u32.extend_from_slice(&[
+            n.kind as u8 as u32 | (n.activity as u8 as u32) << 8 | class_code(n.budget_class()) << 16 | (n.shaped_used as u32) << 24,
+            flags,
+            n.household.map_or(MICRO_NONE, |h| h as u32),
+            n.homes[0],
+            n.homes[1],
+            n.holding,
+            n.pending,
+            n.site.map_or(MICRO_NONE, |s| s as u32) | (n.owner as u32) << 24,
+        ]);
+    }
+    m.links.clear();
+    for l in &w.links {
+        m.links.extend_from_slice(&[
+            l.a as u32,
+            l.b as u32,
+            l.kind as u8 as u32 | class_code(l.shaped) << 8 | (l.at_bound as u32) << 16 | (l.asked as u32) << 17,
+            (t - l.since).max(0.0) as u32,
+        ]);
+    }
+    m.events.clear();
+    for e in &w.events {
+        m.events.extend_from_slice(&[e.t, e.src as f64, e.dst as f64, e.via as f64, e.via2 as f64, e.route as u8 as f64, e.shaped as u8 as f64]);
+    }
+    m.buildings.clear();
+    m.households.clear();
+    let mut adopting_units = vec![0u32; w.buildings.len()];
+    for h in &w.households {
+        if h.adopting { adopting_units[h.building] += 1; }
+        m.households.extend_from_slice(&[h.x, h.y, h.building as f64, h.adopting as u8 as f64, h.router as u8 as f64, h.in_community as u8 as f64, h.persons as f64]);
+    }
+    for (b, au) in w.buildings.iter().zip(adopting_units) {
+        m.buildings.extend_from_slice(&[b.cx, b.cy, b.w, b.d, b.angle, b.floors as f64, b.units as f64, au as f64]);
+    }
+    m.punches.clear();
+    for i in 0..w.nodes.len() {
+        for j in (i + 1)..w.nodes.len() {
+            if w.punching(i, j) { m.punches.extend_from_slice(&[i as u32, j as u32]); }
+        }
+    }
+    let s = &w.stats;
+    let c = w.kind_counts();
+    m.meta = vec![
+        t, w.local_hour(), w.class as u8 as f64, w.half, w.density_km2,
+        w.nodes.len() as f64, w.links.len() as f64, w.events.len() as f64, w.buildings.len() as f64, w.households.len() as f64,
+        s.sent as f64, s.direct as f64, s.direct_shaped as f64, s.relayed as f64, s.relayed_via_seat as f64,
+        s.mailboxed as f64, s.mail_delivered as f64, s.mail_wait_s, s.federation as f64, s.punch_tried as f64,
+        s.punch_ok as f64, s.punch_failed as f64, s.ninth_unshaped as f64, s.ci_joined as f64, s.ci_left as f64,
+        s.suspends as f64, s.network_changes as f64,
+        c[0] as f64, c[1] as f64, c[2] as f64, c[3] as f64, c[4] as f64, c[5] as f64,
+        (m.punches.len() / 2) as f64, w.qa_peer as f64, w.lat0, w.lon0,
+    ];
+    w.nodes.len() as u32
+}
+
+/// Export buffer pointers and lengths (in elements): 0 nodes_f64, 1 nodes_u32, 2 links, 3 events,
+/// 4 roads, 5 buildings, 6 households, 7 sites, 8 punches, 9 meta, 10 actors.
+#[no_mangle]
+pub extern "C" fn micro_buf_ptr(which: u32) -> u32 {
+    let m = micro();
+    (match which {
+        0 => m.nodes_f64.as_ptr() as usize,
+        1 => m.nodes_u32.as_ptr() as usize,
+        2 => m.links.as_ptr() as usize,
+        3 => m.events.as_ptr() as usize,
+        4 => m.roads.as_ptr() as usize,
+        5 => m.buildings.as_ptr() as usize,
+        6 => m.households.as_ptr() as usize,
+        7 => m.sites.as_ptr() as usize,
+        8 => m.punches.as_ptr() as usize,
+        9 => m.meta.as_ptr() as usize,
+        _ => m.actors.as_ptr() as usize,
+    }) as u32
+}
+
+/// Length in elements of an export buffer (see `micro_buf_ptr`).
+#[no_mangle]
+pub extern "C" fn micro_buf_len(which: u32) -> u32 {
+    let m = micro();
+    (match which {
+        0 => m.nodes_f64.len(),
+        1 => m.nodes_u32.len(),
+        2 => m.links.len(),
+        3 => m.events.len(),
+        4 => m.roads.len(),
+        5 => m.buildings.len(),
+        6 => m.households.len(),
+        7 => m.sites.len(),
+        8 => m.punches.len(),
+        9 => m.meta.len(),
+        _ => 4,
+    }) as u32
+}
+
+/// Story and inspection commands. 1 pin(a; b bit0 awake, bit1 unmetered, bit2 charging);
+/// 2 unpin(a); 3 send(a → b), returns the route; 4 introduce(a, b); 5 spawn a CI runner
+/// (b = 1 old version), returns its index; 6 pick the story actors into the actors buffer,
+/// returns 1 if found; 7 shaping opt-in of a set to b.
+#[no_mangle]
+pub extern "C" fn micro_cmd(op: u32, a: u32, b: u32) -> i32 {
+    let m = micro();
+    let Some(w) = m.world.as_mut() else { return -1 };
+    let n = w.nodes.len() as u32;
+    let ok = |i: u32| i < n;
+    match op {
+        1 if ok(a) => { w.pin(a as usize, b & 1 != 0, b & 2 != 0, b & 4 != 0); 0 }
+        2 if ok(a) => { w.unpin(a as usize); 0 }
+        3 if ok(a) && ok(b) && a != b => w.send(a as usize, b as usize) as u8 as i32,
+        4 if ok(a) && ok(b) => { w.introduce(a as usize, b as usize); 0 }
+        5 => w.spawn_ci(Some(b != 0)).map_or(-1, |i| i as i32),
+        6 => match w.story_actors() {
+            Some(x) => { m.actors = x.map(|i| i as u32); 1 }
+            None => 0,
+        },
+        7 if ok(a) => {
+            let node = &mut w.nodes[a as usize];
+            if node.kind != HostKind::ServeSeat && node.kind != HostKind::HostedServer { node.shaping_opt_in = b != 0; }
+            0
+        }
+        _ => -1,
+    }
+}

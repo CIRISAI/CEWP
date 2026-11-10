@@ -53,6 +53,7 @@ pub mod alm;
 pub mod chunk_custody;
 pub mod workload;
 pub mod holon;
+pub mod micro;
 
 pub use transport::*;
 pub use alm::*;
