@@ -290,7 +290,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
   <div id="foot-measured" style="margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px">
     <b style="color:#fff">Measured from a live mesh.</b> The serve seat's cost model (open a serve seat's card at street zoom) is calibrated from the live production CIRIS mesh on 2026-11-10: four 60-second windows of the serve node's own counters, one of them with CPU, plus its store composition and announced-node count. Device behaviour is derived from edge source: v45.0.0 (in release), read at commit <code>c580298</code> and its read-fix series. The idle Pull's cost was measured on an edge debug build; a release rerun is pending. Everything beyond today's fleet size is a model projection.
     <br><b style="color:#fff">Measured today (seat-1, aggregates only):</b> 0.65 of a core in a quiet 60 s window · ~329 attestation queries/s · ~10–12 replication rounds per minute per plane (quiet window) · store of ~42.5k attestations, ~18.3k transport destinations, ~8.7k keys · 1,349 announced nodes under 1,338 owners · 0 key-revocation rows. On screen, only the seat card's <i>seat-1 measured</i> line shows these directly.
-    <br><b style="color:#fff">Map data:</b> coastlines, land, lakes, rivers, country borders and place names are from <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain), at 110m, 50m and 10m scale by zoom. Real geography is drawn only down to region scale; it fades out before the street view fades in, and every street, home and device there is generated, never placed on a real road or building.
+    <br><b style="color:#fff">Map data:</b> coastlines, land, lakes, rivers, country borders and place names are from <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain), at 110m, 50m and 10m scale by zoom. The terrain shading is Natural Earth's 1:10m shaded relief (public domain), and the elevation tint and some extra lakes come from <a href="https://www.ncei.noaa.gov/products/etopo-global-relief-model" target="_blank" rel="noopener">NOAA NCEI ETOPO 2022</a> (public domain): a lake is added where ETOPO holds a flat water surface that Natural Earth has as land, by a detection rule of this twin (MODEL), so a few lakes are missing or in pieces. Real geography is drawn only down to region scale; it fades out before the street view fades in, and every street, home and device there is generated, never placed on a real road or building.
     <br><b style="color:#fff">Labels:</b> MEASURED is read from the serve node; DERIVED is computed by stated arithmetic from measured counts and the edge source; MODEL is a projection; PROVISIONAL is a MODEL figure that rests on an open calibration question. DERIVED and PROVISIONAL are both MODEL in the README scoreboard's sense. Seat capacity figures include today's measured peer load at seat-1 as a fixed baseline (MEASURED round mix; how it scales is MODEL). The population, links and story elsewhere on the globe are simulated.
   </div>
   Every person and device sits on populated land (2,961 density cells stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Per <b>CC 5.4.3</b> ("A shaped link is one hop"), shaped budget classes (<code>server</code> 7,000 B/s, <code>home</code> 2,800 B/s, <code>phone-wifi</code> 1,400 B/s, <code>phone-cellular</code> 350 B/s, <code>seat</code> 33,000 B/s at ρ=0.5) are 1 direct hop and never forwarded; peers without a direct path carry on ordinary links. Large rooms fan out via the <b>CC 6.1.6 <code>deterministic-alm</code> member relay tree</b> over sealed chunks (distinct from CC 5.3.3.2's no-SFU-relay-role; no seat decodes or selects). 15,296 B X-Wing onion packets replace cover frames on shaped links at <b>0 extra wire bytes</b> (CC 5.4.6). <a href="how-it-works.html#solves">How it works</a> · <a href="how-it-works.html#peers">vs. other meshes</a> · <a href="mesh.html">6-peer kernel</a> · <a href="toy/">scaling toy</a>
@@ -683,14 +683,14 @@ function initLand(){
 // continent; 10m loads per 10-degree tile at region scale. Every real layer fades out between 90
 // and 30 m a pixel, before any generated street fades in (a patch's ground starts at 26 m a pixel), so real and generated never share a scale.
 const GEO_MPP_50 = 6000, GEO_MPP_10 = 1200, GEO_TILE_CAP = 30;
-const GEO = { base: null, l50: null, p50: false, idx10: null, pIdx: false, t10: new Map(), places: null, pPlaces: false, mpp: 1e9, used: "110m", rf: 1,
+const GEO = { base: null, l50: null, lakes: null, p50: false, idx10: null, pIdx: false, t10: new Map(), places: null, pPlaces: false, mpp: 1e9, used: "110m", rf: 1,
   stats(){ let b = 0; for (const t of this.t10.values()) b += t.bytes; return { used: this.used, tiles10: this.t10.size, bytes10: b, l50: !!this.l50, places: this.places ? this.places.length : 0, mpp: Math.round(this.mpp) }; } };
 function geoDecode(buf){
   const u8 = new Uint8Array(buf); if (u8[0] !== 67 || u8[1] !== 71 || u8[2] !== 49) throw new Error("not a CG1 layer file");
   const q = new DataView(u8.buffer, u8.byteOffset + 4, 4).getUint32(0, true); let i = 8;
   const vi = () => { let r = 0, s = 1, b; do { b = u8[i++]; r += (b & 0x7f) * s; s *= 128; } while (b & 0x80); return r; };
   const zz = (n) => (n % 2 ? -(n + 1) / 2 : n / 2);
-  const L = { 1: [], 2: [], 3: [], 4: [] };
+  const L = { 1: [], 2: [], 3: [], 4: [], 5: [] };
   while (i < u8.length){ const k = u8[i++], n = vi();
     for (let p = 0; p < n; p++){ const m = vi(), pts = new Array(m); let a = 0, o = 0;
       for (let j = 0; j < m; j++){ a += zz(vi()); o += zz(vi()); pts[j] = [a / q, o / q]; }
@@ -726,22 +726,48 @@ function geoVisibleTiles(w, h, mpp){
 // which set draws now; it starts any fetch the view will need next
 function geoSets(w, h, mpp){
   GEO.mpp = mpp;
-  if (mpp < GEO_MPP_50 * 2 && !GEO.p50){ GEO.p50 = true; geoFetch("geo/ne50.bin?v=1").then(b => { GEO.l50 = geoUpload(geoDecode(b), 0); }).catch(e => console.warn(e.message)); }
+  if (mpp < GEO_MPP_50 * 2 && !GEO.p50){ GEO.p50 = true;
+    // the 50m set carries every lake the 10m set has (kind 5) and the lakes ETOPO adds (kinds 1, 2)
+    Promise.all([geoFetch("geo/ne50.bin?v=1"), geoFetch("geo/lakes.bin?v=1")]).then(([b, k]) => {
+      const L = geoDecode(b), K = geoDecode(k); GEO.lakes = K;
+      L[1] = L[1].concat(K[1], K[5]); L[2] = L[2].concat(K[2]); GEO.l50 = geoUpload(L, 0); }).catch(e => console.warn(e.message)); }
   if (mpp < GEO_MPP_50 && !GEO.pPlaces){ GEO.pPlaces = true; geoFetch("geo/places.bin?v=1").then(b => { GEO.places = geoPlaces(b); }).catch(e => console.warn(e.message)); }
   let tiles = null;
   if (mpp < GEO_MPP_10 * 2){
     if (!GEO.pIdx){ GEO.pIdx = true; fetch("geo/ne10/index.json?v=1").then(r => r.json()).then(j => { GEO.idx10 = new Set(j.map(t => t[0] + "_" + t[1])); }).catch(e => console.warn(e.message)); }
-    if (GEO.idx10){ tiles = geoVisibleTiles(w, h, mpp).filter(k => GEO.idx10.has(k));
+    if (GEO.idx10 && GEO.lakes){ tiles = geoVisibleTiles(w, h, mpp).filter(k => GEO.idx10.has(k)); // after the lakes, so every tile gets its own
       for (const k of tiles){ const t = GEO.t10.get(k);
         if (t){ GEO.t10.delete(k); GEO.t10.set(k, t); continue; } // most recent last
         GEO.t10.set(k, { pending: true, bytes: 0 });
-        geoFetch("geo/ne10/" + k + ".bin?v=1").then(b => { const e = GEO.t10.get(k); if (!e) return; const S = geoUpload(geoDecode(b), 0); S.pending = false; GEO.t10.set(k, S); geoEvict(tiles); })
+        geoFetch("geo/ne10/" + k + ".bin?v=1").then(b => { const e = GEO.t10.get(k); if (!e) return; const L = geoDecode(b); geoAddLakes(L, k); const S = geoUpload(L, 0); S.pending = false; GEO.t10.set(k, S); geoEvict(tiles); })
           .catch(e => { console.warn(e.message); GEO.t10.delete(k); }); }
       geoEvict(tiles); }
   }
   if (tiles && mpp < GEO_MPP_10 && tiles.length && tiles.every(k => { const t = GEO.t10.get(k); return t && !t.pending; })){ GEO.used = "10m"; return tiles.map(k => GEO.t10.get(k)); }
   if (mpp < GEO_MPP_50 && GEO.l50){ GEO.used = "50m"; return [GEO.l50]; }
   GEO.used = "110m"; return GEO.base ? [GEO.base] : [];
+}
+// ETOPO's lakes in a 10m tile: each ring clipped to the tile (so a lake on a tile edge is one hole,
+// not two), each shore kept by the tile holding its first point. The 10m tiles load after the 50m set.
+function geoAddLakes(L, key){
+  const K = GEO.lakes; if (!K) return;
+  const [la, lo] = key.split("_").map(Number), box = [la, lo, la + 10, lo + 10];
+  const inT = (p) => p[0] >= box[0] && p[0] < box[2] && p[1] >= box[1] && p[1] < box[3];
+  for (const r of K[1]){ let a0 = 90, a1 = -90, o0 = 180, o1 = -180; for (const p of r){ a0 = Math.min(a0, p[0]); a1 = Math.max(a1, p[0]); o0 = Math.min(o0, p[1]); o1 = Math.max(o1, p[1]); }
+    if (a1 < box[0] || a0 >= box[2] || o1 < box[1] || o0 >= box[3]) continue;
+    const c = (a0 >= box[0] && a1 < box[2] && o0 >= box[1] && o1 < box[3]) ? r : geoClipRing(r, box); if (c) L[1].push(c); }
+  for (const s of K[2]) if (s.length && inT(s[0])) L[2].push(s);
+}
+function geoClipRing(r, [y0, x0, y1, x1]){
+  let pts = r.slice();
+  for (const [ax, v, ge] of [[1, x0, true], [1, x1, false], [0, y0, true], [0, y1, false]]){
+    if (!pts.length) break; const out = [];
+    for (let i = 0; i < pts.length; i++){ const a = pts[(i + pts.length - 1) % pts.length], b = pts[i];
+      const ia = ge ? a[ax] >= v : a[ax] <= v, ib = ge ? b[ax] >= v : b[ax] <= v;
+      const cut = () => { const t = (v - a[ax]) / (b[ax] - a[ax]); const p = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; p[ax] = v; return p; };
+      if (ib){ if (!ia) out.push(cut()); out.push(b); } else if (ia) out.push(cut()); }
+    pts = out; }
+  return pts.length >= 3 ? pts.concat([pts[0]]) : null;
 }
 function geoEvict(keep){
   const ks = new Set(keep || []);
@@ -911,7 +937,10 @@ function draw(){
     gl.uniform1f(gl.getUniformLocation(pG,"uA"),landA);
     gl.bindBuffer(gl.ARRAY_BUFFER,landBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,landTBuf); gl.enableVertexAttribArray(gt); gl.vertexAttribPointer(gt,1,gl.FLOAT,false,0,0);
-    gl.drawArrays(gl.TRIANGLES,0,landVerts); gl.disableVertexAttribArray(gt); gl.disable(gl.STENCIL_TEST); }
+    gl.drawArrays(gl.TRIANGLES,0,landVerts); gl.disableVertexAttribArray(gt);
+    // 4. terrain: shaded relief and elevation (relief.js), a multiply on the land just drawn
+    if (typeof reliefDraw==="function") reliefDraw(R,S,asp,w,h,mpp,(0.6+0.4*Math.min(1,landA*3))*GEO.rf);
+    gl.disable(gl.STENCIL_TEST); }
   // shorelines, country borders and rivers from the set in use; they fade out before streets fade in
   if (gsets.length && GEO.rf>0.004){ gl.useProgram(pV); gl.uniformMatrix3fv(gl.getUniformLocation(pV,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pV,"S"),S); gl.uniform2fv(gl.getUniformLocation(pV,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pV,"uSunWorld"),sunWorld);
     const vp=gl.getAttribLocation(pV,"p"); gl.enableVertexAttribArray(vp);
