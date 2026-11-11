@@ -23,7 +23,7 @@
 //! (scanned regions use templates for that reason), tooltip (`title=`) text, canvas text drawn
 //! with `fillText`, and the `<head>` (title, meta description).
 
-use crate::page_ledger::{docs_dir, PAGE_CLAIMS};
+use crate::page_ledger::PAGE_CLAIMS;
 
 /// Elements written as text that are controls or story chrome, not figures, with the reason.
 pub const UI_IDS: &[(&str, &str)] = &[
@@ -55,6 +55,9 @@ pub const NON_FIGURES: &[(&str, &str)] = &[
     ("1/8", "initial story step counter before the script runs"),
     ("6-peer", "name of the six-peer kernel demo page"),
     ("seat-1", "the production serve seat's name in the FSD (aggregates only)"),
+    ("IPv6", "protocol name"),
+    ("P2P", "abbreviation: peer to peer"),
+    ("pre-v44", "a version reference (edge before v44)"),
 ];
 
 /// Identifiers a `${…}` interpolation may read outside a `fig()` call: labels, enum lookups and
@@ -68,7 +71,9 @@ pub const LABEL_IDENTS: &[&str] = &[
     // fragments built from scanned templates or label strings
     "state", "reach", "relayWhy", "shapesWhy", "repl", "capHtml", "tr", "rows", "join", "kindsTxt", "scale", "hm", "dev", "f", "NF",
     "unmetered", "charging", "claimed", "mailbox", "old", "yes", "chipSub", "seatsBtn", "here", "tierTxt", "cellTxt", "sizeTxt", "lockTxt",
-    "kneeTxt", "c", "kmTxt", "s", "world", "timing", "engineTxt",
+    "kneeTxt", "c", "kmTxt", "s", "world", "timing", "engineTxt", "map", "seatKm",
+    // read only as a condition that decides whether a fig()-wrapped line shows
+    "holding", "pending",
     // story helpers whose numeric parts are wrapped in fig() where they are built
     "helperPhrase", "homesOf", "ap", "MSTORY", "route1", "viaSeat", "outcome", "ci",
     // JS keywords and literals that can appear in a conditional interpolation
@@ -353,7 +358,13 @@ pub fn is_citation_or_name(tok: &str) -> bool {
         }
     }
     // tier and catalogue names: R0..R5, T5, A1, L0
-    if tok.len() <= 3 && matches!(tok.as_bytes()[0], b'R' | b'T' | b'A' | b'L') && tok[1..].bytes().all(|c| c.is_ascii_digit()) && tok.len() > 1 {
+    let tb = tok.as_bytes();
+    let name_len_ok = match tb.first() {
+        Some(b'R' | b'A' | b'L') => tb.len() == 2,
+        Some(b'T') => (2..=3).contains(&tb.len()),
+        _ => false,
+    };
+    if name_len_ok && tb[1..].iter().all(|c| c.is_ascii_digit()) {
         return true;
     }
     // commit: 7 to 40 lowercase hex with at least one letter
@@ -364,6 +375,7 @@ pub fn is_citation_or_name(tok: &str) -> bool {
 }
 
 fn trim_token(t: &str) -> &str {
+    let t = t.strip_suffix("'s").or_else(|| t.strip_suffix("’s")).unwrap_or(t);
     t.trim_matches(|c: char| "()[]{},;:!?·\"'.…–—=≤≥<>~+−*×→/".contains(c))
 }
 
@@ -388,10 +400,7 @@ fn check_literal(pieces: &[&Piece], src: &str, file: &str, out: &mut Vec<Finding
     for p in pieces {
         match p {
             Piece::Text { text, at, .. } => {
-                if visible.is_empty() {
-                    vis_at = *at;
-                }
-                for ch in text.chars() {
+                for (bi, ch) in text.char_indices() {
                     if in_tag {
                         tag.push(ch);
                         if ch == '>' {
@@ -417,9 +426,13 @@ fn check_literal(pieces: &[&Piece], src: &str, file: &str, out: &mut Vec<Finding
                             visible.push(' ');
                         }
                     } else if ch == '<' {
+                        flush(&mut visible, vis_at, out);
                         in_tag = true;
                         tag.push('<');
                     } else if skip.is_none() {
+                        if visible.trim().is_empty() {
+                            vis_at = at + bi;
+                        }
                         visible.push(ch);
                     }
                 }
@@ -562,6 +575,7 @@ pub fn check_page(docs: &std::path::Path) -> Vec<Finding> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::page_ledger::docs_dir;
 
     fn figs(js: &str) -> Vec<String> {
         scan_figures(js, "t.js").into_iter().map(|f| f.what).collect()

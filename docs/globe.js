@@ -1,6 +1,6 @@
 // Shared by globe.html (the full explorer) and index.html (the story-first page).
 // The page's body markup is injected here so the two pages differ only in <body class>.
-// Every figure in it carries data-claim="<id>", an entry of docs/evidence/claims.json (built from
+// Every figure in it carries a data-claim attribute naming an entry of docs/evidence/claims.json (built from
 // crates/cewp-evidence/src/page_ledger.rs; `cargo test -p cewp-evidence page_` checks the regions
 // between evidence:scan and evidence:end for figures without one).
 // evidence:scan
@@ -149,7 +149,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
         <h3><span>Population Opt-In Choices</span><span style="color:var(--mute);font-weight:400;font-size:9.5px">Benefits (+) &amp; Downsides (−)</span></h3>
 
         <div class="sl-item">
-          <div class="sl-top"><span>1. Link shaping — <code>server</code> (<span class="fig" data-claim="budget-class-rates">7,000 B/s</span>)</span><span><span class="dflt" data-claim="shaping-defaults">Default: ON</span> <b id="v_sh_srv" data-evidence="input">95%</b></span></div>
+          <div class="sl-top"><span>Link shaping — <code>server</code> (<span class="fig" data-claim="budget-class-rates">7,000 B/s</span>)</span><span><span class="dflt" data-claim="shaping-defaults">Default: ON</span> <b id="v_sh_srv" data-evidence="input">95%</b></span></div>
           <input type="range" class="adv-range" id="sl_sh_srv" min="0" max="100" step="5" value="95">
           <div class="pro-con">
             <span class="pro">+ Hides row timing/size in channel MDU frames (<span class="fig" data-claim="budget-class-rates">ρ=0.5, W=600 s</span>); carries onion walks at <span class="fig" data-claim="onion-tier">+0 B extra wire cost</span>.</span>
@@ -158,7 +158,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
         </div>
 
         <div class="sl-item">
-          <div class="sl-top"><span>2. Link shaping — <code>home</code> (<span class="fig" data-claim="budget-class-rates">2,800 B/s</span>)</span><span><span class="dflt off" data-claim="shaping-defaults">Default: OFF</span> <b id="v_sh_home" data-evidence="input">25%</b></span></div>
+          <div class="sl-top"><span>Link shaping — <code>home</code> (<span class="fig" data-claim="budget-class-rates">2,800 B/s</span>)</span><span><span class="dflt off" data-claim="shaping-defaults">Default: OFF</span> <b id="v_sh_home" data-evidence="input">25%</b></span></div>
           <input type="range" class="adv-range" id="sl_sh_home" min="0" max="100" step="5" value="25">
           <div class="pro-con">
             <span class="pro">+ Masks home traffic timing/size (<span class="fig" data-claim="budget-class-rates">W=600 s</span>) on direct 1-hop links; expands standing shaped cover pool for onion peers.</span>
@@ -167,7 +167,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
         </div>
 
         <div class="sl-item">
-          <div class="sl-top"><span>3. Link shaping — <code>phone-wifi</code> (<span class="fig" data-claim="budget-class-rates">1,400 B/s</span>) / <code>phone-cellular</code> (<span class="fig" data-claim="budget-class-rates">350 B/s</span>)</span><span><span class="dflt off" data-claim="shaping-defaults">Default: OFF</span> <b id="v_sh_phone" data-evidence="input">10%</b></span></div>
+          <div class="sl-top"><span>Link shaping — <code>phone-wifi</code> (<span class="fig" data-claim="budget-class-rates">1,400 B/s</span>) / <code>phone-cellular</code> (<span class="fig" data-claim="budget-class-rates">350 B/s</span>)</span><span><span class="dflt off" data-claim="shaping-defaults">Default: OFF</span> <b id="v_sh_phone" data-evidence="input">10%</b></span></div>
           <input type="range" class="adv-range" id="sl_sh_phone" min="0" max="100" step="5" value="10">
           <div class="pro-con">
             <span class="pro">+ Shapes direct 1-hop mobile links (<span class="fig" data-claim="budget-class-rates">W=600 s Wi-Fi, W=3,600 s cellular</span>); contributes mobile shaped cover hops.</span>
@@ -176,7 +176,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
         </div>
 
         <div class="sl-item">
-          <div class="sl-top"><span>4. Offer relay (directly reachable server/home/phone-charging)</span><span><span class="dflt" data-claim="shaping-defaults">Default: ON</span> <b id="v_relay" data-evidence="input">90%</b></span></div>
+          <div class="sl-top"><span>Offer relay (directly reachable server/home/phone-charging)</span><span><span class="dflt" data-claim="shaping-defaults">Default: ON</span> <b id="v_relay" data-evidence="input">90%</b></span></div>
           <input type="range" class="adv-range" id="sl_relay" min="0" max="100" step="5" value="90">
           <div class="pro-con">
             <span class="pro">+ Each directly reachable home/server adds <span class="fig" data-claim="shaped-link-bound">L−1 = 7 shaped slots</span> (<code>Tiers.lean</code>: <code>each_home_adds_seven</code>, <code>reach ≠ capacity</code>) &amp; avoids stranding when no shaped slot is left.</span>
@@ -185,7 +185,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
         </div>
 
         <div class="sl-item">
-          <div class="sl-top"><span>5. Announce owner-binding on roster</span><span><span class="dflt" data-claim="optin-defaults">Default: ON</span> <b id="v_ann" data-evidence="input">85%</b></span></div>
+          <div class="sl-top"><span>Announce owner-binding on roster</span><span><span class="dflt" data-claim="optin-defaults">Default: ON</span> <b id="v_ann" data-evidence="input">85%</b></span></div>
           <input type="range" class="adv-range" id="sl_ann" min="5" max="100" step="5" value="85">
           <div class="pro-con">
             <span class="pro">+ Reachable by short ciris:// name; can join public rooms (open:self_admit) &amp; serve as announced relay/seat.</span>
@@ -194,7 +194,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
         </div>
 
         <div class="sl-item">
-          <div class="sl-top"><span>6. Anonymous mode / Onion tier (CC 5.4.6)</span><span><span class="dflt off" data-claim="optin-defaults">Default: OFF</span> <b id="v_anon" data-evidence="input">12%</b></span></div>
+          <div class="sl-top"><span>Anonymous mode / Onion tier (CC 5.4.6)</span><span><span class="dflt off" data-claim="optin-defaults">Default: OFF</span> <b id="v_anon" data-evidence="input">12%</b></span></div>
           <input type="range" class="adv-range" id="sl_anon" min="0" max="60" step="2" value="12">
           <div class="pro-con">
             <span class="pro">+ Unlinkable federation publishing &amp; private rooms via <span class="fig" data-claim="onion-tier">3-hop X-Wing onion walks</span> over shaped links from sticky guard.</span>
@@ -203,7 +203,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
         </div>
 
         <div class="sl-item">
-          <div class="sl-top"><span>7. Onion relay participation (<span class="fig" data-claim="onion-tier">3-layer deal</span>)</span><span><span class="dflt" data-claim="optin-defaults">Default: ON</span> <b id="v_orel" data-evidence="input">88%</b></span></div>
+          <div class="sl-top"><span>Onion relay participation (<span class="fig" data-claim="onion-tier">3-layer deal</span>)</span><span><span class="dflt" data-claim="optin-defaults">Default: ON</span> <b id="v_orel" data-evidence="input">88%</b></span></div>
           <input type="range" class="adv-range" id="sl_orel" min="0" max="100" step="4" value="88">
           <div class="pro-con">
             <span class="pro">+ Expands the <span class="fig" data-claim="onion-tier">3-layer relay deal</span> &amp; mixing pool so anonymous walks aren't narrowed by a small volunteer set.</span>
@@ -212,7 +212,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
         </div>
 
         <div class="sl-item">
-          <div class="sl-top"><span>8. Publishable H3ERE agent traces (CC 4.5.13)</span><span><span class="dflt off" data-claim="optin-defaults">Default: OFF</span> <b id="v_trc" data-evidence="input">15%</b></span></div>
+          <div class="sl-top"><span>Publishable H3ERE agent traces (CC 4.5.13)</span><span><span class="dflt off" data-claim="optin-defaults">Default: OFF</span> <b id="v_trc" data-evidence="input">15%</b></span></div>
           <input type="range" class="adv-range" id="sl_trc" min="0" max="100" step="5" value="15">
           <div class="pro-con">
             <span class="pro">+ Contributes <span class="fig" data-claim="trace-size">14 KiB/decision</span> scrubbed reasoning traces to cohort accountability and RATCHET evaluation.</span>
@@ -270,7 +270,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
     <div class="kv"><span>acts signed</span><b id="acts_n" data-claim="kernel-traffic">–</b></div>
     <div class="kv"><span>deliveries (rulebook checks run)</span><b id="deliv" data-claim="kernel-traffic">–</b></div>
     <div class="kv"><span>refused by signer's local rulebook</span><b id="refused" data-claim="kernel-traffic">–</b></div>
-    <div class="kv"><span>wire bytes moved (excl. 0B onion cover)</span><b id="bytes" data-claim="kernel-traffic">–</b></div>
+    <div class="kv"><span>wire bytes moved (excl. <span class="fig" data-claim="onion-tier">0B onion cover</span>)</span><b id="bytes" data-claim="kernel-traffic">–</b></div>
     <div class="kv"><span>a broadcast network would move</span><b id="bcast" data-claim="kernel-baselines">–</b></div>
     <div class="kv"><span>with a datacenter in the middle</span><b id="central" data-claim="kernel-baselines">–</b></div>
     <h2>the rulebook kernel</h2>
@@ -292,7 +292,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
     <br><b style="color:#fff">Map data:</b> coastlines, land, lakes, rivers, country borders and place names are from <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain), at 110m, 50m and 10m scale by zoom. The terrain shading is Natural Earth's 1:10m shaded relief (public domain), and the elevation tint and some extra lakes come from <a href="https://www.ncei.noaa.gov/products/etopo-global-relief-model" target="_blank" rel="noopener">NOAA NCEI ETOPO 2022</a> (public domain). <span class="fig" data-claim="map-rules">A lake is added where ETOPO holds a flat water surface that Natural Earth has as land, by a detection rule of this twin (MODEL), so a few lakes are missing or in pieces. The street view's ground colour is a rule of this twin (MODEL): warmth from latitude and ETOPO elevation picks one of five ground bands, high ground turns to rock, and the shaded relief lights it; no land-cover or climate data is loaded. Where the population grid holds no cell near a real city, that city's Natural Earth population stands in for it (MODEL).</span> <span class="fig" data-claim="generated-below-region">Real geography is drawn only down to region scale; it fades out before the street view fades in, and every street, home and device there is generated, never placed on a real road or building.</span> <span class="fig" data-claim="pop-grid-source">Where the population grid itself comes from is not recorded (FRONTIER).</span>
     <br><b style="color:#fff">Labels:</b> every figure on this page opens its ledger entry when you click, tap or press Enter on it: its class, what supports it, how it can be wrong, and how to reproduce it. MEASURED is read off the serve node or your own browser; DERIVED is read from source or computed by stated arithmetic from it; MODEL is a stated modelling choice or the simulation's output under stated inputs; FRONTIER has no support yet. PROVISIONAL, on the seat card, is a MODEL figure resting on an open calibration question. Nothing on this page is PROJECTED: no tier here is certified. <button type="button" class="ev-open" data-ev-open>Open the legend and the full ledger</button>
   </div>
-  <span class="fig" data-claim="all-simulated">Every person and device</span> sits on populated land (<span class="fig" data-claim="pop-grid-cells">2,961 density cells</span> stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Per <b>CC 5.4.3</b> (<span class="fig" data-claim="shaped-link-one-hop">"A shaped link is one hop"</span>), shaped budget classes (<span class="fig" data-claim="budget-class-rates"><code>server</code> 7,000 B/s, <code>home</code> 2,800 B/s, <code>phone-wifi</code> 1,400 B/s, <code>phone-cellular</code> 350 B/s, <code>seat</code> 33,000 B/s at ρ=0.5</span>) are 1 direct hop and never forwarded; peers without a direct path carry on ordinary links. Large rooms fan out via the <b>CC 6.1.6 <code>deterministic-alm</code> member relay tree</b> over sealed chunks (distinct from CC 5.3.3.2's no-SFU-relay-role; no seat decodes or selects). <span class="fig" data-claim="onion-tier">15,296 B X-Wing onion packets replace cover frames on shaped links at <b>0 extra wire bytes</b></span> (CC 5.4.6). <a href="how-it-works.html#solves">How it works</a> · <a href="how-it-works.html#peers">vs. other meshes</a> · <a href="mesh.html">6-peer kernel</a> · <a href="toy/">scaling toy</a>
+  <span class="fig" data-claim="all-simulated">Every person and device</span> sits on populated land (<span class="fig" data-claim="pop-grid-cells">2,961 density cells</span> stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Per <b>CC 5.4.3</b> (<span class="fig" data-claim="shaped-link-one-hop">"A shaped link is one hop"</span>), shaped budget classes (<span class="fig" data-claim="budget-class-rates"><code>server</code> 7,000 B/s, <code>home</code> 2,800 B/s, <code>phone-wifi</code> 1,400 B/s, <code>phone-cellular</code> 350 B/s, <code>seat</code> 33,000 B/s at ρ=0.5</span>) <span class="fig" data-claim="shaped-link-one-hop">are 1 direct hop and never forwarded; peers without a direct path carry on ordinary links</span>. Large rooms fan out via the <b>CC 6.1.6 <code>deterministic-alm</code> member relay tree</b> over sealed chunks (distinct from CC 5.3.3.2's no-SFU-relay-role; no seat decodes or selects). <span class="fig" data-claim="onion-tier">15,296 B X-Wing onion packets replace cover frames on shaped links at <b>0 extra wire bytes</b></span> (CC 5.4.6). <a href="how-it-works.html#solves">How it works</a> · <a href="how-it-works.html#peers">vs. other meshes</a> · <a href="mesh.html">6-peer kernel</a> · <a href="toy/">scaling toy</a>
 </div>
 `);
 // evidence:end
@@ -2404,6 +2404,7 @@ function drawScaleBar(g, F, ppm){
   g.fillText(m >= 1000 ? (m / 1000) + " km" : m + " m", x + L / 2, y - 6);
 }
 // ---- the chip that says what you are looking at
+const pad2 = (n) => String(n).padStart(2, "0"); // the street clock's two-digit fields
 // evidence:scan
 function updateFocalChip(F){
   const chip = $("focal-chip"); if (!chip) return;
@@ -2414,7 +2415,7 @@ function updateFocalChip(F){
   if (chip._t && performance.now() - chip._t < 250) return;
   if (chip.contains(document.activeElement)) return; // a figure focused from the keyboard keeps its focus
   chip._t = performance.now();
-  const m = M.meta, hh = m[1], hm = String(Math.floor(hh)).padStart(2, "0") + ":" + String(Math.floor((hh % 1) * 60)).padStart(2, "0");
+  const m = M.meta, hh = m[1], hm = pad2(Math.floor(hh)) + ":" + pad2(Math.floor((hh % 1) * 60));
   const kinds = [27, 28, 29, 30, 31, 32].map(k => m[k]), dclass = MDCLASS[m[2] | 0];
   const ppm = F.k / EARTH_M; const scale = ppm > 1.5 ? "street" : ppm > 0.25 ? "neighbourhood" : ppm > 0.02 ? "district" : "region";
   if (F.w < 800){
@@ -2449,7 +2450,10 @@ function microPick(px, py){
 function renderNodeCard(){
   const card = $("node-card"); if (!card) return;
   if (microSel < 0 || !M || microSel >= M.n){ card.classList.add("panel-hidden"); return; }
-  if (!card.classList.contains("panel-hidden") && card.contains(document.activeElement) && document.activeElement.hasAttribute("data-claim")) return; // keep a focused figure focused
+  // the same device's card holds still while it is pointed at or a figure in it has focus, so a figure
+  // can be clicked, tapped or tabbed to; it refreshes again when the pointer or focus leaves
+  if (!card.classList.contains("panel-hidden") && card._sel === microSel && (card.matches(":hover") || (card.contains(document.activeElement) && document.activeElement.hasAttribute("data-claim")))) return;
+  card._sel = microSel;
   const i = microSel, f = nodeFlags(i), kind = nodeKind(i), cls = nodeClass(i), act = nodeAct(i);
   const hh = M.nu[i * 8 + 2], h0 = M.nu[i * 8 + 3], h1 = M.nu[i * 8 + 4], holding = M.nu[i * 8 + 5], pending = M.nu[i * 8 + 6];
   const router = hh < 4294967295 ? MROUTER[M.hh[hh * 7 + 4] | 0] : null;

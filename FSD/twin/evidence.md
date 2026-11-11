@@ -90,3 +90,4 @@ at for that reason. Pages other than `index.html` / `globe.html` (`how-it-works.
     cargo test -p cewp-evidence page_                              # ledger + scan
     cargo run -p cewp-evidence --example page_ledger -- --write    # regenerate docs/evidence/
     cargo run -p cewp-evidence --example page_ledger               # check only, exit 1 on a problem
+    node --test docs/evidence/evidence.test.js                     # ledger script parses; ids resolve

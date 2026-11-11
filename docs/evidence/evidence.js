@@ -1,4 +1,4 @@
-// The evidence layer of the twin page. Every figure carries data-claim="<id>", an entry of the
+// The evidence layer of the twin page. Every figure carries a data-claim attribute naming an entry of the
 // claims ledger (docs/evidence/claims.js, generated from crates/cewp-evidence/src/page_ledger.rs).
 // A click, a tap, or Enter / Space on a figure opens its entry: class, what supports it, the
 // interval, how it can be wrong, how to reproduce it. A panel holds the legend, the tier the visitor
@@ -90,6 +90,11 @@ function evTier(force){
   const label = micro ? "Tier: R5 street, 1:1 · generated, not real" : "Tier: cohorts · simulated";
   if (t.textContent !== label) t.textContent = label;
   t.classList.toggle("tier-micro", !!micro);
+  // a phone-width explorer stacks the pill under the nav strip and the live strip, whichever is lower
+  if (innerWidth <= 800 && !document.body.classList.contains("story-first")){
+    const below = ["live-strip", "nav-strip"].map(k => document.getElementById(k) || document.querySelector("." + k)).filter(e => e && getComputedStyle(e).display !== "none" && e.getBoundingClientRect().height > 0).map(e => e.getBoundingClientRect().bottom);
+    const top = Math.round(Math.max(0, ...below) + 6) + "px"; if (t.style.top !== top) t.style.top = top;
+  } else if (t.style.top) t.style.top = "";
   const p = document.getElementById("ev-tier"), panel = document.getElementById("ev-panel");
   if (!p || (!force && (!panel || panel.classList.contains("panel-hidden")))) return;
   if (p.contains(document.activeElement)) return;
@@ -122,7 +127,9 @@ function evInit(){
     const f = e.target.closest && e.target.closest("[data-claim]:not(.fig-inert)"), d = down; down = null;
     if (!f || !d || d[0] !== f.getAttribute("data-claim") || Math.hypot(e.clientX - d[1], e.clientY - d[2]) > 8) return;
     evOpen(d[0], f);
+    EV.swallow = performance.now(); // the click this release makes lands on whatever the card now covers
   }, true);
+  addEventListener("click", e => { if (EV.swallow && performance.now() - EV.swallow < 600){ EV.swallow = 0; e.preventDefault(); e.stopPropagation(); } }, true);
   addEventListener("click", e => {
     const o = e.target.closest && e.target.closest("[data-ev-open]"); if (o){ e.preventDefault(); evClose(); evPanel(true); return; }
     const it = e.target.closest && e.target.closest("[data-ev-claim]"); if (it) evOpen(it.getAttribute("data-ev-claim"), it);
