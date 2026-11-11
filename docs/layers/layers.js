@@ -364,14 +364,90 @@ window.CEWP_LAYERS["holon"] = layer({ id: "holon", title: "Where a coarse tier i
   },
   status(){ const l = this.last; if (this.busy) return "running the tier demonstration once (two 2-day runs)…"; return l.cells !== undefined ? `■ ${l.certified} certified · ⊠ ${l.refused} refused · ⬚ ${l.not_evaluated} not evaluated of ${l.cells} cells · tier ${this.info.tier_state}${this.info.tier_bound !== "none" ? " (" + this.info.tier_bound + ")" : ""} · cells of a tier, not places · certified means the coarse tier held within budget over the twin's MODEL world, not the real mesh` : "–"; } });
 
-// ------------------------------------------------------------------ Phase 2 contracts (not shown until the export exists)
-const CONTRACT = (id, title, cls, exp, contract) => layer({ id, title, cls, source: exp.join(", "), contract, available: has(...exp), pending: true });
-CONTRACT("failures", "Failure domains going dark, the mesh re-forming", "MODEL", ["failures_view_nodes", "failures_view_domains", "failures_view_step", "failures_view_steps"],
-  "nodes f32 × 3 (lat, lon, kind); domains f32 × 6 (lat, lon, radius km, kind, step down, step up | -1); step(s) u32 per node: component id, u32::MAX = down; summary f32 × 4 per step.");
+// ------------------------------------------------------------------ a correlated outage stepping through time (twin-failures: failure.rs via failure_view.rs)
+const FAIL = { sc: 0, cache: new Map(), d: null, step: -1, play: null, key: "" };
+const FAIL_SC = ["national shutdown", "nationwide ISP outage", "regional power failure"];
+const FAIL_TGT = ["generated country", "fixed-line access network", "power-grid region"];
+const FAIL_KIND = ["phone", "home node", "laptop", "hosted server", "serve seat"];
+// cut-off islands by component label: hue cycles, never alone (they are also diamonds)
+const FAIL_ISLE = ["#ffb347", "#ff7ad9", "#c6f36b", "#ffd84d", "#ff8f6b", "#b18cff", "#6bf3d8", "#ffa0a0"];
+window.CEWP_LAYERS["failures"] = layer({ id: "failures", title: "An outage going dark, the mesh splitting and healing", cls: "MODEL", inputs: "MODEL (generated world, scenario durations); FRONTIER (tower battery, home reach)",
+  source: "view_failures(s) → view slots 26 meta, 27 nodes, 28 metros, 29 steps, 30 state, 31 components (cewp_sim::failure_view over failure::evaluate, view_event_steps, view_event_components)",
+  contract: "twin-failures' generated world (2,000 nodes, seed 2026: twelve generated countries, Zipf metros, four ISPs each, international cables, cloud regions) and one correlated event, evaluated at 43 hours: two before onset and 41 from onset to 1.25 × the event's duration. Scenario 0: a full national shutdown (international links and domestic cellular) of the second most populous generated country for shutdown.median_h (48 h, MODEL); 1: the busiest fixed-line ISP of the most populous country down for isp.median_h (4 h, MODEL); 2: failure::view_demo, the most populous power region dark for 12 h with a rolling return over its last 60 % (MODEL). Per node per hour, state u32: 0 down because of the event, 1 up in the largest component (the mainland), 2 up but cut off from it, 3 withholding, 4 not up even with nothing failed (asleep); component u32: failure::view_event_components' dense label (u32::MAX down). Steps f32 × 7: hour, up, mainland, cut off, components, down by the event, withholding. Placement is display only: generated country c is drawn in page region c mod 9, its metros at the localities nearest that region's heaviest free locality, nodes on a spiral around their metro, so a generated country spans several real ones and is none of them. Glyph by state: disc mainland, diamond cut off (one hue per island), cross down, faint dot asleep. All MODEL: computed once per scenario, cached; the page only counts and draws.",
+  available: has("view_failures", "view_ptr"),
+  compute(){
+    if (!FAIL.cache.has(FAIL.sc)){ wasm.view_failures(FAIL.sc); const m = VW(26);
+      FAIL.cache.set(FAIL.sc, { meta: m, nodes: VW(27), metros: VW(28), steps: VW(29), state: VW(30), comp: VW(31), n: m[0], S: m[1], pre: m[3] }); }
+    FAIL.d = FAIL.cache.get(FAIL.sc); if (FAIL.step < 0 || FAIL.step >= FAIL.d.S) FAIL.step = FAIL.d.pre + 1;
+    const D = FAIL.d; let cx = 0, cy = 0, cz = 0, k = 0; // centroid of the nodes the event takes down or cuts off (for "zoom to")
+    for (let s = D.pre + 1; s < D.S && !k; s++) for (let i = 0; i < D.n; i++){ const c = D.state[s * D.n + i]; if (c === 0 || c === 2){ const v = xyz(D.nodes[i * 4], D.nodes[i * 4 + 1]); cx += v[0]; cy += v[1]; cz += v[2]; k++; } }
+    const L = Math.hypot(cx, cy, cz) || 1; D.focus = k ? [Math.asin(cy / L) / DEG, Math.atan2(cx, cz) / DEG] : [D.nodes[0], D.nodes[1]];
+    this.tally();
+  },
+  tally(){
+    const D = FAIL.d; if (!D) return; const s = Math.min(FAIL.step, D.S - 1), q = D.steps.subarray(s * 7, s * 7 + 7);
+    const isl = new Set(); for (let i = 0; i < D.n; i++) if (D.state[s * D.n + i] === 2) isl.add(D.comp[s * D.n + i]);
+    this.last = { scenario: FAIL.sc, step: s, steps: D.S, hour_from_onset: +q[0].toFixed(2), nodes: D.n, up: q[1], mainland: q[2], cut_off: q[3], islands: isl.size, components: q[4], down_by_event: q[5], withholding: q[6], duration_h: +D.meta[4].toFixed(2), target: D.meta[6], countries: D.meta[7], metros: D.meta[8] };
+    this.info = { scenario: FAIL_SC[FAIL.sc], target: FAIL_TGT[FAIL.sc] + " " + D.meta[6] + " (generated index, no real place)", states: "0 down by the event, 1 mainland, 2 cut off, 3 withholding, 4 asleep (not up with nothing failed)", placement: "display only: generated countries spread over page regions, none a real country" };
+  },
+  onShow(){ this.compute(); },
+  setStep(v){ if (!FAIL.d) return; FAIL.step = Math.max(0, Math.min(FAIL.d.S - 1, v)); this.tally(); FAIL.key = ""; const r = document.querySelector('input[data-ctl="failures:0"]'); if (r && +r.value !== FAIL.step){ r.value = FAIL.step; const o = r.parentElement.querySelector("output"); if (o) o.textContent = this.controls[0].show(FAIL.step); } refresh(); gfxDirty(700); },
+  draw2D(g, F){
+    const D = FAIL.d; if (!D) return; const s = Math.min(FAIL.step, D.S - 1), N = D.nodes, St = D.state, Cp = D.comp, o = s * D.n;
+    // a soft glow under each island and under what went dark: drawn first, additive, so the eye finds the event
+    const zoomPx = (() => { const a = proj(F, D.focus[0], D.focus[1]), b = proj(F, D.focus[0] + 1, D.focus[1]); return Math.hypot(b[0] - a[0], b[1] - a[1]); })();
+    const r0 = Math.max(2.2, Math.min(5, zoomPx * 0.09));
+    g.save(); g.globalCompositeOperation = "lighter";
+    for (let i = 0; i < D.n; i++){ const c = St[o + i]; if (c !== 0 && c !== 2) continue; const p = proj(F, N[i * 4], N[i * 4 + 1]); if (p[2] < 0.03) continue;
+      const R = r0 * 4.2, gr = g.createRadialGradient(p[0], p[1], 0, p[0], p[1], R); const col = c === 0 ? "255,80,70" : "255,180,80";
+      gr.addColorStop(0, `rgba(${col},0.16)`); gr.addColorStop(1, `rgba(${col},0)`); g.fillStyle = gr; g.fillRect(p[0] - R, p[1] - R, 2 * R, 2 * R); }
+    g.restore();
+    const n = [0, 0, 0, 0, 0];
+    for (let i = 0; i < D.n; i++){ const c = St[o + i]; n[c]++; const p = proj(F, N[i * 4], N[i * 4 + 1]); if (p[2] < 0.03) continue; const x = p[0], y = p[1];
+      if (c === 4){ g.fillStyle = "rgba(170,185,205,0.28)"; g.fillRect(x - 0.7, y - 0.7, 1.4, 1.4); continue; } // asleep
+      if (c === 0){ g.strokeStyle = "#ff5a4e"; g.lineWidth = 1.5; const h = r0 * 0.75; g.beginPath(); g.moveTo(x - h, y - h); g.lineTo(x + h, y + h); g.moveTo(x + h, y - h); g.lineTo(x - h, y + h); g.stroke(); continue; } // down: a cross
+      g.lineWidth = 1; g.strokeStyle = "rgba(6,9,14,0.85)";
+      if (c === 1){ g.fillStyle = N[i * 4 + 2] >= 3 ? "#e8f6ff" : "#69d2ff"; g.beginPath(); g.arc(x, y, r0 * 0.62, 0, 6.2832); g.fill(); } // mainland: disc (servers lighter)
+      else if (c === 2){ g.fillStyle = FAIL_ISLE[Cp[o + i] % FAIL_ISLE.length]; const h = r0 * 0.9; g.beginPath(); g.moveTo(x, y - h); g.lineTo(x + h, y); g.lineTo(x, y + h); g.lineTo(x - h, y); g.closePath(); g.fill(); g.stroke(); } // cut off: diamond
+      else { g.fillStyle = "#b18cff"; g.fillRect(x - r0 * 0.6, y - r0 * 0.6, r0 * 1.2, r0 * 1.2); } } // withholding: square
+    // one label at the event's focus while anything is affected
+    const q = D.steps.subarray(s * 7, s * 7 + 7), p = proj(F, D.focus[0], D.focus[1]);
+    if (p[2] > 0.05){ const t1 = `${FAIL_SC[FAIL.sc]} · ${q[0] < 0 ? "before onset" : q[0].toFixed(1) + " h after onset"}`, t2 = q[5] + q[3] > 0 ? `${q[5]} down · ${q[3]} cut off from the mainland` : q[0] < 0 ? "nothing failed yet" : "recovered";
+      g.font = "600 12px " + MFONT; g.lineWidth = 3.5; g.strokeStyle = "rgba(6,9,14,0.92)"; const x = p[0] + 18, y = p[1] - 26;
+      g.strokeText(t1, x, y); g.fillStyle = "#fff2d8"; g.fillText(t1, x, y); g.font = "11px " + MFONT; g.strokeText(t2, x, y + 15); g.fillStyle = q[5] + q[3] > 0 ? "#ffb4a8" : "#bfe9ff"; g.fillText(t2, x, y + 15);
+      g.strokeStyle = "rgba(255,242,216,0.6)"; g.lineWidth = 1; g.beginPath(); g.moveTo(p[0] + 4, p[1] - 4); g.lineTo(x - 4, y + 4); g.stroke(); }
+    this.last.drawn_down = n[0]; this.last.drawn_mainland = n[1]; this.last.drawn_cut_off = n[2];
+  },
+  panel(c){ // the timeline: stacked mainland / cut off / down by the event against hours, onset and cursor marked
+    const D = FAIL.d; if (!D) return; const dpr = window.devicePixelRatio || 1, W2 = c.clientWidth || 260, H2 = 128;
+    if (c.style.height !== H2 + "px") c.style.height = H2 + "px"; if (c.width !== Math.round(W2 * dpr)){ c.width = Math.round(W2 * dpr); c.height = H2 * dpr; FAIL.key = ""; }
+    const key = FAIL.sc + ":" + FAIL.step; if (FAIL.key === key) return; FAIL.key = key;
+    const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W2, H2);
+    const L = 30, T = 8, B = 84, Rr = W2 - 8, t0 = D.steps[0], t1 = D.steps[(D.S - 1) * 7], x = (t) => L + (t - t0) / (t1 - t0) * (Rr - L);
+    let top = 1; for (let s = 0; s < D.S; s++){ const q = D.steps.subarray(s * 7, s * 7 + 7); top = Math.max(top, q[1] + q[5]); }
+    const y = (v) => B - v / top * (B - T);
+    const band = (lo, hi, col) => { g.fillStyle = col; g.beginPath(); for (let s = 0; s < D.S; s++){ const q = D.steps.subarray(s * 7, s * 7 + 7); const X = x(q[0]), Y = y(hi(q)); s ? g.lineTo(X, Y) : g.moveTo(X, Y); } for (let s = D.S - 1; s >= 0; s--){ const q = D.steps.subarray(s * 7, s * 7 + 7); g.lineTo(x(q[0]), y(lo(q))); } g.closePath(); g.fill(); };
+    band(() => 0, (q) => q[2], "rgba(105,210,255,0.55)");
+    band((q) => q[2], (q) => q[2] + q[3], "rgba(255,179,71,0.75)");
+    band((q) => q[2] + q[3], (q) => q[2] + q[3] + q[5], "rgba(255,90,78,0.75)");
+    g.strokeStyle = "rgba(200,210,225,0.3)"; g.lineWidth = 1; g.beginPath(); g.moveTo(L, B); g.lineTo(Rr, B); g.stroke();
+    g.setLineDash([3, 3]); g.strokeStyle = "rgba(255,255,255,0.6)"; g.beginPath(); g.moveTo(x(0), T - 2); g.lineTo(x(0), B + 3); g.stroke(); g.setLineDash([]);
+    const cs = D.steps[Math.min(FAIL.step, D.S - 1) * 7]; g.strokeStyle = "#fff"; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x(cs), T - 4); g.lineTo(x(cs), B + 5); g.stroke();
+    g.font = "10px " + MFONT; g.fillStyle = "#aab4c2"; g.fillText(top.toLocaleString(), 2, T + 8); g.fillText("0", 18, B); g.fillText("onset", x(0) + 3, T + 8);
+    const lbl = t1 >= 10 ? Math.round(t1) + " h" : t1.toFixed(1) + " h"; g.fillText(lbl, Rr - g.measureText(lbl).width, B + 13); g.fillText((t0 >= -10 ? t0.toFixed(1) : Math.round(t0)) + " h", L - 4, B + 13);
+    let xx = 4, yy = H2 - 16; for (const [col, t] of [["rgba(105,210,255,0.8)", "● mainland"], ["rgba(255,179,71,0.9)", "◆ cut off"], ["rgba(255,90,78,0.9)", "✕ down by the event"]]){ const tw = 14 + g.measureText(t).width; if (xx + tw > W2){ xx = 4; yy += 12; } g.fillStyle = col; g.fillRect(xx, yy - 7, 8, 8); g.fillStyle = "#aab4c2"; g.fillText(t, xx + 11, yy); xx += tw; }
+  },
+  status(){ const l = this.last; if (!l.steps) return "–"; const h = l.hour_from_onset < 0 ? "before onset" : l.hour_from_onset.toFixed(1) + " h after onset (lasts " + l.duration_h + " h)";
+    return `${FAIL_SC[FAIL.sc]}, ${h}: ${fmt(l.up)} of ${fmt(l.nodes)} nodes up, ${fmt(l.mainland)} on the mainland, ${fmt(l.cut_off)} cut off in ${l.islands} island${l.islands === 1 ? "" : "s"}, ${fmt(l.down_by_event)} down because of it · a generated world of ${l.countries} countries, none a real one; MODEL, one seeded run`; },
+  controls: [{ range: [0, 42, 1], label: "Hour", value: () => Math.max(0, FAIL.step), set(v){ this.setStep(v); }, show: (v) => { const D = FAIL.d; if (!D) return "–"; const t = D.steps[Math.min(v, D.S - 1) * 7]; return (t < 0 ? "" : "+") + t.toFixed(1) + " h"; } },
+    { label: "Play", act(){ if (FAIL.play){ clearInterval(FAIL.play); FAIL.play = null; return; } if (FAIL.step >= FAIL.d.S - 1) this.setStep(0); FAIL.play = setInterval(() => { if (!LAYERS.on("failures") || FAIL.step >= FAIL.d.S - 1){ clearInterval(FAIL.play); FAIL.play = null; return; } this.setStep(FAIL.step + 1); }, 320); } },
+    { label: "Next scenario", act(){ FAIL.sc = (FAIL.sc + 1) % 3; FAIL.step = -1; FAIL.key = ""; this.compute(); gfxDirty(800); } },
+    { label: "Zoom to the outage", act(){ const D = FAIL.d; if (!D) return; const w = cv.clientWidth, h = cv.clientHeight, z = EARTH_M / (0.86 * 9000 * Math.min(w, h) / 2);
+      velYaw = 0; velPitch = 0; yaw = D.focus[1] * DEG; pitch = D.focus[0] * DEG; targetZoom = z; zoomAnchor = null; lastTouchTime = performance.now(); gfxDirty(1500); } }] });
 // ------------------------------------------------------------------ a room call, second by second (twin-media: media_view.rs)
 const MED = { seed: 1, n: 0, steps: 0, ec: 0, mem: null, tree: null, edges: null, rx: null, ev: null, step: 0, play: null, key: "" };
 const MED_ACCESS = ["fibre home, wired", "cable home, laptop on Wi-Fi", "DSL home", "phone on home Wi-Fi", "phone on LTE"];
-const MED_EV = ["parent left", "audio resumed", "video resumed", "not resumed"];
+const MED_EV = ["parent left", "audio resumed", "video resumed", "not resumed by the session's end"];
 window.CEWP_LAYERS["media"] = layer({ id: "media", title: "A room call: one tree per publisher, a parent leaves, the tree repairs", cls: "MODEL", inputs: "MODEL (access profiles, loss, media parameters; generated people)",
   source: "view_media(1) → slots 20 members, 21 tree, 22 edges per step, 23 rx per step, 24 events, 25 dims (cewp_sim::media_view::media_view, run once per page)",
   contract: "twin-media's churn room with household traffic off: four homes and six phones join and leave over 60 one-second steps; two phones behind hard NAT take every stream through a home relay, and that relay leaves with a signed end at 30 s. Members f32 × 4 (lat, lon, access 0 fibre home, 1 cable laptop Wi-Fi, 2 DSL home, 3 phone home Wi-Fi, 4 phone LTE, nominal uplink B/s), MODEL: places are a seeded scatter of about a degree around one of two metro anchors (this scenario puts every member at the first, 45.5, -73.6), never an address. Tree u32 × 3 (stream, parent, child), one tree per publishing member. Edges per step f32 × 4 aligned to the tree (rate B/s, loss ‰, queue ms, layer 0 detached, 1 audio + base, 2 full). Rx per step f32 × 3 at stream·n + member (layer -1 none, 0 audio only, 1 base, 2 both; stall; glass-to-glass ms). Events f32 × 5 (t ms, kind, stream, child, departed parent). The view's own field codes call these DERIVED (computed by the engine); the engine is stochastic (Gilbert-Elliott loss, a Markov cellular chain, seeded churn), so on the page every result is MODEL output, and the sums, counts and medians the page takes over it stay MODEL. It is one seeded run: a median is over that run's sessions, not a rate. The tree is edge v45's closed-loop controller as twin-media models it, not alm.rs and not a measured call. The page sums streams per (parent, child) pair to draw one line per pair; every other figure is read as given.",
@@ -385,10 +461,13 @@ window.CEWP_LAYERS["media"] = layer({ id: "media", title: "A room call: one tree
     const n = MED.n, st = Math.min(MED.step, MED.steps - 1), E = MED.edges, R = MED.rx, o = st * MED.ec * 4, ro = st * n * n * 3;
     let attached = 0, full = 0, bytes = 0, lossy = 0; for (let e = 0; e < MED.ec; e++){ const k = o + e * 4; if (E[k + 3] > 0){ attached++; if (E[k + 3] === 2) full++; bytes += E[k]; if (E[k + 1] > 0) lossy++; } }
     let sess = 0, stalls = 0, audioOnly = 0, none = 0, dmax = 0; for (let i = 0; i < n * n; i++){ const k = ro + i * 3; if (R[k + 2] < 0 && R[k] < 0) continue; sess++; if (R[k + 1] > 0) stalls++; if (R[k] === 0) audioOnly++; if (R[k] < 0) none++; dmax = Math.max(dmax, R[k + 2]); }
-    const ev = MED.ev, left = [], gaps = { 1: [], 2: [] }; let notRes = 0;
-    for (let i = 0; i < ev.length; i += 15){ left.push(ev[i]); for (const j of [5, 10]){ const k = ev[i + j + 1]; if (k === 3) notRes++; else gaps[k].push(ev[i + j] - ev[i]); } }
+    // per departure three rows: the leave, then audio and video each resumed or not by the session's end (the
+    // row's time is that end). A not-resumed row before the run's last second is a receiver that left the call.
+    const ev = MED.ev, left = [], gaps = { 1: [], 2: [] }, endMs = MED.steps * 1000; let notRes = 0, notResLeft = 0;
+    for (let i = 0; i < ev.length; i += 15){ left.push(ev[i]); for (const j of [5, 10]){ const k = ev[i + j + 1]; if (k === 3){ notRes++; if (ev[i + j] < endMs - 1000) notResLeft++; } else gaps[k].push(ev[i + j] - ev[i]); } }
     const med = (a) => { if (!a.length) return -1; const b = a.slice().sort((x, y) => x - y); return Math.round(b[(b.length - 1) >> 1]); };
-    this.last = { members: n, steps: MED.steps, tree_edges: MED.ec, step: st, edges_attached: attached, edges_full: full, uplink_bytes_per_s: Math.round(bytes), edges_with_loss: lossy, sessions: sess, stalled: stalls, audio_only: audioOnly, nothing_played: none, worst_glass_to_glass_ms: Math.round(dmax), departures: left.length, audio_resume_median_ms: med(gaps[1]), video_resume_median_ms: med(gaps[2]), not_resumed: notRes };
+    const slow = gaps[1].slice().sort((x, y) => y - x);
+    this.last = { members: n, steps: MED.steps, tree_edges: MED.ec, step: st, edges_attached: attached, edges_full: full, uplink_bytes_per_s: Math.round(bytes), edges_with_loss: lossy, sessions: sess, stalled: stalls, audio_only: audioOnly, nothing_played: none, worst_glass_to_glass_ms: Math.round(dmax), departures: left.length, audio_resumes: gaps[1].length, audio_resume_median_ms: med(gaps[1]), audio_resume_slowest_ms: slow.length ? Math.round(slow[0]) : -1, audio_resume_second_slowest_ms: slow.length > 1 ? Math.round(slow[1]) : -1, video_resume_median_ms: med(gaps[2]), not_resumed: notRes, not_resumed_receiver_left: notResLeft, not_resumed_in_call: notRes - notResLeft };
     const acc = [0, 0, 0, 0, 0]; for (let i = 0; i < n; i++) acc[MED.mem[i * 4 + 2]]++;
     this.info = { access: MED_ACCESS.map((a, i) => a + " " + acc[i]).filter((t) => !/ 0$/.test(t)).join(", "), places: "a seeded scatter of about a degree around one metro anchor, not addresses", tree: "edge v45 closed-loop controller as twin-media models it, not a measured call", run: "one seeded run of the churn scenario (seed 1); medians are over this run's sessions, not rates", events: MED_EV.join(", ") };
   },
@@ -433,7 +512,7 @@ window.CEWP_LAYERS["media"] = layer({ id: "media", title: "A room call: one tree
     g.fillStyle = "#aab4c2"; g.fillText("0 s", L - 6, yb + 18); g.fillText(S + " s", Rr - 22, yb + 18); g.fillStyle = "#ff8a7a"; g.fillText("| a parent left", L + 40, yb + 18);
     { let xx = 4, yy = H2 - 16; for (const [col, t] of [["rgba(127,208,255,0.75)", "both layers"], ["rgba(127,208,255,0.4)", "base"], ["rgba(255,207,122,0.7)", "audio"], ["rgba(255,138,122,0.85)", "nothing"], ["rgba(6,9,14,0.9)", "▬ no video frame"]]){ const tw = 15 + g.measureText(t).width; if (xx + tw > W2){ xx = 4; yy += 12; } g.fillStyle = col; g.fillRect(xx, yy - 7, 8, 8); g.fillStyle = "#aab4c2"; g.fillText(t, xx + 11, yy); xx += tw; } }
   },
-  status(){ const l = this.last; if (this.busy) return "running the room call once (60 one-second steps)…"; return l.steps ? `second ${l.step} of ${l.steps}: ${l.edges_attached} tree legs attached (${l.edges_full} full), ${(l.uplink_bytes_per_s * 8 / 1e6).toFixed(1)} Mbit/s on the wire, ${l.stalled} of ${l.sessions} sessions showed no video frame this second (${l.audio_only} kept audio) · whole call: ${l.departures} departures, audio back in ${l.audio_resume_median_ms < 0 ? "–" : fmt(l.audio_resume_median_ms) + " ms"}, video in ${l.video_resume_median_ms < 0 ? "–" : fmt(l.video_resume_median_ms) + " ms"} (medians), ${l.not_resumed} never resumed · MODEL: one seeded run, medians over its sessions, not rates; generated people around one metro anchor, never an address` : "–"; },
+  status(){ const l = this.last; if (this.busy) return "running the room call once (60 one-second steps)…"; return l.steps ? `second ${l.step} of ${l.steps}: ${l.edges_attached} tree legs attached (${l.edges_full} full), ${(l.uplink_bytes_per_s * 8 / 1e6).toFixed(1)} Mbit/s on the wire, ${l.stalled} of ${l.sessions} sessions showed no video frame this second (${l.audio_only} kept audio) · whole call (MODEL): ${l.departures} departures; audio back in ${l.audio_resume_median_ms < 0 ? "–" : fmt(l.audio_resume_median_ms) + " ms"} (median of ${l.audio_resumes}), the slowest ${l.audio_resume_slowest_ms < 0 ? "–" : fmt(l.audio_resume_slowest_ms) + " ms"}${l.audio_resume_second_slowest_ms >= 0 ? " and " + fmt(l.audio_resume_second_slowest_ms) + " ms" : ""}; video back in ${l.video_resume_median_ms < 0 ? "–" : fmt(l.video_resume_median_ms) + " ms"} (median); video never resumed in ${l.not_resumed} session${l.not_resumed === 1 ? "" : "s"}: ${l.not_resumed_receiver_left} because the receiver left the call first, ${l.not_resumed_in_call} a real case (no video until the run ended) · MODEL: one seeded run, figures over its sessions, not rates; generated people around one metro anchor, never an address` : "–"; },
   controls: [{ range: [0, 59, 1], label: "Second of the call", value: () => MED.step, set(v){ this.setStep(v); }, show: (v) => v + " s" },
     { label: "Play the call", act(){ if (MED.play){ clearInterval(MED.play); MED.play = null; return; } if (MED.step >= MED.steps - 1) this.setStep(0); MED.play = setInterval(() => { if (!LAYERS.on("media") || MED.step >= MED.steps - 1){ clearInterval(MED.play); MED.play = null; return; } this.setStep(MED.step + 1); }, 400); } },
     { label: "Zoom to the call", act(){ if (!MED.mem) return; let la = 0, lo = 0; for (let i = 0; i < MED.n; i++){ la += MED.mem[i * 4]; lo += MED.mem[i * 4 + 1]; } la /= MED.n; lo /= MED.n;

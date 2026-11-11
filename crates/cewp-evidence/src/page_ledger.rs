@@ -98,6 +98,9 @@ const VIEWS_COMMIT: &str = "twin/globe 8b70422";
 const MEDIA_LAYER_COMMIT: &str = "twin/media 716379e; twin/globe da31099";
 /// The calibration layer: package source at twin/calibration, wiring at twin/globe.
 const CAL_LAYER_COMMIT: &str = "twin/calibration c13cee5; twin/globe a824940";
+/// The failures layer: twin-failures' world and evaluate, merged into twin/globe at 17a9a87, read
+/// through crates/cewp-sim/src/failure_view.rs.
+const FAILURES_LAYER_COMMIT: &str = "twin/failures 89b1e4c; twin/globe 17a9a87 (merge) with failure_view.rs";
 
 const BASE: PageClaim = PageClaim {
     id: "",
@@ -952,6 +955,23 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
             "Held-out counters include permit residuals of 678.5, 4,697 and 4,401 a minute (windows B, A', C) that are UNEXPLAINED; the furthest, window A' permits, is predicted at 1,689 against 6,386 observed (x0.264, FSD/twin/calibration.md residual table).",
         ],
         reproduce: "cargo run --release -p cewp-sim --example capacity_sweep (on twin/calibration c13cee5)",
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-failures",
+        class: Model,
+        live: true,
+        shows: "Globe layer: one correlated outage on a generated 2,000-node world of twelve generated countries (a national shutdown, a nationwide ISP outage or a regional power failure), hour by hour from before onset to past recovery: which nodes are down because of it, which survivors stay on the mainland and which are cut off in islands, with a timeline of the counts.",
+        source: "docs/layers/layers.js: CEWP_LAYERS failures; kernel-wasm views.rs view_failures(s) (slots 26-31); crates/cewp-sim/src/failure_view.rs failure_view, failure_view_scenario, metro_positions over crates/cewp-sim/src/failure.rs DomainWorld::build, evaluate, view_event_steps, view_event_components, view_demo; FSD/twin/failures.md",
+        commit: FAILURES_LAYER_COMMIT,
+        param: "failure.rs FAILURE_SPECS defaults (MODEL; power.tower_backup_h and world.reach_home_share FRONTIER): world.nodes set to 2,000, seed 2026; shutdown.median_h 48 h (full shutdown, cellular too) on the second most populous generated country; isp.median_h 4 h on the busiest fixed ISP of the most populous; view_demo's 12 h power failure with power.ramp_share 0.6; placement on the page's localities is display only",
+        failure: &[
+            "The world is generated: twelve countries, Zipf metros, four ISPs each, invented cables and cloud regions. No AS, cable or power-grid dataset stands behind it, and a generated country drawn on the map spans several real ones and is none of them.",
+            "One event at its median duration with a fixed seed: the picture shows what the model does in that case, not a rate or a forecast.",
+            "Connectivity only: capacity loss on surviving links is not modelled (FSD/twin/failures.md), so the mainland is drawn as fully usable.",
+            "Who must rejoin and who holds a cached peer are MODEL shares (eval.rejoin_share 0.3, eval.peer_cache_share 0.5); cell-site battery autonomy is FRONTIER.",
+        ],
+        reproduce: "cargo test -p cewp-sim failure_view; cargo run --release -p cewp-sim --example failure_domains",
         ..BASE
     },
 ];

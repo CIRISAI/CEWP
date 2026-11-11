@@ -124,7 +124,21 @@ confidence level), and that which of the two holds is not known (FRONTIER). The 
 four numbers. cap_seat's single-point knee, the v44 and whole-plane knees and the single lock knee are no
 longer printed (calibration covers v45.0.0 only).
 
-Still hidden: failures (no view functions on any branch when this was wired; its contract stays in `layers.js` and the dock does not list it).
+Failures (twin-failures 89b1e4c, merged at 17a9a87) comes through the same door: `view_failures(s)` calls
+`cewp_sim::failure_view::failure_view(s)` once per scenario (the page keeps each copy) and fills slots 26 to 31.
+`failure_view.rs` adds no failure logic: it builds one of three named events on `DomainWorld::build(2026)` with
+2,000 nodes, evaluates `failure::evaluate` at 43 hours (two before onset, 41 from onset to 1.25 × the duration, the
+same hours as `view_event_steps`), and places the generated world for display. Its native test checks every
+post-onset step against `view_event_steps` and `view_event_components`.
+
+| id | draws | slots | class |
+|---|---|---|---|
+| failures | the generated world's nodes by state at the chosen hour: disc on the mainland (largest component), diamond cut off (one hue per island, by component label), cross down because of the event, faint dot asleep (not up with nothing failed), square withholding; a soft red / amber glow under what went dark or was cut off; one label at the event with the hour and the counts. Dock panel: stacked mainland / cut off / down against hours, onset dashed, cursor at the hour. Controls: hour slider, play (320 ms an hour step), next scenario (national shutdown of the second most populous generated country for shutdown.median_h 48 h with cellular; the busiest fixed ISP of the most populous for isp.median_h 4 h; view_demo's 12 h regional power failure), zoom to the outage | 26 meta (10), 27 nodes (lat, lon, kind, country), 28 metros (lat, lon, country, nodes), 29 steps (hour, up, mainland, cut off, components, down by the event, withholding), 30 state u32, 31 component u32 | MODEL |
+
+Placement (display only): the failure world's countries and metros are indices with no coordinates. Generated
+country c is drawn in page region c mod 9; its anchor is that region's heaviest free locality and its metros the
+free localities nearest the anchor; nodes sit on a sunflower spiral of 0.055° × √k around their metro. A generated
+country therefore covers several real ones and is none of them, and the page says so on the status line.
 
 The page's media figures are sums, counts and medians over the slices (legs attached, wire rate, sessions with no video frame, median resume gaps); nothing else is computed page-side, and they stay MODEL: one seeded run, so a median is over that run's sessions, not a rate. People, holon and media run their scenario once after the click.
 
@@ -143,7 +157,8 @@ contention on, which the view scenario leaves off. A view with contention on may
 * Flows are counts of model deliveries, not traffic measurements.
 * The relay tree is alm.rs's real algorithm on MODEL inputs. Its shape says what the algorithm
   does, not what a deployed call looks like.
-* Custody reachability is a uniform per-holder draw until failures supplies correlated outages.
+* Custody reachability is a uniform per-holder draw; the failures layer shows correlated outages on its own generated world, which is not the custody layer's world.
+* The failures layer is one event at its median duration on a generated world, connectivity only (no capacity loss on surviving links).
 * The seat curve layer is cap_seat's capacity model at the street chip's setting and marks no knee. The
   knee exists only as an interval (calibration layer, seat card), and it hinges on g, which nothing
   measures: across g 0..1 it spans 4,882 to 75,879 devices.

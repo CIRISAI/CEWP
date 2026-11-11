@@ -75,6 +75,8 @@ pub mod media_thin;
 pub mod qoe;
 pub mod failure;
 pub mod durability;
+pub mod failure_view;
+pub mod seat_view;
 
 pub use transport::*;
 pub use alm::*;
