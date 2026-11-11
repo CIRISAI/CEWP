@@ -959,6 +959,7 @@ fn print_help() {
     println!("Options / Subcommands:");
     println!("  all, --all            Run all 6 pipeline phases and emit docs/kernel/tables/evidence_bundle.json");
     println!("  --emit-bundle <PATH>  Serialize complete evidence_bundle.json to file");
+    println!("  media [SEEDS]         Room-call quality over modelled access links (FSD/twin/media.md)");
     println!("  --help, -h            Print this help text");
 }
 
@@ -971,6 +972,12 @@ fn main() {
         match args[i].as_str() {
             "--help" | "-h" => {
                 print_help();
+                return;
+            }
+            "media" => {
+                // FSD/twin/media.md: call quality over access links, `media [seeds]`.
+                let seeds = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(3);
+                println!("{}", cewp_sim::media::report(seeds));
                 return;
             }
             "all" | "--all" => {

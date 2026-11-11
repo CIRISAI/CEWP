@@ -1,0 +1,200 @@
+# FSD (twin package `media`): link contention and call quality
+
+Status: package draft on branch `twin/media`; the lead folds pointers into
+`FSD/SIMULATION_ENGINE.md` §3.1/§3.2. Code: `crates/cewp-sim/src/link.rs` (access links),
+`media.rs` (call traffic, controller, scenarios, report), `qoe.rs` (metrics). CLI:
+`cewp-cli media [SEEDS]`.
+
+Answers outside-review items 3 ("model real bandwidth contention") and 8 ("model real-time
+media quality"). Every number carries an FSD §8.2 class: `DERIVED` (read off CIRISEdge
+`8e46165` = v45, or its leviculum pin `v0.34.0+ciris.3`, symbol named), `MODEL` (a stated
+choice), `FRONTIER` (an open number; placeholder). Every result of the engine is `MODEL`
+output.
+
+## 1. Why
+
+`transport.rs` enforces the constitutional budget classes (CC 5.4.3) and `alm.rs` builds the
+deterministic tree, but both treat a node that offers a rate as having it. A household's
+uplink is shared with its own traffic, sits behind a buffer sized by the ISP, crosses Wi-Fi
+airtime or a cellular scheduler, and loses packets in bursts. This package puts a physical
+link under the budgets and measures what a person in a room call experiences on it.
+
+## 2. The link model (`link.rs`)
+
+One `LinkDir` per direction per participant (uplink, downlink). Integer microseconds, integer
+bytes, splitmix64 seeded per node.
+
+| element | model | class |
+|---|---|---|
+| capacity | nominal rate × Wi-Fi airtime share (permille) × cellular level | MODEL |
+| cellular | Markov chain over {100, 60, 30, 10} % of nominal, a step every 500 ms, stay 0.9 | MODEL |
+| queue | one bottleneck FIFO per direction, buffer = `buffer_ms` at the nominal rate | MODEL |
+| discipline | tail-drop FIFO; AQM variant CoDel (RFC 8289 control law, 5 ms / 100 ms) | MODEL (RFC defaults) |
+| medium loss | Gilbert-Elliott, stepped per packet: (p_gb, p_bg, loss_good, loss_bad) in ppm | MODEL |
+| path MTU | an RNS packet over `path_mtu − 28` rides several IP fragments; each is a GE step | MODEL |
+| household traffic | transfers arrive Poisson (mean gap), small or large; downlink adds a periodic 2 MB fetch every 4 s (a video player); each transfer is a Reno AIMD flow (IW 10, slow start, halve once per RTT, lost bytes resent) | MODEL |
+| core | one-way 5 ms same region, 40 ms across, plus each end's last mile | MODEL |
+
+Conservation, per link direction, at every instant:
+`offered = tail_drop + aqm_drop + air_loss + delivered + flushed + queued + in_service`
+(`LinkDir::conservation_residual() == 0`), and per packet over a whole run every created
+packet ends in exactly one bucket of `media::Ledger` or is still live.
+
+Access profiles (all MODEL; the rates are typical of the class, not of any measured network):
+
+| profile | up / down | buffer up / down | last mile | airtime | loss | relays |
+|---|---|---|---|---|---|---|
+| fibre-home (wired desktop) | 50 / 300 Mbit/s | 50 / 50 ms | 2 ms | 1.0 | wired GE | yes |
+| cable-home-wifi (laptop) | 10 / 150 Mbit/s | 300 / 100 ms | 8 ms | 0.6 | Wi-Fi GE | yes |
+| dsl-home (wired) | 1 / 16 Mbit/s | 500 / 200 ms | 12 ms | 1.0 | wired GE | yes |
+| phone-home-wifi | 10 / 150 Mbit/s | 300 / 100 ms | 8 ms | 0.5 | Wi-Fi GE | no (not charging) |
+| phone-lte | 6 / 25 Mbit/s, varying | 1000 / 500 ms | 25 ms | 1.0 | LTE GE | no (metered) |
+
+GE parameters (ppm: p_gb, p_bg, loss_good, loss_bad; stationary loss in brackets):
+wired 100, 500k, 10, 300k [~0.007 %]; Wi-Fi 3k, 250k, 500, 250k [~0.35 %];
+LTE 1k, 100k, 1k, 300k [~0.40 %]. Relay policy per CC 5.4.6 item 1 (edge
+`onion/policy.rs` `device_relays`): homes yes, phones only while charging and unmetered.
+
+## 3. The call, derived from edge v45
+
+### 3.1 Wire (all DERIVED)
+
+| quantity | value | source |
+|---|---|---|
+| RNS MTU | 500 B | leviculum `constants.rs` `MTU` |
+| link MDU | 431 B | leviculum `link/mod.rs` `compute_link_mdu`: ⌊(500 − 1 − 19 − 48)/16⌋·16 − 1 |
+| datagram payload | 427 B | leviculum `link_datagram_mdu` = MDU − `DATAGRAM_HEADER_LEN` 4 |
+| media limit | 402 B | edge `reticulum.rs` `link_datagram_message_limit` = 427 − `SEAL_OVERHEAD` 25 (`link_seal.rs`: 9 + 16) |
+| frame budget | 246 B | edge `av_call.rs` `LegInfo::frame_budget` = 402 − `AV_CHUNK_WIRE_OVERHEAD` 84 (`realtime_av.rs`: 48 + 4 + 2·16) − `CHUNK_TRAILER_LEN` 72 (`av_chunk_auth.rs`: 8 + 64) |
+| fragment payload | 238 B | edge `av_call/frame.rs` `split`: budget − `FRAGMENT_MARKER_LEN` 8 |
+| RNS packet of a full chunk | 499 B | header 19 + token (IV 16 + PKCS7 ⌈(431+1)/16⌉·16 + HMAC 32) |
+| on the wire with IPv4/UDP | 527 B | + 28 (MODEL: IPv4) |
+| fragment cap | 4096 fragments, 1 MiB | `frame.rs` `MAX_FRAME_FRAGMENTS`, `MAX_FRAME_BYTES` (at 238 B a frame over 974,848 B is refused) |
+
+So at the base MTU a full video datagram carries 238 B of codec payload in 527 B on the wire
+(45 %); a 60 B Opus frame (24 kbit/s, 20 ms) rides a 351 B datagram (17 %): 24 kbit/s of
+audio is ~140 kbit/s per copy on the uplink.
+
+### 3.2 What edge does with a chunk (DERIVED)
+
+- Datagrams: leviculum#102 `send_unordered`: "no window, no proof, no retransmit". The only
+  local refusal is the interface gate (`PacingDelay` from `next_slot_ms_for_interface`), whose
+  turnaround defaults to 0 (`traits.rs` `frame_turnaround_ms`) and no leviculum-std interface
+  overrides it, so on a UDP interface a datagram is never refused locally.
+- One Ed25519 signature per chunk (`av_chunk_auth.rs` trailer), verified by every relay before
+  it forwards and by every receiver (`av_call.rs` module doc). The engine runs one CPU queue
+  per node for signing and verifying; media older than `MEDIA_STALE_BUDGET` (800 ms) in that
+  queue is dropped.
+- Audio and video share one `chunk_seq` per stream (`frame.rs` module doc); the receiver's
+  `ReorderWindow` releases in `chunk_seq` order, waits for a gap up to
+  `clamp(2·gap_ewma, 40, 400) ms` (prior 50 ms, fast attack / slow decay from duplicate copies),
+  then skips it. A frame is released only whole (`FrameRefusal::Incomplete`).
+- Video class `0x04` (`realtime_av.rs` `CODEC_TEMPORAL_LAYERED`, H.264): one spatial layer,
+  temporal layers t0 (base) and higher. There is no simulcast and no keyframe request in
+  edge v45; a lost base frame is "a freeze until the next keyframe" (`av_call.rs`
+  `frames_lost_by_layer`).
+- Layer caps ride SUBSCRIBE (`Call::request_layers`), "the host's lever, off by default".
+- Relays forward a stream once per chunk (`FORWARD_DEDUPE`); a standby child gets base-layer
+  and audio chunks only (`av_call/alm.rs` module doc).
+
+### 3.3 The controller (DERIVED, simplified)
+
+From `av_call/alm.rs` and `realtime_av_alm/controller/{admission,selector,peer_state}.rs`
+with `ControllerConfig::interactive()` and the call's overrides
+(`idle_aware_silence = true`, `direct_first = true`):
+
+- Each receiver asks for a stream after its legs are up (MODEL: `SETUP_RTTS` = 4 round trips
+  for link request, transit KEX, hello, binding parts) plus `U(0, join_jitter 1 s)`.
+- Candidates: the publisher first when it can reach the receiver (direct first, R1), then
+  rooted member relays by (depth, RTT, id). Max depth 3, no cycles.
+- Admission: `committed ≤ floor + probe` in stream units (a primary costs one stream, a
+  standby its audio + base share). The publisher's probe starts at `clamp(members − 1, 1, 8)`
+  (`PUBLISHER_INITIAL_FANOUT`), a relay's at one stream (trial slot). After two clean windows
+  with demand (a refusal) or with the allowance 80 % used, the probe doubles, to at most 16
+  streams; `floor` rises to what the forwarder sends. Refused receivers back off
+  `0.5 s · 2^k · U(0.5, 1.5)`, at most 8 s.
+- **No ceiling is ever learned on datagram legs.** `path_meter.rs` `EgressMeter` ("Limit:
+  datagram legs"): a datagram leg counts what it accepted as delivered, and the verdict needs
+  refused frames, which a UDP interface never produces (§3.2). So `floor + probe` grows on
+  demand without bound; the engine reproduces this and offers the counterfactual
+  `delivery_report` (CIRISEdge#975: receivers report loss; three windows ≥ 5 % loss set a
+  ceiling of 0.75 × delivered and shed LIFO).
+- One warm standby per receiver per stream (audio + base), not in the primary's subtree.
+- Failover: a parent leaving with a signed end closes its links; children see it on their next
+  `WATCH_TICK` (≤ 250 ms). A parent that vanishes is seen after
+  `suspect 1.5 s × (2 + depth)/2` of silence when another path still delivers the stream
+  (selector's silence scaling); with no other path, `idle_aware_silence` reads the silence as
+  an idle stream, and only the link's stale timeout ends it (leviculum: keepalive
+  `clamp(RTT × 360/1.75, 5 s, 360 s)`, stale after 2 × keepalive + 5 s grace; the stale path's
+  exact trigger was not traced: FRONTIER). The standby is promoted first.
+- A voluntary move off a degraded primary (window loss ≥ 5 % or mean latency > 400 ms) needs
+  three consecutive degraded windows and the dwell `10 s × 2^k` (k = voluntary moves in the
+  last 120 s); a relay child returns to the publisher when it has room and the child did not
+  leave it for degradation within 120 s. Moves are make-before-break.
+
+What is simplified relative to edge (MODEL): no score weights (delivery/headroom/latency/
+stability) beyond the candidate order; no C5 per-leg shed (it needs a local refusal, which
+UDP does not give); no provisional sending before SUBSCRIBE; no epoch rolls; a joiner's
+first window waits from `chunk_seq` 0 (as edge does) and skips.
+
+### 3.4 Media (MODEL, edge sets none of it)
+
+Opus 24 kbit/s in 20 ms frames (60 B, one chunk, no marker). H.264 500 kbit/s at 15 fps,
+two temporal layers alternating (t1 non-reference), IDR every 2 s; IDR = 8 × a t0 P-frame,
+t1 = 0.7 × t0, ±20 % per frame. At these settings a t0 P-frame is ~1.9 KB (8 fragments), a
+t1 ~1.3 KB (6), an IDR ~15 KB (64). Capture + encode 50 ms, decode + render 30 ms. Ed25519
+verify 60 µs desktop / 150 µs phone, sign 25 / 60 µs (FRONTIER: a release-build measurement
+on a phone core is requested).
+
+## 4. Quality of experience (`qoe.rs`)
+
+Per (stream, receiver) session; distributions are p50/p95/p99 over sessions pooled over
+seeds. Definitions are in the `qoe.rs` module doc: join time to the first shown frame; glass-
+to-glass by depth; frame loss by type (a frame is lost if any fragment is); freezes by the
+W3C webrtc-stats rule `gap > max(3·interval, interval + 150 ms)`; audio missing (lost or
+later than 400 ms) and audible gaps (runs ≥ 2 frames); share of one-second windows at the
+requested layer; relay recovery (audio gap, video gap, time to the full layer).
+
+## 5. Stated bounds the tests hold
+
+- Ample, lossless links: no frame lost, no freeze, every window at the requested layer; each
+  frame's glass-to-glass equals `capture_encode + sign + tx_up(chunk₀) + prop + tx_down(chunk₀)
+  + fragments × verify + decode_render` exactly (verify paces the receiver because
+  verify > sign + serialisation). Audio: the same with one verify.
+- Independent loss p: frames of n fragments are lost at `1 − (1 − p)^n` (per bucket within
+  four standard deviations).
+- A relay leaving with a signed end, child with a warm standby: audio gap ≤ 20 ms + 400 ms
+  (reorder max); base video gap ≤ 2 frames + 400 ms; full layer back within
+  `WATCH_TICK + RTT + 2 frames + 400 ms + decode_render`.
+- The same without a standby: audio gap ≤ `WATCH_TICK + RTT + 20 ms + 400 ms`; video gap
+  ≤ `WATCH_TICK + RTT + GOP + 2 frames + 400 ms + decode_render`, and longer than two frames
+  (the broken chain waits for the next IDR).
+
+## 6. What this model cannot say (validity envelope)
+
+- No real codec: frame sizes are a parametric GOP, not rate-distortion output; no encoder rate
+  control reacts to loss or to the network (edge has none; the host's encoder may).
+- No real congestion controller for media: edge v45 has none on datagram legs beyond the
+  admission probe; the engine's counterfactual #975 is a sketch, not edge code.
+- Household TCP is Reno-like: no CUBIC curve, no SACK, no RTO, no pacing, no delayed ACKs.
+- No measured Wi-Fi: airtime share and GE loss are constants; no rate adaptation, no
+  contention among the household's own stations, no uplink/downlink airtime coupling.
+- No cellular scheduler: a Markov capacity level stands in for proportional-fair scheduling.
+- No core congestion, no peering bottleneck, no shared upstream (each household is its own
+  link; two participants in one home are modelled as two homes).
+- No NAT model: reachability is a per-node flag (`unreachable`); the joint distribution is the
+  `nat` package's.
+- Controller simplifications listed in §3.3. The live tree is the closed-loop controller, not
+  `alm.rs`'s deterministic topology (see §8).
+- A returning phone is a new participant (no rejoin of the same node).
+
+## 7. Data that would replace MODEL parameters (approval requests, nothing downloaded)
+
+See the package report for names, URLs, licences and sizes. In short: FCC Measuring
+Broadband America raw data (access rates, latency under load, loss), the MONROE / 5Gophers
+style cellular traces (capacity over time), and published Wi-Fi airtime/loss traces. Each
+would drop in behind `AccessProfile` / `CellModel` / `GeParams`.
+
+## 8. Findings
+
+Filled from `cewp-cli media` output; see the package report.
