@@ -27,4 +27,4 @@ body.story-first #layer-dock{display:none}
 #layer-dock .ly-src code{color:#d8e2ee;word-break:break-word}
 #layer-dock .ly-note{margin:6px 6px 2px;color:var(--mute);font-size:10px}
 #layer-dock button:focus-visible,#layer-dock input:focus-visible,#layer-dock summary:focus-visible{outline:2px solid var(--cool);outline-offset:2px}
-@media(max-width:800px){#layer-dock{left:72px;bottom:max(8px,env(safe-area-inset-bottom))}#layer-dock .ly-body{position:fixed;left:8px;right:8px;width:auto;bottom:calc(52px + env(safe-area-inset-bottom));max-height:52dvh}}
+@media(max-width:800px){#layer-dock{left:72px;bottom:max(8px,env(safe-area-inset-bottom))}#layer-dock .ly-body{position:fixed;left:8px;right:66px;width:auto;bottom:calc(52px + env(safe-area-inset-bottom));max-height:52dvh}}
