@@ -1,0 +1,30 @@
+/* The layer dock (layers.js). It sits beside the Info button and opens upward; each row says what
+   the layer draws, the class of it as text, and where it comes from. */
+#layer-dock{position:fixed;left:84px;bottom:max(12px,env(safe-area-inset-bottom));z-index:21;font:11px/1.4 var(--mono);color:var(--ink);max-width:calc(100vw - 96px)}
+body.story-first #layer-dock{display:none}
+#layer-dock .ly-toggle{display:inline-flex;align-items:center;gap:8px;background:color-mix(in srgb,var(--panel) 86%,transparent);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font:600 11px/1 var(--mono);cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,.35)}
+#layer-dock .ly-toggle:hover,#layer-dock.open .ly-toggle{border-color:var(--cool);color:#fff}
+#layer-dock .ly-n{color:var(--cool);font-variant-numeric:tabular-nums}
+#layer-dock .ly-body{position:absolute;left:0;bottom:calc(100% + 8px);width:min(360px,calc(100vw - 24px));max-height:min(70dvh,620px);overflow:auto;background:color-mix(in srgb,var(--panel) 95%,transparent);border:1px solid var(--line);border-radius:10px;padding:6px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 10px 32px rgba(0,0,0,.5)}
+#layer-dock .ly-row{padding:6px 6px 7px;border-radius:7px}
+#layer-dock .ly-row+.ly-row{border-top:1px solid #1c222d}
+#layer-dock .ly-row.on{background:rgba(108,182,255,.05)}
+#layer-dock .ly-sw{display:flex;align-items:baseline;gap:8px;width:100%;background:none;border:0;color:var(--ink);font:500 12px/1.35 var(--mono);text-align:left;padding:2px 0;cursor:pointer}
+#layer-dock .ly-sw:hover .ly-t{color:#fff}
+#layer-dock .ly-box{color:var(--cool);flex:none;width:12px}
+#layer-dock .ly-row:not(.on) .ly-t{color:var(--mute)}
+#layer-dock .ly-cls{display:inline-block;margin:2px 0 0 20px;padding:0 5px;border:1px solid #3a4456;border-radius:4px;font-size:10px;color:#c3cbd8;letter-spacing:.02em}
+#layer-dock .ly-st{margin:4px 0 0 20px;color:#c8d0dc;font-size:10.5px;font-variant-numeric:tabular-nums}
+#layer-dock .ly-chart{display:block;width:calc(100% - 20px);height:110px;margin:6px 0 0 20px}
+#layer-dock .ly-ctl{display:flex;align-items:center;gap:8px;margin:6px 0 0 20px;color:var(--mute);font-size:10.5px}
+#layer-dock .ly-ctl input{flex:1;accent-color:var(--cool)}
+#layer-dock .ly-ctl output{min-width:38px;text-align:right;color:var(--ink)}
+#layer-dock .ly-ctl-b{margin:6px 0 0 20px;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font:11px var(--mono);cursor:pointer}
+#layer-dock .ly-ctl-b:hover{border-color:var(--cool)}
+#layer-dock .ly-src{margin:5px 0 0 20px;color:var(--mute);font-size:10.5px}
+#layer-dock .ly-src summary{cursor:pointer;color:#9fb3cc}
+#layer-dock .ly-src p{margin:4px 0}
+#layer-dock .ly-src code{color:#d8e2ee;word-break:break-word}
+#layer-dock .ly-note{margin:6px 6px 2px;color:var(--mute);font-size:10px}
+#layer-dock button:focus-visible,#layer-dock input:focus-visible,#layer-dock summary:focus-visible{outline:2px solid var(--cool);outline-offset:2px}
+@media(max-width:800px){#layer-dock{left:72px;bottom:max(8px,env(safe-area-inset-bottom))}#layer-dock .ly-body{position:fixed;left:8px;right:8px;width:auto;bottom:calc(52px + env(safe-area-inset-bottom));max-height:52dvh}}

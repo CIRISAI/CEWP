@@ -387,7 +387,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=12"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=13"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -398,7 +398,9 @@ function uploadWorld(){
 const ARC_CAP = 420; let seed = 1;
 function tickWasm(acts){
   seed = (seed*1103515245+12345)>>>0;
+  if (typeof simClockForTick==="function") simClockForTick(); // the kernel's clock: who signs follows the hour (workload.rs)
   const n = wasm.tick(bufs.lat,bufs.lon,bufs.metro,bufs.reg,W.n,bufs.roomOff,bufs.roomMem,bufs.nodeOff,bufs.nodeRooms,bufs.seatsOff,bufs.seats,bufs.regionRoom,W.globalRoom,acts,seed,0x9e37,650,300,40,20,simParams.directNatPm,simParams.shapingPm,simParams.onionPm,bufs.activity,bufs.arcs,ARC_CAP,bufs.out);
+  if (typeof LAYERS!=="undefined") LAYERS.onTick(); // layers read the kernel's own buffers for this tick
   return { out: new Float64Array(mem.buffer, bufs.out, OUT), arcs: new Uint32Array(mem.buffer, bufs.arcs, n*2), activity: new Uint8Array(mem.buffer, bufs.activity, W.n) };
 }
 let jsActivity=null, jsArcs=new Uint32Array(ARC_CAP*2);
@@ -600,9 +602,9 @@ const cv=document.getElementById("c"); const gl=cv.getContext("webgl",{antialias
 function sh(t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s); return s; }
 function prog(v,f){ const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,v)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f)); gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw gl.getProgramInfoLog(p); return p; }
 const PV=`attribute vec3 p;attribute float a;attribute float k;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float dpr;uniform float uTime;uniform float uStory;uniform float uStoryCos;uniform float uStoryDensity;uniform vec3 uSeedDir;uniform vec2 uPeakDir;uniform vec3 uSunWorld;varying float va;varying float vk;varying float vz;varying float vSun;
-void main(){float ph=fract(sin(dot(p,vec3(12.9898,78.233,45.164)))*43758.5453);float ph2=fract(sin(dot(p,vec3(63.7264,10.873,29.412))+floor(uTime*2.5)*0.17)*43758.5453);float shimmer=0.88+0.12*sin(uTime*3.4+ph*6.2831853);float eqLen=max(0.15,length(vec2(p.x,p.z)));float cosH=(p.x*uPeakDir.x+p.z*uPeakDir.y)/eqLen;float cos2H=2.0*cosH*cosH-1.0;float diurnal=clamp((1.0+1.05*cosH+0.25*cos2H)/2.30,0.05,1.0);float sunDotW=dot(p,uSunWorld);float isDay=smoothstep(-0.08,0.12,sunDotW);float wakeProb=mix(0.05,1.0,max(diurnal*0.85,isDay*0.75));float effA=0.0;if(uStory>0.5){if(uStoryCos>1.5){if(a<0.004){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}effA=a;}else{float c=dot(p,uSeedDir);if(c<uStoryCos||ph>uStoryDensity){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}float flash=(a>0.48&&ph2<=0.065*wakeProb)?min(1.0,a*(0.65+0.35*wakeProb)):0.0;effA=flash;if(effA<0.38&&k<0.5&&ph>0.09*uStoryDensity){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}}}else{effA=(a>0.48&&ph2<=0.065*wakeProb)?min(1.0,a*(0.65+0.35*wakeProb)):0.0;if(effA<0.38&&k<0.5&&ph>0.09){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}}vec3 q=R*p;vz=q.z;vSun=sunDotW;va=effA*shimmer;vk=k;float zBias=(va>=0.38)?(va*0.25):0.0;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.40-zBias,1.0);float base=(k>0.5)?3.4:(S>2.0?2.1:1.5);float storyBoost=(uStory>0.5&&uStoryCos>1.5)?2.2:0.0;float actBoost=(va>=0.38)?(0.5+(va-0.38)*1.2):0.0;gl_PointSize=(base+storyBoost+actBoost)*dpr;}`;
+void main(){float ph=fract(sin(dot(p,vec3(12.9898,78.233,45.164)))*43758.5453);float ph2=fract(sin(dot(p,vec3(63.7264,10.873,29.412))+floor(uTime*2.5)*0.17)*43758.5453);float shimmer=1.0;float eqLen=max(0.15,length(vec2(p.x,p.z)));float cosH=(p.x*uPeakDir.x+p.z*uPeakDir.y)/eqLen;float cos2H=2.0*cosH*cosH-1.0;float diurnal=clamp((1.0+1.05*cosH+0.25*cos2H)/2.30,0.05,1.0);float sunDotW=dot(p,uSunWorld);float isDay=smoothstep(-0.08,0.12,sunDotW);float wakeProb=mix(0.05,1.0,max(diurnal*0.85,isDay*0.75));float effA=0.0;if(uStory>0.5){if(uStoryCos>1.5){if(a<0.004){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}effA=a;}else{float c=dot(p,uSeedDir);if(c<uStoryCos||ph>uStoryDensity){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}effA=a>0.48?a:0.0;if(effA<0.38&&k<0.5&&ph>0.09*uStoryDensity){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}}}else{effA=a>0.48?a:0.0;if(effA<0.38&&k<0.5&&ph>0.09){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}}vec3 q=R*p;vz=q.z;vSun=sunDotW;va=effA*shimmer;vk=k;float zBias=(va>=0.38)?(va*0.25):0.0;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.40-zBias,1.0);float base=(k>0.5)?3.4:(S>2.0?2.1:1.5);float storyBoost=(uStory>0.5&&uStoryCos>1.5)?2.2:0.0;float actBoost=(va>=0.38)?(0.5+(va-0.38)*1.2):0.0;gl_PointSize=(base+storyBoost+actBoost)*dpr;}`;
 const PF=`precision mediump float;varying float va;varying float vk;varying float vz;varying float vSun;
-void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;vec2 pc=gl_PointCoord-vec2(0.5);float d2=dot(pc,pc);if(d2>0.24)discard;float circle=smoothstep(0.24,0.07,d2);float day=smoothstep(-0.10,0.10,vSun);vec3 dayBase=(vk>0.5)?vec3(0.56,0.88,1.0):vec3(0.36,0.66,0.94);vec3 nightBase=(vk>0.5)?vec3(0.24,0.44,0.68):vec3(0.12,0.20,0.34);vec3 base=mix(nightBase,dayBase,day);float depth=0.62+0.38*max(0.0,vz);if(va>=0.38){float t=smoothstep(0.38,0.92,va);vec3 daySpark=mix(vec3(0.95,0.38,0.24),vec3(1.0,0.64,0.24),t);vec3 nightSpark=mix(vec3(0.96,0.48,0.26),vec3(1.0,0.80,0.40),t);vec3 spark=mix(nightSpark,daySpark,day);vec3 col=mix(base*depth,spark,smoothstep(0.38,0.58,va));float al=mix(0.68,0.92,t)*edge*circle;gl_FragColor=vec4(col,al);}else{float idleAl=mix(vk>0.5?0.55:0.28,vk>0.5?0.88:0.56,day)*edge*circle;gl_FragColor=vec4(base*depth,idleAl);}}`;
+void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;vec2 pc=gl_PointCoord-vec2(0.5);float d2=dot(pc,pc);if(d2>0.24)discard;float circle=smoothstep(0.24,0.07,d2);float day=smoothstep(-0.10,0.10,vSun);vec3 dayBase=(vk>0.5)?vec3(0.56,0.88,1.0):vec3(0.36,0.66,0.94);vec3 nightBase=(vk>0.5)?vec3(0.24,0.44,0.68):vec3(0.12,0.20,0.34);vec3 base=mix(nightBase,dayBase,day);float depth=0.62+0.38*max(0.0,vz);if(va>=0.38){float t=smoothstep(0.38,0.92,va);vec3 daySpark=mix(vec3(0.95,0.38,0.24),vec3(1.0,0.64,0.24),t);vec3 nightSpark=mix(vec3(0.96,0.48,0.26),vec3(1.0,0.80,0.40),t);vec3 spark=mix(nightSpark,daySpark,day);vec3 col=mix(base*depth,spark,smoothstep(0.38,0.58,va));float al=mix(0.68,0.92,t)*edge*circle;gl_FragColor=vec4(col,al);}else{float idleAl=mix(vk>0.5?0.5:0.13,vk>0.5?0.8:0.28,day)*edge*circle;gl_FragColor=vec4(base*depth,idleAl);}}`;
 const LV=`attribute vec3 p;attribute vec4 param;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float uTime;varying float vt;varying float vAge;varying float vz;varying float vTier;
 void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);vt=param.x;vAge=(uTime-param.y)/param.z;vTier=param.w;}`;
 const LF=`precision mediump float;varying float vt;varying float vAge;varying float vz;varying float vTier;
@@ -618,7 +620,7 @@ const CV=`attribute vec3 p;uniform mat3 R;uniform float S;uniform vec2 asp;unifo
 const CF=`precision mediump float;varying float vz;varying float vSun;void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;float day=smoothstep(-0.10,0.12,vSun);vec3 col=mix(vec3(0.13,0.21,0.34),vec3(0.46,0.74,0.98),day);float al=mix(0.42,0.86,day)*edge;gl_FragColor=vec4(col,al);}`;
 // land: the population grid's own 1.5° tiles, brighter where more people live; fades in below the planetary view
 const GV=`attribute vec3 p;attribute float t;uniform mat3 R;uniform float S;uniform vec2 asp;uniform vec3 uSunWorld;varying float vz;varying float vt;varying float vSun;void main(){vec3 q=R*p;vz=q.z;vt=t;vSun=dot(p,uSunWorld);gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
-const GF=`precision mediump float;uniform float uA;varying float vz;varying float vt;varying float vSun;void main(){if(vz<0.0)discard;float day=smoothstep(-0.10,0.12,vSun);vec3 c=mix(vec3(0.13,0.165,0.145),vec3(0.21,0.265,0.22),vt);c*=mix(0.62,1.0,day);gl_FragColor=vec4(c,uA*smoothstep(0.0,0.06,vz));}`;
+const GF=`precision mediump float;uniform float uA;varying float vz;varying float vt;varying float vSun;void main(){if(vz<0.0)discard;float day=smoothstep(-0.10,0.12,vSun);vec3 c=mix(vec3(0.20,0.215,0.17),vec3(0.29,0.31,0.24),vt);c*=0.30+1.05*smoothstep(-0.10,0.10,vSun)*(0.45+0.55*max(vSun,0.0));gl_FragColor=vec4(c,uA*smoothstep(0.0,0.06,vz));}`;
 const VF=`precision mediump float;uniform vec3 uCol;uniform float uA;varying float vz;varying float vSun;void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;float day=smoothstep(-0.10,0.12,vSun);gl_FragColor=vec4(uCol*mix(0.42,1.0,day),uA*mix(0.55,1.0,day)*edge);}`;
 const pP=prog(PV,PF), pL=prog(LV,LF), pD=prog(DV,DF), pC=prog(CV,CF), pG=prog(GV,GF), pV=prog(CV,VF);
 let landBuf=gl.createBuffer(), landTBuf=gl.createBuffer(), landVerts=0, fanBuf=gl.createBuffer(), fanVerts=0, groundBuf=gl.createBuffer(), groundVerts=0, LAND=null;
@@ -849,7 +851,7 @@ function addArc(signer,packedTarget,nowSec){
     }
     prev=v;
   }
-  activeArcs.push({birthTime:nowSec,duration,tier,verts,params});
+  activeArcs.push({birthTime:nowSec,duration,tier,verts,params,rec:(typeof gfxArcRec==="function")?gfxArcRec(signer,target,nowSec,duration,tier):null});
 }
 function pruneAndPackArcs(nowSec){
   let changed=false, w=0;
@@ -886,6 +888,7 @@ function getSimUtcHours(nowSec){
     if (oa === 3) return 9.3 + (storyActElapsed / d) * 3.2;
     return (8.5 + storyActElapsed * 0.85) % 24.0;
   }
+  if (typeof SIM!=="undefined") return ((SIM.t/3600)%24+24)%24; // the sim's clock (gfx.js): it stops when the sim is paused
   return (8.5 + nowSec * 0.85) % 24.0;
 }
 function diurnalAtLon(lonDeg, nowSec){
@@ -907,7 +910,6 @@ function setArcs(arcs){
       const ct=vt[0]*z0[0]+vt[1]*z0[1]+vt[2]*z0[2];
       if (cs<uStoryCosVal||ct<uStoryCosVal) continue;
     }
-    if (Math.random() > diurnalAtLon(W.lon[s], nowSec) * 1.25) continue;
     addArc(s,packed,nowSec);
   }
   arcsNeedUpload=true; pruneAndPackArcs(nowSec);
@@ -915,18 +917,19 @@ function setArcs(arcs){
 function rot(){ const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
   return new Float32Array([cy,-sp*sy,cp*sy, 0,cp,sp, -sy,-sp*cy,cp*cy]); }
 function draw(){
-  const w=cv.clientWidth, h=cv.clientHeight; const dpr=window.devicePixelRatio||1;
-  if (cv.width!==w*dpr|0||cv.height!==h*dpr|0){ cv.width=w*dpr|0; cv.height=h*dpr|0; }
+  const w=cv.clientWidth, h=cv.clientHeight; const dpr=(typeof gfxFrameBegin==="function")?gfxFrameBegin(w,h):(window.devicePixelRatio||1);
+  if (typeof gfxFrameBegin!=="function" && (cv.width!==w*dpr|0||cv.height!==h*dpr|0)){ cv.width=w*dpr|0; cv.height=h*dpr|0; }
   gl.viewport(0,0,cv.width,cv.height); gl.clearColor(0.043,0.051,0.07,1); gl.disable(gl.DEPTH_TEST); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
   const asp=w>h? [h/w,1]:[1,w/h]; const S=0.86*zoom; const R=rot(); const nowSec=getTime();
   const simUtc=getSimUtcHours(nowSec);
+  // the sun is the kernel's (clock_sun on the sim's clock); without gfx.js, the f73b918 sun
   const sunLon=(12.0-simUtc)*15.0*Math.PI/180, sunLat=18.0*Math.PI/180;
-  const sx=Math.cos(sunLat)*Math.sin(sunLon), sy=Math.sin(sunLat), sz=Math.cos(sunLat)*Math.cos(sunLon);
-  const sunWorld=[sx,sy,sz];
+  const sunWorld=(typeof gfxSun==="function")?gfxSun(simUtc):[Math.cos(sunLat)*Math.sin(sunLon), Math.sin(sunLat), Math.cos(sunLat)*Math.cos(sunLon)];
+  const sx=sunWorld[0], sy=sunWorld[1], sz=sunWorld[2];
   const sunCam=[R[0]*sx+R[3]*sy+R[6]*sz, R[1]*sx+R[4]*sy+R[7]*sz, R[2]*sx+R[5]*sy+R[8]*sz];
   const peakLon=(15.0-simUtc)*15.0*Math.PI/180;
   const peakDir=[Math.sin(peakLon), Math.cos(peakLon)];
-  gl.useProgram(pD); gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); const dp=gl.getAttribLocation(pD,"p"); gl.enableVertexAttribArray(dp); gl.vertexAttribPointer(dp,2,gl.FLOAT,false,0,0); gl.uniform1f(gl.getUniformLocation(pD,"S"),S); gl.uniform2fv(gl.getUniformLocation(pD,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pD,"uSunCam"),sunCam); gl.drawArrays(gl.TRIANGLES,0,96*3);
+  if (typeof gfxOcean==="function") gfxOcean(S,asp,sunCam,false); else { gl.useProgram(pD); gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); const dp=gl.getAttribLocation(pD,"p"); gl.enableVertexAttribArray(dp); gl.vertexAttribPointer(dp,2,gl.FLOAT,false,0,0); gl.uniform1f(gl.getUniformLocation(pD,"S"),S); gl.uniform2fv(gl.getUniformLocation(pD,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pD,"uSunCam"),sunCam); gl.drawArrays(gl.TRIANGLES,0,96*3); }
   const landA=Math.max(0,Math.min(1,(zoom-3)/9));
   const mpp=EARTH_M/(0.86*zoom*Math.min(w,h)/2), gsets=geoSets(w,h,mpp); GEO.rf=sstep(30,90,mpp);
   if (landVerts){ gl.useProgram(pG); gl.uniformMatrix3fv(gl.getUniformLocation(pG,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pG,"S"),S); gl.uniform2fv(gl.getUniformLocation(pG,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pG,"uSunWorld"),sunWorld); gl.uniform1f(gl.getUniformLocation(pG,"uA"),landA);
@@ -948,6 +951,8 @@ function draw(){
     gl.drawArrays(gl.TRIANGLES,0,landVerts); gl.disableVertexAttribArray(gt);
     // 4. terrain: shaded relief and elevation (relief.js), a multiply on the land just drawn
     if (typeof reliefDraw==="function") reliefDraw(R,S,asp,w,h,mpp,(0.6+0.4*Math.min(1,landA*3))*GEO.rf,sunWorld);
+    // 5. the night side: the population grid (MODEL input) glows where the kernel's sun has set
+    if (typeof gfxNightGlow==="function" && (typeof LAYERS==="undefined" || LAYERS.on("glow"))) gfxNightGlow(R,S,asp,mpp,1.0);
     gl.disable(gl.STENCIL_TEST); }
   // shorelines, country borders and rivers from the set in use; they fade out before streets fade in
   if (gsets.length && GEO.rf>0.004){ gl.useProgram(pV); gl.uniformMatrix3fv(gl.getUniformLocation(pV,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pV,"S"),S); gl.uniform2fv(gl.getUniformLocation(pV,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pV,"uSunWorld"),sunWorld);
@@ -955,6 +960,8 @@ function draw(){
     const near=sstep(GEO_MPP_50*2,GEO_MPP_50/2,mpp);
     const LS=[[[0.46,0.74,0.98],0.86],[[0.93,0.78,0.52],0.30+0.40*near],[[0.38,0.62,0.95],0.18+0.42*near]];
     LS.push(LS[0]); const nk=mpp>=GEO_MPP_ETOPO_LAKE?4:3; // 3: ETOPO's shores on a 10m tile, with its lake fill
+    // anti-aliased quads, widths in CSS pixels (coast, border, river, ETOPO shore); gl.LINES without instancing
+    if (!(typeof gfxLines==="function" && gfxLines(R,S,asp,gsets,LS,nk,[1.15,0.9,0.8,1.0])))
     for (let k=0;k<nk;k++){ gl.uniform3fv(gl.getUniformLocation(pV,"uCol"),LS[k][0]); gl.uniform1f(gl.getUniformLocation(pV,"uA"),LS[k][1]*GEO.rf);
       for (const G of gsets){ const L=(k===3)?G.shoreK:G.lines[k]; if (!L || !L.n) continue; gl.bindBuffer(gl.ARRAY_BUFFER,L.b); gl.vertexAttribPointer(vp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.LINES,0,L.n); } } }
   if (npts){ gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.clear(gl.DEPTH_BUFFER_BIT);
@@ -975,11 +982,18 @@ function draw(){
     gl.disable(gl.DEPTH_TEST); }
   // the street tiling (tiling.js): holons over the land, clipped by the same land stencil
   if (typeof tlDraw==="function") tlDraw(w,h,mpp,sunWorld);
-  if (arcCount>0 && showArcs){ gl.useProgram(pL); gl.uniformMatrix3fv(gl.getUniformLocation(pL,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pL,"S"),S); gl.uniform2fv(gl.getUniformLocation(pL,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pL,"uTime"),nowSec);
+  // arcs: the tick's sample (instanced, depth-correct) and every layer's arcs
+  const arcSets=[]; if (showArcs && activeArcs.length && (typeof LAYERS==="undefined" || LAYERS.on("arcs"))) arcSets.push(activeArcs.filter(a=>a.rec && (meshFilter<0 || a.tier===meshFilter)).map(a=>a.rec));
+  if (typeof LAYERS!=="undefined") LAYERS.arcSets(arcSets, nowSec);
+  const arcsDone = typeof gfxArcsDraw==="function" && gfxArcsDraw(R,S,asp,nowSec,arcSets);
+  if (!arcsDone && arcCount>0 && showArcs){ gl.useProgram(pL); gl.uniformMatrix3fv(gl.getUniformLocation(pL,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pL,"S"),S); gl.uniform2fv(gl.getUniformLocation(pL,"asp"),asp); gl.uniform1f(gl.getUniformLocation(pL,"uTime"),nowSec);
     const lp=gl.getAttribLocation(pL,"p"), lparam=gl.getAttribLocation(pL,"param");
     gl.bindBuffer(gl.ARRAY_BUFFER,linePosBuf); gl.enableVertexAttribArray(lp); gl.vertexAttribPointer(lp,3,gl.FLOAT,false,0,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,lineParamBuf); gl.enableVertexAttribArray(lparam); gl.vertexAttribPointer(lparam,4,gl.FLOAT,false,0,0);
     gl.drawArrays(gl.LINES,0,arcCount*SEG_VERTS); }
+  // aerial perspective over land and sea (illustration), then each layer's GL marks
+  if (typeof gfxOcean==="function") gfxOcean(S,asp,sunCam,true);
+  if (typeof LAYERS!=="undefined") LAYERS.drawGL(R,S,asp,w,h,mpp,nowSec);
 }
 // rotation per pixel: the old feel near the planet; at depth, exactly one pixel of ground per pixel dragged
 const dragK=()=>zoom>3?2/(0.86*zoom*Math.min(cv.clientWidth,cv.clientHeight)):0.0035/Math.max(1,zoom*0.6);
@@ -2078,7 +2092,7 @@ function microStep(now){
   const dtReal = Math.min(0.1, (now - microLastReal) / 1000); microLastReal = now;
   if (!M || !microOk()) return;
   if (zoom >= FOCAL_ZOOM * 0.6 || microStory){
-    if (!(storyActive && storyPaused)) wasm.micro_step(dtReal * microTimeScale);
+    if (!(storyActive && storyPaused) && (typeof microRunning!=="function" || microRunning())) wasm.micro_step(dtReal * microTimeScale);
     microRead();
   }
   if (microGlide > 0 && !drag && !microStory){
@@ -2698,6 +2712,7 @@ function storyMicroEnd(){ microStory = false; microStoryDim = null; if (M) M.key
 let frame=0, lastTickTime=0, lastLoopNow=performance.now();
 function loop(){
   const now=performance.now();
+  if (typeof simClockAdvance==="function") simClockAdvance(now);
   const storyDt=Math.min(0.1,Math.max(0,(now-lastLoopNow)/1000)); lastLoopNow=now; // story time is real time, whatever the refresh rate
   if (storyActive) {
     if (!drag && !storyUserCam) {
@@ -2743,16 +2758,22 @@ function loop(){
       if (Math.abs(velYaw)>0.00002) yaw+=velYaw;
       if (Math.abs(velPitch)>0.00002) pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch));
       const idle=now-lastTouchTime;
-      if (idle>3000 && zoom<3){ const blend=Math.min(1.0,(idle-3000)/2000); yaw+=0.0016*blend; }
+      // the slow turn when nobody touches the globe: only while the sim runs, never under reduced motion
+      if (idle>3000 && zoom<3 && playing && !(typeof GFX!=="undefined" && GFX.reduced)){ const blend=Math.min(1.0,(idle-3000)/2000); yaw+=0.0016*blend; }
     }
-    if (playing && now-lastTickTime>=120){ lastTickTime=now; tick(); }
+    if (playing && now-lastTickTime>=120){ lastTickTime=now; tick(); if (typeof GFX!=="undefined") GFX.tickFrame=true; }
     decay();
   }
   { const z0=zoom; zoom*=Math.pow(targetZoom/zoom,0.12); zoomAnchorStep(z0,now); } // multiplicative: the same feel from orbit to a doorstep
   if (frame%4===0) pruneAndPackArcs(getTime());
   if (typeof tlFrame==="function") tlFrame(now);
   microFreeRoam(); microStep(now);
-  draw(); microDraw(); geoLabels(camFrame()); if (typeof tlMetrics==="function") tlMetrics(); frame++; requestAnimationFrame(loop);
+  // nothing moving, loading or running: skip the frame entirely (no GPU work while paused and still)
+  if (typeof gfxNeedsDraw==="function" && !gfxNeedsDraw(now) && frame>30){ GFX.skipped++; frame++; requestAnimationFrame(loop); return; }
+  const td0=performance.now();
+  draw(); microDraw(); geoLabels(camFrame()); if (typeof LAYERS!=="undefined") LAYERS.draw2D(mctx, camFrame()); if (typeof tlMetrics==="function") tlMetrics();
+  if (typeof GFX!=="undefined"){ GFX.drawn++; GFX.drawMs.push(performance.now()-td0); if (GFX.drawMs.length>240) GFX.drawMs.shift(); }
+  frame++; requestAnimationFrame(loop);
 }
 async function build(){
   const wasPlaying=playing;

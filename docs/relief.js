@@ -9,9 +9,24 @@
 // street fades in: real geography stops at region scale.
 const RELIEF = { idx: null, pIdx: false, tiles: new Map(), cpu: new Map(), cpuGen: 0, cap: { 1: 10, 2: 16 }, used: "-",
   stats(){ let n = 0; for (const t of this.tiles.values()) if (t.tex) n++; return { used: this.used, textures: n }; } };
-const RV = `attribute vec3 p;attribute vec2 uv;uniform mat3 R;uniform float S;uniform vec2 asp;uniform vec3 uSunWorld;varying vec2 vUv;varying float vz;varying float vSun;void main(){vec3 q=R*p;vz=q.z;vSun=dot(p,uSunWorld);vUv=uv;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
-const RF = `precision mediump float;uniform sampler2D T;uniform float uA;varying vec2 vUv;varying float vz;varying float vSun;
-void main(){if(vz<0.0)discard;vec4 t=texture2D(T,vUv);float day=smoothstep(-0.10,0.12,vSun);float sh=clamp(1.0+(t.r/0.808-1.0)*mix(2.6,1.5,day),0.25,1.7);float e=t.g;
+// By day the slopes are lit by the simulation's sun: a normal from ETOPO's elevation (four
+// neighbouring texels, east-west scaled by cos latitude), vertical exaggeration 1 + 2·sqrt(texel /
+// 1.85 km) (3× on the 1/60° tiles, about 7.5× on the globe image; display only), shaded against the
+// flat ground's own light so a plain stays as it was. By night the baked Natural Earth relief
+// (fixed north-west light) keeps the ground legible, as before.
+const RV = `attribute vec3 p;attribute vec2 uv;uniform mat3 R;uniform float S;uniform vec2 asp;uniform vec3 uSunWorld;varying vec2 vUv;varying float vz;varying float vSun;varying vec3 vP;void main(){vec3 q=R*p;vz=q.z;vSun=dot(p,uSunWorld);vUv=uv;vP=p;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
+const RF = `#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform sampler2D T;uniform float uA;uniform vec2 uTexel;uniform float uMpt;uniform vec3 uSunWorld;varying vec2 vUv;varying float vz;varying float vSun;varying vec3 vP;
+float zc(vec2 u){float g=texture2D(T,u).g;return g*g*6500.0;}
+void main(){if(vz<0.0)discard;vec4 t=texture2D(T,vUv);float day=smoothstep(-0.10,0.12,vSun);float baked=clamp(1.0+(t.r/0.808-1.0)*mix(2.6,1.5,day),0.25,1.7);
+vec3 up=normalize(vP);vec3 east=normalize(vec3(up.z,0.0,-up.x)+vec3(1e-6,0.0,0.0));vec3 north=cross(up,east);float cl=max(0.08,length(up.xz));float ex=1.0+2.0*sqrt(uMpt/1850.0);
+float dzx=(zc(vUv+vec2(uTexel.x,0.0))-zc(vUv-vec2(uTexel.x,0.0)))/(2.0*uMpt*cl)*ex;float dzy=(zc(vUv-vec2(0.0,uTexel.y))-zc(vUv+vec2(0.0,uTexel.y)))/(2.0*uMpt)*ex;
+vec3 n=normalize(up-east*dzx-north*dzy);float ref=max(dot(up,uSunWorld),0.0);float lam=max(dot(n,uSunWorld),0.0);float dyn=clamp((lam+0.05)/(ref+0.05),0.3,1.75);
+float sun=smoothstep(-0.02,0.20,vSun);float sh=mix(baked,mix(baked,dyn,0.78),sun);float e=t.g;
 vec3 tint=mix(vec3(0.97,1.03,0.96),vec3(1.04,1.0,0.94),smoothstep(0.15,0.45,e));tint=mix(tint,vec3(1.12,1.11,1.1),smoothstep(0.55,0.8,e));tint=mix(tint,vec3(1.3,1.3,1.32),smoothstep(0.85,0.95,e));
 vec3 c=0.5*sh*tint;gl_FragColor=vec4(mix(vec3(0.5),c,uA*smoothstep(0.0,0.06,vz)),1.0);}`;
 let pRelief = null;
@@ -68,6 +83,7 @@ function reliefLoad(z, r, c){
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     e.tex = t; e.mesh = z === 0 ? reliefGlobe() : reliefMesh(la1, lo0, deg); e.pending = false;
+    e.texel = [1 / img.width, 1 / img.height]; e.mpt = (z === 0 ? 180 : deg) / img.height * 111320;
     if (z !== 1) reliefKeepCpu(k, z, img, la1, lo0, deg);
   };
   img.onerror = () => { console.warn("relief tile " + k + " failed"); };
@@ -118,7 +134,9 @@ function reliefDraw(R, S, asp, w, h, mpp, a, sun){
   gl.enableVertexAttribArray(ap); gl.enableVertexAttribArray(au);
   gl.blendFunc(gl.DST_COLOR, gl.SRC_COLOR); // 2x multiply: 0.5 leaves the land as it is
   gl.stencilMask(2); gl.stencilFunc(gl.EQUAL, 1, 3); gl.stencilOp(gl.KEEP, gl.KEEP, gl.INVERT);
+  const uTex = gl.getUniformLocation(pRelief, "uTexel"), uMpt = gl.getUniformLocation(pRelief, "uMpt");
   for (const t of passes){
+    gl.uniform2fv(uTex, t.texel || [1 / 2048, 1 / 1024]); gl.uniform1f(uMpt, t.mpt || 19568);
     gl.bindTexture(gl.TEXTURE_2D, t.tex); gl.bindBuffer(gl.ARRAY_BUFFER, t.mesh.buf);
     gl.vertexAttribPointer(ap, 3, gl.FLOAT, false, 20, 0); gl.vertexAttribPointer(au, 2, gl.FLOAT, false, 20, 12);
     gl.drawArrays(gl.TRIANGLES, 0, t.mesh.n);

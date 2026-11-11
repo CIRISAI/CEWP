@@ -18,6 +18,8 @@ use cewp_sim::chunk_custody::{classify, NoiseFloorState};
 use cewp_sim::holon::{ClosureCertificate, MaintenanceRent};
 use cewp_sim::workload::diurnal_multiplier;
 
+mod globe;
+
 pub const OUT_SLOTS: usize = 36;
 
 #[no_mangle]
@@ -98,6 +100,9 @@ pub extern "C" fn tick(
     let mut baseline_a1 = 0.0f64;
     let mut baseline_a2 = 0.0f64;
     let mut baseline_a3 = 0.0f64;
+    // the globe's view of this tick: its clock, the flows between localities, acts per locality
+    let gs = globe::globe();
+    globe::tick_begin(gs);
 
     unsafe {
         let lat = std::slice::from_raw_parts(lat, n as usize);
@@ -108,7 +113,20 @@ pub extern "C" fn tick(
 
         for act_i in 0..acts {
             o[0] += 1.0;
-            let signer = below(&mut s, n) as usize;
+            let t_act = globe::act_time(gs, act_i, acts);
+            let mut signer = below(&mut s, n) as usize;
+            // with the clock's diurnal switch on, who signs follows workload.rs: a signer is kept with
+            // probability diurnal_multiplier(local time) / peak and redrawn otherwise (at most 16
+            // times), so `acts` is unchanged and its spread over the planet follows the hour. Off (the
+            // default) draws nothing extra, so every slot matches the earlier build.
+            if gs.diurnal {
+                let mut tries = 0;
+                while tries < 16 && !globe::diurnal_accept(t_act, lon[signer] as f64, below(&mut s, 1000)) {
+                    signer = below(&mut s, n) as usize;
+                    gs.redraws += 1;
+                    tries += 1;
+                }
+            }
             let roll = below(&mut s, 1000);
             let r0 = *node_off.get_unchecked(signer) as usize;
             let r1 = *node_off.get_unchecked(signer + 1) as usize;
@@ -120,11 +138,11 @@ pub extern "C" fn tick(
             // Track fine-scale locality activity
             if smetro < 181 {
                 locality_acts[smetro] += 1;
+                gs.loc_acts[smetro] += 1;
             }
 
-            // Longitude-aware solar time & diurnal wave (FSD §4.1)
-            let sim_time_sec = 43200.0 + ((act_i as f64) * 137.0);
-            let local_sec = (sim_time_sec + (slon as f64 / 360.0) * 86400.0).rem_euclid(86400.0);
+            // Longitude-aware solar time & diurnal wave (FSD §4.1), on the globe's clock
+            let local_sec = globe::local_sec(t_act, slon as f64);
             let _diurnal = diurnal_multiplier(local_sec);
 
             let (room, kind) = if roll < mix_self {
@@ -213,6 +231,7 @@ pub extern "C" fn tick(
                     } else {
                         crossed += 1;
                         if *region_of_metro.add(mm) == sregion { o[6] += 1.0; } else { o[7] += 1.0; }
+                        globe::flow(gs, smetro, mm);
                         // Deduplicate cross-locality fan-out via the CC 6.1.6 `deterministic-alm` member relay tree
                         let mm16 = mm as u16;
                         let mut seen = false;
@@ -296,6 +315,7 @@ pub extern "C" fn tick(
                     } else {
                         crossed += 1;
                         if *region_of_metro.add(mm) == sregion { o[6] += 1.0; } else { o[7] += 1.0; }
+                        globe::flow(gs, smetro, mm);
                         o[8] += km(slat, slon, lat[m], lon[m]);
                         if shaped_hop {
                             o[18] += 1.0;
@@ -324,6 +344,7 @@ pub extern "C" fn tick(
                         o[2] += 1.0; o[3] += 1.0;
                         delivered += 1; crossed += 1;
                         o[7] += 1.0;
+                        globe::flow(gs, smetro, mm);
                         o[19] += 1.0;
                         wire_hops += 1;
                         o[8] += km(slat, slon, lat[m], lon[m]);
