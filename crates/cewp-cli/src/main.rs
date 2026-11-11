@@ -959,6 +959,7 @@ fn print_help() {
     println!("Options / Subcommands:");
     println!("  all, --all            Run all 6 pipeline phases and emit docs/kernel/tables/evidence_bundle.json");
     println!("  --emit-bundle <PATH>  Serialize complete evidence_bundle.json to file");
+    println!("  holon-demo [SECONDS]  Distributional holon certificate on the R5 micro tier (FSD/twin/holon.md)");
     println!("  --help, -h            Print this help text");
 }
 
@@ -977,6 +978,13 @@ fn main() {
                 if emit_path.is_none() {
                     emit_path = Some("docs/kernel/tables/evidence_bundle.json".to_string());
                 }
+            }
+            "holon-demo" => {
+                // FSD/twin/holon.md §5: distributional certificate on the R5 tier (optional
+                // horizon in seconds per regime; default 4 days, as the regression test)
+                let h = args.get(i + 1).and_then(|x| x.parse::<f64>().ok()).unwrap_or(4.0 * 86_400.0);
+                print!("{}", cewp_sim::holon_demo::report(h));
+                return;
             }
             "--emit-bundle" => {
                 if i + 1 < args.len() {

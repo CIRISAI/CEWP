@@ -7,7 +7,10 @@
 //! - `TierStack`: Sound tier composition (`TierStack::compose`, `closed_comp`)
 //! - Non-expansive Lipschitz gate: K <= 1.05
 //! - `horizon_budget(eps, k, n)`: Linear (n * ε) vs geometric error bounds
-//! - `SecondSquareFence`: Refusing uncertified claim transport
+//! - `SecondSquareFence`: Refusing uncertified claim transport; `use_certificate` extends it to
+//!   distributional certificates and their validity envelopes (`holon_dist`, FSD/twin/holon.md)
+
+use crate::holon_dist::{DistributionalCertificate, EnvelopeBound, OperatingPoint};
 
 /// The Non-Expansive Lipschitz threshold (K <= 1.05) per CIRISHolon.Budget.
 pub const LIPSCHITZ_GATE_CEILING: f64 = 1.05;
@@ -237,6 +240,12 @@ pub struct SecondSquareFence;
 pub enum TransportRefusal {
     TargetPredicateFailed { reason: String },
     UncertifiedClaimTransport,
+    /// The certificate does not certify this observable: it is not listed, or its measured
+    /// W1 / quantile defects broke their budgets (`holon_dist`). Every breach is named.
+    NotCertified { observable: String, breaches: Vec<EnvelopeBound> },
+    /// The operating point lies outside the certificate's validity envelope: "I cannot predict
+    /// this: the coarse model has left its certified envelope". Every broken bound is named.
+    OutsideEnvelope { observable: String, broken: Vec<EnvelopeBound> },
 }
 
 impl SecondSquareFence {
@@ -255,6 +264,37 @@ impl SecondSquareFence {
             )),
             Err(reason) => Err(TransportRefusal::TargetPredicateFailed { reason }),
         }
+    }
+
+    /// Use a distributional certificate for one observable at one operating point. The same
+    /// fence, with the target predicate made explicit: the certificate is re-checked against
+    /// the target (observable listed, its defects within budget, the point inside the validity
+    /// envelope) and never carried on the strength of the source alone. A refusal names every
+    /// bound that broke. Not Lean-checked: `claim_transport_does_not_grant_certificate` proves
+    /// only that a claim map does not carry a certificate, which is why this re-checks.
+    pub fn use_certificate(
+        cert: &DistributionalCertificate,
+        observable: &str,
+        at: &OperatingPoint,
+    ) -> Result<String, TransportRefusal> {
+        let Some(o) = cert.covers(observable) else {
+            return Err(TransportRefusal::NotCertified {
+                observable: observable.to_string(),
+                breaches: vec![EnvelopeBound::ObservableNotCertified { observable: observable.to_string() }],
+            });
+        };
+        let breaches = o.breaches();
+        if !breaches.is_empty() {
+            return Err(TransportRefusal::NotCertified { observable: observable.to_string(), breaches });
+        }
+        let broken = cert.envelope.check(at);
+        if !broken.is_empty() {
+            return Err(TransportRefusal::OutsideEnvelope { observable: observable.to_string(), broken });
+        }
+        Ok(format!(
+            "CertifiedUse[observable='{observable}',tiers='{}->{}']",
+            cert.reference_tier, cert.coarse_tier
+        ))
     }
 }
 

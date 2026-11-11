@@ -53,6 +53,8 @@ pub mod alm;
 pub mod chunk_custody;
 pub mod workload;
 pub mod holon;
+pub mod holon_dist;
+pub mod holon_demo;
 pub mod micro;
 pub mod tiling;
 pub mod capacity;
