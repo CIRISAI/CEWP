@@ -95,7 +95,7 @@ const LAYERS_COMMIT: &str = "twin/globe 07865ef";
 /// Sources of the Phase 2 layers (package view functions, merged on twin/globe).
 const VIEWS_COMMIT: &str = "twin/globe 8b70422";
 /// The calibration layer: package source at twin/calibration, wiring at twin/globe.
-const CAL_LAYER_COMMIT: &str = "twin/calibration c13cee5; twin/globe e42b504";
+const CAL_LAYER_COMMIT: &str = "twin/calibration c13cee5; twin/globe a824940";
 
 const BASE: PageClaim = PageClaim {
     id: "",
