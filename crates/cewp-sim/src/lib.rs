@@ -73,6 +73,8 @@ pub mod media_view;
 pub mod media_call2;
 pub mod media_thin;
 pub mod qoe;
+pub mod failure;
+pub mod durability;
 
 pub use transport::*;
 pub use alm::*;
