@@ -157,3 +157,39 @@ DATASETS_PLACEHOLDER
   spreads at small localities are noisy and the per-second seat and relay counts are those of a
   2,000-person seat and a room of a few thousand, not of production scale.
 * No Sybil identities, no adversarial workload (out of scope).
+
+## 7. Hooks (`crates/cewp-sim/src/people_hooks.rs`, per `HOOKS.md`)
+
+### 7.1 Energy counters (counts only)
+
+The model has persons, not devices. Each person acts and receives on one device, counted as
+`HostKind::Phone` (micro tier host kinds); consent-free rows land on serve seats, counted as
+`HostKind::ServeSeat` (one seat per 2,000 persons per locality, as the page). `energy(...)`
+returns `EnergyCounts { phone, seat: ClassCounts, wakes: WakeCounts }`:
+
+| counter | class | how |
+|---|---|---|
+| acts originated, signs | DERIVED | one sign per act signed |
+| acts received, verifies | DERIVED | one copy per other room member; one verify per copy (assumes each receiver verifies once) |
+| seat rows received | DERIVED | consent-free act x (1 local + 9 remote seats), as `kernel-wasm` `tick` |
+| busy seconds, wake-ups, seconds awake | DERIVED | per sampled phone, second-resolution bitmap of sends and receipts; the radio comes up at a busy second when idle and stays up `RADIO_TAIL_S` after the last |
+| `RADIO_TAIL_S` = 10 s | MODEL | order of an LTE RRC inactivity timer as commonly cited; not measured on CIRIS devices |
+
+Not counted, because the model has no such event: bytes (sent, received, forwarded), link
+class, encryption bytes, storage, AS hops and kilometres. No watts.
+
+### 7.2 Globe views (flat buffers, layouts in the doc comments)
+
+* `view_localities(geo) -> Vec<f32>`: `[lat, lon, population_share]` per locality
+  (population-weighted unit-vector centroid of the locality's grid cells).
+* `view_week_intensity(w, p, seed) -> Vec<f32>`: `[hour * L + k]`, 168 UTC hours, acts per
+  person-hour over the mean hourly rate (1.0 = average hour).
+* `view_cross_ties(geo, w, ties, max_pairs) -> Vec<f32>`: `[lat_a, lon_a, lat_b, lon_b, ties]`
+  per crossing locality pair, sorted by ties descending.
+* `flash_scenario(w, lead_s)` + `view_flash(w, p, seed, event, frames, frame_s) -> Vec<f32>`:
+  `[(f * L + k) * 2 + {0: acts signed, 1: copies delivered}]` per frame and locality; the
+  default scenario is a region-wide event (30% join, 3 acts each, 300 s decay, FRONTIER) in the
+  most populous locality's region.
+* `globe_scenario(geo, persons, seed)`: the deterministic world these are drawn from.
+
+All coordinates are grid-cell centroids of the page's population grid; all persons generated.

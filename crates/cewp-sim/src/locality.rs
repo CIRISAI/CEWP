@@ -508,6 +508,7 @@ pub fn report(geo: &Geography, geo_name: &str, o: &ReportOptions) -> String {
         100.0 * (mburst.acts as f64 / mpois.acts.max(1) as f64 - 1.0),
         mflash.acts
     ));
+    out.push_str(&crate::people_hooks::energy_report(&w, o.sweep_days * 86_400.0, o.seed, 1000));
     out
 }
 

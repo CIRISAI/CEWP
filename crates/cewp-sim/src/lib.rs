@@ -59,6 +59,7 @@ pub mod capacity;
 pub mod social;
 pub mod activity;
 pub mod locality;
+pub mod people_hooks;
 
 pub use transport::*;
 pub use alm::*;
