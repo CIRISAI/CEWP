@@ -460,6 +460,16 @@ See `docs/for-developers.md` for the pointer map.
 - [CIRISConformance](https://github.com/CIRISAI/CIRISConformance) — cohabitation + CEG-profile conformance gating
 - [Install / shipping clients](https://ciris.ai/install) — [iOS](https://apps.apple.com/us/app/cirisagent/id6758524415) · [Android](https://play.google.com/store/apps/details?id=ai.ciris.mobile) · pip · Docker
 
+## Data credits
+
+The twin page's map layers use public data at coarse grain only (`FSD/twin/geodata.md`):
+
+- Coastlines, land, lakes, rivers, borders, place names and shaded relief: [Natural Earth](https://www.naturalearthdata.com/) (public domain). Elevation: [NOAA NCEI ETOPO 2022](https://www.ncei.noaa.gov/products/etopo-global-relief-model) (public domain).
+- Population: GHS-POP R2023A, epoch 2020, © European Union 1995-2026, European Commission Joint Research Centre, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Schiavina, M.; Freire, S.; Carioli, A.; MacManus, K. (2023): GHS-POP R2023A - GHS population grid multitemporal (1975-2030). European Commission, JRC. [doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE](https://doi.org/10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE); method: Pesaresi et al. (2024), [doi:10.1080/17538947.2024.2390454](https://doi.org/10.1080/17538947.2024.2390454). Changed here: summed to 1/2°, 1/8° and 1.5° cells.
+- Land cover: Copernicus Global Land Service Land Cover 100 m, collection 3, epoch 2019, V3.0.1, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Buchhorn, M.; Smets, B.; Bertels, L.; De Roo, B.; Lesiv, M.; Tsendbazar, N.-E.; Herold, M.; Fritz, S. (2020), Zenodo, [doi:10.5281/zenodo.3939050](https://doi.org/10.5281/zenodo.3939050). Contains modified Copernicus Service information 2020. Changed here: reduced to the majority land class per 1/2° and 1/8° cell.
+
+Neither the European Union nor the Copernicus programme endorses this twin.
+
 ## License
 
 [AGPL-3.0-or-later](LICENSE) — same as the rest of the CIRIS stack.

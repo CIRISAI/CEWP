@@ -1,0 +1,43 @@
+{
+ "grid": "equal-angle, cell-centred, row 0 at the north; cell (r, c) covers lat 90-(r+1)s..90-r*s, lon -180+c*s..-180+(c+1)*s; level 0 s = 1/2 degree (720 x 360), level 1 s = 1/8 degree (2880 x 1440); row-major, gzip",
+ "population": {
+  "citation": "Schiavina, Marcello; Freire, Sergio; Carioli, Alessandra; MacManus, Kytt (2023): GHS-POP R2023A - GHS population grid multitemporal (1975-2030). European Commission, Joint Research Centre (JRC). doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE",
+  "levels": [
+   {
+    "bytes_gz": 209878,
+    "bytes_raw": 1036800,
+    "encoding": "float32 LE people per cell",
+    "file": "pop0.bin.gz",
+    "nx": 720,
+    "ny": 360,
+    "step_deg": 0.5
+   },
+   {
+    "bytes_gz": 620895,
+    "bytes_raw": 4147200,
+    "encoding": "uint8 code k: 0 = under 0.1 person; k>=1 -> 10^(-1 + (k-0.5)*8/255) people; rescale each 4x4 block to its level-0 value",
+    "file": "pop1.bin.gz",
+    "nx": 2880,
+    "ny": 1440,
+    "step_deg": 0.125
+   }
+  ],
+  "licence": "CC BY 4.0 (c) European Union, 1995-2026",
+  "source": "GHS-POP R2023A epoch 2020, 30 arc-second WGS84 (GHS_POP_E2020_GLOBE_R2023A_4326_30ss_V1_0.tif)",
+  "totals": {
+   "jrc_published_total_2020_1km_mollweide": 7840952947,
+   "level0_people_in_cells_with_all_level1_codes_zero": 43.53126640207533,
+   "level0_total_float32": 7840952952.69633,
+   "level1_reconstructed_total": 7840952952.696328,
+   "level1_rel_error_cells_ge_1000_people": {
+    "max": 0.06839779382527585,
+    "median": 0.015792211949458533,
+    "p99": 0.04623301174392426
+   },
+   "level1_total_exact": 7840952947.013648,
+   "negative_non_nodata_pixels": 0,
+   "nodata_pixels": 0,
+   "source_total_float64": 7840952947.013661
+  }
+ }
+}
