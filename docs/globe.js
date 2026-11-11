@@ -897,6 +897,18 @@ function getSimUtcHours(nowSec){
   if (typeof SIM!=="undefined") return ((SIM.t/3600)%24+24)%24; // the sim's clock (gfx.js): it stops when the sim is paused
   return (8.5 + nowSec * 0.85) % 24.0;
 }
+// The hour the globe is LIT at: it follows the sim's hour but never faster than SUN_SLEW_H_PER_S
+// (the short way round the clock), so a Story act change or leaving the Story moves the terminator
+// over seconds instead of flipping the whole disc from day to night in one frame (WCAG 2.3.1).
+const SUN_SLEW_H_PER_S = 3;
+let drawnHour = null, drawnHourAt = 0;
+function drawnUtcHours(nowSec){
+  const h = getSimUtcHours(nowSec), now = performance.now();
+  if (drawnHour === null || (typeof GFX !== "undefined" && GFX.reduced)){ drawnHour = h; drawnHourAt = now; return h; }
+  const dt = Math.min(0.25, Math.max(0, (now - drawnHourAt) / 1000)); drawnHourAt = now;
+  let d = ((h - drawnHour) % 24 + 36) % 24 - 12, m = SUN_SLEW_H_PER_S * dt;
+  drawnHour = (((drawnHour + Math.max(-m, Math.min(m, d))) % 24) + 24) % 24; return drawnHour;
+}
 function diurnalAtLon(lonDeg, nowSec){
   const localHour = ((getSimUtcHours(nowSec) + lonDeg / 15.0) % 24.0 + 24.0) % 24.0;
   const a1 = (localHour - 15.0) * (Math.PI / 12);
@@ -930,7 +942,7 @@ function draw(){
   if (typeof gfxFrameBegin!=="function" && (cv.width!==w*dpr|0||cv.height!==h*dpr|0)){ cv.width=w*dpr|0; cv.height=h*dpr|0; }
   gl.viewport(0,0,cv.width,cv.height); gl.clearColor(0.043,0.051,0.07,1); gl.disable(gl.DEPTH_TEST); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
   const asp=w>h? [h/w,1]:[1,w/h]; const S=0.86*zoom; const R=rot(); const nowSec=getTime();
-  const simUtc=getSimUtcHours(nowSec);
+  const simUtc=drawnUtcHours(nowSec);
   // the sun is the kernel's (clock_sun on the sim's clock); without gfx.js, the f73b918 sun
   const sunLon=(12.0-simUtc)*15.0*Math.PI/180, sunLat=18.0*Math.PI/180;
   const sunWorld=(typeof gfxSun==="function")?gfxSun(simUtc):[Math.cos(sunLat)*Math.sin(sunLon), Math.sin(sunLat), Math.cos(sunLat)*Math.cos(sunLon)];

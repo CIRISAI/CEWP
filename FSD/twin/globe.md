@@ -69,13 +69,17 @@ carries category.
   At orbit zoom at most `ARC_ADD_ORBIT` = 2 arcs are added a tick (a sample; the arcs card says so),
   each fading in over at least 0.6 s and out over at least 1.4 s; heads are capped and arcs blend
   with ordinary alpha, so crossings never sum to white. Measured headless at first load, 10 s, every
-  animation frame, 160 × 160 over the disc (`flicker.py`; 36-59 fps on the test box, so per frame,
-  not per 1/60 s): globe.html at 1440 × 900, largest frame-to-frame mean-luminance change over the
-  disc 5.23 → 0.54 (of 255), luminance reversals per second in the busiest 10 % of 8 × 8 blocks
-  10.85 → 2.33, largest single-block frame change 76.8 → 11.6; at 390 × 844, 4.08 → 0.50,
-  10.40 → 3.26, 67.1 → 10.8. index.html includes the Story's dive from orbit to a street around
-  6 s, which moves whole blocks by camera motion (79.5 at 390), not by flashing; its reversal rate
-  went 6.35 → 1.96 (390) and 7.43 → 2.95 (1440).
+  animation frame, 160 × 160 over the disc (`flicker.py`; 30-59 fps on the test box, so per frame,
+  not per 1/60 s), before (eefac8c) → after (this change): globe.html at 1440 × 900, largest
+  frame-to-frame mean-luminance change over the disc 5.23 → 0.20 (of 255), luminance reversals per
+  second in the busiest 10 % of 8 × 8 blocks 10.85 → 2.43, largest single-block frame change
+  76.8 → 17.4; at 390 × 844, 4.08 → 0.26, 10.40 → 3.14, 67.1 → 14.2. index.html opens on the
+  Story, which dives from orbit to a street at about 5 s; the dive moves whole blocks by camera
+  motion (the block maximum stays high: 73 at 1440, 134 at 390, measured through the zoom), not
+  by flashing; its mean-luminance step went 7.0 → 2.4 (1440) and 13.6 → 3.2 (390) and its reversal
+  rate 7.43 → 1.09 and 6.35 → 1.81. The lit hour slews at most `SUN_SLEW_H_PER_S` = 3 h a second,
+  so a Story act change (whose scripted hours jump) or leaving the Story moves the terminator over
+  seconds instead of relighting the disc in one frame.
 * **The idle turn:** one turn in six minutes (`ROT_DEG_PER_S` = 1), time-based (the same on a 120 Hz
   screen), after 8 s with no input (`ROT_IDLE_MS`), stopped for the rest of the visit by any pointer,
   wheel, touch or key input, off under reduced motion; the Story's last act keeps its own slow turn
