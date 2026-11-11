@@ -13,8 +13,8 @@ The raw files are never committed.
 | Product | GHS-POP R2023A, epoch 2020, WGS84 30 arc-second | Copernicus Global Land Service Land Cover 100 m (CGLS-LC100), collection 3, epoch 2019, V3.0.1, discrete classification map |
 | Publisher, host | European Commission, Joint Research Centre; `jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/` | Copernicus Global Land Service (producers VITO, IIASA, WUR); Zenodo record 3939050 |
 | File | `GHS_POP_E2020_GLOBE_R2023A_4326_30ss_V1_0.zip` (482,351,880 B), holding `..._V1_0.tif` (382,936,052 B) | `PROBAV_LC100_global_v3.0.1_2019-nrt_Discrete-Classification-map_EPSG-4326.tif` (1,713,345,228 B, md5 as Zenodo lists) |
-| sha256 | zip `8de311f4...89c45`, tif `630f8b25...35e43` (full values in `tools/geodata/geodata_manifest.tsv`) | see `tools/geodata/geodata_manifest.tsv` |
-| Content | people per cell, float64, NoData -200; 43,202 x 21,384 cells of 1/120 degree, origin -180.0079 E, 89.0996 N; tiled 256 x 256, LZW | UN-LCCS class code per cell, uint8 (0 = no input data, 200 = open sea); cells of 1/1008 degree; LZW |
+| sha256 | zip `8de311f4...89c45`, tif `630f8b25...35e43` (full values in `tools/geodata/geodata_manifest.tsv`) | `b2203d6d...3cf53` (full value in the manifest) |
+| Content | people per cell, float64, NoData -200; 43,202 x 21,384 cells of 1/120 degree, origin -180.0079 E, 89.0996 N; tiled 256 x 256, LZW | UN-LCCS class code per cell, uint8 (0 = no input data, 200 = open sea); 362,880 x 141,120 cells of 1/1008 degree from 180 W, 80 N to 60 S; tiled 256 x 256, DEFLATE |
 | Licence as read | `copyright.txt` beside the file: "Any copyright and/or sui generis right on the dataset is licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0) licence [2]. Reuse is allowed provided appropriate credit is given and any changes are indicated." | Zenodo record licence: Creative Commons Attribution 4.0 International. Product User Manual (CGLOPS1_PUM_LC100-V3 I3.4, §4): "Where the user has adapted or modified the products, the statement should be: Contains modified Copernicus Service information [Year]". CLMS data policy: "full, open and free access" |
 | Citation | Schiavina, Marcello; Freire, Sergio; Carioli, Alessandra; MacManus, Kytt (2023): GHS-POP R2023A - GHS population grid multitemporal (1975-2030). European Commission, Joint Research Centre (JRC). doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE. Concept and method: Pesaresi et al. (2024), Int. J. Digital Earth 17(1), doi:10.1080/17538947.2024.2390454 | Buchhorn, M.; Smets, B.; Bertels, L.; De Roo, B.; Lesiv, M.; Tsendbazar, N.-E.; Herold, M.; Fritz, S. (2020). Copernicus Global Land Service: Land Cover 100m: collection 3: epoch 2019: Globe (Version V3.0.1) [Data set]. Zenodo. doi:10.5281/zenodo.3939050 |
 
@@ -30,10 +30,11 @@ download 2.20 GB (cap 3 GB).
 
 ## Processing
 
-Both GeoTIFFs are LZW. tifffile on this box has no LZW codec, so `build_geodata.py` reads the
-tile offsets with tifffile and hands each compressed 256 x 256 tile to Pillow's libtiff decoder,
-wrapped in a one-strip 8-bit TIFF it builds itself (both files use predictor 1, so the decoded
-bytes are the tile's raw samples). Nothing shipped with the data is executed.
+GHS-POP is LZW and tifffile on this box has no LZW codec, so `build_geodata.py` reads the tile
+offsets with tifffile and hands each compressed 256 x 256 tile to Pillow's libtiff decoder, wrapped
+in a one-strip 8-bit TIFF it builds itself (predictor 1, so the decoded bytes are the tile's raw
+samples). LC100 is DEFLATE and is decoded with Python's zlib (four processes, one tile row each).
+Nothing shipped with the data is executed.
 
 Output grid (both): equal-angle, cell-centred, row 0 at the north; cell (r, c) covers latitudes
 90-(r+1)s .. 90-r*s and longitudes -180+c*s .. -180+(c+1)*s. Level 0: s = 1/2 degree (720 x 360);
@@ -55,6 +56,31 @@ decides where land is; this raster only says what the land is.
 Nodata rule. Population: GHS-POP NoData (-200) and any negative value count as 0 people (the 2020
 30 arc-second file has none of either). Land cover: `geoLandcoverAt` returns null for 0 and 255,
 and the page keeps its own ground rule there (Antarctica, and any cell PROBA-V never observed).
+
+### Assets
+
+| file | grid | bytes (gzip) | bytes raw |
+|---|---|---|---|
+| `docs/geo/gd/pop0.bin.gz` | 720 x 360 float32 | 209,878 | 1,036,800 |
+| `docs/geo/gd/pop1.bin.gz` | 2880 x 1440 uint8 | 620,895 | 4,147,200 |
+| `docs/geo/gd/lc0.bin.gz` | 720 x 360 uint8 | 18,245 | 259,200 |
+| `docs/geo/gd/lc1.bin.gz` | 2880 x 1440 uint8 | 199,878 | 4,147,200 |
+| `docs/geo/gd/index.json` | grid, encodings, totals | 3,900 | |
+| `docs/geo/popgrid_ghs.js` | POP_GRID layout, base64 | 49,511 | |
+
+The orbit view needs 228 kB (level 0 of both); level 1 adds 821 kB.
+
+### Land-cover check
+
+All 51,209,625,600 pixels of the 100 m map were read. 13,088 of them (2.6e-7) carry a code that
+is not in the PUM's legend and are counted as no input. Shares of land pixels (codes other than 0
+and 200): herbaceous vegetation 22.6 %, bare / sparse 12.7 %, cropland 10.0 %, closed evergreen
+broadleaf forest 8.0 %, shrubs 7.3 %, open forest unknown 6.6 %, closed evergreen needleleaf
+6.2 %, snow and ice 3.2 %, permanent water 2.9 %, urban 0.80 %. At level 1, 2,209,996 cells are
+sea (no land pixel), 921,600 lie outside the product (north of 80 N, south of 60 S), 7,063 have
+no input; urban is the majority land class of 4,458 cells. Spot checks in
+`tools/geodata/geodata.test.js`: South Pacific 200, central Sahara 60, central Amazon 112 or 116,
+Greenland ice sheet 70, Antarctica null.
 
 ### Totals check (population)
 
@@ -194,3 +220,22 @@ failure line: `"The counts describe the embedded grid (GHS-POP 2020, 1.5-degree 
 20,000 people; pop-grid-source)."`. The other entries that cite `pop-grid-source, FRONTIER`
 (the street patch and the night-lights layer) drop that clause. The page's "2,961 density cells"
 text (globe.js) becomes 4,559.
+
+## Swap note for the globe package
+
+1. Load `geo/popgrid_ghs.js` before `globe.js` in `docs/globe.html` (and `docs/index.html` if it
+   loads globe.js): `<script src="geo/popgrid_ghs.js?v=1"></script>`.
+2. In `docs/globe.js`, replace the literal `const POP_GRID_B64="kQu1...";` with
+   `const POP_GRID_B64 = POP_GRID_GHS_B64;`. `initPopGrid` reads it unchanged.
+3. What changes on the page: nCells 2,961 -> 4,559 (status line, `pop-grid-cells`, the intro's
+   "2,961 density cells"); nLocs stays 181 and every locality keeps its region; cohorts move toward
+   Java, the Nile and Pearl River deltas, the Philippines and Papua New Guinea, and away from
+   North America and Russia & C. Asia (regional shares in the table above); new cells reach
+   54.75 S and 69.75 N. The seeded world (seed 20261105) draws different cohorts, so every
+   seeded figure that depends on where people are moves.
+4. The layers contract text in `docs/layers/layers.js` ("MODEL input, 1.5° cells") becomes
+   "GHS-POP 2020 (MEASURED input), 1.5° cells".
+5. Ground tint: `<script src="geo/geodata.js?v=1"></script>`, call `geoDataBoot(0)` at start and
+   `geoDataBoot(1)` when the view nears region scale; where `geoLandcoverAt(lat, lon)` answers,
+   use its `.ground` RGB; where it answers null (Antarctica, no input), keep the latitude/elevation
+   rule. Show `GEO_ATTRIBUTION` in the "Map data" paragraph.

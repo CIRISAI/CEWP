@@ -9,13 +9,15 @@ committed; read as arrays only, nothing that ships with them is run):
     Schiavina, Freire, Carioli, MacManus (2023), European Commission JRC, doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE.
   - Copernicus Global Land Service Land Cover 100 m, collection 3, epoch 2019, V3.0.1, discrete
     classification map (PROBAV_LC100_global_v3.0.1_2019-nrt_Discrete-Classification-map_EPSG-4326.tif):
-    uint8 class codes (UN LCCS; 0 = no input data, 200 = open sea), cells of 1/1008 degree.
+    uint8 class codes (UN LCCS; 0 = no input data, 200 = open sea), 362880 x 141120 cells of 1/1008
+    degree from 180 W, 80 N to 60 S, tiled 256 x 256, DEFLATE.
     Buchhorn et al. (2020), Zenodo, doi:10.5281/zenodo.3939050.
 
-The GeoTIFFs are LZW-compressed and this box has no LZW codec for tifffile, so each 256 x 256 tile
-is handed to Pillow's libtiff decoder wrapped in a one-strip 8-bit TIFF built here (LZW works on
-bytes, and both files use predictor 1, so the decoded bytes are the tile's raw little-endian
-samples). tifffile only parses the header and the tile offsets.
+GHS-POP is LZW-compressed and this box has no LZW codec for tifffile, so each 256 x 256 tile is
+handed to Pillow's libtiff decoder wrapped in a one-strip 8-bit TIFF built here (LZW works on
+bytes, and the file uses predictor 1, so the decoded bytes are the tile's raw little-endian
+samples). LC100 is DEFLATE (256 x 256 tiles, predictor 1), decoded with Python's zlib. tifffile
+only parses the header and the tile offsets.
 
 Usage:  python3 -E -P tools/geodata/build_geodata.py pop  <ghs_pop.tif> <docs_dir> <globe.js>
         python3 -E -P tools/geodata/build_geodata.py lc   <lc100.tif>   <docs_dir>
@@ -50,7 +52,7 @@ docs/geo/popgrid_ghs.js   POP_GRID_GHS_B64: the same binary layout as globe.js P
     nearest old cell (great-circle), so the 181 localities and 9 regions stay as they were (a
     MODEL partition); only where people are and how many is replaced by GHS-POP.
 """
-import base64, gzip, io, json, math, os, re, struct, sys
+import base64, gzip, io, json, math, multiprocessing, os, re, struct, sys, zlib
 
 import numpy as np
 import tifffile
@@ -64,13 +66,13 @@ POPGRID_MIN = 20000.0              # people; MODEL threshold, see FSD/twin/geoda
 POPGRID_UNIT = 1000.0              # people per weight unit
 
 
-def tile_bytes(raw, nbytes_row, rows):
-    """Decode one LZW segment (predictor 1) to raw bytes via Pillow's libtiff."""
+def tile_bytes(raw, nbytes_row, rows, predictor=1):
+    """Decode one LZW segment to raw bytes via Pillow's libtiff (predictor 2 only for 8-bit samples)."""
     n = 10
     ifd_off = 8
     data_off = ifd_off + 2 + n * 12 + 4
     ent = [(256, 4, nbytes_row), (257, 4, rows), (258, 3, 8), (259, 3, 5), (262, 3, 1),
-           (273, 4, data_off), (277, 3, 1), (278, 4, rows), (279, 4, len(raw)), (317, 3, 1)]
+           (273, 4, data_off), (277, 3, 1), (278, 4, rows), (279, 4, len(raw)), (317, 3, predictor)]
     b = bytearray(b"II*\x00" + struct.pack("<I", ifd_off) + struct.pack("<H", n))
     for tag, typ, val in ent:
         b += struct.pack("<HHI", tag, typ, 1) + (struct.pack("<HH", val, 0) if typ == 3 else struct.pack("<I", val))
@@ -83,13 +85,16 @@ def tile_bytes(raw, nbytes_row, rows):
 
 
 class Tiled:
-    """Header and tile offsets of a tiled, LZW, predictor-1, single-band GeoTIFF."""
+    """Header and tile offsets of a tiled single-band GeoTIFF, LZW or DEFLATE."""
 
     def __init__(self, path):
         self.f = open(path, "rb")
         t = tifffile.TiffFile(self.f)
         p = t.pages[0]
-        assert p.is_tiled and p.compression == 5 and p.predictor == 1 and p.samplesperpixel == 1, (p.compression, p.predictor)
+        self.compression = int(p.compression)
+        assert p.is_tiled and self.compression in (5, 8) and p.samplesperpixel == 1, (p.compression, p.is_tiled)
+        self.predictor = int(p.predictor)
+        assert self.predictor == 1 or (self.predictor == 2 and np.dtype(p.dtype).itemsize == 1), self.predictor
         self.h, self.w = p.shape
         self.dtype = np.dtype(p.dtype).newbyteorder("<")
         self.tw, self.th = p.tilewidth, p.tilelength
@@ -107,7 +112,13 @@ class Tiled:
             return None
         self.f.seek(self.off[i])
         raw = self.f.read(self.cnt[i])
-        b = tile_bytes(raw, self.tw * self.dtype.itemsize, self.th)
+        if self.compression == 8:   # DEFLATE: Python's own zlib
+            b = zlib.decompress(raw)
+            assert len(b) == self.tw * self.th * self.dtype.itemsize
+            if self.predictor == 2:
+                b = np.cumsum(np.frombuffer(b, np.uint8).reshape(self.th, self.tw), axis=1, dtype=np.uint8).tobytes()
+        else:
+            b = tile_bytes(raw, self.tw * self.dtype.itemsize, self.th, self.predictor)
         return np.frombuffer(b, dtype=self.dtype).reshape(self.th, self.tw)
 
     def cells(self, ty, tx, per_deg):
@@ -327,6 +338,45 @@ def compare(old, cells, gg, total, kept, nL):
 LC_CODES = [0, 20, 30, 40, 50, 60, 70, 80, 90, 100, 111, 112, 113, 114, 115, 116, 121, 122, 123, 124, 125, 126, 200]
 
 
+LC_WORKERS = 4                     # processes; the box runs other builds
+_LC_T = {}
+
+
+def lc_tile_row(job):
+    """Class counts of one row of tiles: (first level-1 row offset, uint32 [rows, NX1, K], unknown codes)."""
+    src, ty, r_top = job
+    T = _LC_T.get(src) or _LC_T.setdefault(src, Tiled(src))
+    K = len(LC_CODES)
+    lut = np.full(256, 255, dtype=np.uint8)
+    for i, c in enumerate(LC_CODES):
+        lut[c] = i
+    row, _, vi, _ = T.cells(ty, 0, S1)
+    rr = row[vi] - r_top
+    r0, nrl = int(rr.min()), int(rr.max()) - int(rr.min()) + 1
+    slab = np.zeros((nrl, NX1, K), dtype=np.uint32)
+    unknown = 0
+    any_tile = False
+    for tx in range(T.ntx):
+        a = T.tile(ty, tx)
+        if a is None:
+            continue
+        any_tile = True
+        _, col, vi, vj = T.cells(ty, tx, S1)
+        a = a[vi][:, vj]
+        ki = lut[a]
+        unknown += int(np.count_nonzero(ki == 255))
+        ki = np.where(ki == 255, 0, ki)
+        cc = col[vj]
+        east = cc >= NX1 // 2
+        parts = [east, ~east] if (east.any() and (~east).any() and cc.max() - cc.min() > NX1 // 2) else [np.ones_like(east)]
+        for m in parts:   # a tile across the antimeridian is counted side by side
+            cm, km = cc[m], ki[:, m]
+            c0, ncl = int(cm.min()), int(cm.max()) - int(cm.min()) + 1
+            loc = (((rr - r0)[:, None] * ncl + (cm - c0)[None, :]).ravel() * K + km.ravel())
+            slab[:, c0:c0 + ncl] += np.bincount(loc, minlength=nrl * ncl * K).reshape(nrl, ncl, K).astype(np.uint32)
+    return r0, (slab if any_tile else None), unknown
+
+
 def build_lc(src, docs):
     T = Tiled(src)
     assert T.dtype == np.dtype("u1"), T.dtype
@@ -340,30 +390,17 @@ def build_lc(src, docs):
     r_top = int(math.floor((90 - lat_top) * S1 + 1e-9))
     r_bot = int(math.ceil((90 - lat_bot) * S1 - 1e-9))
     nr = r_bot - r_top
-    cnt = np.zeros((nr * NX1, K), dtype=np.uint32)
+    cnt = np.zeros((nr, NX1, K), dtype=np.uint32)
     unknown = 0
-    for ty in range(T.nty):
-        for tx in range(T.ntx):
-            a = T.tile(ty, tx)
-            if a is None:
-                continue
-            row, col, vi, vj = T.cells(ty, tx, S1)
-            a = a[vi][:, vj]
-            ki = lut[a]
-            unknown += int(np.count_nonzero(ki == 255))
-            ki = np.where(ki == 255, 0, ki)
-            rr = row[vi] - r_top
-            cc = col[vj]
-            r0, c0 = int(rr.min()), int(cc.min())
-            nrl, ncl = int(rr.max()) - r0 + 1, int(cc.max()) - c0 + 1
-            if ncl > NX1 // 2:   # a tile across the antimeridian: never for this product's tiles
-                raise SystemExit("tile wraps the antimeridian")
-            loc = ((rr - r0)[:, None] * ncl + (cc - c0)[None, :]).ravel() * K + ki.ravel()
-            bc = np.bincount(loc, minlength=nrl * ncl * K).reshape(nrl, ncl, K)
-            view = cnt.reshape(nr, NX1, K)
-            view[r0:r0 + nrl, c0:c0 + ncl] += bc.astype(np.uint32)
-        print(f"lc row {ty + 1}/{T.nty}", file=sys.stderr, flush=True)
-    view = cnt.reshape(nr, NX1, K)
+    jobs = [(src, ty, r_top) for ty in range(T.nty)]
+    with multiprocessing.get_context("fork").Pool(LC_WORKERS) as pool:
+        for n, (r0, slab, unk) in enumerate(pool.imap(lc_tile_row, jobs, chunksize=4)):
+            unknown += unk
+            if slab is not None:
+                cnt[r0:r0 + slab.shape[0]] += slab
+            if n % 20 == 0:
+                print(f"lc row {n + 1}/{T.nty}", file=sys.stderr, flush=True)
+    view = cnt
     gd = os.path.join(docs, "geo", "gd")
     os.makedirs(gd, exist_ok=True)
     codes = np.array(LC_CODES, dtype=np.uint8)
