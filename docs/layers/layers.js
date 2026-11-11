@@ -194,20 +194,182 @@ window.CEWP_LAYERS["seat"] = layer({ id: "seat", title: "Serve-seat load across 
   },
   status(){ const h = this.last; return "solid ρ CPU · dashed ρ permits" + (h.street_devices ? ` · this street's seat: ${h.street_devices} devices round with it, ρ ${h.street_rho_cpu.toFixed(3)}` : "") + " · no knee is marked: the seat model is being recalibrated"; } });
 
+// ------------------------------------------------------------------ package views (kernel-wasm views.rs): each runs once per page
+const VW = (slot) => { const p = wasm.view_ptr(slot) >>> 0, n = wasm.view_len(slot) >>> 0; return (wasm.view_is_u32(slot) ? new Uint32Array(mem.buffer, p, n) : new Float32Array(mem.buffer, p, n)).slice(); };
+const DEG = Math.PI / 180;
+// a view that takes a second or more runs after the dock has said so, not inside the click
+function later(d){ if (d.ran) return; d.ran = true; d.busy = true; setTimeout(() => { try { d.compute(); } catch (e) { console.warn("layer " + d.id, e); } d.busy = false; render(); gfxDirty(800); }, 40); }
+// a great circle as lat/lon points, one per ~3° (for drawing on the 2D overlay)
+function gcLL(la1, lo1, la2, lo2){
+  const a = xyz(la1, lo1), b = xyz(la2, lo2); const th = Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
+  const n = Math.max(1, Math.ceil(th / (3 * DEG))); const out = [];
+  for (let i = 0; i <= n; i++){ const t = i / n; let x, y, z;
+    if (th < 1e-6){ x = a[0]; y = a[1]; z = a[2]; } else { const s = Math.sin(th), p = Math.sin((1 - t) * th) / s, q = Math.sin(t * th) / s; x = p * a[0] + q * b[0]; y = p * a[1] + q * b[1]; z = p * a[2] + q * b[2]; }
+    out.push(Math.asin(Math.max(-1, Math.min(1, y))) / DEG, Math.atan2(x, z) / DEG); }
+  return out;
+}
+function strokeLL(g, F, ll){ let pen = false; for (let i = 0; i < ll.length; i += 2){ const p = proj(F, ll[i], ll[i + 1]); if (p[2] < 0.02){ pen = false; continue; } if (pen) g.lineTo(p[0], p[1]); else { g.moveTo(p[0], p[1]); pen = true; } } }
+
+// ------------------------------------------------------------------ topology (twin-topology: netgraph/view.rs)
+const TOPO = { seed: 7, pts: null, links: null, segs: null, path: null, pick: 0, peering: false, fixed: [] };
+const TOPO_ROLES = ["fixed access AS", "IXP", "regional transit AS", "content / data-centre AS", "metro", "mobile access AS", "tier-1 AS"];
+const TOPO_KINDS = ["provider to customer", "peering", "IXP membership", "terrestrial long-haul", "submarine long-haul"];
+window.CEWP_LAYERS["topology"] = layer({ id: "topology", title: "Networks, exchanges and cables (generated)", cls: "MODEL",
+  source: "view_topology(7) → view slots 0 points, 1 links, 15 field classes · view_topology_path → slot 2 (cewp_sim::netgraph::view::TopologyView)",
+  contract: "The network graph the twin routes over, as twin-topology's TopologyView builds it once per page. Points f32 × 5 (lat, lon, role 0 fixed access AS, 1 IXP, 2 regional transit, 3 content / data centre, 4 metro, 5 mobile access, 6 tier-1, log10 size, region): metros are the page's 181 localities (real places at city grain); every AS, IXP, relationship and cable is invented. AS and IXP positions are a display spiral around their home metro, not locations. Links u32 × 3 (a, b, kind 0 provider-customer, 1 peering, 2 IXP membership, 3 terrestrial, 4 submarine). Drawn by default: kinds 0, 3, 4; peering and IXP membership behind the toggle. The route: TopologyView::path between two fixed access ASes, header [AS hops, long-haul km]. All MODEL (view_classes). No AS, IXP or cable dataset is approved; a real one drops in behind NetGraph.",
+  available: has("view_topology", "view_ptr"),
+  compute(){
+    if (TOPO.pts) return;
+    wasm.view_topology(TOPO.seed); TOPO.pts = VW(0); TOPO.links = VW(1); TOPO.classes = VW(15);
+    const P = TOPO.pts, L = TOPO.links; TOPO.segs = [];
+    for (let i = 0; i < L.length; i += 3){ const a = L[i], b = L[i + 1], k = L[i + 2]; TOPO.segs.push({ k, ll: gcLL(P[a * 5], P[a * 5 + 1], P[b * 5], P[b * 5 + 1]) }); }
+    TOPO.fixed = []; TOPO.metros = 0; for (let p = 0; p < P.length / 5; p++){ if (P[p * 5 + 2] === 0) TOPO.fixed.push(p); if (P[p * 5 + 2] === 4) TOPO.metros++; }
+    this.route();
+  },
+  route(){ // a deterministic walk over pairs of fixed access ASes on different continents' halves of the list
+    const f = TOPO.fixed; if (f.length < 2) return; const k = TOPO.pick;
+    const a = f[(k * 37) % f.length], b = f[f.length - 1 - ((k * 53) % f.length)];
+    const n = wasm.view_topology_path(a, b); TOPO.path = n >= 2 ? VW(2) : null; TOPO.pathAB = [a, b];
+    if (TOPO.path){ const w = TOPO.path; TOPO.pathLL = []; for (let i = 2; i + 3 < w.length; i += 2) TOPO.pathLL.push(...gcLL(w[i], w[i + 1], w[i + 2], w[i + 3])); }
+  },
+  onShow(){ this.compute(); },
+  draw2D(g, F){
+    if (!TOPO.pts) return; const P = TOPO.pts;
+    const style = [[ "rgba(150,190,230,0.16)", 0.6, [] ], [ "rgba(200,180,255,0.35)", 0.8, [1, 3] ], [ "rgba(255,210,140,0.30)", 0.7, [1, 2] ], [ "rgba(160,230,200,0.55)", 1.3, [] ], [ "rgba(120,200,255,0.60)", 1.3, [6, 4] ]];
+    for (let k = 0; k < 5; k++){ if ((k === 1 || k === 2) && !TOPO.peering) continue; const [c, w, d] = style[k];
+      g.strokeStyle = c; g.lineWidth = w; g.setLineDash(d); g.beginPath(); for (const s of TOPO.segs) if (s.k === k) strokeLL(g, F, s.ll); g.stroke(); }
+    g.setLineDash([]);
+    const counts = [0, 0, 0, 0, 0, 0, 0];
+    for (let i = 0; i < P.length; i += 5){ const role = P[i + 2]; const p = proj(F, P[i], P[i + 1]); if (p[2] < 0.03) continue; counts[role]++;
+      const r = 1.6 + 0.9 * Math.min(4, P[i + 3]); const x = p[0], y = p[1]; g.lineWidth = 1; g.strokeStyle = "rgba(6,9,14,0.85)";
+      if (role === 4){ g.strokeStyle = "rgba(220,230,240,0.75)"; g.beginPath(); g.arc(x, y, 2.5, 0, 6.2832); g.stroke(); } // metro: ring
+      else if (role === 1){ g.strokeStyle = "#ffd27a"; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x - 3, y); g.lineTo(x + 3, y); g.moveTo(x, y - 3); g.lineTo(x, y + 3); g.stroke(); } // IXP: plus
+      else if (role === 6){ g.fillStyle = "#ff9fd0"; g.beginPath(); g.moveTo(x, y - r - 2); g.lineTo(x + r + 2, y); g.lineTo(x, y + r + 2); g.lineTo(x - r - 2, y); g.closePath(); g.fill(); g.stroke(); } // tier-1: diamond
+      else if (role === 2){ g.fillStyle = "#c9b8ff"; g.fillRect(x - r * 0.8, y - r * 0.8, r * 1.6, r * 1.6); g.strokeRect(x - r * 0.8, y - r * 0.8, r * 1.6, r * 1.6); } // transit: square
+      else if (role === 3){ g.fillStyle = "#7cf0b0"; g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r, y); g.lineTo(x, y + r); g.lineTo(x - r, y); g.closePath(); g.fill(); } // content / DC: small diamond
+      else if (role === 5){ g.fillStyle = "#8ee6ff"; g.beginPath(); g.moveTo(x, y - 2.6); g.lineTo(x + 2.4, y + 1.8); g.lineTo(x - 2.4, y + 1.8); g.closePath(); g.fill(); } // mobile access: triangle
+      else { g.fillStyle = "#d8dee6"; g.beginPath(); g.arc(x, y, 1.4, 0, 6.2832); g.fill(); } } // fixed access: dot
+    if (TOPO.pathLL){ g.strokeStyle = "rgba(6,9,14,0.9)"; g.lineWidth = 4.5; g.beginPath(); strokeLL(g, F, TOPO.pathLL); g.stroke(); g.strokeStyle = "#fff2c4"; g.lineWidth = 2.2; g.beginPath(); strokeLL(g, F, TOPO.pathLL); g.stroke(); }
+    const lk = [0, 0, 0, 0, 0]; for (let i = 2; i < TOPO.links.length; i += 3) lk[TOPO.links[i]]++;
+    this.last = { points: P.length / 5, metros: TOPO.metros, links: TOPO.links.length / 3, provider_customer: lk[0], peering: lk[1], ixp_membership: lk[2], terrestrial: lk[3], submarine: lk[4], points_in_view: counts.reduce((a, b) => a + b, 0) };
+    if (TOPO.path){ this.last.route_as_hops = TOPO.path[0]; this.last.route_long_haul_km = Math.round(TOPO.path[1]); this.last.route_from = TOPO.pathAB[0]; this.last.route_to = TOPO.pathAB[1]; }
+    this.info = { roles: TOPO_ROLES.map((r, i) => i + " " + r).join(", "), kinds: TOPO_KINDS.map((r, i) => i + " " + r).join(", "), all_fields: "MODEL" };
+  },
+  status(){ const l = this.last; return l.points ? `${fmt(l.points)} points · ${fmt(l.links)} links · route: ${l.route_as_hops !== undefined ? l.route_as_hops + " AS hops, " + fmt(l.route_long_haul_km) + " km long-haul" : "none"} · invented graph, real cities` : "–"; },
+  controls: [{ label: "Another route", act(){ TOPO.pick++; this.route(); gfxDirty(600); } }, { label: "Peering and IXP links", act(){ TOPO.peering = !TOPO.peering; gfxDirty(600); } }] });
+
+// ------------------------------------------------------------------ NAT reachability (twin-nat: reach/hooks.rs), drawn in the dock: a generated street, no place
+const NAT = { seed: 1, nodes: null, pos: null, pairs: null, joint: null, key: "" };
+const NAT_OUT = ["direct IPv6", "direct listener", "hole-punched", "relayed, no attempt", "punch failed, relayed", "same LAN"];
+window.CEWP_LAYERS["nat"] = layer({ id: "nat", title: "How each pair of devices connects (a generated street)", cls: "MODEL",
+  source: "view_nat(1) → view slots 3 nodes, 4 positions, 5 pairs, 6 joint (cewp_sim::reach::hooks nat_view_*)",
+  contract: "twin-nat's view scenario, run once: nodes u32 × 4 (access 0 fixed, 1 phone on home Wi-Fi, 2 phone on a carrier; NAT behaviour 0 public, 1 EIM, 2 address-dependent, 3 symmetric, 4-6 the same behind CGN; IPv6 0-3; household); positions f32 × 2 in metres in a GENERATED street frame (no real place, so it is drawn here, not on the globe); pairs u32 × 3 (a, b, outcome 0 direct IPv6, 1 direct listener, 2 hole-punched, 3 relayed with no attempt, 4 punch failed then relayed, 5 same LAN), one seeded draw per pair of direct_path's probability; joint f32 [3, 7, then 21 shares of devices], access by behaviour over 16 correlated metros. All MODEL: shares calibrated to micro's router marginals, no NAT survey.",
+  available: has("view_nat", "view_ptr"),
+  compute(){ if (NAT.nodes) return; wasm.view_nat(NAT.seed); NAT.nodes = VW(3); NAT.pos = VW(4); NAT.pairs = VW(5); NAT.joint = VW(6);
+    const oc = [0, 0, 0, 0, 0, 0]; for (let i = 2; i < NAT.pairs.length; i += 3) oc[NAT.pairs[i]]++;
+    const ac = [0, 0, 0]; for (let i = 0; i < NAT.nodes.length; i += 4) ac[NAT.nodes[i]]++;
+    const J = NAT.joint, cgn = J.length >= 23 ? [0, 1, 2].reduce((s, r) => s + J[2 + r * 7 + 4] + J[2 + r * 7 + 5] + J[2 + r * 7 + 6], 0) : NaN;
+    this.last = { devices: NAT.nodes.length / 4, pairs: NAT.pairs.length / 3, fixed: ac[0], phone_wifi: ac[1], phone_carrier: ac[2], direct_ipv6: oc[0], direct_listener: oc[1], hole_punched: oc[2], relayed_no_attempt: oc[3], punch_failed_relayed: oc[4], same_lan: oc[5], joint_share_behind_cgn: +cgn.toFixed(4) };
+    this.info = { outcomes: NAT_OUT.map((s, i) => i + " " + s).join(", ") }; },
+  onShow(){ this.compute(); },
+  panel(c){
+    this.compute(); const N = NAT.nodes, X = NAT.pos, Pp = NAT.pairs; if (!N) return;
+    const dpr = window.devicePixelRatio || 1, W2 = c.clientWidth || 260, H2 = 200; if (c.width !== Math.round(W2 * dpr)){ c.width = Math.round(W2 * dpr); c.height = H2 * dpr; NAT.key = ""; }
+    if (NAT.key === "drawn") return; NAT.key = "drawn";
+    const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W2, H2);
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (let i = 0; i < X.length; i += 2){ x0 = Math.min(x0, X[i]); x1 = Math.max(x1, X[i]); y0 = Math.min(y0, X[i + 1]); y1 = Math.max(y1, X[i + 1]); }
+    const pad = 10, H3 = H2 - 44, s = Math.min((W2 - 2 * pad) / Math.max(1, x1 - x0), (H3 - 2 * pad) / Math.max(1, y1 - y0));
+    const at = (i) => [pad + (X[i * 2] - x0) * s, pad + (X[i * 2 + 1] - y0) * s];
+    const ps = [["#8ee6ff", []], ["#8ee6ff", []], ["#c9b8ff", [1, 2]], ["rgba(170,180,190,0.5)", [4, 3]], ["#ff9d7a", [1, 2, 5, 2]], ["rgba(255,255,255,0.25)", []]];
+    for (let o = 0; o < 6; o++){ const [col, dash] = ps[o]; g.strokeStyle = col; g.setLineDash(dash); g.lineWidth = o === 4 ? 1.1 : 0.7; g.globalAlpha = o === 3 ? 0.5 : 0.8; g.beginPath();
+      for (let i = 0; i < Pp.length; i += 3){ if (Pp[i + 2] !== o) continue; const a = at(Pp[i]), b = at(Pp[i + 1]); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); } g.stroke(); }
+    g.setLineDash([]); g.globalAlpha = 1;
+    for (let i = 0; i < N.length / 4; i++){ const [x, y] = at(i), ac = N[i * 4], bh = N[i * 4 + 1]; g.fillStyle = bh === 0 ? "#8ee6ff" : bh >= 4 ? "#ff9d7a" : "#c9b8ff"; g.strokeStyle = "rgba(6,9,14,0.9)"; g.lineWidth = 1;
+      if (ac === 0){ g.fillRect(x - 2.5, y - 2.5, 5, 5); g.strokeRect(x - 2.5, y - 2.5, 5, 5); } else if (ac === 1){ g.beginPath(); g.arc(x, y, 2.4, 0, 6.2832); g.fill(); g.stroke(); } else { g.beginPath(); g.moveTo(x, y - 3); g.lineTo(x + 3, y + 2.2); g.lineTo(x - 3, y + 2.2); g.closePath(); g.fill(); g.stroke(); }
+      if (bh === 0){ g.fillStyle = "#fff"; g.fillRect(x - 0.8, y - 0.8, 1.6, 1.6); } else if (bh >= 4){ g.strokeStyle = "#ff9d7a"; g.beginPath(); g.arc(x, y, 4.6, 0, 6.2832); g.stroke(); } } // behaviour by mark, not colour alone: white centre public, outer ring behind CGN
+    g.font = "10px " + MFONT; g.fillStyle = "#aab4c2";
+    g.fillText("■ fixed  ● Wi-Fi phone  ▲ carrier phone", 4, H2 - 30);
+    g.fillText("white centre: public · outer ring: behind CGN", 4, H2 - 18);
+    g.fillText("— direct  ┄ punched  - - relayed  -·- failed punch", 4, H2 - 6);
+  },
+  status(){ const l = this.last; return l.pairs ? `${l.devices} devices, ${fmt(l.pairs)} pairs: ${l.direct_ipv6 + l.direct_listener} direct, ${l.hole_punched} punched, ${l.relayed_no_attempt + l.punch_failed_relayed} relayed (${l.punch_failed_relayed} after a failed punch), ${l.same_lan} same LAN · generated street, no real place` : "–"; } });
+
+// ------------------------------------------------------------------ people (twin-people: people_hooks.rs): the week's rhythm, ties, synchronized events
+const PPL = { seed: 1, loc: null, week: null, ties: null, flash: null, tiesLL: [] };
+const PPL_TIES = 40;
+const DOY_WEEKDAY_OFFSET_H = 24; // sim day 314 of 2026 is a Tuesday; the hook's hour 0 is Monday 00:00 UTC
+window.CEWP_LAYERS["people"] = layer({ id: "people", title: "The week's rhythm, ties and a flash crowd", cls: "MODEL", inputs: "FRONTIER (event inputs)",
+  source: "view_people(population grid, 1) → view slots 7 localities, 8 week, 9 ties, 10 events (cewp_sim::people_hooks people_view_*)",
+  contract: "twin-people's one-week bursty run of 6,000 generated persons placed on the page's population grid (the grid's bytes are handed to the kernel). Localities f32 × 3 (lat, lon, population weight; DERIVED from the grid): the ring is the weight, the inner disc the week-intensity multiplier at the sim's hour of week (week f32 [k × 168 + h], 1.0 = an average hour; MODEL). Ties u32 × 3 (a, b, count of person-to-person ties; MODEL): the strongest 40 drawn. Events f32 × 6 (lat, lon or NaN for world-wide, start, peak, end hour of week, peak multiplier; DERIVED from FRONTIER event inputs): the staged Wednesday 20:30 UTC flash crowd first, then region and world events; one shows as a ring while the sim's hour of week is inside it. Hour of week = sim hours since 00:00 UTC of day 314 + 24 (day 314 of 2026 is a Tuesday). \"Jump to the flash crowd\" moves the sim clock to just after its onset. Small localities are noisy.",
+  available: has("view_people", "view_ptr", "alloc"),
+  compute(){
+    if (PPL.loc) return; const bin = atob(POP_GRID_B64); const n = bin.length; const p = wasm.alloc(n) >>> 0; const u8 = new Uint8Array(mem.buffer, p, n); for (let i = 0; i < n; i++) u8[i] = bin.charCodeAt(i);
+    const k = wasm.view_people(p, n, PPL.seed); if (!k){ PPL.loc = new Float32Array(0); return; }
+    PPL.loc = VW(7); PPL.week = VW(8); PPL.ties = VW(9); PPL.flash = VW(10);
+    const L = PPL.loc; PPL.tiesLL = []; for (let i = 0; i < Math.min(PPL_TIES, PPL.ties.length / 3); i++){ const a = PPL.ties[i * 3], b = PPL.ties[i * 3 + 1]; PPL.tiesLL.push({ n: PPL.ties[i * 3 + 2], ll: gcLL(L[a * 3], L[a * 3 + 1], L[b * 3], L[b * 3 + 1]) }); }
+  },
+  onShow(){ later(this); },
+  how(){ const t = (typeof SIM !== "undefined") ? SIM.t / 3600 : (GFX.simH || 0); return (((t + DOY_WEEKDAY_OFFSET_H) % 168) + 168) % 168; }, // SIM.t keeps the day; the sun's clock is mod 24
+  draw2D(g, F){
+    const L = PPL.loc; if (!L || !L.length) return; const K = L.length / 3, h = Math.floor(this.how()), Wk = PPL.week;
+    const mx = PPL.tiesLL.length ? PPL.tiesLL[0].n : 1;
+    g.setLineDash([2, 3]); for (const t of PPL.tiesLL){ g.strokeStyle = "rgba(255,200,230,0.55)"; g.lineWidth = 0.6 + 2 * t.n / mx; g.beginPath(); strokeLL(g, F, t.ll); g.stroke(); } g.setLineDash([]);
+    let hi = 0, hiK = -1, msum = 0, wsum = 0;
+    for (let k = 0; k < K; k++){ const p = proj(F, L[k * 3], L[k * 3 + 1]); const w = L[k * 3 + 2], m = Wk[k * 168 + h]; msum += m * w; wsum += w; if (m > hi && w > 0.002){ hi = m; hiK = k; } if (p[2] < 0.03) continue;
+      const R = 2 + 40 * Math.sqrt(w); g.lineWidth = 1; g.strokeStyle = "rgba(255,220,180,0.55)"; g.beginPath(); g.arc(p[0], p[1], R, 0, 6.2832); g.stroke();
+      g.fillStyle = "rgba(255,190,120,0.55)"; g.beginPath(); g.arc(p[0], p[1], Math.max(0.8, R * Math.min(1.6, Math.sqrt(Math.max(0, m)) / 1.6)), 0, 6.2832); g.fill(); }
+    const Fl = PPL.flash, how = this.how(); const live = [];
+    for (let i = 0; i < Fl.length; i += 6){ if (how < Fl[i + 2] || how > Fl[i + 4]) continue; live.push(i / 6); if (!isFinite(Fl[i])) continue; const p = proj(F, Fl[i], Fl[i + 1]); if (p[2] < 0.03) continue;
+      const age = (how - Fl[i + 2]) / Math.max(1e-3, Fl[i + 4] - Fl[i + 2]); const R = 10 + 36 * age; g.strokeStyle = "#ffffff"; g.globalAlpha = 1 - 0.8 * age; g.lineWidth = 2; g.beginPath(); g.arc(p[0], p[1], R, 0, 6.2832); g.stroke(); g.globalAlpha = 1;
+      g.font = "600 11px " + MFONT; g.fillStyle = "#fff6d8"; g.fillText("×" + Fl[i + 5].toFixed(1) + " at onset", p[0] + R + 4, p[1]); }
+    this.last = { localities: K, persons: 6000, hour_of_week: +how.toFixed(2), weighted_mean_multiplier: +(msum / Math.max(1e-9, wsum)).toFixed(3), busiest_locality: hiK, busiest_multiplier: +hi.toFixed(3), ties_pairs: PPL.ties.length / 3, ties_drawn: PPL.tiesLL.length, strongest_tie: mx, events: Fl.length / 6, events_live: live.length, flash_peak_multiplier: Fl.length ? +Fl[5].toFixed(2) : -1, flash_start_hour: Fl.length ? +Fl[2].toFixed(2) : -1 };
+    this.info = { live_events: live.slice(0, 5) };
+  },
+  status(){ const l = this.last; if (this.busy) return "running the generated week once…"; if (!l.localities) return "–"; const d = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][Math.floor(l.hour_of_week / 24) % 7], hh = Math.floor(l.hour_of_week % 24);
+    return `${d} ${String(hh).padStart(2, "0")}:00 UTC · activity ×${l.weighted_mean_multiplier} of an average hour · ${l.events_live ? l.events_live + " event(s) under way" : "no event under way"} · flash crowd Wed 20:30 UTC peaks ×${l.flash_peak_multiplier}`; },
+  controls: [{ label: "Jump to the flash crowd", act(){ if (typeof SIM !== "undefined" && PPL.flash && PPL.flash.length){ SIM.t = (PPL.flash[2] - DOY_WEEKDAY_OFFSET_H + 0.05) * 3600; SIM.tTick = SIM.t; } gfxDirty(800); } }] });
+
+// ------------------------------------------------------------------ holon certificates (twin-holon: holon_view.rs)
+const HOL = { seed: 43, cells: null, names: null, cu: null, cf: null };
+const HOL_STATE = ["certified", "refused", "not evaluated"];
+window.CEWP_LAYERS["holon"] = layer({ id: "holon", title: "Where a coarse tier is trusted (certificates)", cls: "DERIVED", inputs: "MODEL",
+  source: "view_holon(43) → view slots 11 cells, 12 bound index, 16 bound names, 13/14 certificate table (cewp_sim::holon_view cells_of, certificates_of over holon_demo::demonstration_seeded)",
+  contract: "twin-holon's R5 demonstration, run once per page (two 2-day runs, normal and outage): cells f32 × 8 (lat, lon, half-size°, level 0 the tier / 1 a cell, state 0 certified 1 refused 2 not evaluated, bound index, signed margin in online share, worst normalised defect on record 0). The cells are cells of a tier (host kind × access network), laid out as a patch centred 47.3769, 8.5417; the position is layout only, not a place. Glyph by state: certified solid square, refused crossed square, not evaluated dashed outline. Bound names come from the kernel (BOUND_NAMES). Certificate table: u32 × 9 and f32 × 20 per (tier, observable). DERIVED; the micro world under it is MODEL. A refusal is shown as a refusal: that cell goes back to the finer tier.",
+  available: has("view_holon", "view_ptr"),
+  compute(){
+    if (HOL.cells) return; wasm.view_holon(HOL.seed); HOL.cells = VW(11); const B = VW(12), bytes = VW(16); const s = String.fromCharCode(...bytes);
+    HOL.names = []; for (let i = 0; i < B.length; i += 3) HOL.names[B[i]] = s.substr(B[i + 1], B[i + 2]); HOL.cu = VW(13); HOL.cf = VW(14);
+    const C = HOL.cells, st = [0, 0, 0], binds = {}; for (let i = 8; i < C.length; i += 8){ st[C[i + 4]]++; const b = C[i + 5]; if (b >= 0){ const n = HOL.names[b] || String(b); binds[n] = (binds[n] || 0) + 1; } }
+    let dist = 0; for (let r = 0; r < HOL.cu.length / 9; r++) dist += HOL.cu[r * 9 + 2];
+    this.last = { cells: C.length / 8 - 1, certified: st[0], refused: st[1], not_evaluated: st[2], tier_state: C[4], tier_worst_defect: +C[7].toFixed(3), certificate_rows: HOL.cu.length / 9, distributional_certified_rows: dist };
+    if (isFinite(C[6])) this.last.tier_min_margin = +C[6].toFixed(4); // NaN: a whole-tier bound has no distance
+    this.info = { tier_state: HOL_STATE[C[4]], tier_bound: C[5] >= 0 ? HOL.names[C[5]] : "none", binding_bounds: Object.entries(binds).map(([k, v]) => k + " " + v).join(", "), states: "0 certified, 1 refused, 2 not evaluated", label: "cells of a tier, not places" };
+  },
+  onShow(){ later(this); },
+  draw2D(g, F){
+    const C = HOL.cells; if (!C) return;
+    const c0 = proj(F, C[0], C[1]), c1 = proj(F, C[0] + C[2], C[1]); if (c0[2] < 0.03) return;
+    if (Math.hypot(c1[0] - c0[0], c1[1] - c0[1]) < 5){ // the patch is a street block: mark it until it is big enough to draw
+      const l = this.last; g.lineWidth = 1.5; g.strokeStyle = "#fff"; g.setLineDash([3, 2]); g.strokeRect(c0[0] - 6, c0[1] - 6, 12, 12); g.setLineDash([]);
+      g.font = "600 11px " + MFONT; g.lineWidth = 3; g.strokeStyle = "rgba(6,9,14,0.9)"; const t = `tier certificate: ${l.certified} cells certified, ${l.refused} refused (zoom in)`;
+      g.strokeText(t, c0[0] + 10, c0[1] - 10); g.fillStyle = "#e8eef6"; g.fillText(t, c0[0] + 10, c0[1] - 10); return; }
+    for (let i = 0; i < C.length; i += 8){ const la = C[i], lo = C[i + 1], h = C[i + 2], lv = C[i + 3], s = C[i + 4]; const hl = h / Math.max(0.2, Math.cos(la * DEG));
+      const q = [[la - h, lo - hl], [la - h, lo + hl], [la + h, lo + hl], [la + h, lo - hl]].map(([a, b]) => proj(F, a, b)); if (q.some((p) => p[2] < 0.03)) continue;
+      g.beginPath(); g.moveTo(q[0][0], q[0][1]); for (let k = 1; k < 4; k++) g.lineTo(q[k][0], q[k][1]); g.closePath();
+      if (lv === 0){ g.setLineDash([6, 4]); g.strokeStyle = "rgba(255,255,255,0.7)"; g.lineWidth = 1.5; g.stroke(); g.setLineDash([]); continue; }
+      if (s === 0){ g.fillStyle = "rgba(124,240,176,0.30)"; g.fill(); g.strokeStyle = "#7cf0b0"; g.lineWidth = 1.4; g.stroke(); }
+      else if (s === 1){ g.fillStyle = "rgba(255,138,122,0.25)"; g.fill(); g.strokeStyle = "#ff8a7a"; g.lineWidth = 1.6; g.stroke(); g.beginPath(); g.moveTo(q[0][0], q[0][1]); g.lineTo(q[2][0], q[2][1]); g.moveTo(q[1][0], q[1][1]); g.lineTo(q[3][0], q[3][1]); g.stroke(); }
+      else { g.setLineDash([2, 3]); g.strokeStyle = "rgba(200,210,225,0.8)"; g.lineWidth = 1.2; g.stroke(); g.setLineDash([]); } }
+    g.font = "600 11px " + MFONT; g.lineWidth = 3; g.strokeStyle = "rgba(6,9,14,0.9)"; g.strokeText("cells of a tier, not places", c1[0] - 80, c1[1] - 8); g.fillStyle = "#e8eef6"; g.fillText("cells of a tier, not places", c1[0] - 80, c1[1] - 8);
+  },
+  status(){ const l = this.last; if (this.busy) return "running the tier demonstration once (two 2-day runs)…"; return l.cells !== undefined ? `■ ${l.certified} certified · ⊠ ${l.refused} refused · ⬚ ${l.not_evaluated} not evaluated of ${l.cells} cells · tier ${this.info.tier_state}${this.info.tier_bound !== "none" ? " (" + this.info.tier_bound + ")" : ""} · cells of a tier, not places` : "–"; } });
+
 // ------------------------------------------------------------------ Phase 2 contracts (not shown until the export exists)
 const CONTRACT = (id, title, cls, exp, contract) => layer({ id, title, cls, source: exp.join(", "), contract, available: has(...exp), pending: true });
-CONTRACT("topology", "Networks, exchanges and the path a row takes", "MODEL", ["topology_view_points", "topology_view_links", "topology_view_path"],
-  "Built once per page (TopologyView::new(seed)). points f32 × 5 (lat, lon, role 0 fixed access AS 1 IXP 2 regional transit 3 content/DC 4 metro 5 mobile access 6 tier-1, size, region), rows metros 0..181 then ASes then IXPs; links u32 × 3 (a, b, kind 0 provider-customer 1 peering 2 IXP membership 3 terrestrial 4 submarine); path(src, dst) f32 header [AS hops, long-haul km] then lat/lon per AS point. All MODEL (generated stand-in; no AS, IXP or cable dataset is approved). Seed 7: 1,115 points (181 metros, 839 ASes, 95 IXPs), 3,732 links.");
 CONTRACT("failures", "Failure domains going dark, the mesh re-forming", "MODEL", ["failures_view_nodes", "failures_view_domains", "failures_view_step", "failures_view_steps"],
   "nodes f32 × 3 (lat, lon, kind); domains f32 × 6 (lat, lon, radius km, kind, step down, step up | -1); step(s) u32 per node: component id, u32::MAX = down; summary f32 × 4 per step.");
-CONTRACT("nat", "How each pair connects", "MODEL", ["nat_view_nodes", "nat_view_pairs", "nat_view_joint"],
-  "nodes u32 × 4 (access 0 fixed 1 phone Wi-Fi 2 carrier, behaviour 0 public 1 EIM 2 address-dependent 3 symmetric 4-6 the same behind CGN, IPv6 0-3, household); node_pos f32 × 2 metres in the generated street frame; pairs u32 × 3 (a, b, outcome 0 v6 1 listener 2 punched 3 relayed, no attempt 4 punch failed, relayed 5 same LAN); joint f32 [3, 7, 21 shares].");
 CONTRACT("media", "A room call: one tree per publisher, a parent leaves, the tree repairs", "DERIVED", ["media_view_members", "media_view_tree", "media_view_edges", "media_view_rx", "media_view_steps", "media_view_events"],
   "Built once per page (the scenario runs once; slice it, never per frame). members f32 × 4 (lat, lon, access 0 fibre home 1 cable laptop Wi-Fi 2 DSL home 3 phone home Wi-Fi 4 phone LTE, nominal uplink B/s), MODEL; tree u32 × 3 (stream, parent, child; every edge at any step; stream == parent is a direct leg); edges(step) f32 × 4 aligned to tree (rate B/s, loss ‰, queue ms, layer 0 detached 1 audio+base 2 full), DERIVED; rx(step) f32 × 3 at stream·n + member (layer -1 none 0 audio 1 base 2 both, stall 0/1, glass-to-glass ms), DERIVED; steps = 60 (1 s); events f32 × 5 (t ms, kind 0 parent left 1 audio resumed 2 video resumed 3 not resumed, stream, child, parent). The tree is edge v45's closed-loop controller, not alm.rs.");
-CONTRACT("people", "The week's rhythm and a flash crowd", "MODEL", ["people_view_localities", "people_view_week", "people_view_ties", "people_view_flash"],
-  "localities f32 × 3 (lat, lon, weight); week f32 localities × 168; ties u32 × 3 (a, b, weight); flash f32 × 6 (lat, lon, start, peak, end hour-of-week, peak multiplier).");
-CONTRACT("holon", "Certificate envelopes per cell (refusals shown as refusals)", "DERIVED", ["holon_view_cells", "holon_view_bounds"],
-  "cells f32 × 8 (lat, lon, half-size°, level, state 0 certified 1 refused 2 not evaluated, bound index, margin, defect); bounds named by index.");
 CONTRACT("calibration", "Seat knee with its interval", "DERIVED", ["calibration_view_curve", "calibration_view_knee", "calibration_view_residuals"],
   "curve(scenario) f64 × 6, 24 rows (devices, ρ central, lower, upper, class, binding code 0-5); knee(scenario) 7 fields (lower, central, upper, interval kind, binds lower, binds upper, class), -1 = none, crossing ρ 0.70, drawn only as its interval, never the central value alone, never labelled with a confidence level; residuals f64 × 4 (counter id, observed, predicted, out-of-sample). Not shown until twin-calibration says the knee is safe.");
 

@@ -96,8 +96,25 @@ the dock never stops that event. Phase 2 contracts are not in `CEWP_LAYERS` unti
 | reach | street homes by router class: disc public, ring punchable NAT, hatched square hard NAT/CGNAT | micro buffer 6 | MODEL (micro.rs PARAM_SPECS) |
 | seat | ρ CPU and ρ permits against fleet size; this street's seat marked | buffer 9, `cap_seat` | as capacity.rs |
 
-Phase 2 contracts are registered but hidden until their exports exist: topology, failures, nat,
-media, people, holon, calibration. Their buffer layouts were sent to each package's agent.
+Phase 2 views come through one door, `kernel-wasm/src/views.rs`: `view_topology(seed)`,
+`view_topology_path(src, dst)`, `view_nat(seed)`, `view_people(grid_ptr, len, seed)`, `view_holon(seed)`
+each call the package's own `*_view_*` functions once and park the vectors in slots read with
+`view_ptr(slot)` / `view_len(slot)` / `view_is_u32(slot)`. The door computes nothing of its own; its native
+test checks the slots equal the package functions' output (topology seed 7: 1,115 points, 3,732 links).
+
+| id | draws | slots | class |
+|---|---|---|---|
+| topology | generated AS / IXP / cable graph over the 181 real localities; glyph per role (dot fixed access, triangle mobile, square transit, diamond content, large diamond tier-1, plus IXP, ring metro); provider-customer, terrestrial (solid) and submarine (dashed) by default, peering and IXP membership on a toggle; one route between fixed access ASes with AS hops and long-haul km | 0, 1, 2, 15 | MODEL (all fields, `view_classes`) |
+| nat | a generated street (metres, no place) in a dock panel: devices by access class (square, disc, triangle), behaviour by mark (white centre public, ring behind CGN), pairs by outcome (solid direct, dotted punched, dashed relayed, dash-dot after a failed punch) | 3–6 | MODEL |
+| people | localities: ring = population weight, disc = week multiplier at the sim's hour of week; 40 strongest cross-locality ties dotted; a live event as an expanding ring with its onset multiplier | 7–10 | MODEL (FRONTIER event inputs) |
+| holon | the R5 tier's cells on the generated street patch: certified filled, refused crossed, not evaluated dashed; a marked square with the counts while the patch is under 5 px | 11–14, 16 | DERIVED (MODEL world) |
+
+People and holon run their scenario after the click (one shot, status says so): the week takes about
+1.6 s and the tier demonstration about 4 s of main-thread time in Chrome on the test box (measured once,
+not a budget). Hour of week = sim hours since 00:00 UTC of day 314 + 24, because day 314 of 2026 is a
+Tuesday and the hook's hour 0 is Monday 00:00 UTC.
+
+Still hidden: failures, media, calibration (not merged when this was wired).
 
 Cross-platform check owed when media lands: the page's media buffers must match a native run bit for bit.
 twin-media's basis (a source read, not a run): integer µs/bytes engine, exact `Rng::f`, no hash-order
@@ -114,5 +131,9 @@ contention on, which the view scenario leaves off. A view with contention on may
   does, not what a deployed call looks like.
 * Custody reachability is a uniform per-holder draw until failures supplies correlated outages.
 * The seat curve is the calibrated capacity model under recalibration. No knee is marked.
+* The topology is an invented graph on real cities: no AS, IXP or cable there exists. Route lengths are
+  the model's, not the Internet's.
+* The NAT street, the people's week and the holon cells are generated scenarios run once with a fixed
+  seed; they show what the model does, not what a mesh measured.
 * Between 30 and 26 m a pixel neither real data nor generated streets show, only the holon
   mosaic. This follows the page's rule that real and generated layers never share a scale.

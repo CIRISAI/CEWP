@@ -19,6 +19,7 @@ use cewp_sim::holon::{ClosureCertificate, MaintenanceRent};
 use cewp_sim::workload::diurnal_multiplier;
 
 mod globe;
+mod views;
 
 pub const OUT_SLOTS: usize = 36;
 

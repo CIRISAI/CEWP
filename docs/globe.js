@@ -388,7 +388,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=13"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=14"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };

@@ -56,6 +56,7 @@ function simClockForTick(){
 }
 // the sun for this frame, from the kernel; world frame as xyz() in globe.js
 function gfxSun(simHours){
+  GFX.simH = simHours; // sim hours since 00:00 UTC of day SIM_DOY (the people layer reads its hour of week)
   const t = simHours * 3600;
   if (wasm && wasm.clock_sun){
     wasm.clock_sun(t);
