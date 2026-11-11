@@ -139,12 +139,21 @@ function tlBuildLeaf(leaf){
     const nx = -uy, ny = ux;
     for (const [px, py, s] of [[x0, y0, -1], [x1, y1, -1], [x1, y1, 1], [x0, y0, -1], [x1, y1, 1], [x0, y0, 1]]) vert(px, py, nx * s, ny * s, wd, c, a, k);
   };
-  for (let r = 0; r < R.length; r += 5) road(r, 0.8, [0.1, 0.114, 0.133], 0.85, 1); // the casing stays inside the metre every building keeps clear
-  for (let r = 0; r < R.length; r += 5) road(r, 0, R[r + 4] >= 11 ? [0.62, 0.59, 0.5] : TL_ROAD[cls], 1, 2);
+  // streets by width class (the kernel's own widths): arterial >= 11 m pale and warm on a dark casing,
+  // collector >= 7 m light grey, local streets the class colour; local ones drawn first so wider ones cross over
+  const rank = (r) => R[r + 4] >= 11 ? 2 : R[r + 4] >= 7 ? 1 : 0, order = []; for (let r = 0; r < R.length; r += 5) order.push(r); order.sort((a, b) => rank(a) - rank(b));
+  for (const r of order) road(r, rank(r) === 2 ? 1.6 : 0.8, [0.07, 0.08, 0.095], 0.9, 1); // the casing stays inside the metre every building keeps clear
+  for (const r of order) road(r, 0, rank(r) === 2 ? [0.86, 0.78, 0.56] : rank(r) === 1 ? [0.66, 0.66, 0.64] : TL_ROAD[cls], 1, 2);
   for (let b = 0; b < B.length; b += 8){
     const cx = B[b], cy = B[b + 1], bw = B[b + 2] / 2, bd = B[b + 3] / 2, ca = Math.cos(B[b + 4]), sa = Math.sin(B[b + 4]), units = B[b + 6];
-    const P = [[-bw, -bd], [bw, -bd], [bw, bd], [-bw, bd]].map(([u, v]) => [cx + ca * u - sa * v, cy + sa * u + ca * v]);
-    quad(P, units > 0 ? [0.36, 0.34, 0.3] : [0.24, 0.235, 0.22], 1, 3);
+    const at = (u, v, dx, dy) => [cx + dx + ca * u - sa * v, cy + dy + sa * u + ca * v];
+    // a cast shadow (fixed light from the north-west, display only; +x east, +y north), then the roof in two
+    // tones split along the long axis, so footprints read as pitched roofs and not flat blocks
+    const sh = 1.2 + 0.08 * Math.min(bw, bd) * 2;
+    quad([[-bw, -bd], [bw, -bd], [bw, bd], [-bw, bd]].map(([u, v]) => at(u, v, sh, -sh)), [0.02, 0.025, 0.03], 0.5, 1);
+    const c0 = units > 0 ? [0.44, 0.41, 0.36] : [0.3, 0.29, 0.27], lit = c0.map((v) => v * 1.22), dark = c0.map((v) => v * 0.74);
+    if (bw >= bd){ quad([[-bw, 0], [bw, 0], [bw, bd], [-bw, bd]].map(([u, v]) => at(u, v, 0, 0)), lit, 1, 3); quad([[-bw, -bd], [bw, -bd], [bw, 0], [-bw, 0]].map(([u, v]) => at(u, v, 0, 0)), dark, 1, 3); }
+    else { quad([[-bw, -bd], [0, -bd], [0, bd], [-bw, bd]].map(([u, v]) => at(u, v, 0, 0)), lit, 1, 3); quad([[0, -bd], [bw, -bd], [bw, bd], [0, bd]].map(([u, v]) => at(u, v, 0, 0)), dark, 1, 3); }
   }
   const data = new Float32Array(V);
   return { id, tile: HOLON.pack(t), t, data, bytes: data.byteLength, hh: meta[2] };

@@ -2179,10 +2179,16 @@ function microDraw(){
     const B = M.bld;
     for (let b = 0; b < B.length; b += 8){
       const cx = B[b], cy = B[b + 1], w = B[b + 2], d = B[b + 3], ang = B[b + 4], units = B[b + 6], adopt = B[b + 7];
+      // a cast shadow (fixed light from the north-west, display only), then a pitched roof in two tones
+      // split along the long axis, so a footprint reads as a building and not a flat block
+      g.save(); g.globalAlpha = bldA * 0.45; g.translate(cx + 1.2 + 0.08 * Math.min(w, d), cy + 1.2 + 0.08 * Math.min(w, d)); g.rotate(ang); g.fillStyle = "#05070a"; g.fillRect(-w / 2, -d / 2, w, d); g.restore();
       g.save(); g.translate(cx, cy); g.rotate(ang); g.globalAlpha = bldA;
-      g.fillStyle = units === 0 ? "#3b3a36" : adopt > 0 ? (day > 0.5 ? "#6b6457" : "#4d473c") : "#45474c";
-      g.fillRect(-w / 2, -d / 2, w, d);
-      g.strokeStyle = adopt > 0 ? "rgba(255,207,122,0.55)" : "rgba(0,0,0,0.5)"; g.lineWidth = 0.5; g.strokeRect(-w / 2, -d / 2, w, d);
+      const base = units === 0 ? [92, 90, 84] : adopt > 0 ? (day > 0.5 ? [170, 152, 128] : [118, 104, 86]) : [128, 130, 138];
+      const lit = base.map((v) => Math.min(255, Math.round(v * 1.18))), shade = base.map((v) => Math.round(v * 0.72));
+      if (w >= d){ g.fillStyle = `rgb(${lit})`; g.fillRect(-w / 2, -d / 2, w, d / 2); g.fillStyle = `rgb(${shade})`; g.fillRect(-w / 2, 0, w, d / 2); }
+      else { g.fillStyle = `rgb(${lit})`; g.fillRect(-w / 2, -d / 2, w / 2, d); g.fillStyle = `rgb(${shade})`; g.fillRect(0, -d / 2, w / 2, d); }
+      g.strokeStyle = "rgba(255,255,255,0.18)"; g.lineWidth = 0.3; g.beginPath(); if (w >= d){ g.moveTo(-w / 2, 0); g.lineTo(w / 2, 0); } else { g.moveTo(0, -d / 2); g.lineTo(0, d / 2); } g.stroke(); // the ridge
+      g.strokeStyle = adopt > 0 ? "rgba(255,207,122,0.7)" : "rgba(0,0,0,0.6)"; g.lineWidth = adopt > 0 ? 0.7 : 0.5; g.strokeRect(-w / 2, -d / 2, w, d);
       if (adopt > 0 && day < 0.6){ g.fillStyle = `rgba(255,200,110,${0.22 * (1 - day)})`; g.fillRect(-w / 2 + 1, -d / 2 + 1, w - 2, d - 2); }
       g.restore();
     }
@@ -2254,7 +2260,7 @@ function microDraw(){
   // nodes
   MTAGS.length = 0; MBOXES.length = 0;
   if (nodeA > 0){
-    const s = Math.max(3.2, Math.min(12, 2.4 + ppm * 2.6));
+    const s = Math.max(F.w < 600 ? 7 : 5, Math.min(F.w < 600 ? 14 : 12, 3.4 + ppm * 2.6)); // at least 7 px on a phone: a glyph you can tell apart and tap
     for (let i = 0; i < n; i++){
       if (!(nodeFlags(i) & NF.present) || !onScreen(i)) continue;
       const off = nodeFlags(i) & NF.offPatch; if (off && P > 300) continue; // drawn as edge markers instead
