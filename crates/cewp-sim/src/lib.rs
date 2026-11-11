@@ -67,6 +67,12 @@ pub mod locality;
 pub mod people_hooks;
 pub mod seat_calibration;
 pub mod seat_hooks;
+pub mod link;
+pub mod media;
+pub mod media_view;
+pub mod media_call2;
+pub mod media_thin;
+pub mod qoe;
 
 pub use transport::*;
 pub use alm::*;

@@ -965,6 +965,10 @@ fn print_help() {
     println!("  people [--persons N] [--days D] [--sweep-days D] [--seed S] [--geo PATH|stand-in]");
     println!("                        Social graph, bursty workload and emergent locality report (FSD/twin/people.md)");
     println!("  holon-demo [SECONDS]  Distributional holon certificate on the R5 micro tier (FSD/twin/holon.md)");
+    println!("  media [SEEDS]         Room-call quality over modelled access links (FSD/twin/media.md)");
+    println!("  media-call2 [SEEDS]   Two-person call: Wi-Fi/LTE, direct (MTU 1400) or relayed (MTU 500)");
+    println!("  media-audio [SEEDS]   Audio-only full-mesh room at N = 4 and 9");
+    println!("  media-thin [SEEDS]    Thin-uplink publisher in a 5-person call: mesh, relay, one-copy counterfactual");
     println!("  --help, -h            Print this help text");
 }
 
@@ -1006,6 +1010,30 @@ fn main() {
                     process::exit(1);
                 }
             },
+            "media" => {
+                // FSD/twin/media.md: call quality over access links, `media [seeds]`.
+                let seeds = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(3);
+                println!("{}", cewp_sim::media::report(seeds));
+                return;
+            }
+            "media-call2" => {
+                // FSD/twin/media.md §11: the two-person call, `media-call2 [seeds]`.
+                let seeds = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(5);
+                println!("{}", cewp_sim::media_call2::call2_lines(seeds).join("\n"));
+                return;
+            }
+            "media-thin" => {
+                // FSD/twin/media.md §13: the thin publisher, `media-thin [seeds]`.
+                let seeds = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(5);
+                println!("{}", cewp_sim::media_thin::thin_lines(seeds).join("\n"));
+                return;
+            }
+            "media-audio" => {
+                // FSD/twin/media.md §12: the audio-only room, `media-audio [seeds]`.
+                let seeds = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(5);
+                println!("{}", cewp_sim::media_call2::audio_room_lines(seeds).join("\n"));
+                return;
+            }
             "all" | "--all" => {
                 if emit_path.is_none() {
                     emit_path = Some("docs/kernel/tables/evidence_bundle.json".to_string());
