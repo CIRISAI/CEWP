@@ -29,6 +29,8 @@
 //! circle in [`gc_km`], uses only IEEE-754 correctly rounded operations (+ − × ÷ √) with its own
 //! sine and arcsine series, never the platform's libm, so native and wasm builds agree.
 
+pub mod view;
+
 use crate::micro::{HostKind, MicroWorld, Rng, SiteKind};
 use crate::tiling::{apportion, mix64};
 use std::cmp::Reverse;
@@ -499,6 +501,25 @@ impl LatencyParts {
     }
 }
 
+/// Energy-pass counters for one path (`HOOKS.md` §1): counts only, no watts. DERIVED from the
+/// path's own route; with the stand-in graph their inputs are MODEL, so the numbers inherit that.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PathCounters {
+    /// AS-to-AS handovers (`ases.len() - 1`).
+    pub as_hops: u32,
+    /// ASes whose network the packet crosses (`ases.len()`, both ends included).
+    pub ases_crossed: u32,
+    /// IXP fabrics crossed.
+    pub ixp_crossings: u32,
+    /// Long-haul cable segments crossed, counted with repeats.
+    pub cable_segments: u32,
+    /// Long-haul kilometres crossed (every kilometre of a path rides a cable: the model has no
+    /// intra-metro distance, so this equals `NetPath::km`).
+    pub long_haul_km: u32,
+    /// Of `long_haul_km`, kilometres on submarine cables.
+    pub submarine_km: u32,
+}
+
 /// A routed path between two labels.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NetPath {
@@ -518,6 +539,8 @@ pub struct NetPath {
     pub latency_us: u64,
     /// Everything the path depends on.
     pub fate: SharedFate,
+    /// Energy-pass counters (AS hops, long-haul km).
+    pub counters: PathCounters,
 }
 
 /// A device's networks: `home` is the household router's fixed AS (or the data centre's
@@ -1115,6 +1138,16 @@ impl NetGraph {
             access_us: access(a.role) + access(b.role),
         };
         let ases: Vec<Asn> = nodes.iter().map(|&i| self.ases[i].asn).collect();
+        let km32 = km.min(u32::MAX as u64) as u32;
+        let submarine_km: u64 = cables.iter().map(|&c| self.cables[c as usize]).filter(|c| c.kind == CableKind::Submarine).map(|c| c.km as u64).sum();
+        let counters = PathCounters {
+            as_hops: hops.len() as u32,
+            ases_crossed: nodes.len() as u32,
+            ixp_crossings: ixps.len() as u32,
+            cable_segments: cables.len() as u32,
+            long_haul_km: km32,
+            submarine_km: submarine_km.min(u32::MAX as u64) as u32,
+        };
         let mut fate = SharedFate { ases: ases.clone(), ixps, cables, metros: trail.clone() };
         fate.ases.sort_unstable();
         fate.ases.dedup();
@@ -1130,10 +1163,11 @@ impl NetGraph {
             dirs: hops.iter().map(|&(d, _)| d).collect(),
             handoffs,
             metro_trail: trail,
-            km: km.min(u32::MAX as u64) as u32,
+            km: km32,
             latency_us: latency.total(),
             latency,
             fate,
+            counters,
         })
     }
 
@@ -2231,6 +2265,11 @@ mod tests {
                 assert_eq!(p.latency_us, p.latency.total());
                 assert!(p.fate.contains(FateElement::As(la[i].asn)) && p.fate.contains(FateElement::As(la[j].asn)));
                 assert!(p.fate.contains(FateElement::Metro(la[i].metro)) && p.fate.contains(FateElement::Metro(la[j].metro)));
+                // energy counters: every kilometre rides a cable, and the cables crossed sum to it
+                let c = p.counters;
+                assert_eq!((c.as_hops as usize, c.ases_crossed as usize, c.long_haul_km), (p.dirs.len(), p.ases.len(), p.km));
+                assert!(c.submarine_km <= c.long_haul_km && c.ixp_crossings as usize <= p.handoffs.len());
+                assert_eq!(c.cable_segments == 0, p.km == 0);
                 checked += 1;
             }
         }

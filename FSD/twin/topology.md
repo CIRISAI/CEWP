@@ -77,7 +77,51 @@ Each stage draws from its own splitmix64 stream, seeded from the graph seed (def
 
 Every number in this table is printed by `cewp-cli netgraph` with its tag.
 
-PARAMS_TABLE
+| name | default | unit | class | reasoning / source |
+|---|---:|---|---|---|
+| `tier1_count` | 12 | ASes | MODEL | transit-free networks; commonly 12-20 are called tier-1, the low end keeps the stand-in small |
+| `tier1_region_presence` | 700 | permille | MODEL | chance a tier-1 has PoPs in a given region; global carriers skip some regions (at least 2 per region are forced) |
+| `tier1_pops_per_region` | 3 | metros | MODEL | a tier-1 present in a region sits in its largest metros |
+| `content_count` | 8 | ASes | MODEL | hyperscale cloud / CDN / hosting networks the off-street nodes live in |
+| `content_region_presence` | 800 | permille | MODEL | chance a cloud network has PoPs in a region (at least one per region is forced) |
+| `content_pops_per_region` | 3 | metros | MODEL | cloud regions sit in a region's largest metros |
+| `content_upstreams` | 2 | ASes | MODEL | tier-1 transit a cloud network buys besides peering |
+| `transit_per_region` | 6 | ASes | MODEL | regional transit providers per region |
+| `transit_pop_share` | 400 | permille | MODEL | share of a region's metros (largest first) where a regional transit has a PoP |
+| `transit_upstreams_max` | 3 | ASes | MODEL | a regional transit buys from 1..=this many tier-1s |
+| `transit_peer` | 400 | permille | MODEL | chance two transits of a region peer privately at their common PoPs |
+| `incumbent_reach_km` | 700 | km | MODEL | a national fixed incumbent covers its region's metros within this distance of its home; stands in for a country (the grid has no countries) |
+| `incumbent_tier1` | 500 | permille | MODEL | chance an incumbent's first upstream is a tier-1 rather than a regional transit |
+| `mobile_per_market` | 3 | ASes | MODEL | mobile network operators per incumbent market (3-4 per country is the common structure) |
+| `mobile_central_gateway` | 1 | bool | MODEL | 1: a mobile AS hauls all traffic to its home metro (packet gateway) before leaving its network |
+| `local_fixed_base` | 1 | ASes | MODEL | local fixed ISPs every metro has besides incumbents |
+| `local_fixed_weight_step` | 2,000 | grid weight | MODEL | one more local ISP per doubling of a metro's population weight above this |
+| `local_fixed_max` | 5 | ASes | MODEL | cap on local fixed ISPs per metro |
+| `access_multihome` | 300 | permille | MODEL | chance a local ISP buys a second upstream |
+| `incumbent_weight` | 4,500 | market weight | MODEL | an incumbent's subscriber weight in each metro it covers |
+| `local_weight_top` | 2,000 | market weight | MODEL | weight of a metro's largest local ISP; the k-th has top/(k+1) (Zipf, exponent 1) |
+| `mobile_weight_top` | 4,000 | market weight | MODEL | weight of a market's largest carrier; the k-th has top/(k+1) |
+| `ixp_min_weight` | 3,000 | grid weight | MODEL | a metro at least this populous hosts an IXP |
+| `ixp_second_weight` | 20,000 | grid weight | MODEL | a metro at least this populous hosts a second IXP |
+| `ixp_join_content` | 950 | permille | MODEL | cloud networks join nearly every IXP where they have a PoP (open peering) |
+| `ixp_join_transit` | 600 | permille | MODEL | regional transit joins an IXP at a PoP |
+| `ixp_join_access` | 500 | permille | MODEL | local fixed ISP joins its metro's IXP |
+| `ixp_join_incumbent` | 300 | permille | MODEL | incumbent fixed / mobile networks join less (restrictive peering) |
+| `ixp_join_tier1` | 50 | permille | MODEL | tier-1s rarely peer publicly |
+| `ixp_peer` | 600 | permille | MODEL | chance two IXP members peer (route servers make multilateral peering common) |
+| `content_peer` | 900 | permille | MODEL | chance a cloud network peers with an IXP co-member |
+| `restrictive_peering` | 250 | permille | MODEL | multiplier on ixp_peer when either side is an incumbent or mobile operator |
+| `terrestrial_extra_links` | 2 | links | MODEL | nearest-neighbour backbone links per metro beyond the region's spanning tree |
+| `cables_per_region_pair` | 2 | cables | MODEL | long-haul cables per adjacent region pair (closest gateway metro pairs) |
+| `gateway_candidates` | 8 | metros | MODEL | a region's largest metros that may land an inter-region cable |
+| `terrestrial_inflation` | 1,500 | permille | MODEL | fibre route length over great circle on land (roads, rail, rights of way) |
+| `submarine_inflation` | 1,250 | permille | MODEL | cable route length over great circle at sea |
+| `fibre_ns_per_km` | 4,897 | ns/km | DERIVED | c / n with silica group index n = 1.468: 299,792 km/s / 1.468 = 204,218 km/s |
+| `as_hop_us` | 300 | us one-way | MODEL | per AS crossed: border routers, queueing at an uncongested hop |
+| `ixp_crossing_us` | 200 | us one-way | MODEL | an IXP fabric crossing (switch hops inside the exchange) |
+| `access_fixed_us` | 4,000 | us one-way | MODEL | fixed last mile + aggregation (FTTH / DOCSIS / DSL mix, idle line) |
+| `access_mobile_us` | 15,000 | us one-way | MODEL | mobile radio + core one-way (4G/5G mix, idle cell) |
+| `access_content_us` | 200 | us one-way | MODEL | a data-centre host to its network edge |
 
 ## 4. Micro-tier assignment (`assign_micro`)
 
@@ -91,7 +135,41 @@ The `nat` package conditions NAT behaviour on `NetLabel` (role, asn, market rank
 
 ## 5. Findings (MODEL outputs of the stand-in, seed 7, default parameters)
 
-FINDINGS
+All numbers below are **MODEL outputs** of the stand-in at seed 7 with default parameters
+(`cargo run -p cewp-cli -- netgraph`, and the `netgraph` unit tests, which pin them). They
+describe the generator, not the Internet. Nothing here is MEASURED.
+
+| quantity | value | class |
+|---|---:|---|
+| metros (page localities) | 181 | DERIVED (grid) |
+| ASes | 839: tier-1 12, regional transit 54, fixed access 501, mobile 264, content 8 | MODEL |
+| AS links | 2,614 (view: 1,265 provider-customer, 1,349 peering) | MODEL |
+| IXPs / memberships | 95 / 833 | MODEL |
+| long-haul cables | 285 (24 submarine) | MODEL |
+| AS degree | median 2, p90 12, p99 93, max 143; Hill alpha over the top 83 = 1.024 (test band [0.7, 2.0], max/median >= 20) | MODEL |
+| Spearman(great-circle km, one-way latency), 4,000 fixed-fixed pairs | 964 permille (pure geography = 1,000 by construction) | MODEL |
+| same, the 862 pairs under 1,000 km | 915 permille | MODEL |
+| same-metro pairs on different ISPs | 253; 7 leave the metro, 0 leave the region | MODEL |
+| same-metro one-way latency | median 9,100 us, p90 9,400 us, max 65,251 us | MODEL |
+| pairs >= 1,500 km apart faster than the slowest same-metro pair | 1,511 of 2,749 (fastest 20,471 us) | MODEL |
+| slowest same-metro pair | fixed -> tier-1 -> transit -> fixed, 11,446 km of fibre inside Sub-Saharan Africa (tromboning: the tier-1 hands over far from the metro) | MODEL |
+| globe view (seed 7) | 1,115 points (181 metros, 839 ASes, 95 IXPs), 3,732 links | MODEL |
+
+Reading. The decorrelation is real but sits in the tail, not the bulk: most pairs still
+follow geography (rank correlation 0.96), while a minority of same-city pairs trombone
+through a distant hand-over and become slower than half the pairs 1,500 km+ apart. A first
+guess that the stand-in would sit below 950 / 800 permille failed (964 / 915); the test now
+pins the measured numbers so a generator change must restate them here. Whether the real
+Internet is more or less decorrelated cannot be said without RIPE Atlas (or similar)
+latency data, which needs approval (§6).
+
+Energy hook (HOOKS.md §1): every `NetPath` carries `PathCounters { as_hops, ases_crossed,
+ixp_crossings, cable_segments, long_haul_km, submarine_km }`, DERIVED from the route (MODEL
+inputs with the stand-in). This model has no bytes, radio, signature or storage events; it
+counts none.
+
+Globe hook (HOOKS.md §2): `netgraph::view` (`topology_view_points`, `topology_view_links`,
+`topology_view_path`, `view_classes`, `TopologyView`); layouts in that module's docs.
 
 ## 6. Dataset approval brief (for Eric)
 
