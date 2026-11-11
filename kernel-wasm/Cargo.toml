@@ -12,8 +12,4 @@ path = "src/lib.rs"
 [dependencies]
 cewp-sim = { path = "../crates/cewp-sim" }
 
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"
+# Build settings: the workspace root's [profile.wasm] (a member's own profile is ignored).
