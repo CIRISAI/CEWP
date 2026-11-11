@@ -417,11 +417,25 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ..BASE
     },
     PageClaim {
+        id: "pop-grid-source",
+        class: Measured,
+        shows: "A land-bounded world population grid: GHS-POP R2023A, epoch 2020, summed to 1.5-degree cells of at least 20,000 people.",
+        source: "docs/globe.js: POP_GRID_B64, carrying docs/geo/popgrid_ghs.js POP_GRID_GHS_B64 (twin/geodata c56060d), built by tools/geodata/build_geodata.py from GHS_POP_E2020_GLOBE_R2023A_4326_30ss_V1_0.tif (Schiavina, Freire, Carioli, MacManus 2023, European Commission JRC, doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE, CC BY 4.0); FSD/twin/geodata.md",
+        window: "Epoch 2020: GPW v4.11 census counts carried to 2020 and rescaled to UN WPP 2022 country totals and UN WUP 2018 city totals, disaggregated by built-up volume. World total 7,840,952,947 (the JRC's published figure, matched by the build); the kept cells hold 7,830,639,988 (99.87 %).",
+        failure: &[
+            "GHS-POP is itself a model of census counts between censuses: residential people only, placed where buildings are, coarse where census units are coarse.",
+            "The 181 localities and 9 regions the cells are grouped into are inherited from the old grid (nearest old cell): a MODEL partition, not data.",
+            "Real data stops at the 1.5-degree cell: every street, building and device inside it is generated.",
+        ],
+        reproduce: "python3 -E -P tools/geodata/build_geodata.py pop <GHS_POP_E2020_GLOBE_R2023A_4326_30ss_V1_0.tif> docs docs/globe.js; node --test tools/geodata/geodata.test.js",
+        ..BASE
+    },
+    PageClaim {
         id: "pop-grid-cells",
         class: Derived,
-        shows: "2,961 populated land cells in 181 localities and 9 regions.",
+        shows: "4,559 populated land cells in 181 localities and 9 regions.",
         source: "docs/globe.js: POP_GRID_B64 header (nCells, nLocs) read by initPopGrid; REG",
-        failure: &["The counts describe the embedded grid. Where the grid's densities come from is not recorded (pop-grid-source, FRONTIER)."],
+        failure: &["The counts describe the embedded grid (GHS-POP 2020, 1.5-degree cells of at least 20,000 people; pop-grid-source)."],
         ..BASE
     },
     // ------------------------------------------------------------------ MODEL
@@ -537,7 +551,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         source: "crates/cewp-sim/src/micro.rs: MicroWorld build; PARAM_SPECS density_sigma, target_households, persons_per_household, phones_per_person, laptops_per_person, home_node_household_share, seat_km_min, seat_km_max",
         param: "density_sigma 0.9, target_households 60, persons_per_household 2.5, seat_km_min 1,500, seat_km_max 8,000",
         failure: &[
-            "The patch's density comes from the population grid, whose source is not recorded (pop-grid-source).",
+            "The patch's density comes from the 1.5-degree population grid (GHS-POP 2020, pop-grid-source); everything finer is generated.",
             "Seat and data-centre distances are drawn between 1,500 and 8,000 km; no real site is used.",
         ],
         reproduce: "cargo test -p cewp-sim micro",
@@ -627,15 +641,6 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ..BASE
     },
     // ------------------------------------------------------------------ FRONTIER: no support found
-    PageClaim {
-        id: "pop-grid-source",
-        class: Frontier,
-        shows: "A land-bounded world population density grid.",
-        source: "docs/globe.js: POP_GRID_B64 (added in 60b95b6, 2026-11-06)",
-        blocker: "The grid's source, licence and build script are not recorded anywhere in the repo (no tool under tools/ builds it; not one of the three approved datasets). Its densities place every cohort and size every street patch. Needs its provenance recorded, or a rebuild from a dataset Eric approves.",
-        failure: &["Every density-driven figure inherits this gap."],
-        ..BASE
-    },
     PageClaim {
         id: "seat-count-rule",
         class: Frontier,
@@ -768,7 +773,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         param: "the population grid (1.5 degree cells, blurred 3 px into a 1024 x 512 image); sun position from clock_sun(t)",
         failure: &[
             "It is a picture of the model's input, not satellite night lights.",
-            "The population grid it draws has no recorded source or licence (pop-grid-source, FRONTIER).",
+            "The grid is GHS-POP 2020 at 1.5 degrees (pop-grid-source), blurred for display; it shows where people live, not where lights are.",
         ],
         ..BASE
     },
@@ -866,7 +871,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         id: "layer-topology",
         class: Model,
         live: true,
-        shows: "Globe layer: a generated network of ASes, IXPs and cables over real cities (seed 7: 181 metros, 839 ASes, 95 IXPs, 3,732 links), and one route's AS hops and long-haul km.",
+        shows: "Globe layer: a generated network of ASes, IXPs and cables over real cities (seed 7 on the GHS-POP 2020 grid: 181 metros, 1,198 ASes, 243 IXPs, 6,161 links), and one route's AS hops and long-haul km.",
         source: "docs/layers/layers.js: CEWP_LAYERS topology; kernel-wasm views.rs view_topology, view_topology_path; crates/cewp-sim/src/netgraph/view.rs TopologyView, view_classes (every field MODEL); FSD/twin/topology.md",
         commit: VIEWS_COMMIT,
         param: "netgraph NetParams::default() at seed 7 (FSD/twin/topology.md parameter table, all MODEL)",
@@ -903,7 +908,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         failure: &[
             "Rhythm and ties come from one MODEL one-week bursty run of 6,000 generated persons; small localities are noisy.",
             "The flash crowd's peak multiplier is DERIVED from FRONTIER event inputs.",
-            "The population grid behind the localities has no recorded source or licence (pop-grid-source, FRONTIER).",
+            "The localities are GHS-POP 2020 cells grouped by an inherited MODEL partition (pop-grid-source).",
             "Hour of week maps the simulation's day 314 (a Tuesday) onto the hook's Monday 00:00 UTC origin.",
         ],
         ..BASE

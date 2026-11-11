@@ -213,6 +213,7 @@ mod tests {
     use cewp_sim::netgraph::view::{topology_view_links, topology_view_points};
     use std::sync::Mutex;
     static TURN: Mutex<()> = Mutex::new(());
+    const LINKS_GHS: u32 = 6161;
 
     // the page reads exactly what the package's own free function returns
     #[test]
@@ -221,9 +222,13 @@ mod tests {
         let n = view_topology(7);
         assert_eq!(views().f[0], topology_view_points(7));
         assert_eq!(views().u[1], topology_view_links(7));
-        // twin-topology's seed-7 numbers: 1,115 points, 3,732 links
-        assert_eq!(n, 1115);
-        assert_eq!(view_len(1) / 3, 3732);
+        // seed-7 numbers on the GHS-POP 2020 grid (twin/geodata c56060d; on the old unsourced grid
+        // twin-topology reported 1,115 points and 3,732 links)
+        let roles = views().f[0].chunks(5).fold([0usize; 7], |mut a, p| { a[p[2] as usize] += 1; a });
+        // 181 metros, 1,198 ASes (812 fixed access, 312 mobile, 54 transit, 12 tier-1, 8 content), 243 IXPs
+        assert_eq!(roles, [812, 243, 54, 8, 181, 312, 12]);
+        assert_eq!(n, 1622);
+        assert_eq!(view_len(1) / 3, LINKS_GHS);
         assert_eq!(view_is_u32(1), 1);
         assert_eq!(view_is_u32(0), 0);
     }

@@ -147,13 +147,13 @@ describe the generator, not the Internet. Nothing here is MEASURED.
 | IXPs / memberships | 95 / 833 | MODEL |
 | long-haul cables | 285 (24 submarine) | MODEL |
 | AS degree | median 2, p90 12, p99 93, max 143; Hill alpha over the top 83 = 1.024 (test band [0.7, 2.0], max/median >= 20) | MODEL |
-| Spearman(great-circle km, one-way latency), 4,000 fixed-fixed pairs | 964 permille (pure geography = 1,000 by construction) | MODEL |
-| same, the 862 pairs under 1,000 km | 915 permille | MODEL |
+| Spearman(great-circle km, one-way latency), 4,000 fixed-fixed pairs | 954 permille (pure geography = 1,000 by construction; 964 on the old unsourced grid, before GHS-POP 2020 moved the metros) | MODEL |
+| same, the pairs under 1,000 km | 887 permille (915 on the old grid) | MODEL |
 | same-metro pairs on different ISPs | 253; 7 leave the metro, 0 leave the region | MODEL |
 | same-metro one-way latency | median 9,100 us, p90 9,400 us, max 65,251 us | MODEL |
 | pairs >= 1,500 km apart faster than the slowest same-metro pair | 1,511 of 2,749 (fastest 20,471 us) | MODEL |
 | slowest same-metro pair | fixed -> tier-1 -> transit -> fixed, 11,446 km of fibre inside Sub-Saharan Africa (tromboning: the tier-1 hands over far from the metro) | MODEL |
-| globe view (seed 7) | 1,115 points (181 metros, 839 ASes, 95 IXPs), 3,732 links | MODEL |
+| globe view (seed 7) | 1,622 points (181 metros, 1,198 ASes, 243 IXPs), 6,161 links on the GHS-POP 2020 grid (1,115 points, 839 ASes, 95 IXPs, 3,732 links on the old unsourced grid, whose weights were about 6.5 times smaller in sum; the generator sizes ASes by metro weight) | MODEL |
 
 Reading. The decorrelation is real but sits in the tail, not the bulk: most pairs still
 follow geography (rank correlation 0.96), while a minority of same-city pairs trombone

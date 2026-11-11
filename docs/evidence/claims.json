@@ -487,12 +487,29 @@
       "failure": ["One patch of about 60 households; everything outside it is cohorts or a drawing, not simulated 1:1.", "The streets, homes and devices are generated (generated-below-region)."]
     },
     {
+      "id": "pop-grid-source",
+      "class": "MEASURED",
+      "code": "ME",
+      "status": "stated",
+      "live": false,
+      "shows": "A land-bounded world population grid: GHS-POP R2023A, epoch 2020, summed to 1.5-degree cells of at least 20,000 people.",
+      "source": "docs/globe.js: POP_GRID_B64, carrying docs/geo/popgrid_ghs.js POP_GRID_GHS_B64 (twin/geodata c56060d), built by tools/geodata/build_geodata.py from GHS_POP_E2020_GLOBE_R2023A_4326_30ss_V1_0.tif (Schiavina, Freire, Carioli, MacManus 2023, European Commission JRC, doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE, CC BY 4.0); FSD/twin/geodata.md",
+      "commit": "f73b918",
+      "window": "Epoch 2020: GPW v4.11 census counts carried to 2020 and rescaled to UN WPP 2022 country totals and UN WUP 2018 city totals, disaggregated by built-up volume. World total 7,840,952,947 (the JRC's published figure, matched by the build); the kept cells hold 7,830,639,988 (99.87 %).",
+      "param": "",
+      "blocker": "",
+      "reproduce": "python3 -E -P tools/geodata/build_geodata.py pop \u003cGHS_POP_E2020_GLOBE_R2023A_4326_30ss_V1_0.tif> docs docs/globe.js; node --test tools/geodata/geodata.test.js",
+      "correction": "",
+      "interval": null,
+      "failure": ["GHS-POP is itself a model of census counts between censuses: residential people only, placed where buildings are, coarse where census units are coarse.", "The 181 localities and 9 regions the cells are grouped into are inherited from the old grid (nearest old cell): a MODEL partition, not data.", "Real data stops at the 1.5-degree cell: every street, building and device inside it is generated."]
+    },
+    {
       "id": "pop-grid-cells",
       "class": "DERIVED",
       "code": "DE",
       "status": "stated",
       "live": false,
-      "shows": "2,961 populated land cells in 181 localities and 9 regions.",
+      "shows": "4,559 populated land cells in 181 localities and 9 regions.",
       "source": "docs/globe.js: POP_GRID_B64 header (nCells, nLocs) read by initPopGrid; REG",
       "commit": "f73b918",
       "window": "",
@@ -501,7 +518,7 @@
       "reproduce": "",
       "correction": "",
       "interval": null,
-      "failure": ["The counts describe the embedded grid. Where the grid's densities come from is not recorded (pop-grid-source, FRONTIER)."]
+      "failure": ["The counts describe the embedded grid (GHS-POP 2020, 1.5-degree cells of at least 20,000 people; pop-grid-source)."]
     },
     {
       "id": "devices-per-person",
@@ -671,7 +688,7 @@
       "reproduce": "cargo test -p cewp-sim micro",
       "correction": "",
       "interval": null,
-      "failure": ["The patch's density comes from the population grid, whose source is not recorded (pop-grid-source).", "Seat and data-centre distances are drawn between 1,500 and 8,000 km; no real site is used."]
+      "failure": ["The patch's density comes from the 1.5-degree population grid (GHS-POP 2020, pop-grid-source); everything finer is generated.", "Seat and data-centre distances are drawn between 1,500 and 8,000 km; no real site is used."]
     },
     {
       "id": "micro-activity",
@@ -774,23 +791,6 @@
       "correction": "",
       "interval": null,
       "failure": ["No land-cover or climate data: a desert city and a wet one at the same latitude and height are tinted alike.", "A few lakes are missing or in pieces."]
-    },
-    {
-      "id": "pop-grid-source",
-      "class": "FRONTIER",
-      "code": "FR",
-      "status": "stated",
-      "live": false,
-      "shows": "A land-bounded world population density grid.",
-      "source": "docs/globe.js: POP_GRID_B64 (added in 60b95b6, 2026-11-06)",
-      "commit": "f73b918",
-      "window": "",
-      "param": "",
-      "blocker": "The grid's source, licence and build script are not recorded anywhere in the repo (no tool under tools/ builds it; not one of the three approved datasets). Its densities place every cohort and size every street patch. Needs its provenance recorded, or a rebuild from a dataset Eric approves.",
-      "reproduce": "",
-      "correction": "",
-      "interval": null,
-      "failure": ["Every density-driven figure inherits this gap."]
     },
     {
       "id": "seat-count-rule",
@@ -1011,7 +1011,7 @@
       "reproduce": "",
       "correction": "",
       "interval": null,
-      "failure": ["It is a picture of the model's input, not satellite night lights.", "The population grid it draws has no recorded source or licence (pop-grid-source, FRONTIER)."]
+      "failure": ["It is a picture of the model's input, not satellite night lights.", "The grid is GHS-POP 2020 at 1.5 degrees (pop-grid-source), blurred for display; it shows where people live, not where lights are."]
     },
     {
       "id": "layer-arcs",
@@ -1121,7 +1121,7 @@
       "code": "MO",
       "status": "stated",
       "live": true,
-      "shows": "Globe layer: a generated network of ASes, IXPs and cables over real cities (seed 7: 181 metros, 839 ASes, 95 IXPs, 3,732 links), and one route's AS hops and long-haul km.",
+      "shows": "Globe layer: a generated network of ASes, IXPs and cables over real cities (seed 7 on the GHS-POP 2020 grid: 181 metros, 1,198 ASes, 243 IXPs, 6,161 links), and one route's AS hops and long-haul km.",
       "source": "docs/layers/layers.js: CEWP_LAYERS topology; kernel-wasm views.rs view_topology, view_topology_path; crates/cewp-sim/src/netgraph/view.rs TopologyView, view_classes (every field MODEL); FSD/twin/topology.md",
       "commit": "twin/globe 8b70422",
       "window": "",
@@ -1164,7 +1164,7 @@
       "reproduce": "",
       "correction": "",
       "interval": null,
-      "failure": ["Rhythm and ties come from one MODEL one-week bursty run of 6,000 generated persons; small localities are noisy.", "The flash crowd's peak multiplier is DERIVED from FRONTIER event inputs.", "The population grid behind the localities has no recorded source or licence (pop-grid-source, FRONTIER).", "Hour of week maps the simulation's day 314 (a Tuesday) onto the hook's Monday 00:00 UTC origin."]
+      "failure": ["Rhythm and ties come from one MODEL one-week bursty run of 6,000 generated persons; small localities are noisy.", "The flash crowd's peak multiplier is DERIVED from FRONTIER event inputs.", "The localities are GHS-POP 2020 cells grouped by an inherited MODEL partition (pop-grid-source).", "Hour of week maps the simulation's day 314 (a Tuesday) onto the hook's Monday 00:00 UTC origin."]
     },
     {
       "id": "layer-holon",

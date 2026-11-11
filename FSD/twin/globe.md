@@ -100,7 +100,7 @@ Phase 2 views come through one door, `kernel-wasm/src/views.rs`: `view_topology(
 `view_topology_path(src, dst)`, `view_nat(seed)`, `view_people(grid_ptr, len, seed)`, `view_holon(seed)`
 each call the package's own `*_view_*` functions once and park the vectors in slots read with
 `view_ptr(slot)` / `view_len(slot)` / `view_is_u32(slot)`. The door computes nothing of its own; its native
-test checks the slots equal the package functions' output (topology seed 7: 1,115 points, 3,732 links).
+test checks the slots equal the package functions' output (topology seed 7 on the GHS-POP 2020 grid: 1,622 points, 6,161 links).
 
 | id | draws | slots | class |
 |---|---|---|---|

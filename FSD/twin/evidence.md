@@ -125,8 +125,8 @@ None: the package adds no model parameter. Every class and source is in `PAGE_CL
 ## What a dataset would replace
 
 Nothing is downloaded. The ledger names one gap a dataset would close: the embedded population
-grid `POP_GRID_B64` has no recorded source (`pop-grid-source`, FRONTIER). Recording its provenance,
-or rebuilding it from a dataset Eric approves, would move `pop-grid-source` out of FRONTIER.
+grid `POP_GRID_B64` had no recorded source; it now carries GHS-POP R2023A 2020 (twin/geodata c56060d,
+Eric's approval of 2026-11-11), and `pop-grid-source` is MEASURED with its window.
 
 ## Validity envelope
 

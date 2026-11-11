@@ -1030,7 +1030,7 @@ mod tests {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/globe.js");
         let src = std::fs::read_to_string(path).expect("docs/globe.js is in the repo");
         let g = Geography::from_globe_js(&src).unwrap();
-        assert_eq!(g.cells.len(), 2961);
+        assert_eq!(g.cells.len(), 4559);
         assert_eq!(g.localities(), 181);
         assert_eq!(g.regions(), 9);
     }
