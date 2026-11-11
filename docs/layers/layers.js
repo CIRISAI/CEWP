@@ -17,25 +17,27 @@ try { const s = localStorage.getItem("cewp.layers"); if (s) KEEP.on = new Set(JS
 const save = () => { try { localStorage.setItem("cewp.layers", JSON.stringify([...KEEP.on])); } catch (e) {} };
 
 const REG = [];
-function layer(def){ def.last = {}; REG.push(def); return def; }
+// `last` is a flat name -> number map (the evidence card prints it); strings and lists go in `info`.
+function layer(def){ def.last = {}; def.info = {}; REG.push(def); return def; }
+window.CEWP_LAYERS = {};
 
 // ------------------------------------------------------------------ illustration (not data)
-layer({ id: "glow", title: "Night side lit by where people are", cls: "MODEL", decorative: false,
+window.CEWP_LAYERS["glow"] = layer({ id: "glow", title: "Night side lit by where people are", cls: "MODEL", decorative: false,
   source: "population grid (globe.js POP_GRID) · clock_sun",
   contract: "The population grid the sim places people on (MODEL input, 1.5° cells, scattered ±cellRad), blurred 3 px into a 1024×512 image; lit where the sun from clock_sun(t) is below the horizon. Not satellite night lights. Read once at load; the sun every frame.",
-  available: () => true, status(){ return "sun over " + GFX.sunLL.map((v) => v.toFixed(1) + "°").join(", ") + " · " + String(Math.floor(GFX.utc)).padStart(2, "0") + ":" + String(Math.floor((GFX.utc % 1) * 60)).padStart(2, "0") + " UTC"; } });
+  available: () => true, status(){ this.last = { sun_lat_deg: +GFX.sunLL[0].toFixed(2), sun_lon_deg: +GFX.sunLL[1].toFixed(2), utc_hour: +GFX.utc.toFixed(3) }; return "sun over " + GFX.sunLL.map((v) => v.toFixed(1) + "°").join(", ") + " · " + String(Math.floor(GFX.utc)).padStart(2, "0") + ":" + String(Math.floor((GFX.utc % 1) * 60)).padStart(2, "0") + " UTC"; } });
 
 // ------------------------------------------------------------------ the tick's sample arcs
-layer({ id: "arcs", title: "Deliveries crossing localities (a sample)", cls: "DERIVED",
+window.CEWP_LAYERS["arcs"] = layer({ id: "arcs", title: "Deliveries crossing localities (a sample)", cls: "DERIVED",
   source: "tick → arcs buffer (u32 × 2: signer, target | tier << 28)",
   contract: "tick() writes up to 420 (signer, target, tier) pairs, itself a 1-in-3 to 1-in-48 sample of the deliveries it ran; the page draws at most 10 a tick. Tier: 0 shaped hop, 1 seat replication, 2 relay tree / unshaped, 3 onion. Read every tick (120 ms). The exact counts are on the flows layer.",
-  available: () => true, status(){ return (GFX.arcsDrawn || 0) + " arcs on screen"; } });
+  available: () => true, status(){ this.last = { arcs_on_screen: GFX.arcsDrawn || 0 }; return this.last.arcs_on_screen + " arcs on screen"; } });
 
 // ------------------------------------------------------------------ flows between localities (exact counts)
 const FLOW = { cent: null, W: null, win: [], sum: null, arcs: [], top: [], checked: "", N: 0 };
 const FLOW_WINDOW = 25; // ticks summed (3 s of sim at 120 ms a tick)
 const FLOW_TOP = 60;
-layer({ id: "flows", title: "Flows between localities (exact counts)", cls: "DERIVED",
+window.CEWP_LAYERS["flows"] = layer({ id: "flows", title: "Flows between localities (exact counts)", cls: "DERIVED",
   source: "tick → globe buffer 10 (flows) · locality_centroids → buffer 2",
   contract: "During tick() the kernel counts every delivery that leaves its signer's locality, the same events as out[6] + out[7], into a 181 × 181 u32 matrix (row = from, column = to), buffer 10. Positions: locality_centroids(lat, lon, metro, n), buffer 2, f64 × 3 (lat°, lon°, nodes). The page sums the last 25 ticks and draws the 60 largest pairs, ribbon width ∝ log(count). Checked every tick: Σ matrix = out[6] + out[7].",
   available: has("globe_buf_ptr", "locality_centroids"),
@@ -44,7 +46,7 @@ layer({ id: "flows", title: "Flows between localities (exact counts)", cls: "DER
     const m = U32(10).slice(); FLOW.N = Math.round(Math.sqrt(m.length));
     const out = new Float64Array(mem.buffer, bufs.out, OUT); let tot = 0; for (let i = 0; i < m.length; i++) tot += m[i];
     const want = out[6] + out[7];
-    this.last.tick = { matrix_sum: tot, out6_plus_out7: want, ok: tot === want };
+    Object.assign(this.last, { matrix_sum: tot, out6_plus_out7: want, check_ok: tot === want ? 1 : 0 });
     FLOW.checked = tot === want ? "Σ = out[6]+out[7] ✓" : "MISMATCH Σ " + tot + " ≠ " + want;
     FLOW.win.push(m); if (FLOW.win.length > FLOW_WINDOW) FLOW.win.shift();
     const S = new Uint32Array(m.length); for (const w of FLOW.win) for (let i = 0; i < w.length; i++) S[i] += w[i];
@@ -62,7 +64,7 @@ layer({ id: "flows", title: "Flows between localities (exact counts)", cls: "DER
       return { a, b, birth: 0, life: 0, tier: 4, width: 0.7 + 2.6 * Math.log1p(f.n) / Math.log1p(mx), kind: 1, lift: 0.01 + 0.09 * th / Math.PI, f };
     });
     let total = 0; for (let i = 0; i < S.length; i++) total += S[i];
-    this.last.window = { ticks: FLOW.win.length, crossings: total, pairs: pairs.length, drawn: FLOW.arcs.length, top: FLOW.top.slice(0, 5) };
+    Object.assign(this.last, { ticks: FLOW.win.length, crossings: total, pairs: pairs.length, drawn: FLOW.arcs.length }); this.info.top = FLOW.top.slice(0, 5);
   },
   arcs(){ return FLOW.arcs; },
   draw2D(g, F){ // count labels on the five largest, at the arc's midpoint
@@ -72,11 +74,11 @@ layer({ id: "flows", title: "Flows between localities (exact counts)", cls: "DER
       const t = fmt(r.f.n); g.lineWidth = 3; g.strokeStyle = "rgba(6,9,14,0.9)"; g.strokeText(t, p[0], p[1]); g.fillStyle = "#f4e7c8"; g.fillText(t, p[0], p[1]); }
     g.textAlign = "left";
   },
-  status(){ const w = this.last.window; return w ? fmt(w.crossings) + " crossings in " + w.ticks + " ticks · " + FLOW.checked : "waiting for a tick"; } });
+  status(){ const w = this.last; return w.ticks ? fmt(w.crossings) + " crossings in " + w.ticks + " ticks · " + FLOW.checked : "waiting for a tick"; } });
 
 // ------------------------------------------------------------------ one room's member relay tree (alm.rs)
 const ALM = { room: -1, members: null, edges: null, unrooted: null, mf: null, arcs: [], pick: 0 };
-layer({ id: "alm", title: "A room's relay tree (CC 6.1.6)", cls: "DERIVED", inputs: "MODEL",
+window.CEWP_LAYERS["alm"] = layer({ id: "alm", title: "A room's relay tree (CC 6.1.6)", cls: "DERIVED", inputs: "MODEL",
   source: "alm_room → globe buffers 3 members, 4 edges, 5 unrooted, 6 member facts",
   contract: "alm_room(lat, lon, room_off, room_mem, room, publisher, max_members = 64, seed) runs cewp_sim::alm::compute_alm_topology_verified_with_publisher on the first 64 members of the region's public room. Inputs are MODEL: uplink by device class (phone cellular 2, phone Wi-Fi 8, laptop 12, home node 20 Mbit/s), RTT = 10 ms + fibre at 200 km/ms over 1.6× the great circle, every member trusting every other at depth 1. Buffer 4: u32 × 3 (parent ix, child ix, child depth). Buffer 6: f64 × 4 (class, uplink, depth or -1, children). Recomputed when shown or when the room changes.",
   available: has("alm_room"),
@@ -95,7 +97,7 @@ layer({ id: "alm", title: "A room's relay tree (CC 6.1.6)", cls: "DERIVED", inpu
     ALM.arcs = []; for (let e = 0; e < ne; e++){ const p = ALM.members[ALM.edges[e * 3]], c = ALM.members[ALM.edges[e * 3 + 1]], d = ALM.edges[e * 3 + 2];
       const a = xyz(W.lat[p], W.lon[p]), b = xyz(W.lat[c], W.lon[c]); const th = Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
       ALM.arcs.push({ a, b, birth: 0, life: 0, tier: 2, width: Math.max(1.2, 4.2 - d * 0.8), kind: 1, lift: 0.006 + 0.07 * th / Math.PI }); }
-    this.last = { room, region: REG_NAMES[best] || best, members: ALM.members.length, edges: ne, depth, max_children: maxKids, fanout_bound: wasm.alm_bounds(0), rtt_ceiling_ms: wasm.alm_bounds(1), unrooted: ALM.unrooted.length };
+    this.info = { region: REG_NAMES[best] || String(best) }; this.last = { room, region: best, members: ALM.members.length, edges: ne, depth, max_children: maxKids, fanout_bound: wasm.alm_bounds(0), rtt_ceiling_ms: wasm.alm_bounds(1), unrooted: ALM.unrooted.length };
   },
   onShow(){ this.compute(); }, arcs(){ return ALM.arcs; },
   next(){ ALM.pick++; this.compute(); gfxDirty(800); },
@@ -113,7 +115,7 @@ const REG_NAMES = ["N. America", "Latin America", "Europe", "MENA", "Sub-Saharan
 
 // ------------------------------------------------------------------ a room's chunk custody (chunk_custody.rs)
 const CUST = { reach: 1000, holders: null, c: null, pick: 0 };
-layer({ id: "custody", title: "Who holds a room's chunk", cls: "DERIVED", inputs: "MODEL (reachability draw)",
+window.CEWP_LAYERS["custody"] = layer({ id: "custody", title: "Who holds a room's chunk", cls: "DERIVED", inputs: "MODEL (reachability draw)",
   source: "custody_room → globe buffers 7 (summary), 8 (holders)",
   contract: "custody_room(lat, lon, metro, room_off, room_mem, room, present_pm, seed): the room's members are the sealed chunk's holders; present_pm (the slider) is the share reachable, drawn per holder (a MODEL stand-in until the failures package supplies who is down). The kernel runs chunk_custody::classify(present, 20, 6) with the tick's own thresholds and Kish n_eff (effective_source_count) over the holders' locality masses. Buffer 7 f64: members, present, target, min viable, state (0 Full, 1 Partial, 2 EnvelopeOnly), n_eff, localities, mean km to centroid, max km. Buffer 8 u32 × 2: holder node, reachable. The room: the first community room of 24-80 members in the relay tree's region (Next room steps on).",
   available: has("custody_room"),
@@ -126,7 +128,7 @@ layer({ id: "custody", title: "Who holds a room's chunk", cls: "DERIVED", inputs
     if (room < 0) room = W.regionRoom[g];
     wasm.custody_room(bufs.lat, bufs.lon, bufs.metro, bufs.roomOff, bufs.roomMem, room, CUST.reach, 7);
     CUST.c = F64(7).slice(); CUST.holders = U32(8).slice(); const c = CUST.c;
-    this.last = { room, members: c[0], present: c[1], target: c[2], min_viable: c[3], state: ["Full", "Partial", "EnvelopeOnly"][c[4]], n_eff: c[5], localities: c[6], mean_km: Math.round(c[7]), max_km: Math.round(c[8]), reachable_permille: CUST.reach };
+    this.last = { room, members: c[0], present: c[1], target: c[2], min_viable: c[3], state_code: c[4], n_eff: c[5], localities: c[6], mean_km: Math.round(c[7]), max_km: Math.round(c[8]), reachable_permille: CUST.reach }; this.info = { state: ["Full", "Partial", "EnvelopeOnly"][c[4]], state_codes: "0 Full, 1 Partial, 2 EnvelopeOnly" };
   },
   onShow(){ if (ALM.room < 0 && LAYERS.def("alm").available()) LAYERS.def("alm").compute(); this.compute(); },
   draw2D(g, F){
@@ -135,11 +137,11 @@ layer({ id: "custody", title: "Who holds a room's chunk", cls: "DERIVED", inputs
       g.lineWidth = 1.4; if (up){ g.fillStyle = "#ffd27a"; g.strokeStyle = "rgba(6,9,14,0.9)"; g.fillRect(p[0] - 3, p[1] - 3, 6, 6); g.strokeRect(p[0] - 3, p[1] - 3, 6, 6); }
       else { g.strokeStyle = "#9aa3ad"; g.strokeRect(p[0] - 3, p[1] - 3, 6, 6); g.beginPath(); g.moveTo(p[0] - 3, p[1] + 3); g.lineTo(p[0] + 3, p[1] - 3); g.stroke(); } } // filled = reachable holder; struck box = unreachable
   },
-  status(){ const l = this.last; return l.members ? `${l.state}: ${l.present} of ${l.members} reachable (Full at ${l.target}, floor ${l.min_viable}) · n_eff ${l.n_eff} over ${l.localities} localities · ${fmt(l.mean_km)} km mean spread` : "–"; },
+  status(){ const l = this.last; return l.members ? `${this.info.state}: ${l.present} of ${l.members} reachable (Full at ${l.target}, floor ${l.min_viable}) · n_eff ${l.n_eff} over ${l.localities} localities · ${fmt(l.mean_km)} km mean spread` : "–"; },
   controls: [{ label: "Next room", act(){ CUST.pick = (CUST.pick + 97) % 5000; this.compute(); gfxDirty(600); } }, { range: [0, 1000, 50], label: "Holders reachable", value: () => CUST.reach, set(v){ CUST.reach = v; this.compute(); gfxDirty(600); }, show: (v) => (v / 10).toFixed(0) + " %" }] });
 
 // ------------------------------------------------------------------ reachability classes in the street world (micro.rs)
-layer({ id: "reach", title: "How each home is reachable (street scale)", cls: "MODEL",
+window.CEWP_LAYERS["reach"] = layer({ id: "reach", title: "How each home is reachable (street scale)", cls: "MODEL",
   source: "micro_export → micro buffer 6 households (f64 × 7, field 4 router class) · buffer 1 node flags",
   contract: "The focal world's households from micro_export, buffer 6, f64 × 7: x, y, building, adopting, router (0 public listener: IPv6 or a forwarded port; 1 NAT a facilitated punch can traverse; 2 hard NAT / CGNAT), in community, persons. Router shares are micro.rs PARAM_SPECS (MODEL). Read every frame the street world is on screen. Glyph by class: filled disc, ring, hatched square (never colour alone).",
   available: () => typeof microOk === "function" && microOk(),
@@ -161,7 +163,7 @@ layer({ id: "reach", title: "How each home is reachable (street scale)", cls: "M
 
 // ------------------------------------------------------------------ seat load against its capacity curve (capacity.rs)
 const SEAT = { curve: null, key: "" };
-layer({ id: "seat", title: "Serve-seat load across fleet sizes", cls: "MODEL", inputs: "calibrated to seat-1 (MEASURED/DERIVED/MODEL per capacity.rs COST_SPECS)",
+window.CEWP_LAYERS["seat"] = layer({ id: "seat", title: "Serve-seat load across fleet sizes", cls: "MODEL", inputs: "calibrated to seat-1 (MEASURED/DERIVED/MODEL per capacity.rs COST_SPECS)",
   source: "cap_curve → globe buffer 9 (f64 × 4: devices, ρ cpu, ρ permits, round latency s)",
   contract: "cap_curve(d0 = 10, d1 = 100,000, n = 64, shape, read, seats, select, cand) runs capacity::run over 64 fleet sizes with the bundle-bootstrap setting the street chip shows (v44 / v45 / whole-plane). Buffer 9 f64 × 4. The patch marker is seatRounders() from the street world through cap_seat (buffer 12, ρ cpu). No knee is printed: the knee is under correction by the calibration package.",
   available: has("cap_curve"),
@@ -184,9 +186,9 @@ layer({ id: "seat", title: "Serve-seat load across fleet sizes", cls: "MODEL", i
     // this street's seat, if the street world is up: devices that round with it now, through cap_seat
     let here = null; if (typeof M !== "undefined" && M && typeof seatRounders === "function" && typeof capSeat === "function"){ try { const sids = []; for (let i = 0; i < M.n; i++) if (nodeKind(i) === 4) sids.push(i); if (sids.length){ const d = seatRounders(sids[0]); if (d > 0){ const [sh, rd, cd] = bsCap(); const o = capSeat(d, sh, rd, cd); if (o) here = { devices: d, rho: o.rhoCpu }; } } } catch (e) {} }
     if (here && here.devices >= 10){ const x = lx(here.devices), y = ly(here.rho); g.fillStyle = "#fff"; g.beginPath(); g.arc(x, y, 3.5, 0, 6.2832); g.fill(); }
-    this.last = { setting: SEAT.key, points: C.length / 4, first: { devices: C[0], rho_cpu: C[1] }, last: { devices: C[C.length - 4], rho_cpu: C[C.length - 3] }, this_street: here };
+    this.last = { points: C.length / 4, first_devices: C[0], first_rho_cpu: C[1], last_devices: C[C.length - 4], last_rho_cpu: C[C.length - 3] }; if (here){ this.last.street_devices = here.devices; this.last.street_rho_cpu = here.rho; } this.info = { setting: SEAT.key };
   },
-  status(){ const h = this.last.this_street; return "solid ρ CPU · dashed ρ permits" + (h ? ` · this street's seat: ${h.devices} devices round with it, ρ ${h.rho.toFixed(3)}` : "") + " · no knee is marked: the seat model is being recalibrated"; } });
+  status(){ const h = this.last; return "solid ρ CPU · dashed ρ permits" + (h.street_devices ? ` · this street's seat: ${h.street_devices} devices round with it, ρ ${h.street_rho_cpu.toFixed(3)}` : "") + " · no knee is marked: the seat model is being recalibrated"; } });
 
 // ------------------------------------------------------------------ Phase 2 contracts (not shown until the export exists)
 const CONTRACT = (id, title, cls, exp, contract) => layer({ id, title, cls, source: exp.join(", "), contract, available: has(...exp), pending: true });
@@ -218,13 +220,13 @@ const LAYERS = window.LAYERS = {
     for (const d of REG) if (d.draw2D && this.on(d.id)) try { d.draw2D(g, F); } catch (e) { console.warn("layer " + d.id, e); }
     g.restore(); if (frame % 10 === 0) refresh(); },
   // for the console check: what an export returned and what the layer drew
-  check(){ return Object.fromEntries(REG.filter((d) => this.on(d.id)).map((d) => [d.id, d.last])); },
+  check(){ return Object.fromEntries(REG.filter((d) => this.on(d.id)).map((d) => [d.id, Object.assign({}, d.last, d.info)])); },
 };
-window.CEWP_LAYERS = Object.fromEntries(REG.map((d) => [d.id, d]));
+const CODE = { MEASURED: "ME", DERIVED: "DE", MODEL: "MO", PROJECTED: "PR", FRONTIER: "FR" };
 let dock = null, open = false;
 function render(){
-  if (!dock){ dock = document.createElement("section"); dock.id = "layer-dock"; dock.setAttribute("aria-label", "Layers"); document.body.appendChild(dock);
-    dock.addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; e.stopPropagation();
+  if (!dock){ dock = document.getElementById("layer-dock") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "layer-dock" })); dock.setAttribute("role", "group"); dock.setAttribute("aria-label", "Globe layers");
+    dock.addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b || b.dataset.layerClaim) return; e.stopPropagation();
       if (b.dataset.toggle){ open = !open; render(); return; }
       if (b.dataset.layer){ LAYERS.set(b.dataset.layer, !KEEP.on.has(b.dataset.layer)); return; }
       if (b.dataset.ctl){ const [id, k] = b.dataset.ctl.split(":"); const d = LAYERS.def(id); d.controls[+k].act.call(d); render(); } });
@@ -239,7 +241,7 @@ function render(){
     const on = KEEP.on.has(d.id);
     const ctl = on && d.controls ? d.controls.map((c, k) => c.range ? `<label class="ly-ctl">${c.label} <input type="range" min="${c.range[0]}" max="${c.range[1]}" step="${c.range[2]}" value="${c.value()}" data-ctl="${d.id}:${k}"><output>${c.show(c.value())}</output></label>` : `<button class="ly-ctl-b" data-ctl="${d.id}:${k}">${c.label}</button>`).join("") : "";
     return `<div class="ly-row${on ? " on" : ""}"><button class="ly-sw" data-layer="${d.id}" aria-pressed="${on}"><span class="ly-box" aria-hidden="true">${on ? "■" : "□"}</span><span class="ly-t">${d.title}</span></button>
-      <span class="ly-cls" title="class of what this layer draws (FSD §8.2)${d.inputs ? "; inputs: " + d.inputs : ""}">${d.cls}${d.inputs ? " · inputs " + d.inputs.split(" ")[0] : ""}</span>
+      <button type="button" class="ly-cls" data-layer-claim="${d.id}" title="${d.cls}: class of what this layer draws (FSD §8.2); open its evidence card" aria-label="${d.cls}, open the evidence card for ${d.title}">${CODE[d.cls]}</button>${d.inputs ? `<span class="ly-in" title="inputs: ${d.inputs}">inputs ${d.inputs.split(" ")[0]}</span>` : ""}
       ${on ? `<div class="ly-st" id="ly-st-${d.id}"></div>${d.panel ? `<canvas class="ly-chart" id="ly-ch-${d.id}" aria-label="${d.title} chart"></canvas>` : ""}${ctl}<details class="ly-src"><summary>Where this comes from</summary><p><code>${d.source}</code></p><p>${d.contract}</p></details>` : ""}</div>`; }).join("") +
     `<p class="ly-note">Not data: the ocean's colour and glint and the atmosphere are illustration.</p></div>`;
   refresh();

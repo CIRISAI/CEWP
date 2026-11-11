@@ -78,6 +78,13 @@ These are round figures, not measurements; topology/nat/media replace them in Ph
 
 ## Layers (docs/layers/layers.js; registry public as `window.CEWP_LAYERS`)
 
+Registry contract (agreed with the evidence package): each shown layer registers at load as the literal
+`window.CEWP_LAYERS["<id>"] = layer({ id: "<id>", title: ..., cls: "<CLASS>", ...` with `cls` exactly one
+of MEASURED, DERIVED, MODEL, PROJECTED, FRONTIER; the evidence scan needs a ledger entry `layer-<id>` of the
+same class. `last` is a flat name -> number map of what the layer drew; names and lists go in `info`. The class
+chip is `<button data-layer-claim="<id>">` with the two-letter code; the evidence package handles its click and
+the dock never stops that event. Phase 2 contracts are not in `CEWP_LAYERS` until their export exists.
+
 | id | draws | export | class |
 |---|---|---|---|
 | glow | night side lit where people are | population grid + `clock_sun` | MODEL |
