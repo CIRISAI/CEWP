@@ -18,6 +18,7 @@
 //  26 failures meta (10 fields)      27 failures nodes (stride 4)       28 failures metros (stride 4)
 //  29 failures steps (stride 7)      30 failures state (u32, steps x n) 31 failures components (u32, steps x n)
 //  32 seat fleet (stride SEAT_FLEET_STRIDE, one row per (devices, g) asked)
+//  33 failures cables (u32, stride 2: country, second country or u32::MAX)
 use cewp_sim::holon_demo::demonstration_seeded;
 use cewp_sim::holon_view::{certificates_of, cells_of, holon_view_bounds, BOUND_NAMES, VIEW_HORIZON_S};
 use cewp_sim::netgraph::view::{view_classes, TopologyView};
@@ -28,8 +29,8 @@ use cewp_sim::failure_view::failure_view;
 use cewp_sim::seat_view::{seat_view_fleet, SEAT_FLEET_STRIDE};
 use cewp_sim::seat_hooks::{calibration_view_curve, calibration_view_knee, calibration_view_residuals};
 
-pub const SLOTS: usize = 33;
-const U32_SLOTS: [bool; SLOTS] = [false, true, false, true, false, true, false, false, false, true, false, false, true, true, false, true, true, false, false, false, false, true, false, false, false, true, false, false, false, false, true, true, false];
+pub const SLOTS: usize = 34;
+const U32_SLOTS: [bool; SLOTS] = [false, true, false, true, false, true, false, false, false, true, false, false, true, true, false, true, true, false, false, false, false, true, false, false, false, true, false, false, false, false, true, true, false, true];
 
 pub struct Views {
     f: Vec<Vec<f32>>,
@@ -157,7 +158,7 @@ pub extern "C" fn view_media(seed: u32) -> u32 {
 
 /// Failures (twin-failures, failure.rs, through failure_view): one correlated outage stepping
 /// through time; scenario 0 national shutdown, 1 nationwide ISP outage, 2 regional power. Fills
-/// slots 26 to 31 with every step at once (the page asks once per scenario and keeps the copy).
+/// slots 26 to 31 and 33 with every step at once (the page asks once per scenario and keeps the copy).
 /// Returns the node count.
 #[no_mangle]
 pub extern "C" fn view_failures(scenario: u32) -> u32 {
@@ -170,6 +171,7 @@ pub extern "C" fn view_failures(scenario: u32) -> u32 {
     v.f[29] = f.steps;
     v.u[30] = f.state;
     v.u[31] = f.comp;
+    v.u[33] = f.cables;
     n
 }
 
@@ -298,7 +300,7 @@ mod tests {
             let f = failure_view(sc);
             assert_eq!(n as f32, f.meta[0]);
             assert_eq!((&views().f[26], &views().f[27], &views().f[28], &views().f[29]), (&f.meta, &f.nodes, &f.metros, &f.steps));
-            assert_eq!((&views().u[30], &views().u[31]), (&f.state, &f.comp));
+            assert_eq!((&views().u[30], &views().u[31], &views().u[33]), (&f.state, &f.comp, &f.cables));
             assert_eq!((view_is_u32(30), view_is_u32(31), view_is_u32(29)), (1, 1, 0));
         }
     }

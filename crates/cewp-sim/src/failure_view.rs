@@ -11,10 +11,11 @@
 //! # Placement (display only, MODEL, no meaning)
 //!
 //! The failure world's countries and metros are generated indices with no coordinates. To draw
-//! them, generated country `c` is given region `c mod 9` of the page's nine regions
+//! them, generated country `c` is given region `(c + 6) mod 9` of the page's nine regions
 //! ([`crate::netgraph::REGION_NAMES`]); its anchor is the heaviest locality of that region not
-//! yet taken, and its metros are the localities nearest that anchor. A generated country
-//! therefore spans several real countries and is none of them. Nodes sit on a sunflower spiral
+//! yet taken, and each further metro is the free locality of that region farthest from the ones
+//! already placed (farthest-point spread). A generated country therefore spans a whole region,
+//! across several real countries, and is none of them. Nodes sit on a sunflower spiral
 //! (`NODE_RING_DEG` x sqrt(k) degrees) around their metro's locality. No position is an address.
 //!
 //! # Buffers
@@ -32,6 +33,8 @@
 //!   `4` not up in the baseline either (asleep, or failed to rejoin with nothing failed).
 //! * `comp` u32, `steps x nodes`: [`failure::view_event_components`]'s dense component label,
 //!   `u32::MAX` when the node is not up.
+//! * `cables` u32 x 2 per international link: `[country, second country or u32::MAX]` (a link
+//!   that lands in one country joins it to the global core).
 //!
 //! Steps: [`PRE_STEPS`] before onset (the baseline, nothing failed), then [`POST_STEPS`] from
 //! onset to `horizon = 1.25 x duration`, at the same hours as
@@ -46,7 +49,7 @@ pub const PRE_STEPS: usize = 2;
 /// Steps from onset to the horizon.
 pub const POST_STEPS: usize = 41;
 /// Spiral spacing of nodes around their metro, degrees (display only).
-pub const NODE_RING_DEG: f64 = 0.055;
+pub const NODE_RING_DEG: f64 = 0.09;
 /// Nodes in the view's world (the failure package's own demo size).
 pub const VIEW_NODES: f64 = 2_000.0;
 /// World seed (the failure package's `view_demo` seed).
@@ -69,6 +72,8 @@ pub struct FailureView {
     pub state: Vec<u32>,
     /// See the module doc.
     pub comp: Vec<u32>,
+    /// See the module doc.
+    pub cables: Vec<u32>,
 }
 
 fn count_by<T: Ord + Copy>(it: impl Iterator<Item = T>) -> BTreeMap<T, u32> {
@@ -133,7 +138,9 @@ pub fn metro_positions(w: &DomainWorld) -> Vec<(f64, f64)> {
     let mut taken = vec![false; loc.len()];
     let mut pos = vec![(0.0, 0.0); w.metros.len()];
     for c in 0..w.countries {
-        let region = (c % 9) as u8;
+        // region (c + 6) mod 9: display only; it puts the view's shut country (index 5) across Europe,
+        // where a generated country plainly spans many real ones
+        let region = ((c + 6) % 9) as u8;
         let mine: Vec<usize> = (0..w.metros.len()).filter(|&m| w.metros[m].country == c).collect();
         if mine.is_empty() {
             continue;
@@ -144,17 +151,30 @@ pub fn metro_positions(w: &DomainWorld) -> Vec<(f64, f64)> {
             cand = (0..loc.len()).filter(|&k| !taken[k]).collect();
         }
         let Some(&anchor) = cand.iter().max_by_key(|&&k| (loc[k].2, usize::MAX - k)) else { continue };
-        let (la0, lo0) = (loc[anchor].0, loc[anchor].1);
-        // the anchor's nearest free localities, nearest first (squared degrees, longitude by cos lat)
-        let d2 = |k: usize| {
-            let dla = loc[k].0 - la0;
-            let dlo = (((loc[k].1 - lo0) + 540.0) % 360.0 - 180.0) * la0.to_radians().cos();
+        // squared degrees between two localities, longitude by cos lat
+        let d2 = |a: usize, b: usize| {
+            let dla = loc[a].0 - loc[b].0;
+            let dlo = (((loc[a].1 - loc[b].1) + 540.0) % 360.0 - 180.0) * loc[a].0.to_radians().cos();
             dla * dla + dlo * dlo
         };
-        cand.sort_by(|&a, &b| d2(a).total_cmp(&d2(b)).then(a.cmp(&b)));
+        let mut placed: Vec<usize> = Vec::new();
         for (j, &m) in mine.iter().enumerate() {
-            let k = cand.get(j).copied().unwrap_or(anchor);
+            let k = if j == 0 {
+                anchor
+            } else {
+                // the free locality of the region farthest from every one already placed
+                cand.iter()
+                    .copied()
+                    .filter(|&k| !taken[k])
+                    .max_by(|&a, &b| {
+                        let da = placed.iter().map(|&q| d2(a, q)).fold(f64::MAX, f64::min);
+                        let db = placed.iter().map(|&q| d2(b, q)).fold(f64::MAX, f64::min);
+                        da.total_cmp(&db).then(b.cmp(&a))
+                    })
+                    .unwrap_or(anchor)
+            };
             taken[k] = true;
+            placed.push(k);
             pos[m] = (loc[k].0, loc[k].1);
         }
     }
@@ -253,7 +273,12 @@ pub fn failure_view(scenario: u32) -> FailureView {
         w.metros.len() as f32,
         horizon as f32,
     ];
-    FailureView { meta, nodes, metros, steps, state, comp }
+    let mut cables = Vec::with_capacity(w.cables.len() * 2);
+    for c in &w.cables {
+        cables.push(u32::from(c.landings.first().copied().unwrap_or(0)));
+        cables.push(c.landings.get(1).map_or(u32::MAX, |&x| u32::from(x)));
+    }
+    FailureView { meta, nodes, metros, steps, state, comp, cables }
 }
 
 #[cfg(test)]
@@ -314,6 +339,7 @@ mod tests {
         for m in v.metros.chunks(4) {
             assert!(LOCALITIES.iter().any(|&(la, lo, _, _)| (f64::from(la) / 100.0) as f32 == m[0] && (f64::from(lo) / 100.0) as f32 == m[1]));
         }
+        assert!(!v.cables.is_empty() && v.cables.len() % 2 == 0);
         // a generated country's metros never share a locality with another country's
         let mut at: BTreeMap<(u32, u32), u32> = BTreeMap::new();
         for m in v.metros.chunks(4) {
