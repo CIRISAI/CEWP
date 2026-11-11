@@ -739,6 +739,12 @@ function geoLoad50(){ if (GEO.p50) return; GEO.p50 = true;
     const L = geoDecode(b), K = geoDecode(k); GEO.lakes = K;
     L[1] = L[1].concat(K[1], K[5]); L[2] = L[2].concat(K[2]); GEO.l50 = geoUpload(L, 0); }).catch(e => console.warn(e.message)); }
 function geoLoadPlaces(){ if (GEO.pPlaces) return; GEO.pPlaces = true; geoFetch("geo/places.bin?v=1").then(b => { GEO.places = geoPlaces(b); }).catch(e => console.warn(e.message)); }
+// one ne10 tile: keep it most recent, or fetch, decode and upload it (also used by preload.js)
+function geoWant10(k, keep){ const t = GEO.t10.get(k);
+  if (t){ GEO.t10.delete(k); GEO.t10.set(k, t); return; } // most recent last
+  GEO.t10.set(k, { pending: true, bytes: 0 });
+  geoFetch("geo/ne10/" + k + ".bin?v=1").then(b => { const e = GEO.t10.get(k); if (!e) return; const L = geoDecode(b), K = geoAddLakes(k); const S = geoUpload(L, 0, K); S.pending = false; GEO.t10.set(k, S); if (keep) geoEvict(keep); })
+    .catch(e => { console.warn(e.message); GEO.t10.delete(k); }); }
 function geoSets(w, h, mpp){
   GEO.mpp = mpp;
   if (mpp < GEO_MPP_50 * 2) geoLoad50();
@@ -747,11 +753,7 @@ function geoSets(w, h, mpp){
   if (mpp < GEO_MPP_10 * 2){
     if (!GEO.pIdx){ GEO.pIdx = true; fetch("geo/ne10/index.json?v=1").then(r => r.json()).then(j => { GEO.idx10 = new Set(j.map(t => t[0] + "_" + t[1])); }).catch(e => console.warn(e.message)); }
     if (GEO.idx10 && GEO.lakes){ tiles = geoVisibleTiles(w, h, mpp).filter(k => GEO.idx10.has(k)); // after the lakes, so every tile gets its own
-      for (const k of tiles){ const t = GEO.t10.get(k);
-        if (t){ GEO.t10.delete(k); GEO.t10.set(k, t); continue; } // most recent last
-        GEO.t10.set(k, { pending: true, bytes: 0 });
-        geoFetch("geo/ne10/" + k + ".bin?v=1").then(b => { const e = GEO.t10.get(k); if (!e) return; const L = geoDecode(b), K = geoAddLakes(k); const S = geoUpload(L, 0, K); S.pending = false; GEO.t10.set(k, S); geoEvict(tiles); })
-          .catch(e => { console.warn(e.message); GEO.t10.delete(k); }); }
+      for (const k of tiles) geoWant10(k, tiles);
       geoEvict(tiles); }
   }
   if (tiles && mpp < GEO_MPP_10 && tiles.length && tiles.every(k => { const t = GEO.t10.get(k); return t && !t.pending; })){ GEO.used = "10m"; return tiles.map(k => GEO.t10.get(k)); }
@@ -2122,11 +2124,18 @@ function microFreeRoam(){
     // no households here (GHS-POP reads under the floor in this cell): no streets, no devices, and the chip says why
     if (!T.budget(leaf)){ const r = pcCellAt(tlPop(), lat, lon), L = typeof geoLandcoverAt === "function" ? geoLandcoverAt(lat, lon) : null; microEmpty = r ? { people: r.people, perKm2: r.perKm2, lc: L ? L.name : "" } : null; microNoLand = true; M = null; return; }
     microEmpty = null;
-    if (!tlLand().squareOnLand(b[0], b[1], b[2] - b[0])){ microNoLand = true; M = null; return; }
+    if (!landFine(lat, lon).squareOnLand(b[0], b[1], b[2] - b[0])){ microNoLand = true; M = null; return; }
     microNoLand = false; microBuildLeaf(leaf, adoption, key); microGlide = 1; return;
   }
   // until GHS-POP and the tiling are in, no street is generated: every street is conditioned on the people under it
   microNoLand = false; microEmpty = null; M = null;
+}
+// the land test under a point: the Natural Earth 10 m tile there once it is loaded (the 50 m mask
+// puts Kowloon, Macau and Lagos Island in the sea), else the 50 m mask the tiling stands on
+function landFine(lat, lon){
+  const k = Math.floor(lat / 10) * 10 + "_" + (((Math.floor(lon / 10) * 10 + 180) % 360 + 360) % 360 - 180), t = GEO.t10 && GEO.t10.get(k);
+  if (t && !t.pending && t.rings && t.rings.length){ if (!t.land) t.land = landTest(t.rings); return t.land; }
+  return tlLand();
 }
 function paramKey(){ return ["sl_nat", "sl_srv", "sl_relay", "sl_wifi", "sl_chg", "sl_sh_home", "sl_sh_phone"].map(id => $(id).value).join(",") + "," + currentPop + (microDesign ? ",design" : ""); }
 // the seats a node homes on, as the world built them (one in production's shape)
@@ -2211,7 +2220,7 @@ function microDraw(){
       const cx = B[b], cy = B[b + 1], w = B[b + 2], d = B[b + 3], ang = B[b + 4], units = B[b + 6], adopt = B[b + 7];
       // a cast shadow (fixed light from the north-west, display only), then a pitched roof in two tones
       // split along the long axis, so a footprint reads as a building and not a flat block
-      g.save(); g.globalAlpha = bldA * 0.45; g.translate(cx + 0.35 + 0.7 * Math.max(1, B[b + 5]), cy + 0.35 + 0.7 * Math.max(1, B[b + 5])); // shadow length follows storeys g.rotate(ang); g.fillStyle = "#05070a"; g.fillRect(-w / 2, -d / 2, w, d); g.restore();
+      g.save(); g.globalAlpha = bldA * 0.45; g.translate(cx + 0.35 + 0.7 * Math.max(1, B[b + 5]), cy + 0.35 + 0.7 * Math.max(1, B[b + 5])); /* shadow length follows storeys */ g.rotate(ang); g.fillStyle = "#05070a"; g.fillRect(-w / 2, -d / 2, w, d); g.restore();
       g.save(); g.translate(cx, cy); g.rotate(ang); g.globalAlpha = bldA;
       const base = units === 0 ? [92, 90, 84] : adopt > 0 ? (day > 0.5 ? [170, 152, 128] : [118, 104, 86]) : [128, 130, 138];
       const lit = base.map((v) => Math.min(255, Math.round(v * 1.18))), shade = base.map((v) => Math.round(v * 0.72));

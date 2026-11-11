@@ -110,24 +110,25 @@ function tlBuildLeaf(leaf){
   // the ground between buildings (generated decoration, display only; drawn before the streets, which cover it): a paler lot around each footprint and a
   // few trees in it, placed by a hash of the leaf and the building, so the same street always looks the same
   const hsh = (a, b) => { let x = Math.imul(a | 0, 0x9e3779b1) ^ Math.imul(b | 0, 0x85ebca77); x ^= x >>> 15; x = Math.imul(x, 0x2c1b3c6d); x ^= x >>> 12; return (x >>> 0) / 4294967296; };
-  const disc = (x, y, r, c, a) => { for (let k = 0; k < 8; k++){ const a0 = k * Math.PI / 4, a1 = (k + 1) * Math.PI / 4; vert(x, y, 0, 0, 0, c, a, 1); vert(x + r * Math.cos(a0), y + r * Math.sin(a0), 0, 0, 0, c, a, 1); vert(x + r * Math.cos(a1), y + r * Math.sin(a1), 0, 0, 0, c, a, 1); } };
+  // a hexagon (6 triangles): the street ground's decoration is kept cheap, about 2,000 vertices a leaf
+  const disc = (x, y, r, c, a) => { for (let k = 0; k < 6; k++){ const a0 = k * Math.PI / 3, a1 = (k + 1) * Math.PI / 3; vert(x, y, 0, 0, 0, c, a, 1); vert(x + r * Math.cos(a0), y + r * Math.sin(a0), 0, 0, 0, c, a, 1); vert(x + r * Math.cos(a1), y + r * Math.sin(a1), 0, 0, 0, c, a, 1); } };
   const seed = (id % 2147483647) | 0;
   // over the whole leaf: soft mottling (meadow and wear) and scattered trees, fewer where it is dense;
   // buildings and streets drawn later cover whatever lands under them
-  { const area = w * h, dens = meta[2] / Math.max(1e-6, area / 1e6), pkm = dens * TL_PPH, nT = pkm >= 6000 ? 0 : Math.min(300, Math.round(area / (pkm >= 1500 ? 900 : 380))), nP = Math.min(120, Math.round(area / 2500)); // no trees where it is apartment blocks or denser
+  { const area = w * h, dens = meta[2] / Math.max(1e-6, area / 1e6), pkm = dens * TL_PPH, nT = pkm >= 6000 ? 0 : Math.min(70, Math.round(area / (pkm >= 1500 ? 1600 : 700))), nP = Math.min(14, Math.round(area / 9000)); // no trees where it is apartment blocks or denser
     for (let k = 0; k < nP; k++){ const x = (hsh(seed, 9000 + k) - 0.5) * w, y = (hsh(9000 + k, seed) - 0.5) * h, r = 8 + 18 * hsh(seed ^ k, 77);
       disc(x, y, r, hsh(k, seed) < 0.5 ? [0.5, 0.55, 0.36] : [0.04, 0.07, 0.04], 0.07); }
     for (let k = 0; k < nT; k++){ const x = (hsh(seed, k) - 0.5) * w, y = (hsh(k, seed + 1) - 0.5) * h, r = 1.4 + 2.2 * hsh(seed + 2, k), gk = hsh(k, 31);
-      disc(x + 0.8, y - 0.8, r, [0.02, 0.03, 0.02], 0.3); disc(x, y, r, [0.09 + 0.05 * gk, 0.17 + 0.08 * gk, 0.08], 0.8); } }
+      disc(x, y, r, [0.09 + 0.05 * gk, 0.17 + 0.08 * gk, 0.08], 0.8); } }
   const lots = meta[2] * TL_PPH / Math.max(1e-6, w * h / 1e6) < 1500; // yards and garden trees only in suburban and village streets
   for (let b = 0; lots && b < B.length; b += 8){
     const cx = B[b], cy = B[b + 1], bw = B[b + 2] / 2, bd = B[b + 3] / 2, ca = Math.cos(B[b + 4]), sa = Math.sin(B[b + 4]);
     const lw = bw + 2 + 0.35 * bw, ld = bd + 2 + 0.35 * bd, at = (u, v) => [cx + ca * u - sa * v, cy + sa * u + ca * v];
     quad([[-lw, -ld], [lw, -ld], [lw, ld], [-lw, ld]].map(([u, v]) => at(u, v)), [0.42, 0.5, 0.33], 0.16, 1);
-    const nt = Math.floor(hsh(seed, b) * 4);
+    const nt = Math.floor(hsh(seed, b) * 3);
     for (let t = 0; t < nt; t++){ const side = hsh(seed + t, b) * 4 | 0, f = hsh(b, seed + 7 * t) * 2 - 1, r = 1.6 + 1.8 * hsh(seed ^ t, b + 3);
       const [u, v] = side === 0 ? [f * lw, ld - r * 0.6] : side === 1 ? [f * lw, -ld + r * 0.6] : side === 2 ? [lw - r * 0.6, f * ld] : [-lw + r * 0.6, f * ld];
-      const [x, y] = at(u, v); disc(x + 0.8, y - 0.8, r, [0.02, 0.03, 0.02], 0.35); disc(x, y, r, [0.11, 0.2 + 0.06 * hsh(t, b), 0.1], 0.85); }
+      const [x, y] = at(u, v); disc(x, y, r, [0.11, 0.2 + 0.06 * hsh(t, b), 0.1], 0.85); }
   }
   // streets by width class (the kernel's own widths): arterial >= 11 m pale and warm on a dark casing,
   // collector >= 7 m light grey, local streets the class colour; local ones drawn first so wider ones cross over

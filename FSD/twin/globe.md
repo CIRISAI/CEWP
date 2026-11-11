@@ -252,3 +252,37 @@ its off-patch seat and servers):
 
 The cohort tier and the night glow draw the 1.5° grid at its own grain (cohorts scattered inside
 their cell), which is the coarse tier, not generated streets.
+
+## The dense extreme (Eric: "the most populated places on earth")
+
+What the data says: the densest 1/8° cells in GHS-POP 2020 by people per km² of land (land share from
+the Natural Earth 50 m mask, 10 × 10 samples a cell) are Karachi (24.94 N 67.06 E, 41,964), Karachi's
+coastal cell (41,448), two Mumbai cells (40,098 and 37,228), Giza/Cairo (37,082), Dhaka (34,850),
+Mumbai (33,976), Kowloon (33,867), Delhi (32,344), Shanghai (30,818), Bengaluru, Cairo, upper
+Manhattan, Surat, Wuhan, Ho Chi Minh City, Shanghai, Lahore, Delhi and Istanbul (25,150). Nothing at
+1/8° exceeds 42,000 per km²: the cell average hides wards of 100,000 and more.
+
+What the street tier does there (MODEL):
+* Above 12,000 per km² (`DENSE_FABRIC_KM2`) an apartment-block leaf is dense fabric: 4 m lanes,
+  plots filling the leaf, the leaf's households shared over the buildings, storeys = flats per
+  building / flats per floor (at least 3). The leaf still holds at most 60 households (the tiling's
+  target), so at 40,000 per km² a leaf is about 60 m across; the block zoom shows hundreds of such
+  leaves side by side, which is where the density reads.
+* Below it, 6,000 to 12,000 per km² keep apartment blocks of 4 to 7 storeys on street frontage.
+* No trees or garden lots at 1,500 per km² and above; shadows follow storeys.
+* The chip names dense fabric, its mean storeys, and that the density is a 1/8° cell average with
+  denser wards inside.
+
+What it does not capture:
+* Towers. Storeys follow households per footprint at the cell average, so Kowloon and Manhattan draw
+  as dense mid-rise, not 40-storey towers; no building-height data is approved.
+* Wards denser than the cell (Cairo's and Dhaka's exceed 100,000 per km²).
+* Household size. 2.5 persons a household everywhere (micro.rs PersonsPerHousehold, MODEL): too few
+  for Dhaka, Karachi and Lagos and too many for Tokyo and Paris (the direction is general knowledge,
+  not read from a dataset here). Households,
+  devices per person and devices per seat are off by that ratio there. No approved dataset carries
+  household size. Approval request: UN DESA Population Division, "Database on Household Size and
+  Composition 2022" (https://www.un.org/development/desa/pd/data/household-size-and-composition),
+  mean household size by country from censuses and surveys; licence and size to be read from its
+  page before approval; it would replace the single 2.5 with a per-country value at the
+  locality's country. Not fetched.
