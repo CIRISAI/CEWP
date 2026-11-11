@@ -5,7 +5,9 @@
 //!
 //! Cases: (a) as shipped; (b) `port_mapping_client` = 1 and `port_mapping_punch` = 1 (the client
 //! maps the listener and the punch socket); (b-l) the listener only, to split (b)'s gain; (c)
-//! `ipv6_listener` = 1; (d) (b) and (c).
+//! `ipv6_listener` = 1; (d) (b) and (c); (e) what leviculum feat/101-port-mapping builds (per
+//! `levi-portmap`): home nodes map their direct-link session sockets only; no listener (edge
+//! advertises no home ip hint), phones off.
 
 use super::hooks::{classes, NodeClass};
 use super::{
@@ -25,15 +27,20 @@ pub struct Case {
     pub punch: bool,
     /// `ipv6_listener`.
     pub v6_listener: bool,
+    /// `port_mapping_listener` (meaningful with `client`).
+    pub listener: bool,
+    /// `port_mapping_phones` (meaningful with `punch`).
+    pub phones: bool,
 }
 
 /// The cases, in report order.
-pub const CASES: [Case; 5] = [
-    Case { name: "(a) as shipped", client: false, punch: false, v6_listener: false },
-    Case { name: "(b-l) UPnP/PCP, listener only", client: true, punch: false, v6_listener: false },
-    Case { name: "(b) UPnP/PCP, listener + punch socket", client: true, punch: true, v6_listener: false },
-    Case { name: "(c) IPv6 listener", client: false, punch: false, v6_listener: true },
-    Case { name: "(d) (b) + (c)", client: true, punch: true, v6_listener: true },
+pub const CASES: [Case; 6] = [
+    Case { name: "(a) as shipped", client: false, punch: false, v6_listener: false, listener: true, phones: true },
+    Case { name: "(b-l) UPnP/PCP, listener only", client: true, punch: false, v6_listener: false, listener: true, phones: true },
+    Case { name: "(b) UPnP/PCP, listener + punch socket", client: true, punch: true, v6_listener: false, listener: true, phones: true },
+    Case { name: "(c) IPv6 listener", client: false, punch: false, v6_listener: true, listener: true, phones: true },
+    Case { name: "(d) (b) + (c)", client: true, punch: true, v6_listener: true, listener: true, phones: true },
+    Case { name: "(e) leviculum#101 as built", client: true, punch: true, v6_listener: false, listener: false, phones: false },
 ];
 
 /// Parameters of `case` on top of `base`.
@@ -44,6 +51,8 @@ pub fn params(base: &ReachParams, case: Case) -> ReachParams {
     p.set(R::PortMappingClient, b(case.client));
     p.set(R::PortMappingPunch, b(case.punch));
     p.set(R::Ipv6Listener, b(case.v6_listener));
+    p.set(R::PortMappingListener, b(case.listener));
+    p.set(R::PortMappingPhones, b(case.phones));
     p
 }
 
@@ -192,11 +201,11 @@ pub fn report(seed: u64) -> String {
         let mut b = base_e.clone();
         b.set(R::RouterUpnpShare, u);
         let a = stats(&ReachModel::new(params(&b, CASES[0])).expect("calibrates"), seed).relay.mean;
-        for c in [CASES[1], CASES[2], CASES[4]] {
+        for c in [CASES[1], CASES[2], CASES[4], CASES[5]] {
             let st = stats(&ReachModel::new(params(&b, c)).expect("calibrates"), seed);
             let _ = write!(s, "  upnp {u:.1} ");
             line(&mut s, c.name, &st, a);
-            if c == CASES[2] {
+            if c == CASES[2] || c == CASES[5] {
                 let d = st.direct_by_pair;
                 let _ = writeln!(s, "             homes map-capable {:.3}; direct home x home {:.3} phone x home {:.3} phone x phone {:.3}", st.homes_map_capable, d[0], d[1], d[2]);
             }
@@ -208,7 +217,7 @@ pub fn report(seed: u64) -> String {
         let base = ReachParams::for_regime(g);
         let _ = writeln!(s, "  {g:?}:");
         let mut a = 0.0;
-        for c in [CASES[0], CASES[2], CASES[3], CASES[4]] {
+        for c in [CASES[0], CASES[2], CASES[3], CASES[4], CASES[5]] {
             match ReachModel::new(params(&base, c)) {
                 Ok(m) => {
                     let st = stats(&m, seed);
@@ -258,6 +267,10 @@ mod tests {
         // a home node behind the same router listens on its mapped port in (b-l) already
         let node = home(Mapping::Apdm, true, false);
         assert_eq!(direct_path(&node, &other, PairCtx::ROOM_PEERS, &params(&base, CASES[1])).mechanism, Mechanism::PortMapped);
+        // as built (e): the home node's mapped session socket punches a symmetric peer, but it is
+        // not dialled on a listener, and a phone on the same Wi-Fi maps nothing
+        assert_eq!(direct_path(&node, &other, PairCtx::ROOM_PEERS, &params(&base, CASES[5])).mechanism, Mechanism::PeerReflexivePunch);
+        assert_eq!(direct_path(&phone, &other, PairCtx::ROOM_PEERS, &params(&base, CASES[5])).mechanism, Mechanism::Relay);
         // not capable (CGN or double NAT): nothing
         let behind = home(Mapping::Apdm, false, true);
         assert_eq!(direct_path(&behind, &other, PairCtx::ROOM_PEERS, &params(&base, CASES[2])).mechanism, Mechanism::Relay);
@@ -277,6 +290,7 @@ mod tests {
             assert!(small(*c) <= a + 1e-12, "{} relays more", c.name);
         }
         assert!(small(CASES[2]) <= small(CASES[1]) + 1e-12);
+        assert!(small(CASES[2]) <= small(CASES[5]) + 1e-12);
         assert!(small(CASES[4]) <= small(CASES[2]) + 1e-12 && small(CASES[4]) <= small(CASES[3]) + 1e-12);
     }
 }

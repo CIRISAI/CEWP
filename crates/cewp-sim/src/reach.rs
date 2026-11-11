@@ -163,6 +163,8 @@ reach_params! {
     PeerReflexive = "peer_reflexive", 1.0, Derived, "1: leviculum direct_link::punch acks and punches the address a punch came from (PEER_REFLEXIVE_MAX = 4). 0 = advertised addresses only";
     Ipv6Listener = "ipv6_listener", 0.0, Derived, "0: edge's documented listen_addr default is 0.0.0.0:4242 (src/ffi/pyo3.rs:7002), IPv4 only. 1 = counterfactual: a home with no IPv6 firewall is dialled over IPv6";
     PortMappingPunch = "port_mapping_punch", 0.0, Derived, "with port_mapping_client = 1 only: 1 = every device behind a mapping-capable router also maps the socket it punches from, so its punch socket is endpoint-independent (EIM, EIF); 0 = the client maps the listener only. Counterfactual, used to split the gain";
+    PortMappingListener = "port_mapping_listener", 1.0, Derived, "with port_mapping_client = 1 only: 1 = a mapped home node is also dialled on its mapped listener port (counterfactual even on leviculum feat/101-port-mapping: edge publishes no live ip hint for a home, per levi-portmap); 0 = direct-link sockets only, as that branch builds";
+    PortMappingPhones = "port_mapping_phones", 1.0, Derived, "with port_mapping_punch = 1 only: 1 = client-only devices on the home Wi-Fi map their punch sockets too; 0 = home nodes only (leviculum feat/101-port-mapping recommends phones OFF: Android 10+ routing table, iOS local-network permission, suspended apps stop renewing)";
 }
 
 /// Number of reachability parameters.
@@ -532,7 +534,9 @@ fn v4_punch(a: &Endpoint, b: &Endpoint, p: &ReachParams) -> Option<Mechanism> {
     }
     // counterfactual: a port-mapping client that maps its punch socket makes that socket
     // endpoint-independent in mapping and filtering (a mapped port admits any source)
-    let mapped = |e: &Endpoint| p.on(R::PortMappingClient) && p.on(R::PortMappingPunch) && e.port_map_capable;
+    let mapped = |e: &Endpoint| {
+        p.on(R::PortMappingClient) && p.on(R::PortMappingPunch) && e.port_map_capable && (!e.client_only || p.on(R::PortMappingPhones))
+    };
     let (ea, eb) = (mapped(a) || a.mapping() == Mapping::Eim, mapped(b) || b.mapping() == Mapping::Eim);
     if ea && eb {
         return Some(Mechanism::HolePunch);
@@ -565,7 +569,7 @@ pub fn direct_path(a: &Endpoint, b: &Endpoint, ctx: PairCtx, p: &ReachParams) ->
             return sure(Mechanism::PublicListener);
         }
     }
-    if p.on(R::PortMappingClient) && ((a.port_map_capable && !a.client_only) || (b.port_map_capable && !b.client_only)) {
+    if p.on(R::PortMappingClient) && p.on(R::PortMappingListener) && ((a.port_map_capable && !a.client_only) || (b.port_map_capable && !b.client_only)) {
         return sure(Mechanism::PortMapped);
     }
     if !ctx.may_punch {

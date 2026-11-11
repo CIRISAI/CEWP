@@ -404,7 +404,9 @@ Cases: (a) as shipped; (b-l) `port_mapping_client` = 1, listener only: a home no
 router with UPnP/PCP on maps its listener port and is dialled like a public listener; (b) the
 client also maps the socket each device punches from, so that socket is endpoint-independent in
 mapping and filtering (a phone on the home Wi-Fi gains here, not in (b-l)); (c) `ipv6_listener`
-= 1; (d) (b) and (c).
+= 1; (d) (b) and (c); (e) what leviculum#101 builds (section 10.6): home nodes map their
+direct-link session sockets only, no listener, phones off (`port_mapping_listener` = 0,
+`port_mapping_phones` = 0).
 
 ### 10.1 Expected regime
 
@@ -415,6 +417,7 @@ mapping and filtering (a phone on the home Wi-Fi gains here, not in (b-l)); (c) 
 | (b) listener + punch socket | 0.299 (0.006) [0.186, 0.440] | 0.138 | 0.137 | 0.267 | 0.722 |
 | (c) IPv6 listener | 0.436 (0.006) [0.306, 0.549] | 0.001 | 0.310 | 0.597 | 0.870 |
 | (d) (b) + (c) | 0.299 (0.006) [0.184, 0.439] | 0.138 | 0.137 | 0.267 | 0.722 |
+| (e) leviculum#101 as built | 0.390 (0.005) [0.277, 0.504] | 0.047 | 0.274 | 0.517 | 0.775 |
 
 Mechanism mix (weighted pairs; `relay` = no mechanism at all, a punch still fails 10%):
 
@@ -425,6 +428,7 @@ Mechanism mix (weighted pairs; `relay` = no mechanism at all, a punch still fail
 | (b) | 0.347 | 0.037 | 0.097 | 0.103 | 0.044 | 0.097 | 0.275 |
 | (c) | 0.347 | 0.041 | 0 | 0.118 | 0.033 | 0.044 | 0.417 |
 | (d) | 0.347 | 0.041 | 0.095 | 0.102 | 0.044 | 0.097 | 0.275 |
+| (e) | 0.347 | 0.037 | 0 | 0.121 | 0.042 | 0.087 | 0.365 |
 
 Direct share, room peers not on one LAN (family and community pairs; home = the household's
 fixed endpoint, phone = on Wi-Fi or a carrier):
@@ -436,26 +440,27 @@ fixed endpoint, phone = on Wi-Fi or a carrier):
 | (b) | 0.749 | 0.602 | 0.498 |
 | (c) | 0.524 | 0.375 | 0.304 |
 | (d) | 0.750 | 0.604 | 0.498 |
+| (e) | 0.710 | 0.557 | 0.304 |
 
 ### 10.2 `router_upnp_share` sweep (Expected; the calibration does not involve it)
 
-| upnp | homes map-capable | (b-l) relay (gain) | (b) relay (gain) | (b) street p10 / p50 / p90 | (b) direct home x home / phone x home / phone x phone | (d) relay |
-|---|---|---|---|---|---|---|
-| 0.2 | 0.125 | 0.416 (0.021) | 0.390 (0.047) | 0.207 / 0.530 / 0.805 | 0.603 / 0.448 / 0.368 | 0.389 |
-| 0.4 | 0.259 | 0.395 (0.042) | 0.345 (0.092) | 0.169 / 0.401 / 0.756 | 0.681 / 0.524 / 0.431 | 0.345 |
-| 0.6 | 0.404 | 0.373 (0.064) | 0.299 (0.138) | 0.137 / 0.267 / 0.722 | 0.749 / 0.602 / 0.498 | 0.299 |
-| 0.8 | 0.538 | 0.351 (0.086) | 0.255 (0.182) | 0.103 / 0.184 / 0.631 | 0.803 / 0.680 / 0.564 | 0.255 |
+| upnp | homes map-capable | (b-l) relay (gain) | (b) relay (gain) | (b) street p10 / p50 / p90 | (b) direct home x home / phone x home / phone x phone | (d) relay | (e) relay (gain) | (e) street p10 / p50 / p90 | (e) direct home x home / phone x home / phone x phone |
+|---|---|---|---|---|---|---|---|---|---|
+| 0.2 | 0.125 | 0.416 (0.021) | 0.390 (0.047) | 0.207 / 0.530 / 0.805 | 0.603 / 0.448 / 0.368 | 0.389 | 0.422 (0.016) | 0.289 / 0.575 / 0.834 | 0.590 / 0.432 / 0.304 |
+| 0.4 | 0.259 | 0.395 (0.042) | 0.345 (0.092) | 0.169 / 0.401 / 0.756 | 0.681 / 0.524 / 0.431 | 0.345 | 0.406 (0.031) | 0.282 / 0.537 / 0.796 | 0.654 / 0.493 / 0.304 |
+| 0.6 | 0.404 | 0.373 (0.064) | 0.299 (0.138) | 0.137 / 0.267 / 0.722 | 0.749 / 0.602 / 0.498 | 0.299 | 0.390 (0.047) | 0.274 / 0.517 / 0.775 | 0.710 / 0.557 / 0.304 |
+| 0.8 | 0.538 | 0.351 (0.086) | 0.255 (0.182) | 0.103 / 0.184 / 0.631 | 0.803 / 0.680 / 0.564 | 0.255 | 0.374 (0.063) | 0.259 / 0.476 / 0.724 | 0.755 / 0.623 / 0.304 |
 
 (se of every relay mean 0.006 to 0.007.) The gain is close to linear in the share of homes whose
 router would map: 0.34 to 0.38 of relay share per unit of map-capable homes for (b), 0.16 to 0.17 for (b-l).
 
 ### 10.3 Other regimes
 
-| regime | (a) | (b) (gain) | (c) (gain) | (d) (gain) | street p50 (a) -> (b) |
-|---|---|---|---|---|---|
-| Optimistic | 0.288 (0.006) [0.169, 0.429] | 0.214 (0.074) | 0.286 (0.002) | 0.213 (0.075) | 0.299 -> 0.165 |
-| Pessimistic | 0.585 (0.003) [0.519, 0.635] | 0.377 (0.208) | 0.585 (0.000) | 0.377 (0.208) | 0.918 -> 0.418 |
-| Adversarial | 0.653 (0.001) [0.640, 0.666] | 0.604 (0.049) | 0.653 (0.000) | 0.604 (0.049) | 1.000 -> 1.000 (p10 1.000 -> 0.490) |
+| regime | (a) | (b) (gain) | (c) (gain) | (d) (gain) | (e) (gain) | street p50 (a) -> (b) / (e) |
+|---|---|---|---|---|---|---|
+| Optimistic | 0.288 (0.006) [0.169, 0.429] | 0.214 (0.074) | 0.286 (0.002) | 0.213 (0.075) | 0.268 (0.020) | 0.299 -> 0.165 / 0.268 |
+| Pessimistic | 0.585 (0.003) [0.519, 0.635] | 0.377 (0.208) | 0.585 (0.000) | 0.377 (0.208) | 0.505 (0.080) | 0.918 -> 0.418 / 0.688 |
+| Adversarial | 0.653 (0.001) [0.640, 0.666] | 0.604 (0.049) | 0.653 (0.000) | 0.604 (0.049) | 0.633 (0.020) | 1.000 -> 1.000 / 1.000 |
 
 The regimes move the reachability targets but not `router_upnp_share`, so a mapping client gains
 the most where punching is weakest (Pessimistic). In Adversarial the gain is an artefact of that:
@@ -489,3 +494,50 @@ row as "if routers still map", not as a regime result.
 - (c) is therefore a gain of 0.001 (Expected), 0.002 (Optimistic), 0.000 otherwise, inside one se.
   Only if `fixed_v6_fw_open` were far higher than the FRONTIER guess would it matter; B6 / B1 of
   section 5 would measure it.
+
+### 10.6 Case (e): the rule leviculum#101 implements
+`levi-portmap` sent the rule its branch implements (leviculum `feat/101-port-mapping`, local, not
+pushed; I have not read that code). It said which parts it verified (in code and tested against
+loopback fakes) and which it inferred (RFC and router behaviour, not yet seen on a real router).
+Case (e) encodes the rule as follows:
+- **What gains.** A home node with one NAT and a public WAN, whose router answers PCP, NAT-PMP or
+  UPnP-IGD with a bounded lease, maps each direct-link session socket. That covers this model's
+  `port_map_capable`: public IPv4 WAN, no CGN, no double NAT, `router_upnp_share`. The mapping is
+  endpoint-independent for mapping and for filtering, so the home's socket takes a punch from any
+  peer, symmetric or behind a CGN. That is `v4_punch` with the mapped end counted as EIM/EIF. The
+  existing peer-reflexive path carries it. The lease and protocol rules are levi's inference from
+  RFC 6887 and RFC 6886.
+- **Only proposed pairs.** Room peers and call members only (`PairCtx::may_punch`). The punch
+  still succeeds at `punch_success_share`.
+- **Not live: the TCP listener.** Edge publishes no live IP hint for a home, so (b-l)'s listener
+  remains a counterfactual even with that branch (`port_mapping_listener` = 0 in (e)).
+- **Phones off.** Platform limits on Android and iOS, and suspended apps stop renewing their
+  leases (`port_mapping_phones` = 0).
+- **No gain:**
+  - CGN, double NAT, a router speaking none of the three, permanent-lease-only UPnP routers
+    (refused). These are already outside `port_map_capable`, except permanent-lease UPnP, which
+    the model does not separate. Read `router_upnp_share` as "bounded-lease capable".
+  - Same-router pairs (LAN or hairpin, unchanged).
+  - More than 32 mapped sessions per node: not modelled; no home in these worlds has 32 room
+    peers at once.
+- **IPv6 listener.** A [::] listener gains a TCP dial only through an open firewall, or a
+  pinhole the mapping client requests (PCP MAP over IPv6, IGDv2 AddPinhole). The model has the
+  open-firewall part (c). It does NOT model pinholes, which would turn a stateful-firewall home
+  into a listener for pairs that are not room peers. For room peers the IPv6 punch already gives
+  the path, so the missing gain is bounded by the non-room-peer pairs (5% of the act mix) and by
+  the 10% of punches that fail. Session sockets get no pinhole, and direct links over IPv6 are
+  not new. Both match the model's `Ipv6Punch`.
+
+Result (Expected): (e) relays 0.390 against 0.437 shipped, a gain of 0.047. That is a third of
+(b)'s 0.138 and less than (b-l)'s 0.064:
+- Without a listener, a mapped home connects only with room peers, at 90%, where (b-l) connects
+  every pair for certain.
+- With phones off, phone x phone gains nothing (0.304 in both).
+- Most of the gain is in pairs with a home node: home x home 0.521 -> 0.710, phone x home
+  0.371 -> 0.557.
+
+Over the upnp sweep (e) gains 0.016 / 0.031 / 0.047 / 0.063. Pessimistic gains 0.080, Optimistic
+0.020. Two things would add most beyond (e):
+- a phone on the home Wi-Fi mapping its own session socket, up to (b)'s 0.138, against the
+  mobile limits levi lists;
+- edge advertising a live home address, the (b-l) listener part.
