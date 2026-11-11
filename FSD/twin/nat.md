@@ -447,7 +447,7 @@ fixed endpoint, phone = on Wi-Fi or a carrier):
 | 0.8 | 0.538 | 0.351 (0.086) | 0.255 (0.182) | 0.103 / 0.184 / 0.631 | 0.803 / 0.680 / 0.564 | 0.255 |
 
 (se of every relay mean 0.006 to 0.007.) The gain is close to linear in the share of homes whose
-router would map: about 0.34 of relay share per unit of map-capable homes for (b), 0.16 for (b-l).
+router would map: 0.34 to 0.38 of relay share per unit of map-capable homes for (b), 0.16 to 0.17 for (b-l).
 
 ### 10.3 Other regimes
 
