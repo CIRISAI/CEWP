@@ -87,7 +87,7 @@ layer({ id: "alm", title: "A room's relay tree (CC 6.1.6)", cls: "DERIVED", inpu
     if (FLOW.W !== W){ wasm.locality_centroids(bufs.lat, bufs.lon, bufs.metro, W.n); FLOW.cent = F64(2).slice(); FLOW.W = W; }
     let best = 0, bd = 1e9; const C = FLOW.cent;
     for (let k = 0; k < C.length / 3; k++){ if (!C[k * 3 + 2]) continue; const d = kmf(la, lo, C[k * 3], C[k * 3 + 1]); if (d < bd){ bd = d; best = W.regionOfMetro[k]; } }
-    const room = (ALM.pick % 2 === 0) ? W.regionRoom[best] : W.globalRoom; ALM.room = room;
+    const room = (ALM.pick % 2 === 0) ? W.regionRoom[best] : W.globalRoom; ALM.room = room; ALM.region = best;
     const pub = W.roomMem[W.roomOff[room]];
     const ne = wasm.alm_room(bufs.lat, bufs.lon, bufs.roomOff, bufs.roomMem, room, pub, 64, 0x2026 + ALM.pick);
     ALM.members = U32(3).slice(); ALM.edges = U32(4).slice(); ALM.unrooted = U32(5).slice(); ALM.mf = F64(6).slice();
@@ -112,13 +112,18 @@ layer({ id: "alm", title: "A room's relay tree (CC 6.1.6)", cls: "DERIVED", inpu
 const REG_NAMES = ["N. America", "Latin America", "Europe", "MENA", "Sub-Saharan Africa", "South Asia", "East Asia", "SE Asia & Oceania", "Russia & C. Asia"];
 
 // ------------------------------------------------------------------ a room's chunk custody (chunk_custody.rs)
-const CUST = { reach: 1000, holders: null, c: null };
+const CUST = { reach: 1000, holders: null, c: null, pick: 0 };
 layer({ id: "custody", title: "Who holds a room's chunk", cls: "DERIVED", inputs: "MODEL (reachability draw)",
   source: "custody_room → globe buffers 7 (summary), 8 (holders)",
-  contract: "custody_room(lat, lon, metro, room_off, room_mem, room, present_pm, seed): the room's members are the sealed chunk's holders; present_pm (the slider) is the share reachable, drawn per holder (a MODEL stand-in until the failures package supplies who is down). The kernel runs chunk_custody::classify(present, 20, 6) with the tick's own thresholds and Kish n_eff (effective_source_count) over the holders' locality masses. Buffer 7 f64: members, present, target, min viable, state (0 Full, 1 Partial, 2 EnvelopeOnly), n_eff, localities, mean km to centroid, max km. Buffer 8 u32 × 2: holder node, reachable. Same room as the relay tree.",
+  contract: "custody_room(lat, lon, metro, room_off, room_mem, room, present_pm, seed): the room's members are the sealed chunk's holders; present_pm (the slider) is the share reachable, drawn per holder (a MODEL stand-in until the failures package supplies who is down). The kernel runs chunk_custody::classify(present, 20, 6) with the tick's own thresholds and Kish n_eff (effective_source_count) over the holders' locality masses. Buffer 7 f64: members, present, target, min viable, state (0 Full, 1 Partial, 2 EnvelopeOnly), n_eff, localities, mean km to centroid, max km. Buffer 8 u32 × 2: holder node, reachable. The room: the first community room of 24-80 members in the relay tree's region (Next room steps on).",
   available: has("custody_room"),
   compute(){
-    if (!W || !bufs) return; const room = ALM.room >= 0 ? ALM.room : W.regionRoom[2];
+    if (!W || !bufs) return;
+    // a community room of 24-80 members in the relay tree's region, so the slider can cross Full,
+    // Partial and EnvelopeOnly (a region's public room has thousands of holders)
+    const g = ALM.region !== undefined ? ALM.region : 2; let room = -1;
+    for (let r = W.nFamilies + CUST.pick; r < W.regionRoom[0]; r++){ const a = W.roomOff[r], n = W.roomOff[r + 1] - a; if (n < 24 || n > 80) continue; if (W.regionOfMetro[W.metro[W.roomMem[a]]] === g){ room = r; break; } }
+    if (room < 0) room = W.regionRoom[g];
     wasm.custody_room(bufs.lat, bufs.lon, bufs.metro, bufs.roomOff, bufs.roomMem, room, CUST.reach, 7);
     CUST.c = F64(7).slice(); CUST.holders = U32(8).slice(); const c = CUST.c;
     this.last = { room, members: c[0], present: c[1], target: c[2], min_viable: c[3], state: ["Full", "Partial", "EnvelopeOnly"][c[4]], n_eff: c[5], localities: c[6], mean_km: Math.round(c[7]), max_km: Math.round(c[8]), reachable_permille: CUST.reach };
@@ -131,7 +136,7 @@ layer({ id: "custody", title: "Who holds a room's chunk", cls: "DERIVED", inputs
       else { g.strokeStyle = "#9aa3ad"; g.strokeRect(p[0] - 3, p[1] - 3, 6, 6); g.beginPath(); g.moveTo(p[0] - 3, p[1] + 3); g.lineTo(p[0] + 3, p[1] - 3); g.stroke(); } } // filled = reachable holder; struck box = unreachable
   },
   status(){ const l = this.last; return l.members ? `${l.state}: ${l.present} of ${l.members} reachable (Full at ${l.target}, floor ${l.min_viable}) · n_eff ${l.n_eff} over ${l.localities} localities · ${fmt(l.mean_km)} km mean spread` : "–"; },
-  controls: [{ range: [0, 1000, 50], label: "Holders reachable", value: () => CUST.reach, set(v){ CUST.reach = v; this.compute(); gfxDirty(600); }, show: (v) => (v / 10).toFixed(0) + " %" }] });
+  controls: [{ label: "Next room", act(){ CUST.pick = (CUST.pick + 97) % 5000; this.compute(); gfxDirty(600); } }, { range: [0, 1000, 50], label: "Holders reachable", value: () => CUST.reach, set(v){ CUST.reach = v; this.compute(); gfxDirty(600); }, show: (v) => (v / 10).toFixed(0) + " %" }] });
 
 // ------------------------------------------------------------------ reachability classes in the street world (micro.rs)
 layer({ id: "reach", title: "How each home is reachable (street scale)", cls: "MODEL",
@@ -170,7 +175,7 @@ layer({ id: "seat", title: "Serve-seat load across fleet sizes", cls: "MODEL", i
     this.compute(); const C = SEAT.curve; if (!C) return;
     const dpr = window.devicePixelRatio || 1, W2 = c.clientWidth || 260, H2 = 110; if (c.width !== W2 * dpr){ c.width = W2 * dpr; c.height = H2 * dpr; }
     const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W2, H2);
-    const L = 34, B = H2 - 18, T = 8, Rr = W2 - 8, lx = (d) => L + (Math.log10(d) - 1) / 4 * (Rr - L), ly = (r) => B - Math.min(1.5, r) / 1.5 * (B - T);
+    const L = 34, B = H2 - 18, T = 8, Rr = W2 - 22, lx = (d) => L + (Math.log10(d) - 1) / 4 * (Rr - L), ly = (r) => B - Math.min(1.5, r) / 1.5 * (B - T);
     g.strokeStyle = "rgba(200,210,225,0.25)"; g.lineWidth = 1; g.font = "10px " + MFONT; g.fillStyle = "#aab4c2";
     for (const d of [10, 100, 1000, 10000, 100000]){ g.beginPath(); g.moveTo(lx(d), T); g.lineTo(lx(d), B); g.stroke(); g.fillText(d >= 1000 ? d / 1000 + "k" : String(d), lx(d) - 8, H2 - 5); }
     g.setLineDash([2, 3]); g.beginPath(); g.moveTo(L, ly(1)); g.lineTo(Rr, ly(1)); g.stroke(); g.setLineDash([]); g.fillText("ρ=1", 4, ly(1) + 3); g.fillText("0", 18, B);
@@ -181,7 +186,7 @@ layer({ id: "seat", title: "Serve-seat load across fleet sizes", cls: "MODEL", i
     if (here && here.devices >= 10){ const x = lx(here.devices), y = ly(here.rho); g.fillStyle = "#fff"; g.beginPath(); g.arc(x, y, 3.5, 0, 6.2832); g.fill(); }
     this.last = { setting: SEAT.key, points: C.length / 4, first: { devices: C[0], rho_cpu: C[1] }, last: { devices: C[C.length - 4], rho_cpu: C[C.length - 3] }, this_street: here };
   },
-  status(){ const h = this.last.this_street; return "solid ρ CPU · dashed ρ permits" + (h ? ` · this street: ${h.devices} devices, ρ ${h.rho.toFixed(3)}` : ""); } });
+  status(){ const h = this.last.this_street; return "solid ρ CPU · dashed ρ permits" + (h ? ` · this street's seat: ${h.devices} devices round with it, ρ ${h.rho.toFixed(3)}` : "") + " · no knee is marked: the seat model is being recalibrated"; } });
 
 // ------------------------------------------------------------------ Phase 2 contracts (not shown until the export exists)
 const CONTRACT = (id, title, cls, exp, contract) => layer({ id, title, cls, source: exp.join(", "), contract, available: has(...exp), pending: true });
