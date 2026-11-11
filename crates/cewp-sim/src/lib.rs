@@ -55,6 +55,7 @@ pub mod workload;
 pub mod holon;
 pub mod holon_dist;
 pub mod holon_demo;
+pub mod holon_view;
 pub mod micro;
 pub mod tiling;
 pub mod capacity;

@@ -38,6 +38,12 @@ Per observable, the fine tier's and the coarse tier's samples are compared as di
   the existing `ClosureCertificate::compute`, with ‖diff‖² = (μ_f − μ_c)² and ‖motion‖² = μ_f²
   (a relative squared mean defect; MODEL normalisation, because the observables here are
   stationary and the FSD's ‖v(T x) − v(x)‖² would be near zero).
+- **Resolution floor.** A level is judged only if both samples hold at least
+  `min_tail_samples` order statistics beyond it (`n·(1 − p) ≥ m`, exact in integers,
+  `tail_resolved`). A level below the floor is UNRESOLVED: not certified and not refused
+  (`ObservableDefect::unresolved_levels`, `DistributionalCertificate::covers_level`). The twin
+  then answers "this run cannot say" for that quantile instead of passing or failing it on a
+  dozen correlated samples.
 - A certificate lists the observables it covers. `SecondSquareFence::use_certificate` refuses an
   observable not listed (`NotCertified { ObservableNotCertified }`) and one whose W1 or any
   quantile broke its budget (`NotCertified { W1 | Quantile }`), naming each breach.
@@ -139,6 +145,7 @@ No Lean theorem covers anything this package adds.
 | `COHORT_LIPSCHITZ_K` | 1.0 | DERIVED | a sum of cell counts is 1-Lipschitz in ℓ¹ |
 | W1 budget | 1 device | MODEL | set before the first run; not moved |
 | quantile budgets | 2, 2, 3, 4 devices (p50, p95, p99, p99.9) | MODEL | set before the first run; deeper tails have fewer samples behind them |
+| `DEMO_MIN_TAIL_SAMPLES` | 30 order statistics | MODEL | **added after the first run** (§6); a rule of thumb, no effective-sample-size correction (FRONTIER) |
 | `ACCESS_NETWORKS` | 3 | MODEL | providers on one street; no data |
 | `OUTAGE_UP_MEAN_S` | 6 h | MODEL | a few dozen outages per week of sim; not a real outage rate |
 | `OUTAGE_DOWN_MEAN_S` | 1.5 h | MODEL | as above |
@@ -170,6 +177,30 @@ Every R5 parameter is `micro.rs` `PARAM_SPECS` at `MicroParams::production_shape
 - Per-device reachable peers, latency, bandwidth, durability: not certified (no observable spec).
 - The fine samples are cadences of one long run, autocorrelated (phone dwell 900 s / 5,100 s,
   laptop 2,400 s); the effective sample count is well below the cadence count, so the p99.9
-  estimate is coarse. Budgets were not widened for it.
+  estimate is coarse. Budgets were not widened for it; at 4 days p99.9 falls under the
+  resolution floor and is reported unresolved, not certified.
 - The composition rule is proved; its precondition (the second tier's measured defect applies
   to the law the first feeds it) is not.
+
+## 11. Hooks (HOOKS.md)
+
+**Energy counters.** This package has no traffic events of its own: it compares samples of
+observables other tiers produce, so it counts no bytes, wakes, signatures or storage. A
+certificate that later covers an energy observable (e.g. radio-awake seconds per phone-hour from
+the `energy` package's counters) would need, in its envelope: the device-class mix (phone share
+dominates radio time), the link-class mix (cellular vs Wi-Fi), the workload range, and the
+failure regime (an outage moves phones to cellular, which is exactly the correlated shift the
+mean-field tier misses here); and per-class cells, so the trigger can send back the class that
+left, not the whole tier.
+
+**Globe view** (`holon_view.rs`, flat buffers, layouts in the doc comments):
+`fill_cells(report, header, u32, f32)` gives per coarse cell (host kind × access network) its
+certificate state against the Expected certificate for a live state with network 0 down: inside,
+refused by its own cell bound (sent back to the finer tier), or refused by a whole-tier bound;
+a bound bitmask (`bound_code`); device count; live occupancy and the certified occupancy range.
+`fill_certificates(report, u32, f32)` gives per (tier, observable) the distributional and
+mean-only verdicts, W1 and budget, and per level fine/coarse/defect/budget with a state (within,
+breach, unresolved). `view_scenario()` is the deterministic case (2 days per regime, the
+shortest horizon at which p99 clears the resolution floor). Coordinates: only the patch centre,
+a public city centre at coarse grain; cells are not places, and no device or household position
+leaves the module. Layout is pending `twin-globe`'s request and will follow it.

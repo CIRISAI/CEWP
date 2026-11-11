@@ -255,6 +255,11 @@ pub struct ObservableSpec {
     pub w1_budget_fp: i64,
     /// Quantile levels and budgets.
     pub quantiles: Vec<QuantileBudget>,
+    /// Fewest order statistics each sample must hold beyond a level, `n·(1 − p)`, before that level
+    /// is compared at all. A level with fewer is UNRESOLVED: neither passed nor certified, and
+    /// listed as such (the twin says it cannot predict that quantile from this run). 0 = always
+    /// resolved.
+    pub min_tail_samples: u64,
 }
 
 /// One quantile's measured defect.
@@ -270,14 +275,28 @@ pub struct QuantileDefect {
     pub defect_fp: i64,
     /// Budget.
     pub budget_fp: i64,
+    /// Both samples hold at least `min_tail_samples` order statistics beyond the level.
+    pub resolved: bool,
 }
 
 impl QuantileDefect {
-    /// Defect within budget.
+    /// Defect within budget (an unresolved level is not judged here; see `resolved`).
     #[must_use]
     pub fn within(&self) -> bool {
         self.defect_fp <= self.budget_fp
     }
+
+    /// The level is resolved and within budget: the only case a certificate may claim it.
+    #[must_use]
+    pub fn certifies(&self) -> bool {
+        self.resolved && self.within()
+    }
+}
+
+/// `n·(1 − p) ≥ m`, exactly, in integers.
+#[must_use]
+pub fn tail_resolved(n: usize, p_ppm: u32, min_tail_samples: u64) -> bool {
+    (n as u128) * u128::from(PPM - u64::from(p_ppm).min(PPM)) >= u128::from(min_tail_samples) * u128::from(PPM)
 }
 
 /// The measured fine-vs-coarse comparison for one observable.
@@ -325,7 +344,9 @@ impl ObservableDefect {
             .map(|q| {
                 let f = fine.quantile_ppm(q.p_ppm);
                 let c = coarse.quantile_ppm(q.p_ppm);
-                QuantileDefect { p_ppm: q.p_ppm, fine_fp: f, coarse_fp: c, defect_fp: (f - c).abs(), budget_fp: q.budget_fp }
+                let resolved = tail_resolved(fine.len(), q.p_ppm, spec.min_tail_samples)
+                    && tail_resolved(coarse.len(), q.p_ppm, spec.min_tail_samples);
+                QuantileDefect { p_ppm: q.p_ppm, fine_fp: f, coarse_fp: c, defect_fp: (f - c).abs(), budget_fp: q.budget_fp, resolved }
             })
             .collect();
         let (mf, mc) = (fine.mean_fp(), coarse.mean_fp());
@@ -349,10 +370,18 @@ impl ObservableDefect {
         self.w1.le_fp(self.spec.w1_budget_fp)
     }
 
-    /// Distributional test: W1 and every quantile within budget.
+    /// Distributional test: W1 and every RESOLVED quantile within budget. Unresolved levels are
+    /// not certified (see `unresolved_levels`); they do not refuse the observable either, because
+    /// the run cannot tell either way.
     #[must_use]
     pub fn within(&self) -> bool {
-        self.w1_within() && self.quantiles.iter().all(QuantileDefect::within)
+        self.w1_within() && self.quantiles.iter().filter(|q| q.resolved).all(QuantileDefect::within)
+    }
+
+    /// Levels this run could not resolve (too few order statistics beyond them).
+    #[must_use]
+    pub fn unresolved_levels(&self) -> Vec<u32> {
+        self.quantiles.iter().filter(|q| !q.resolved).map(|q| q.p_ppm).collect()
     }
 
     /// Every distributional bound that broke, by name.
@@ -363,7 +392,7 @@ impl ObservableDefect {
             out.push(EnvelopeBound::W1 { observable: self.spec.name.clone(), w1_ceil_fp: self.w1.ceil_fp(), budget_fp: self.spec.w1_budget_fp });
         }
         for q in &self.quantiles {
-            if !q.within() {
+            if q.resolved && !q.within() {
                 out.push(EnvelopeBound::Quantile { observable: self.spec.name.clone(), p_ppm: q.p_ppm, defect_fp: q.defect_fp, budget_fp: q.budget_fp });
             }
         }
@@ -658,6 +687,13 @@ impl DistributionalCertificate {
     #[must_use]
     pub fn covers(&self, observable: &str) -> Option<&ObservableDefect> {
         self.observables.iter().find(|o| o.spec.name == observable)
+    }
+
+    /// The certificate claims quantile level `p_ppm` of `observable`: certified as a whole, the
+    /// observable listed, and that level resolved and within budget.
+    #[must_use]
+    pub fn covers_level(&self, observable: &str, p_ppm: u32) -> bool {
+        self.certified() && self.covers(observable).is_some_and(|o| o.quantiles.iter().any(|q| q.p_ppm == p_ppm && q.certifies()))
     }
 
     /// Compose X→C (`self`) with C→D (`next`) into a bound for X→D.
@@ -1009,6 +1045,28 @@ mod tests {
     }
 
     #[test]
+    fn tail_resolution_is_exact_and_unresolved_levels_are_not_claimed() {
+        // n·(1 − p) ≥ m, exact at the boundary: 1000 samples hold 10 beyond p99, 1 beyond p99.9
+        assert!(tail_resolved(1000, P99, 10));
+        assert!(!tail_resolved(999, P99, 10));
+        assert!(tail_resolved(1000, P999, 1));
+        assert!(!tail_resolved(1000, P999, 2));
+        assert!(tail_resolved(0, P50, 0));
+        // a p99.9 defect far over budget on 1000 samples: refused with no floor, unresolved with one
+        let fine: Vec<u64> = (0..1000).map(|i| if i >= 998 { 50 } else { i % 10 }).collect();
+        let coarse: Vec<u64> = (0..1000).map(|i| i % 10).collect();
+        let mut sp = spec("x");
+        sp.w1_budget_fp = fp(1.0);
+        let strict = ObservableDefect::measure("f", "c", &sp, &Samples::from_counts(&fine), &Samples::from_counts(&coarse), 0.02, 1.0);
+        assert!(!strict.within() && strict.unresolved_levels().is_empty(), "{strict:?}");
+        sp.min_tail_samples = 2;
+        let floored = ObservableDefect::measure("f", "c", &sp, &Samples::from_counts(&fine), &Samples::from_counts(&coarse), 0.02, 1.0);
+        assert!(floored.within(), "{floored:?}");
+        assert_eq!(floored.unresolved_levels(), vec![P999]);
+        assert!(floored.breaches().is_empty());
+    }
+
+    #[test]
     fn quantiles_are_lower_order_statistics() {
         let x = s(&(1..=1000).collect::<Vec<_>>());
         assert_eq!(x.quantile_ppm(P50), 500 * FP_ONE);
@@ -1029,6 +1087,7 @@ mod tests {
             unit: "devices".into(),
             w1_budget_fp: fp(1.0),
             quantiles: TAIL_LEVELS.iter().map(|&p| QuantileBudget { p_ppm: p, budget_fp: fp(2.0) }).collect(),
+            min_tail_samples: 0,
         }
     }
 
@@ -1209,6 +1268,7 @@ mod tests {
             unit: "devices".into(),
             w1_budget_fp: fp(1.0),
             quantiles: TAIL_LEVELS.iter().map(|&p| QuantileBudget { p_ppm: p, budget_fp: fp(3.0) }).collect(),
+            min_tail_samples: 0,
         };
         let d = ObservableDefect::measure("input-spread", "midpoint", &sp, &Samples::from_counts(&off_t), &Samples::from_counts(&off_m), 0.02, 1.0);
         assert!(d.mean.certified, "mean test passes: {d:?}");
@@ -1219,6 +1279,11 @@ mod tests {
         let (_, off_p) = truth.sample(20_000, 13);
         let ok = ObservableDefect::measure("input-spread", "propagated", &sp, &Samples::from_counts(&off_t), &Samples::from_counts(&off_p), 0.02, 1.0);
         assert!(ok.within(), "{ok:?}");
+        // the numbers FSD/twin/holon.md §4 quotes (shown with --nocapture)
+        for (name, x) in [("midpoint", &d), ("propagated", &ok)] {
+            let qs: Vec<String> = x.quantiles.iter().map(|q| format!("p{}={}/{}", q.p_ppm, q.fine_fp / FP_ONE, q.coarse_fp / FP_ONE)).collect();
+            println!("{name}: mean {}/{} D2 {:.6} W1 {:.3} {}", fp_f64(x.mean_fine_fp), fp_f64(x.mean_coarse_fp), x.mean.closure_defect_d2, x.w1.as_f64(), qs.join(" "));
+        }
     }
 
     #[test]
