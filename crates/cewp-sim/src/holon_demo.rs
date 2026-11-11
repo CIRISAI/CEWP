@@ -1,5 +1,5 @@
 //! Worked demonstration of distributional certification on the tiers the repo has
-//! (FSD/twin/holon.md §5): the R5 micro tier (`micro::MicroWorld`) is the fine tier, a cohort
+//! (FSD/twin/holon.md §6): the R5 micro tier (`micro::MicroWorld`) is the fine tier, a cohort
 //! reduction of it (`holon_dist::CohortModel`) the coarse tier.
 //!
 //! Observables (per 30 s replication cadence, `micro::ROUND_CADENCE_S`), over the fixed set E of

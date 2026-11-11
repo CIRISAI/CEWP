@@ -19,7 +19,7 @@
 //! - `refinement_trigger`: a live coarse state inside or outside the envelope, and which cells
 //!   must be re-run at the finer tier.
 //!
-//! Status (exact; see FSD/twin/holon.md §6): nothing in this file is machine-checked in Lean.
+//! Status (exact; see FSD/twin/holon.md §7): nothing in this file is machine-checked in Lean.
 //! CIRISHolon proves exact closure (`Object.Closed`, `nonfactoring_iff_not_closed`), exact
 //! stacking (`Tiers.closed_comp`, `Object.Tier.stack`), the RMS horizon budget
 //! (`StatClosure.iterate_dist_le_horizonBudget`) and the transport fence

@@ -87,7 +87,14 @@ Midpoint collapse, shown (`midpoint_collapse_passes_the_mean_and_fails_the_tail`
 whose online share is known only to lie in [0.70, 0.95] (the FSD §4.4 p_offline spread 5% to
 30%, read as an input interval, MODEL) and moves for all of them together. The midpoint model
 (every phone at 0.825) passes the mean test and fails p99 of devices off the seat; the
-propagated model passes. NUMBERS_MIDPOINT
+propagated model passes.
+
+Numbers (MODEL outputs, 20,000 draws each, seeds 11/12/13, devices off the seat):
+
+| model vs truth | mean (truth / model) | D² (≤ 0.02) | W1 (≤ 1) | p50 | p95 | p99 | p99.9 (truth / model, budget 3) |
+|---|---|---|---|---|---|---|---|
+| midpoint | 17.49 / 17.57 | 0.000020 pass | 3.97 **breach** | 17 / 17 | 31 / 24 **breach** | 36 / 27 **breach** | 40 / 31 **breach** |
+| propagated | 17.49 / 17.55 | 0.000009 pass | 0.08 | 17 / 17 | 31 / 32 | 36 / 36 | 40 / 41 |
 
 ## 5. Out-of-envelope detection and refinement (REVIEW 1.D)
 
@@ -113,7 +120,61 @@ quantiles), which is what the certificate measures, not a pair.
 
 ## 6. Worked demonstration on the R5 tier (REVIEW 1.A + B + D)
 
-NUMBERS_DEMO
+Fine tier: R5 micro world, one generated urban patch (3,000 /km², seed 43; patch centre a public
+city centre at coarse grain, every street, household and device generated), production-shape
+parameters, one serve seat, k = 1. 221 devices round with the seat. Each household is put on one
+of 3 access networks by a hash (MODEL). Observables per 30 s cadence: devices whose round arrives
+at the seat, and devices off the seat. **These two are complements** (they sum to the 221
+eligible devices every cadence), so their W1 is identical; both are kept because the outage's
+signature is the lower tail of arrivals, which is the upper tail of devices off the seat, and the
+quantile levels are upper levels.
+
+Coarse tier R4c: the cohort reduction: cells = (host kind × access network), each cell's
+devices independent, at the cell's online share measured in the fine run (mean-field). R4c+gate:
+the refined tier, the same cells, with network 0's home nodes and laptops gated on one shared
+up/down factor at the measured down share. 4 coarse draws per fine sample.
+
+Regimes: Expected (FSD §4.4), and a minimal local correlated loss: network 0 alternates up
+(mean 6 h) and down (mean 1.5 h); while down, its households' home nodes and laptops are off,
+phones fall back to cellular and are untouched. Down 2,476 of 11,520 cadences (21.5%).
+
+All numbers below are MODEL outputs of the regression test (4 days per regime, 11,520 fine
+cadences, 46,080 coarse draws; `cewp-cli holon-demo` prints the same table; debug and release
+builds give the same numbers).
+
+| tier / regime | observable | mean fine / coarse | mean-only (D² ≤ 0.02) | W1 (≤ 1) | p50 | p95 | p99 | p99.9 |
+|---|---|---|---|---|---|---|---|---|
+| R4c / Expected | arrivals | 165.43 / 165.41 | pass (1.6e-8) | 0.557 | 0 | 1 | 3 (budget 3) | 5, unresolved |
+| R4c / Expected | off seat | 55.57 / 55.59 | pass (1.4e-7) | 0.557 | 0 | 1 | 0 | 4, unresolved |
+| R4c / outage | arrivals | 160.82 / 160.84 | pass (6.6e-9) | **5.636** | **4** | **4** | **5** | 6, unresolved |
+| R4c / outage | off seat | 60.18 / 60.16 | pass (4.7e-8) | **5.636** | **4** | **14** | **14** | 16, unresolved |
+| R4c+gate / outage | arrivals | 160.82 / 160.83 | pass | 0.299 | 1 | 0 | 0 | 2, unresolved |
+| R4c+gate / outage | off seat | 60.18 / 60.17 | pass | 0.299 | 1 | 0 | 1 | 1, unresolved |
+
+(quantile columns are defects |Q_fine − Q_coarse| in devices; budgets 2, 2, 3, 4; bold = breach.)
+
+What it shows:
+
+- In the outage regime the mean-field tier **passes the mean test** (D² ~ 10⁻⁸) and **fails every
+  resolved distributional bound**. Fine p95 of devices off the seat is 83, the mean-field tier says
+  69: a seat provisioned from the coarse tail would be 14 devices per cadence short whenever the
+  network is down. The certificate refuses; the mean-only certificate would have certified it.
+- The refined tier (one shared factor for network 0) is certified again, at W1 0.299.
+- Using the Expected certificate for the outage regime is refused by name:
+  `OutsideEnvelope { broken: [FailureRegime { value: CorrelatedAccessLoss{Expected, 3},
+  certified: [Standard(Expected)] }] }`.
+- The trigger, given one live coarse state from the outage run (network 0 down for 10 cadences)
+  while the operator still declares the regime Expected, finds the outage from the cells alone:
+  `Refine` on `home node/net0` (occupancy 0, certified [1, 1]) and `laptop/net0` (0, certified
+  [0.033, 0.567]); no whole-tier bound broke, no other cell is sent back.
+
+**Honest record of the one change after the first run.** The budgets were set before any run and
+were not moved. In the first run the Expected-regime certificate refused at p99.9 of arrivals
+(defect 5 > 4), with 11.5 fine order statistics beyond that level, from autocorrelated cadences.
+Rather than widen the budget, the resolution floor of §2 was added (30 order statistics, MODEL,
+a rule of thumb): at 4 days p99.9 is reported unresolved in every row and is not certified. The
+Expected p99 of arrivals sits exactly at its budget (3 of 3). Without the floor the Expected tier
+would be refused, and that refusal would have been a statement about the sample, not the tier.
 
 ## 7. Status: what is checked, and by what
 
