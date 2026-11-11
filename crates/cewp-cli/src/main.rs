@@ -962,6 +962,8 @@ fn print_help() {
     println!("  nat [SEED]            Joint NAT reachability report (cewp_sim::reach)");
     println!("  nat-cf [SEED]         UPnP/PCP and IPv6-listener counterfactuals (cewp_sim::reach)");
     println!("  netgraph [SEED]       Print the MODEL stand-in AS topology report (not real data)");
+    println!("  people [--persons N] [--days D] [--sweep-days D] [--seed S] [--geo PATH|stand-in]");
+    println!("                        Social graph, bursty workload and emergent locality report (FSD/twin/people.md)");
     println!("  --help, -h            Print this help text");
 }
 
@@ -993,6 +995,16 @@ fn main() {
                 print!("{}", cewp_sim::netgraph::report(&g));
                 return;
             }
+            "people" => match cewp_sim::locality::cli(&args[i + 1..]) {
+                Ok(report) => {
+                    print!("{report}");
+                    return;
+                }
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    process::exit(1);
+                }
+            },
             "all" | "--all" => {
                 if emit_path.is_none() {
                     emit_path = Some("docs/kernel/tables/evidence_bundle.json".to_string());
