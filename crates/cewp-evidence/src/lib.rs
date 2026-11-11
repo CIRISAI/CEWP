@@ -3,7 +3,7 @@
 //! Pinned to `FSD/SIMULATION_ENGINE.md` §8 (v0.2).
 //!
 //! This crate provides:
-//! 1. `EpistemicClass` (`MEASURED`, `MODEL`, `PROJECTED`, `FRONTIER`) and `TaggedMetric`.
+//! 1. `EpistemicClass` (`MEASURED`, `DERIVED`, `MODEL`, `PROJECTED`, `FRONTIER`) and `TaggedMetric`.
 //! 2. Epistemic integrity enforcement (`validate_epistemic_integrity`, `validate_promotion`)
 //!    strictly rejecting invalid promotions with `EPISTEMIC_PROMOTION_VIOLATION`.
 //! 3. `EvidenceBundle` (`schema_version: "cewp-evidence/v0.2"`) combining provenance, scenario,
@@ -17,6 +17,9 @@
 
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
+
+pub mod page_ledger;
+pub mod page_scan;
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -43,6 +46,10 @@ pub enum EpistemicClass {
     /// Directly benchmarked on real code and real hardware (`CIRISVerify`, `CIRISEdge`, `CIRISPersist`, `CIRISServer`),
     /// with hardware spec and commit hash.
     Measured,
+    /// Read from source or computed by stated arithmetic from source constants and measured counts
+    /// (the `capacity.rs` `DERIVED` convention). Must name the file and symbol it is read from; never
+    /// promoted to `MEASURED` (a derivation is not a measurement).
+    Derived,
     /// Output of a `cewp-sim` or TLA+/Lean execution at 1:1 (`R5`/`R4`) or within a `CIRISHolon`-certified
     /// coarse tier (`R3`/`R2`) under stated inputs.
     Model,
@@ -59,6 +66,7 @@ impl EpistemicClass {
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Measured => "MEASURED",
+            Self::Derived => "DERIVED",
             Self::Model => "MODEL",
             Self::Projected => "PROJECTED",
             Self::Frontier => "FRONTIER",
@@ -78,6 +86,7 @@ impl FromStr for EpistemicClass {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "MEASURED" | "measured" | "Measured" => Ok(Self::Measured),
+            "DERIVED" | "derived" | "Derived" => Ok(Self::Derived),
             "MODEL" | "model" | "Model" => Ok(Self::Model),
             "PROJECTED" | "projected" | "Projected" => Ok(Self::Projected),
             "FRONTIER" | "frontier" | "Frontier" => Ok(Self::Frontier),
@@ -181,6 +190,7 @@ impl std::error::Error for EpistemicValidationError {}
 /// - If `ci95` is present, `ci95[0] <= ci95[1]` must hold.
 /// - A `Frontier` metric MUST carry a non-empty `blocker` issue reference (e.g., `"leviculum#100"`).
 /// - A `Measured` metric MUST carry a `source` description.
+/// - A `Derived` metric MUST carry a non-empty `source` (the file and symbol it is read from).
 pub fn validate_epistemic_integrity(metric_name: &str, metric: &TaggedMetric) -> Result<(), EpistemicValidationError> {
     match metric.epistemic_class {
         EpistemicClass::Projected => {
@@ -216,6 +226,14 @@ pub fn validate_epistemic_integrity(metric_name: &str, metric: &TaggedMetric) ->
                 )));
             }
         }
+        EpistemicClass::Derived => {
+            if metric.source.as_ref().map_or(true, |s| s.trim().is_empty()) {
+                return Err(EpistemicValidationError::EpistemicPromotionViolation(format!(
+                    "EPISTEMIC_PROMOTION_VIOLATION: Derived metric '{}' missing the source it is read from",
+                    metric_name
+                )));
+            }
+        }
         EpistemicClass::Model => {
             if metric.source.is_none() {
                 return Err(EpistemicValidationError::EpistemicPromotionViolation(format!(
@@ -236,6 +254,7 @@ pub fn validate_epistemic_integrity(metric_name: &str, metric: &TaggedMetric) ->
 /// - A `Projected` metric cannot be promoted directly to `Measured` as planetary scale projections
 ///   must remain `PROJECTED` until decomposed into measured components.
 /// - A `Frontier` metric cannot be promoted to `Model` or `Measured` while its blocker issue remains open.
+/// - A `Derived` metric cannot be promoted to `Measured`.
 pub fn validate_promotion(
     metric_name: &str,
     from: EpistemicClass,
@@ -254,6 +273,13 @@ pub fn validate_promotion(
                 metric_name
             )));
         }
+    }
+
+    if from == EpistemicClass::Derived && to == EpistemicClass::Measured {
+        return Err(EpistemicValidationError::EpistemicPromotionViolation(format!(
+            "EPISTEMIC_PROMOTION_VIOLATION: Derived metric '{}' is read from source, not measured; it cannot be promoted to Measured",
+            metric_name
+        )));
     }
 
     if from == EpistemicClass::Frontier && (to == EpistemicClass::Measured || to == EpistemicClass::Model) {
@@ -1650,6 +1676,7 @@ mod tests {
     fn test_epistemic_class_parsing_and_display() {
         let classes = [
             (EpistemicClass::Measured, "MEASURED"),
+            (EpistemicClass::Derived, "DERIVED"),
             (EpistemicClass::Model, "MODEL"),
             (EpistemicClass::Projected, "PROJECTED"),
             (EpistemicClass::Frontier, "FRONTIER"),
