@@ -11,10 +11,10 @@ A package with no entry listed nothing as owed in its spec at the merged head.
 > iteration; the one transcendental (`f64::ln` in `BackgroundModel::next_gap_us`) runs only with household
 > contention on, which the view scenario leaves off. A view with contention on may differ by an ulp in wasm.
 
-## nat, topology, people, holon, evidence
+## nat, topology, people, holon, evidence, media
 
 No item marked owed in their specs at the merged heads (3115c11's nat, 0f0aef4, 77c0bc2, 13682fa,
-140d068).
+140d068, 716379e). The globe item above names media: it is now merged, and the check is still owed.
 
 ## calibration (`FSD/twin/calibration.md` §10, at twin/calibration c13cee5)
 
@@ -50,4 +50,4 @@ No item marked owed in their specs at the merged heads (3115c11's nat, 0f0aef4, 
 
 ## Not yet merged
 
-- media, failures: not merged.
+- failures: no commits on twin/failures yet.

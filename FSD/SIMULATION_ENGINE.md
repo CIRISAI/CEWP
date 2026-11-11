@@ -1071,6 +1071,7 @@ packages say are owed to this document are collected, unapplied, in [`FSD/twin/O
 | [`twin/holon.md`](twin/holon.md) | `holon_dist`, `holon_demo`, `holon_view`: distributional holon certificates with validity envelopes, refused outside them (`SecondSquareFence::use_certificate`, `cewp-cli holon-demo`). |
 | [`twin/evidence.md`](twin/evidence.md) | `cewp-evidence` `page_ledger` / `page_scan`: one ledger entry per figure on the public page, and a scan that fails on an unledgered figure. |
 | [`twin/calibration.md`](twin/calibration.md) | `capacity`, `seat_calibration`, `seat_hooks`: seat capacity costed against edge release/45.0.0 at 8e46165, fit/held-out split, per-term residuals, and the knee as a MODEL interval against growth, never one count. |
+| [`twin/media.md`](twin/media.md) | `link`, `media`, `qoe`, `media_call2`, `media_thin`, `media_view`: access-link contention and call quality derived from edge v45 (room, two-person, audio-only and thin-publisher calls; `cewp-cli media`, `media-call2`, `media-audio`, `media-thin`). |
 
 ---
 
