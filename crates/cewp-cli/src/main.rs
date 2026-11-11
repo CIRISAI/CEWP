@@ -962,6 +962,7 @@ fn print_help() {
     println!("  media [SEEDS]         Room-call quality over modelled access links (FSD/twin/media.md)");
     println!("  media-call2 [SEEDS]   Two-person call: Wi-Fi/LTE, direct (MTU 1400) or relayed (MTU 500)");
     println!("  media-audio [SEEDS]   Audio-only full-mesh room at N = 4 and 9");
+    println!("  media-thin [SEEDS]    Thin-uplink publisher in a 5-person call: mesh, relay, one-copy counterfactual");
     println!("  --help, -h            Print this help text");
 }
 
@@ -986,6 +987,12 @@ fn main() {
                 // FSD/twin/media.md §11: the two-person call, `media-call2 [seeds]`.
                 let seeds = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(5);
                 println!("{}", cewp_sim::media_call2::call2_lines(seeds).join("\n"));
+                return;
+            }
+            "media-thin" => {
+                // FSD/twin/media.md §13: the thin publisher, `media-thin [seeds]`.
+                let seeds = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(5);
+                println!("{}", cewp_sim::media_thin::thin_lines(seeds).join("\n"));
                 return;
             }
             "media-audio" => {

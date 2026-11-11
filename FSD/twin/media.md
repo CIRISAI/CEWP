@@ -235,9 +235,12 @@ link and packets per ledger.
 7. **CoDel trades IDRs for latency.** call4: g2g p95 1175 → 563 ms, audio latency p95
    1717 → 613 ms, but IDR loss p50 357 → 535 and join p95 4.4 → 16 s (the AQM's drops land on
    the large bursts).
-8. **Relay recovery under load is far from the unloaded bound.** Churn, busy: 47 relay
-   departures, 44 with a standby; audio gap p50 1.2 s, p95 20 s; video gap p50 4.6 s; 10 never
-   resumed in the run. Unloaded, the tested bound holds (§5).
+8. **Relay recovery under load is far from the unloaded bound.** Churn, busy: 36 relay
+   departures, 33 with a standby; audio gap p50 1.2 s, p95 20 s; video gap p50 10.6 s, p95
+   46 s; none never resumed. (Regenerated after the ended-stream fix in 564d756: before it, a
+   departed publisher's relays kept stale legs and their later departures were counted as
+   recoveries of a dead stream, which gave 47 departures and 10 never resumed.) Unloaded,
+   the tested bound holds (§5).
 9. **Wire efficiency at the base MTU**: video 238/527 B (45 %), Opus 60/351 B (17 %); a
    24 kbit/s voice copy is ~140 kbit/s on the uplink. A frame over 974,848 B (4096 × 238) is
    refused at the base MTU although `MAX_FRAME_BYTES` is 1 MiB.
@@ -365,3 +368,56 @@ everyone, since there is no adaptation and no relay offload. A 1 Mbit/s line hol
 also the publisher's initial fan-out of 8 (edge `PUBLISHER_INITIAL_FANOUT`, DERIVED); a tenth
 member would not be admitted without a relay. Not run: packing several Opus frames per chunk,
 which would cut the per-copy overhead.
+
+## 13. One thin publisher in a five-person call (`media_thin.rs`, `cewp-cli media-thin 5`)
+
+The design case for edge v45.1. Eric's rule: ALM engages by the publisher's measured uplink,
+not by room size. Member 0 publishes on a thin uplink (DSL buffer depth and last mile, uplink
+swept 128 / 256 / 512 / 1,000 kbit/s, plus 2,000 to bracket video; MODEL). Member 1 is the
+natural next hop (fibre, nearest, joins first). Members 2–4 are a fibre home, a cable-Wi-Fi
+laptop and a Wi-Fi phone. Everyone publishes; the lines report member 0's stream only (4
+receivers × 5 seeds = 20 sessions). Modes:
+`a` full mesh, relay off (v45.0.0 as the server ships it); `b` relay on, edge's admission
+(initial fan-out clamp(N−1, 1, 8) = 4, probe growth, nothing refused locally on a datagram
+leg); `b975` as `b` plus the CIRISEdge#975 delivery report (not in v45); `c` counterfactual
+(`CallParams::publisher_cap = 1`, `standby_spares_publisher`): exactly one copy to the next
+hop, which relays to the other three, no standby charged to the publisher; `c1400` as `c` at
+MTU 1,400. Thresholds (MODEL): audio is carried when the p95 session misses ≤ 50 ‰; video is
+carried when every session shows video and the p95 freeze is ≤ 25 s/min (just above the
+two-person direct Wi-Fi baseline of §11).
+
+Lowest swept uplink that carries each, quiet household (MODEL output):
+
+| mode | audio only | audio + video |
+|---|---|---|
+| a (mesh, relay off) | 1,000 kbit/s | none up to 2,000 |
+| b (relay on, v45 admission) | 1,000 kbit/s | none up to 2,000 |
+| b975 (loss-driven shedding) | 256 kbit/s (p95 exactly 50 ‰) | none up to 2,000 |
+| c (one copy, base MTU) | 256 kbit/s | none up to 2,000 (2,000: freeze p95 39 s/min) |
+| c1400 (one copy, MTU 1,400) | 256 kbit/s | 1,000 kbit/s (freeze p50/p95 11/22 s/min) |
+
+Busy household (the thin line's own household uploads on, §2 `BG_UP_HOME`): no mode carries
+audio at any swept uplink. Even `c` at 2,000 kbit/s misses 409 ‰ at p95, because a household
+backup fills the line's 500 ms FIFO ahead of the voice.
+
+Uplink use (publisher media bytes on the wire over capacity): one Opus copy is ~138 kbit/s
+(`c`: 538 ‰ of 256, 269 ‰ of 512). Four copies are ~540 kbit/s (`a`: 539 ‰ of 1,000). One
+audio + video copy is ~770 kbit/s at MTU 1,400 (770 ‰ of 1,000), and more than 1,000 kbit/s at
+the base MTU, where `c` saturates the line at 988 ‰ and no session shows video.
+
+Reading (inference from the model's structure):
+1. At 128 kbit/s nothing carries even audio, in any mode, because one voice copy is ~139 kbit/s
+   on the wire: a 60 B Opus frame in a ~351 B datagram, 50 per second. The relay tree cannot
+   fix that. Only the per-copy overhead can: packing several 20 ms frames per chunk, or a
+   lighter per-chunk signature.
+2. With relay on, edge's admission alone (`b`) does not move a thin publisher off full mesh by
+   itself: fan-out starts at 4 and nothing is refused on a datagram leg. Receivers' degraded-
+   parent moves do shift some of them to the next hop (fan-out ends at 1 in the 256 and 512
+   runs), but only after long loss; audio p95 stays 349–985 ‰.
+3. Loss-driven shedding (`b975`) gets audio to the one-copy floor (256 kbit/s), which is what
+   "engage by measured uplink" asks for. `c` is the same floor reached at once, with no loss
+   period.
+4. Video from a thin publisher needs both the one-copy rule and the probed MTU; at the base MTU
+   one copy does not fit 1 Mbit/s.
+5. The rule must measure the uplink the call actually gets, not the nominal rate: with the
+   household busy, the free share of the line is what decides.

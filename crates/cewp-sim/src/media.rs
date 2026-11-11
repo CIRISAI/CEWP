@@ -424,6 +424,11 @@ pub struct CallParams {
     /// Counterfactual CIRISEdge#975: receivers report delivery, so a forwarder on datagram legs
     /// learns a ceiling from loss its children see. Not in edge v45.
     pub delivery_report: bool,
+    /// Counterfactual (`FSD/twin/media.md` §13): the publisher's own fan-out is fixed at this
+    /// many streams and never probes up; 0 = edge's admission (initial fan-out, probe growth).
+    pub publisher_cap: u32,
+    /// Counterfactual (§13): no warm standby is taken from the publisher itself.
+    pub standby_spares_publisher: bool,
 }
 
 impl Default for CallParams {
@@ -446,6 +451,8 @@ impl Default for CallParams {
             layer_requests: false,
             standby: true,
             delivery_report: false,
+            publisher_cap: 0,
+            standby_spares_publisher: false,
         }
     }
 }
@@ -965,7 +972,11 @@ impl Engine {
         let adm = (0..n * n)
             .map(|k| {
                 let (s, f) = (k / n, k % n);
-                let probe = if s == f { (n.saturating_sub(1) as u32).clamp(1, PUBLISHER_INITIAL_FANOUT) } else { 1 };
+                let probe = match (s == f, sc.call.publisher_cap) {
+                    (true, 0) => (n.saturating_sub(1) as u32).clamp(1, PUBLISHER_INITIAL_FANOUT),
+                    (true, cap) => cap,
+                    (false, _) => 1,
+                };
                 Adm { probe, ..Adm::default() }
             })
             .collect();
@@ -1405,7 +1416,9 @@ impl Engine {
     fn limit(&self, s: u16, f: u16) -> u64 {
         let a = &self.adm[self.ix(s, f)];
         let l = a.ceiling.unwrap_or(a.floor + u64::from(a.probe) * 1_000);
-        if s == f {
+        if s == f && self.sc.call.publisher_cap > 0 {
+            u64::from(self.sc.call.publisher_cap) * 1_000
+        } else if s == f {
             l.max(1_000)
         } else {
             l
@@ -1443,7 +1456,8 @@ impl Engine {
     fn candidates(&self, n: u16, s: u16, for_standby: bool) -> Vec<u16> {
         let r = &self.rx[self.ix(s, n)];
         let mut out = Vec::new();
-        if !self.nodes[usize::from(n)].spec.unreachable && self.present(s) && r.primary != Some(s) && r.standby != Some(s) {
+        let spared = for_standby && self.sc.call.standby_spares_publisher;
+        if !spared && !self.nodes[usize::from(n)].spec.unreachable && self.present(s) && r.primary != Some(s) && r.standby != Some(s) {
             out.push(s);
         }
         let mut relays: Vec<(u8, u64, u16)> = Vec::new();
@@ -1635,7 +1649,8 @@ impl Engine {
                         // On a datagram leg over UDP nothing is ever refused locally, so every
                         // window is clean (path_meter.rs "Limit: datagram legs").
                         let used = committed * 1_000 >= limit * PROBE_USED_PERMILLE;
-                        if (used || a.demand) && a.streak >= PROBE_CLEAN_WINDOWS {
+                        let capped = s == f && self.sc.call.publisher_cap > 0;
+                        if !capped && (used || a.demand) && a.streak >= PROBE_CLEAN_WINDOWS {
                             a.probe = (a.probe * 2).min(MAX_PROBE_STREAMS);
                             a.streak = 0;
                             a.demand = false;

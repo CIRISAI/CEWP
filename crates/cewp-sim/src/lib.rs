@@ -60,6 +60,7 @@ pub mod link;
 pub mod media;
 pub mod media_view;
 pub mod media_call2;
+pub mod media_thin;
 pub mod qoe;
 
 pub use transport::*;
