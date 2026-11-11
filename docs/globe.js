@@ -943,7 +943,7 @@ function draw(){
     else { gl.bindBuffer(gl.ARRAY_BUFFER,fanBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,fanVerts); }
     gl.colorMask(true,true,true,true); gl.stencilFunc(gl.EQUAL,1,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP);
     // ground reaches full cover sooner than the tiles fade in, so empty land never reads as shallow sea
-    gl.uniform1f(gl.getUniformLocation(pG,"uA"),(0.6+0.4*Math.min(1,landA*3))*(1-0.6*sstep(26,8,mpp))); // land shows at every zoom; at street scale it is a faint land/sea mask
+    gl.uniform1f(gl.getUniformLocation(pG,"uA"),(0.93+0.07*Math.min(1,landA*3))*(1-0.6*sstep(26,8,mpp))); // near-opaque: the sea's glint and colour stay off the land // land shows at every zoom; at street scale it is a faint land/sea mask
     gl.bindBuffer(gl.ARRAY_BUFFER,groundBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,groundVerts);
     gl.uniform1f(gl.getUniformLocation(pG,"uA"),landA);
     gl.bindBuffer(gl.ARRAY_BUFFER,landBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0);

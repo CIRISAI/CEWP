@@ -180,7 +180,8 @@ function gfxGlowInit(){
   const q = nzv.length ? nzv[Math.floor(nzv.length * 0.99)] : 1;
   const u8 = new Uint8Array(W2 * H2); for (let i = 0; i < u8.length; i++) u8[i] = Math.min(255, Math.round(255 * Math.log1p(9 * Math.min(1, img[i] / q)) / Math.log(10)));
   const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, W2, H2, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, u8);
+  const rgba = new Uint8Array(W2 * H2 * 4); for (let i = 0; i < u8.length; i++){ rgba[i * 4] = u8[i]; rgba[i * 4 + 3] = 255; } // RGBA: LUMINANCE sampled wrong on one ANGLE/Intel path
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W2, H2, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
   gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   const V = [], st = 2, at = (la, lo) => [...xyz(la, lo), (lo + 180) / 360, (90 - la) / 180];
@@ -194,7 +195,8 @@ float g=pow(d,1.6)*night*uA;vec3 c=vec3(1.0,0.58,0.24)*g*0.62+vec3(1.0,0.84,0.60
 function gfxNightGlow(R, S, asp, mpp, a){
   if (a <= 0.004) return; if (!gfxGlow) gfxGlowInit();
   const L = gfxProg("glow", NGV, NGF); gfxCommon(L, R, S, asp);
-  gl.uniform1f(L.u.uA, a * sstep(500, 4000, mpp)); // a 0.35° texel says nothing below region scale: gone by 500 m a pixel gl.uniform1i(L.u.T, 0); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, gfxGlow.tex);
+  // a 0.35° texel says nothing below region scale: the glow is gone by 500 m a pixel
+  gl.uniform1f(L.u.uA, a * sstep(500, 4000, mpp)); gl.uniform1i(L.u.T, 0); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, gfxGlow.tex);
   gl.bindBuffer(gl.ARRAY_BUFFER, gfxGlow.buf); gl.enableVertexAttribArray(L.a.p); gl.enableVertexAttribArray(L.a.uv);
   gl.vertexAttribPointer(L.a.p, 3, gl.FLOAT, false, 20, 0); gl.vertexAttribPointer(L.a.uv, 2, gl.FLOAT, false, 20, 12);
   gl.blendFunc(gl.ONE, gl.ONE); gl.drawArrays(gl.TRIANGLES, 0, gfxGlow.n); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);

@@ -252,15 +252,22 @@ function tlDraw(w, h, mpp, sun){
   if (landVerts){ gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL, 1, 1); gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP); }
   // the mosaic: one quad per holon in view, toned by households per km². Under a leaf that is
   // fading in (or out at the ring's edge) the same tone shows through, so the two cross-fade.
+  const relA = (typeof reliefDraw === "function") ? GEO.rf : 0;
   const quads = agg.concat(detail), Q = new Float32Array(quads.length * 60); let o = 0;
   for (const { c, bx, b } of quads){
-    const km2 = (bx.hw * 2 / (F.k / EARTH_M) / 1000) * (bx.hh * 2 / (F.k / EARTH_M) / 1000), col0 = tlGround(tlTerrain(bx.la, bx.lo), tlTone(b / Math.max(1e-6, km2)));
-    const f = tlJitter(HOLON.pack(c)) * tlNight(sun, bx.la, bx.lo), col = [col0[0] * f, col0[1] * f, col0[2] * f];
+    // a holon's tone is its households per km² (the tiling's own apportionment) over its climate's
+    // ground; the terrain's light is not baked per holon (that drew each holon as a flat step) but
+    // multiplied over the whole mosaic from ETOPO below, continuous across holon edges
+    const km2 = (bx.hw * 2 / (F.k / EARTH_M) / 1000) * (bx.hh * 2 / (F.k / EARTH_M) / 1000), T0 = tlTerrain(bx.la, bx.lo), col0 = tlGround(T0, tlTone(b / Math.max(1e-6, km2)));
+    const f = tlNight(sun, bx.la, bx.lo) / (relA > 0.01 ? T0.lit : 1), col = [col0[0] * f, col0[1] * f, col0[2] * f];
     const ins = bx.hw >= 20 ? 0.3 : 0; // the tiling reads by tone; a fine seam only once a holon is 40 px wide
     const P = [[bx.x - bx.hw + ins, bx.y - bx.hh + ins], [bx.x + bx.hw - ins, bx.y - bx.hh + ins], [bx.x + bx.hw - ins, bx.y + bx.hh - ins], [bx.x - bx.hw + ins, bx.y + bx.hh - ins]];
     for (const k of [0, 1, 2, 0, 2, 3]){ Q[o++] = P[k][0]; Q[o++] = P[k][1]; Q[o++] = 0; Q[o++] = 0; Q[o++] = 0; Q[o++] = col[0]; Q[o++] = col[1]; Q[o++] = col[2]; Q[o++] = 0.9; Q[o++] = 0; }
   }
   tlScreen(Q, aggA);
+  // the terrain over the mosaic, as on the land below it (relief.js multiply, inside the land stencil)
+  if (relA > 0.01 && aggA > 0.01 && landVerts){ const asp = w > h ? [h / w, 1] : [1, w / h]; tlNoAttribs();
+    reliefDraw(rot(), 0.86 * zoom, asp, w, h, mpp, relA * aggA, sun); gl.useProgram(tlProg); gl.uniform2f(tlLoc.view, F.w, F.h); gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL, 1, 1); }
   // arterials over the mosaic: each L2 cell's own lines, at least a pixel wide
   const artA = sstep(30, 18, mpp);
   if (artA > 0.01 && tiles.size){
