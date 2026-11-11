@@ -202,7 +202,7 @@ cover. Replace `pop-grid-source` (move it out of the FRONTIER block) and the `sh
         id: "land-cover-source",
         class: Measured,
         shows: "The ground's colour follows real land cover: the majority land class of each 1/8-degree cell (Copernicus Global Land Service Land Cover 100 m, 2019).",
-        source: "docs/geo/gd/lc0.bin.gz, lc1.bin.gz and docs/geo/geodata.js geoLandcoverAt, built by tools/geodata/build_geodata.py from PROBAV_LC100_global_v3.0.1_2019-nrt_Discrete-Classification-map_EPSG-4326.tif (Buchhorn et al. 2020, doi:10.5281/zenodo.3939050, CC BY 4.0; contains modified Copernicus Service information 2020)",
+        source: "docs/geo/gd/lc0.bin.gz, lc1.bin.gz and docs/geo/geodata.js geoLandcoverAt, built by tools/geodata/build_geodata.py from PROBAV_LC100_global_v3.0.1_2019-nrt_Discrete-Classification-map_EPSG-4326.tif (Buchhorn et al. 2020, doi:10.5281/zenodo.3939050, CC BY 4.0; contains modified Copernicus Service information 2019)",
         window: "Epoch 2019 (PROBA-V, 100 m), about 80 N to 60 S. Overall accuracy 80.6 +/- 0.4 % at level 1 of the legend (Product User Manual I3.4).",
         failure: &[
             "A majority vote at 1/8 degree erases minority classes: a town smaller than half a cell disappears into the cropland or forest around it.",
@@ -239,3 +239,8 @@ text (globe.js) becomes 4,559.
    `geoDataBoot(1)` when the view nears region scale; where `geoLandcoverAt(lat, lon)` answers,
    use its `.ground` RGB; where it answers null (Antarctica, no input), keep the latitude/elevation
    rule. Show `GEO_ATTRIBUTION` in the "Map data" paragraph.
+
+
+## As wired on twin/globe (fd2de88 and after)
+
+On the lead's ruling of 2026-11-11, `pop-grid-source` and `land-cover-source` are MODEL, not MEASURED: on this page MEASURED means measured on the mesh, and both products are published estimates (GHS-POP spreads census counts over built-up volume; LC100 classifies satellite imagery). Each entry names its product in the ledger's new `dataset` field, which the validator forbids on a MEASURED entry. The Copernicus statement reads "Contains modified Copernicus Service information 2019" (the data's epoch), on the page and in the README.

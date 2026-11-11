@@ -76,6 +76,11 @@ pub struct PageClaim {
     pub window: &'static str,
     /// MODEL: the parameter name(s) the value rests on.
     pub param: &'static str,
+    /// An external published dataset the value rests on: producer, product, epoch, licence. It is
+    /// not a measurement on the mesh (MEASURED on this page means only that), so an entry that names
+    /// one is never MEASURED; a published estimate such as a population grid or a classified
+    /// satellite product enters as MODEL with this field naming it.
+    pub dataset: &'static str,
     /// Interval, where one exists.
     pub interval: Option<Interval>,
     /// FRONTIER: what is missing and what would resolve it.
@@ -111,6 +116,7 @@ const BASE: PageClaim = PageClaim {
     commit: CEWP_BASE,
     window: "",
     param: "",
+    dataset: "",
     interval: None,
     blocker: "",
     failure: &[],
@@ -418,10 +424,11 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
     },
     PageClaim {
         id: "pop-grid-source",
-        class: Measured,
+        class: Model,
         shows: "A land-bounded world population grid: GHS-POP R2023A, epoch 2020, summed to 1.5-degree cells of at least 20,000 people.",
         source: "docs/globe.js: POP_GRID_B64, carrying docs/geo/popgrid_ghs.js POP_GRID_GHS_B64 (twin/geodata c56060d), built by tools/geodata/build_geodata.py from GHS_POP_E2020_GLOBE_R2023A_4326_30ss_V1_0.tif (Schiavina, Freire, Carioli, MacManus 2023, European Commission JRC, doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE, CC BY 4.0); FSD/twin/geodata.md",
-        window: "Epoch 2020: GPW v4.11 census counts carried to 2020 and rescaled to UN WPP 2022 country totals and UN WUP 2018 city totals, disaggregated by built-up volume. World total 7,840,952,947 (the JRC's published figure, matched by the build); the kept cells hold 7,830,639,988 (99.87 %).",
+        param: "GHS-POP's own method (census counts carried to 2020 and spread over built-up volume, a published model of the JRC); this twin's choices: 1.5-degree cells of at least 20,000 people (POPGRID_MIN), weight = people / 1,000, the 181-locality partition inherited from the old grid",
+        dataset: "External published estimate: JRC GHS-POP R2023A, epoch 2020 (Schiavina, Freire, Carioli, MacManus 2023, European Commission Joint Research Centre, doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE), CC BY 4.0. World total 7,840,952,947 (the JRC's published figure, matched by the build); the kept cells hold 7,830,639,988 (99.87 %). Not a measurement on the mesh.",
         failure: &[
             "GHS-POP is itself a model of census counts between censuses: residential people only, placed where buildings are, coarse where census units are coarse.",
             "The 181 localities and 9 regions the cells are grouped into are inherited from the old grid (nearest old cell): a MODEL partition, not data.",
@@ -432,10 +439,11 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
     },
     PageClaim {
         id: "land-cover-source",
-        class: Measured,
+        class: Model,
         shows: "The ground's colour follows real land cover: the majority land class of each 1/8-degree cell (Copernicus Global Land Service Land Cover 100 m, 2019).",
-        source: "docs/geo/gd/lc0.bin.gz, lc1.bin.gz and docs/geo/geodata.js geoLandcoverAt (twin/geodata 4fe1245), read by docs/tiling.js tlTerrain, built by tools/geodata/build_geodata.py from PROBAV_LC100_global_v3.0.1_2019-nrt_Discrete-Classification-map_EPSG-4326.tif (Buchhorn et al. 2020, doi:10.5281/zenodo.3939050, CC BY 4.0; contains modified Copernicus Service information 2020)",
-        window: "Epoch 2019 (PROBA-V, 100 m), about 80 N to 60 S. Overall accuracy 80.6 +/- 0.4 % at level 1 of the legend (Product User Manual I3.4).",
+        source: "docs/geo/gd/lc0.bin.gz, lc1.bin.gz and docs/geo/geodata.js geoLandcoverAt (twin/geodata 4fe1245), read by docs/tiling.js tlTerrain, built by tools/geodata/build_geodata.py from PROBAV_LC100_global_v3.0.1_2019-nrt_Discrete-Classification-map_EPSG-4326.tif (Buchhorn et al. 2020, doi:10.5281/zenodo.3939050, CC BY 4.0; contains modified Copernicus Service information 2019)",
+        param: "majority land class per 1/8 and 1/2 degree cell (tools/geodata/build_geodata.py); the ground colour per class (GEO_LC_LEGEND, a display choice of this twin)",
+        dataset: "External published product: Copernicus Global Land Service Land Cover 100 m, collection 3, epoch 2019 (Buchhorn et al. 2020, doi:10.5281/zenodo.3939050), a classification of PROBA-V satellite imagery; overall accuracy 80.6 +/- 0.4 % at level 1 of its legend (Product User Manual I3.4); about 80 N to 60 S. CC BY 4.0; contains modified Copernicus Service information 2019. Not a measurement on the mesh.",
         failure: &[
             "A majority vote at 1/8 degree erases minority classes: a town smaller than half a cell disappears into the cropland or forest around it.",
             "Shrubs and herbaceous wetland are the classes the producers map least accurately.",
@@ -1017,9 +1025,9 @@ pub const fn class_code(class: EpistemicClass) -> &'static str {
 
 /// What each class means, in the page legend's words (FSD §8.2 and the `capacity.rs` tags).
 pub const CLASS_NOTES: &[(EpistemicClass, &str)] = &[
-    (EpistemicClass::Measured, "Read off real code on real hardware: the production serve seat's counters, or your own browser timing the page. Names its window."),
+    (EpistemicClass::Measured, "Read off real code on real hardware: the production serve seat's counters, or your own browser timing the page. Names its window. A published external dataset (the population grid, land cover) is not MEASURED here: it enters as MODEL with the dataset named."),
     (EpistemicClass::Derived, "Read from source code or the constitution, or computed by stated arithmetic from source constants and measured counts. Names the file and symbol."),
-    (EpistemicClass::Model, "A stated modelling choice, or the output of the simulation under stated inputs. Names its parameters."),
+    (EpistemicClass::Model, "A stated modelling choice, the output of the simulation under stated inputs, or an external published estimate (named under External dataset). Names its parameters."),
     (EpistemicClass::Projected, "Extrapolated from certified lower tiers (FSD §8.2); always carries an interval. Nothing on this page is PROJECTED: no tier here is certified, so extrapolations past what was measured (the seat knee) are MODEL with their intervals."),
     (EpistemicClass::Frontier, "Open: no source or measurement supports it yet. Names what is missing."),
 ];
@@ -1060,6 +1068,9 @@ pub fn validate_page_claim(c: &PageClaim) -> Result<(), String> {
     }
     if c.failure.is_empty() || c.failure.iter().any(|f| f.trim().is_empty()) {
         return e("needs at least one known failure condition");
+    }
+    if !c.dataset.trim().is_empty() && c.class == EpistemicClass::Measured {
+        return e("an external published dataset is not a measurement on the mesh: MODEL with `dataset` naming it");
     }
     match c.class {
         EpistemicClass::Measured => {
@@ -1176,6 +1187,7 @@ pub fn ledger_json() -> String {
             ("commit", c.commit),
             ("window", c.window),
             ("param", c.param),
+            ("dataset", c.dataset),
             ("blocker", c.blocker),
             ("reproduce", c.reproduce),
             ("correction", c.correction),
@@ -1287,6 +1299,18 @@ mod tests {
         let json = std::fs::read_to_string(dir.join("claims.json")).unwrap_or_default();
         let script = std::fs::read_to_string(dir.join("claims.js")).unwrap_or_default();
         assert!(json == ledger_json() && script == ledger_js(), "docs/evidence/claims.json or claims.js is stale: run `{}`", GENERATE_CMD);
+    }
+
+    #[test]
+    fn page_ledger_external_datasets_are_never_measured() {
+        for id in ["pop-grid-source", "land-cover-source"] {
+            let c = lookup(id).expect(id);
+            assert_eq!(c.class, EpistemicClass::Model, "{id}");
+            assert!(c.dataset.contains("CC BY 4.0"), "{id}");
+        }
+        assert!(PAGE_CLAIMS.iter().all(|c| c.dataset.is_empty() || c.class != EpistemicClass::Measured));
+        let bad = PageClaim { id: "x", class: Measured, shows: "s", source: "f", window: "w", dataset: "d", failure: &["f"], ..BASE };
+        assert!(validate_page_claim(&bad).is_err());
     }
 
     #[test]

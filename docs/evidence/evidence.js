@@ -42,6 +42,7 @@ function evOpen(id, opener, extra){
       ${evField("Commit", c.commit, true)}
       ${evField("Measurement window", c.window)}
       ${evField("Parameters", c.param)}
+      ${evField("External dataset (not measured on the mesh)", c.dataset || "")}
       ${evField("Interval", iv)}
       ${evField("What is missing", c.blocker)}
       <div class="ev-f"><span>Known failure conditions</span><ul>${c.failure.map(f => `<li>${evEsc(f)}</li>`).join("")}</ul></div>

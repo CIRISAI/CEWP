@@ -132,5 +132,5 @@ function geoLandcoverAt(lat, lon, maxLevel = 1){
 }
 // Attribution the page must show wherever these layers are drawn (CC BY 4.0 for both).
 const GEO_ATTRIBUTION = "Population: GHS-POP R2023A (epoch 2020), © European Union 1995-2026, JRC, CC BY 4.0 (Schiavina et al. 2023, doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE), aggregated to 1/2° and 1/8° cells. " +
-  "Land cover: Copernicus Global Land Service Land Cover 100 m, epoch 2019 (Buchhorn et al. 2020, doi:10.5281/zenodo.3939050), CC BY 4.0; contains modified Copernicus Service information 2020, reduced to the majority land class per 1/2° and 1/8° cell.";
+  "Land cover: Copernicus Global Land Service Land Cover 100 m, epoch 2019 (Buchhorn et al. 2020, doi:10.5281/zenodo.3939050), CC BY 4.0; contains modified Copernicus Service information 2019, reduced to the majority land class per 1/2° and 1/8° cell.";
 if (typeof module !== "undefined") module.exports = { GEODATA, GEO_LC_LEGEND, GEO_ATTRIBUTION, geoDataBoot, geoPopulationAt, geoLandcoverAt, geoCell, geoCellKm2, geoPopFine };
