@@ -38,7 +38,8 @@ use crate::link::{
     chance_ppm, BackgroundModel, CapacityModel, CellModel, Discipline, Enq, GeParams, LinkDir, LinkStats, Queued, RenoFlow, BG_SEGMENT_WIRE,
     BG_MSS,
 };
-use crate::micro::Rng;
+use crate::media_view::ViewRec;
+use crate::micro::{HostKind, Rng};
 use crate::qoe::{amp_buckets, score_recovery, score_session, AmpBucket, QoeRules, RecoveryObs, RecoveryRec, SessionLog, SessionQoe, VMeta};
 
 // ------------------------------------------------------------------ provenance
@@ -322,6 +323,22 @@ pub struct AccessProfile {
     /// May relay (CC 5.4.6: server and home by default; a phone only while charging and
     /// unmetered).
     pub relay: bool,
+    /// The device, in `micro.rs` host kinds (the energy package's device class).
+    pub host: HostKind,
+    /// The access medium (the energy package's link class).
+    pub class: LinkClass,
+}
+
+/// The medium of an access link, as the energy package splits bytes and radio time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub enum LinkClass {
+    /// Wired (fibre, cable, DSL to an Ethernet host).
+    Fixed = 0,
+    /// Wi-Fi to a fixed line.
+    WiFi = 1,
+    /// A cellular radio.
+    Cellular = 2,
 }
 
 /// Wired residential loss: rare, short bursts. MODEL.
@@ -344,27 +361,27 @@ pub const BG_DOWN_PHONE: BackgroundModel = BackgroundModel { mean_gap_ms: 20_000
 /// Fibre home, wired desktop. MODEL rates.
 pub const FIBER_HOME: AccessProfile = AccessProfile {
     name: "fibre-home", up_bps: 50_000_000, down_bps: 300_000_000, up_buffer_ms: 50, down_buffer_ms: 50, last_mile_us: 2_000,
-    airtime_permille: 1000, cell: None, ge: GE_WIRED, verify_us: 60, sign_us: 25, bg_up: BG_UP_HOME, bg_down: BG_DOWN_HOME, relay: true,
+    airtime_permille: 1000, cell: None, ge: GE_WIRED, verify_us: 60, sign_us: 25, bg_up: BG_UP_HOME, bg_down: BG_DOWN_HOME, relay: true, host: HostKind::HomeNode, class: LinkClass::Fixed,
 };
 /// Cable home, laptop on Wi-Fi: a bloated cable-modem uplink buffer. MODEL rates.
 pub const CABLE_HOME_WIFI: AccessProfile = AccessProfile {
     name: "cable-home-wifi", up_bps: 10_000_000, down_bps: 150_000_000, up_buffer_ms: 300, down_buffer_ms: 100, last_mile_us: 8_000,
-    airtime_permille: 600, cell: None, ge: GE_WIFI, verify_us: 60, sign_us: 25, bg_up: BG_UP_HOME, bg_down: BG_DOWN_HOME, relay: true,
+    airtime_permille: 600, cell: None, ge: GE_WIFI, verify_us: 60, sign_us: 25, bg_up: BG_UP_HOME, bg_down: BG_DOWN_HOME, relay: true, host: HostKind::Laptop, class: LinkClass::WiFi,
 };
 /// DSL home, wired: a thin uplink with a deep buffer. MODEL rates.
 pub const DSL_HOME: AccessProfile = AccessProfile {
     name: "dsl-home", up_bps: 1_000_000, down_bps: 16_000_000, up_buffer_ms: 500, down_buffer_ms: 200, last_mile_us: 12_000,
-    airtime_permille: 1000, cell: None, ge: GE_WIRED, verify_us: 60, sign_us: 25, bg_up: BG_UP_HOME, bg_down: BG_DOWN_HOME, relay: true,
+    airtime_permille: 1000, cell: None, ge: GE_WIRED, verify_us: 60, sign_us: 25, bg_up: BG_UP_HOME, bg_down: BG_DOWN_HOME, relay: true, host: HostKind::HomeNode, class: LinkClass::Fixed,
 };
 /// A phone on the household's cable Wi-Fi (metered = no, but not charging: no relay). MODEL.
 pub const PHONE_HOME_WIFI: AccessProfile = AccessProfile {
     name: "phone-home-wifi", up_bps: 10_000_000, down_bps: 150_000_000, up_buffer_ms: 300, down_buffer_ms: 100, last_mile_us: 8_000,
-    airtime_permille: 500, cell: None, ge: GE_WIFI, verify_us: 150, sign_us: 60, bg_up: BG_UP_HOME, bg_down: BG_DOWN_HOME, relay: false,
+    airtime_permille: 500, cell: None, ge: GE_WIFI, verify_us: 150, sign_us: 60, bg_up: BG_UP_HOME, bg_down: BG_DOWN_HOME, relay: false, host: HostKind::Phone, class: LinkClass::WiFi,
 };
 /// A phone on LTE: varying capacity, deep per-UE buffers, metered (no relay). MODEL.
 pub const PHONE_LTE: AccessProfile = AccessProfile {
     name: "phone-lte", up_bps: 6_000_000, down_bps: 25_000_000, up_buffer_ms: 1_000, down_buffer_ms: 500, last_mile_us: 25_000,
-    airtime_permille: 1000, cell: Some(CELL_LTE), ge: GE_LTE, verify_us: 150, sign_us: 60, bg_up: BG_UP_PHONE, bg_down: BG_DOWN_PHONE, relay: false,
+    airtime_permille: 1000, cell: Some(CELL_LTE), ge: GE_LTE, verify_us: 150, sign_us: 60, bg_up: BG_UP_PHONE, bg_down: BG_DOWN_PHONE, relay: false, host: HostKind::Phone, class: LinkClass::Cellular,
 };
 
 // ------------------------------------------------------------------ call and scenario
@@ -569,6 +586,7 @@ struct Pkt {
     bytes: u32,
     from: u16,
     to: u16,
+    sent_us: u64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -723,6 +741,143 @@ impl Ledger {
     }
 }
 
+/// Energy-relevant event counts of one node over a run (`HOOKS.md` §1). Every field is
+/// DERIVED from the engine's own events; no power figure is attached here. Bytes are wire bytes
+/// (RNS packet + IP/UDP header). A node has one access link, so its bytes are on
+/// `class`; [`energy_by_class`] sums nodes per (host kind, link class).
+///
+/// Not counted, because the engine has no such event: control traffic (SUBSCRIBE, C3 frames,
+/// bindings, RNS keepalives and link setup), storage (a call stores nothing), a radio's tail
+/// after its last packet (the energy package's parameter; `idle_gap_hist` lets it be priced).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct NodeEnergy {
+    /// Time in the call (join to leave or run end, us).
+    pub present_us: u64,
+    /// Copies of the node's own stream put on its uplink (transmitted, lost on the medium or not).
+    pub media_own_tx_bytes: u64,
+    /// Those copies.
+    pub media_own_tx_copies: u64,
+    /// Copies of other publishers' streams put on its uplink: relay work done for others.
+    pub media_fwd_tx_bytes: u64,
+    /// Those copies.
+    pub media_fwd_tx_copies: u64,
+    /// Media datagrams that arrived over its downlink (duplicates included).
+    pub media_rx_bytes: u64,
+    /// Those datagrams.
+    pub media_rx_copies: u64,
+    /// Of those, copies of a chunk it already had (standby and primary both sending).
+    pub media_rx_dup_copies: u64,
+    /// Household traffic transmitted on its uplink (contention on only).
+    pub bg_tx_bytes: u64,
+    /// Household traffic arriving on its downlink.
+    pub bg_rx_bytes: u64,
+    /// Ed25519 signs (one per chunk it publishes).
+    pub signs: u64,
+    /// Ed25519 verifies (one per copy that reaches its CPU, at every relay and receiver).
+    pub verifies: u64,
+    /// Inner AEAD seals under the epoch key (once per chunk, publisher only; `realtime_av.rs`
+    /// "inner-once / outer-N").
+    pub inner_seals: u64,
+    /// Plaintext bytes those seals covered.
+    pub inner_sealed_bytes: u64,
+    /// Inner AEAD opens (once per unique chunk at a node that plays the stream; a relay that
+    /// does not play it forwards the inner ciphertext unopened). Inference: edge's relay path
+    /// was read for the outer seal only.
+    pub inner_opens: u64,
+    /// Plaintext bytes those opens produced.
+    pub inner_opened_bytes: u64,
+    /// Per-copy hop encryptions: each copy sent is sealed three times, by the per-link outer
+    /// AEAD (`seal_av_outer`), the E1 link seal (`link_seal.rs`), and the RNS link token.
+    pub hop_seal_copies: u64,
+    /// Bytes out of the outer AEAD, summed over copies.
+    pub outer_sealed_bytes: u64,
+    /// Bytes out of the E1 link seal.
+    pub link_sealed_bytes: u64,
+    /// Bytes the RNS link token encrypted.
+    pub rns_encrypted_bytes: u64,
+    /// Per-copy hop decryptions (three layers each), at the copy's verify.
+    pub hop_open_copies: u64,
+    /// Bytes the three layers opened, summed (outer + E1 + RNS token).
+    pub hop_opened_bytes: u64,
+    /// CPU time spent signing and verifying (us).
+    pub cpu_busy_us: u64,
+    /// Uplink transmit time (us).
+    pub up_busy_us: u64,
+    /// Uplink wake events.
+    pub up_wakes: u64,
+    /// Uplink idle gap before each wake (see [`crate::link::LinkStats::idle_gap_hist`]).
+    pub up_idle_gap_hist: [u64; 5],
+    /// Downlink transmit time (us).
+    pub down_busy_us: u64,
+    /// Downlink wake events.
+    pub down_wakes: u64,
+    /// Downlink idle gap before each wake.
+    pub down_idle_gap_hist: [u64; 5],
+}
+
+impl NodeEnergy {
+    /// Add `o` into `self`.
+    pub fn add(&mut self, o: &Self) {
+        self.present_us += o.present_us;
+        self.media_own_tx_bytes += o.media_own_tx_bytes;
+        self.media_own_tx_copies += o.media_own_tx_copies;
+        self.media_fwd_tx_bytes += o.media_fwd_tx_bytes;
+        self.media_fwd_tx_copies += o.media_fwd_tx_copies;
+        self.media_rx_bytes += o.media_rx_bytes;
+        self.media_rx_copies += o.media_rx_copies;
+        self.media_rx_dup_copies += o.media_rx_dup_copies;
+        self.bg_tx_bytes += o.bg_tx_bytes;
+        self.bg_rx_bytes += o.bg_rx_bytes;
+        self.signs += o.signs;
+        self.verifies += o.verifies;
+        self.inner_seals += o.inner_seals;
+        self.inner_sealed_bytes += o.inner_sealed_bytes;
+        self.inner_opens += o.inner_opens;
+        self.inner_opened_bytes += o.inner_opened_bytes;
+        self.hop_seal_copies += o.hop_seal_copies;
+        self.outer_sealed_bytes += o.outer_sealed_bytes;
+        self.link_sealed_bytes += o.link_sealed_bytes;
+        self.rns_encrypted_bytes += o.rns_encrypted_bytes;
+        self.hop_open_copies += o.hop_open_copies;
+        self.hop_opened_bytes += o.hop_opened_bytes;
+        self.cpu_busy_us += o.cpu_busy_us;
+        self.up_busy_us += o.up_busy_us;
+        self.up_wakes += o.up_wakes;
+        self.down_busy_us += o.down_busy_us;
+        self.down_wakes += o.down_wakes;
+        for k in 0..5 {
+            self.up_idle_gap_hist[k] += o.up_idle_gap_hist[k];
+            self.down_idle_gap_hist[k] += o.down_idle_gap_hist[k];
+        }
+    }
+}
+
+/// One device class's sums: (host kind, link class, nodes, counts).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClassEnergy {
+    /// Device (`micro.rs` host kind).
+    pub host: HostKind,
+    /// Access medium.
+    pub class: LinkClass,
+    /// Nodes summed.
+    pub nodes: u32,
+    /// Their counts.
+    pub sum: NodeEnergy,
+}
+
+/// Sum a run's per-node counts by (host kind, link class), in that order.
+#[must_use]
+pub fn energy_by_class(r: &RunResult) -> Vec<ClassEnergy> {
+    let mut m: BTreeMap<(HostKind, LinkClass), (u32, NodeEnergy)> = BTreeMap::new();
+    for (k, e) in r.energy.iter().enumerate() {
+        let (host, class) = r.devices[k];
+        let slot = m.entry((host, class)).or_default();
+        slot.0 += 1;
+        slot.1.add(e);
+    }
+    m.into_iter().map(|((host, class), (nodes, sum))| ClassEnergy { host, class, nodes, sum }).collect()
+}
+
 /// One run's outcome.
 #[derive(Debug, Clone)]
 pub struct RunResult {
@@ -746,6 +901,10 @@ pub struct RunResult {
     pub publisher_fanout: Vec<u32>,
     /// Media copies sent per publisher uplink (bytes).
     pub media_up_bytes: Vec<u64>,
+    /// Per node: energy-relevant counts (DERIVED).
+    pub energy: Vec<NodeEnergy>,
+    /// Per node: (host kind, link class).
+    pub devices: Vec<(HostKind, LinkClass)>,
 }
 
 /// The engine.
@@ -767,6 +926,8 @@ pub struct Engine {
     aqm_buf: Vec<Queued>,
     switches: u64,
     media_up_bytes: Vec<u64>,
+    energy: Vec<NodeEnergy>,
+    view: Option<ViewRec>,
 }
 
 impl Engine {
@@ -825,6 +986,8 @@ impl Engine {
             aqm_buf: Vec::new(),
             switches: 0,
             media_up_bytes: vec![0; n],
+            energy: vec![NodeEnergy::default(); n],
+            view: None,
             sc,
         }
     }
@@ -912,6 +1075,21 @@ impl Engine {
     /// each stream's frames.
     #[must_use]
     pub fn run_logged(mut self) -> (RunResult, Vec<SessionLog>, Vec<Vec<VMeta>>, Vec<Vec<u64>>) {
+        self.run_events();
+        self.finish_logged()
+    }
+
+    /// Run with the globe's recorder on (snapshots every `step_us`, a multiple of the meter
+    /// window).
+    pub(crate) fn run_view(mut self, step_us: u64) -> (RunResult, Vec<SessionLog>, Vec<Vec<VMeta>>, Vec<Vec<u64>>, ViewRec) {
+        self.view = Some(ViewRec::new(step_us, self.sc.duration_us));
+        self.run_events();
+        let v = self.view.take().expect("recorder on");
+        let (r, l, vf, af) = self.finish_logged();
+        (r, l, vf, af, v)
+    }
+
+    fn run_events(&mut self) {
         for i in 0..self.n() {
             let s = self.nodes[i].spec;
             self.push(s.join_us, Ev::Join { n: i as u16 });
@@ -929,7 +1107,36 @@ impl Engine {
             self.handle(e);
         }
         self.ledger.live = self.pkts.iter().filter(|p| p.is_some()).count() as u64;
-        self.finish_logged()
+    }
+
+    /// The globe's snapshot at a step boundary: which edges exist and what they are, and the
+    /// queue each one waits behind.
+    fn view_snapshot(&mut self) {
+        let Some(mut v) = self.view.take() else { return };
+        let n = self.n();
+        let step = v.step_of(self.now.saturating_sub(1));
+        for s in 0..n {
+            for f in 0..n {
+                for k in &self.adm[s * n + f].kids {
+                    v.edge(s as u16, f as u16, k.n);
+                }
+            }
+        }
+        let qms = |l: &LinkDir| (l.backlog_bytes() * 8_000 / l.rate_bps().max(1)) as f32;
+        let mut row = Vec::with_capacity(v.edges.len());
+        for &(s, f, c) in &v.edges {
+            let k = self.adm[self.ix(s, f)].kids.iter().find(|k| k.n == c).copied();
+            let layer = match k {
+                None => 0u8,
+                Some(k) if k.standby || self.rx[self.ix(s, c)].log.requested_t0 => 1,
+                Some(_) => 2,
+            };
+            let (fp, cp) = (&self.nodes[usize::from(f)], &self.nodes[usize::from(c)]);
+            let q = if layer == 0 { 0.0 } else { (if fp.present { qms(&fp.up) } else { 0.0 }) + if cp.present { qms(&cp.down) } else { 0.0 } };
+            row.push((layer, q));
+        }
+        v.snap(step, row);
+        self.view = Some(v);
     }
 
     fn handle(&mut self, e: Ev) {
@@ -945,7 +1152,10 @@ impl Engine {
             }
             Ev::Granted { n, s, parent, standby, gen } => self.on_granted(n, s, parent, standby, gen),
             Ev::Detect { n, s, parent } => self.on_detect(n, s, parent),
-            Ev::Window => self.on_window(),
+            Ev::Window => {
+                self.view_snapshot();
+                self.on_window();
+            }
             Ev::Capture { s, video } => self.on_capture(s, video),
             Ev::Send { s, seq } => {
                 if self.present(s) {
@@ -1080,7 +1290,8 @@ impl Engine {
         // Who loses a parent, and when they find out (computed before anything changes).
         let mut detects = Vec::new();
         for s in 0..self.n() as u16 {
-            if s == n {
+            // A stream whose publisher already left has no tree to repair.
+            if s == n || self.streams[usize::from(s)].ended_us.is_some() || !self.present(s) {
                 continue;
             }
             let depth_n = self.depth(s, n);
@@ -1102,6 +1313,7 @@ impl Engine {
                     self.recoveries.push(RecoveryRec {
                         child: k.n,
                         stream: s,
+                        parent: n,
                         leave_us: self.now,
                         had_standby: r.standby.is_some_and(|p| p != n && self.nodes[usize::from(p)].present),
                         graceful,
@@ -1120,9 +1332,16 @@ impl Engine {
             }
         }
         if self.nodes[ni].spec.publishes {
+            // The stream ends: every leg of its tree closes, not only the publisher's own.
             self.streams[ni].ended_us = Some(self.now);
-            let i = self.ix(n, n);
-            self.adm[i].kids.clear();
+            for f in 0..self.n() as u16 {
+                let i = self.ix(n, f);
+                self.adm[i].kids.clear();
+                let r = &mut self.rx[i];
+                r.primary = None;
+                r.standby = None;
+                r.gen += 1;
+            }
         }
         for s in 0..self.n() as u16 {
             // Parents stop sending to it; it stops forwarding.
@@ -1254,6 +1473,9 @@ impl Engine {
     }
 
     fn attach_primary(&mut self, n: u16, s: u16) {
+        if !self.present(s) {
+            return;
+        }
         for c in self.candidates(n, s, false) {
             if self.admit(s, c, n, false, 0) {
                 let i = self.ix(s, n);
@@ -1275,7 +1497,7 @@ impl Engine {
 
     fn attach_standby(&mut self, n: u16, s: u16) {
         let i = self.ix(s, n);
-        if !self.sc.call.standby || self.rx[i].sb_pending || self.rx[i].standby.is_some() {
+        if !self.sc.call.standby || self.rx[i].sb_pending || self.rx[i].standby.is_some() || !self.present(s) {
             return;
         }
         for c in self.candidates(n, s, true) {
@@ -1574,6 +1796,10 @@ impl Engine {
             next_t = start + (u64::from(idx) + 1) * c.audio_frame_us;
         }
         for (_, ch) in plains {
+            let e = &mut self.energy[si];
+            e.signs += 1;
+            e.inner_seals += 1;
+            e.inner_sealed_bytes += u64::from(ch.plain);
             let seq = self.streams[si].chunks.len() as u32;
             self.streams[si].chunks.push(ch);
             let node = &mut self.nodes[si];
@@ -1609,8 +1835,20 @@ impl Engine {
             }
         }
         let bytes = chunk_rns_bytes(ch.plain) + self.sc.call.ip_header;
-        let id = self.alloc(Pkt { kind: Pk::Media { s, seq }, bytes, from, to: k.n });
+        let id = self.alloc(Pkt { kind: Pk::Media { s, seq }, bytes, from, to: k.n, sent_us: self.now });
         self.media_up_bytes[usize::from(from)] += u64::from(bytes);
+        {
+            let e = &mut self.energy[usize::from(from)];
+            let outer = u64::from(ch.plain + AV_CHUNK_WIRE_OVERHEAD);
+            let sealed = outer + u64::from(CHUNK_TRAILER_LEN + SEAL_OVERHEAD);
+            e.hop_seal_copies += 1;
+            e.outer_sealed_bytes += outer;
+            e.link_sealed_bytes += sealed;
+            e.rns_encrypted_bytes += sealed + u64::from(DATAGRAM_HEADER_LEN);
+        }
+        if let Some(v) = self.view.as_mut() {
+            v.sent(s, from, k.n, u64::from(bytes), self.now);
+        }
         self.note_sent_unique(s, k.n, seq);
         self.enqueue_link(from, false, id);
     }
@@ -1646,6 +1884,27 @@ impl Engine {
         }
         let id = outcome.done.id;
         let p = self.pkts[id as usize].expect("live");
+        {
+            let b = u64::from(outcome.done.bytes);
+            let e = &mut self.energy[ni];
+            match (p.kind, down) {
+                (Pk::Media { s, .. }, false) if s == n => {
+                    e.media_own_tx_bytes += b;
+                    e.media_own_tx_copies += 1;
+                }
+                (Pk::Media { .. }, false) => {
+                    e.media_fwd_tx_bytes += b;
+                    e.media_fwd_tx_copies += 1;
+                }
+                (Pk::Media { .. }, true) if !outcome.lost => {
+                    e.media_rx_bytes += b;
+                    e.media_rx_copies += 1;
+                }
+                (Pk::Bg { .. }, false) => e.bg_tx_bytes += b,
+                (Pk::Bg { .. }, true) if !outcome.lost => e.bg_rx_bytes += b,
+                _ => {}
+            }
+        }
         if outcome.lost {
             self.ledger.air += 1;
             self.lost_packet(id);
@@ -1685,6 +1944,15 @@ impl Engine {
         node.cpu_free = start + v;
         node.cpu_busy_us += v;
         let t = node.cpu_free;
+        if let Pk::Media { s, seq } = self.pkts[id as usize].expect("live").kind {
+            let plain = u64::from(self.streams[usize::from(s)].chunks[seq as usize].plain);
+            let outer = plain + u64::from(AV_CHUNK_WIRE_OVERHEAD);
+            let sealed = outer + u64::from(CHUNK_TRAILER_LEN + SEAL_OVERHEAD);
+            let e = &mut self.energy[usize::from(n)];
+            e.verifies += 1;
+            e.hop_open_copies += 1;
+            e.hop_opened_bytes += outer + sealed + sealed + u64::from(DATAGRAM_HEADER_LEN);
+        }
         self.push(t, Ev::Cpu { n, p: id });
     }
 
@@ -1698,6 +1966,9 @@ impl Engine {
         let ch = self.streams[usize::from(s)].chunks[seq as usize];
         let i = self.ix(s, n);
         let now = self.now;
+        if let Some(v) = self.view.as_mut() {
+            v.recv(s, p.from, n, p.sent_us);
+        }
         {
             let r = &mut self.rx[i];
             if r.primary == Some(p.from) {
@@ -1707,6 +1978,7 @@ impl Engine {
             }
             if r.seen(seq) {
                 r.dups += 1;
+                self.energy[usize::from(n)].media_rx_dup_copies += 1;
                 let first = r.buf.get(&seq).copied().or_else(|| r.released_at.iter().find(|x| x.0 == seq).map(|x| x.1));
                 if let Some(t) = first {
                     r.observe_gap(now - t);
@@ -1715,6 +1987,11 @@ impl Engine {
             }
             r.mark_seen(seq);
             r.log.chunks_recv += 1;
+        }
+        if self.nodes[usize::from(n)].spec.receives {
+            let e = &mut self.energy[usize::from(n)];
+            e.inner_opens += 1;
+            e.inner_opened_bytes += u64::from(ch.plain);
         }
         for k in self.adm[i].kids.clone() {
             self.forward(s, seq, n, k);
@@ -1840,7 +2117,7 @@ impl Engine {
         let (n, down) = (self.flows[f as usize].node, self.flows[f as usize].down);
         while let Some(pay) = self.flows[f as usize].next_segment() {
             let bytes = pay + (BG_SEGMENT_WIRE - BG_MSS);
-            let id = self.alloc(Pkt { kind: Pk::Bg { f, pay }, bytes, from: n, to: n });
+            let id = self.alloc(Pkt { kind: Pk::Bg { f, pay }, bytes, from: n, to: n, sent_us: self.now });
             if down {
                 let t = self.now + self.server_rtt_us(n) / 2;
                 self.push(t, Ev::Prop { p: id });
@@ -1891,6 +2168,19 @@ impl Engine {
             })
             .collect();
         let publisher_fanout = (0..n).map(|s| self.adm[s * n + s].kids.iter().filter(|k| !k.standby).count() as u32).collect();
+        let mut energy = std::mem::take(&mut self.energy);
+        for (e, nd) in energy.iter_mut().zip(&self.nodes) {
+            let stop = nd.left_us.unwrap_or(end).min(end);
+            e.present_us = if nd.spec.join_us < end { stop.saturating_sub(nd.spec.join_us) } else { 0 };
+            e.cpu_busy_us = nd.cpu_busy_us;
+            e.up_busy_us = nd.up.stats.busy_us;
+            e.up_wakes = nd.up.stats.busy_periods;
+            e.up_idle_gap_hist = nd.up.stats.idle_gap_hist;
+            e.down_busy_us = nd.down.stats.busy_us;
+            e.down_wakes = nd.down.stats.busy_periods;
+            e.down_idle_gap_hist = nd.down.stats.idle_gap_hist;
+        }
+        let devices = self.nodes.iter().map(|nd| (nd.spec.profile.host, nd.spec.profile.class)).collect();
         let result = RunResult {
             name: self.sc.name.clone(),
             sessions,
@@ -1902,6 +2192,8 @@ impl Engine {
             switches: self.switches,
             publisher_fanout,
             media_up_bytes: std::mem::take(&mut self.media_up_bytes),
+            energy,
+            devices,
         };
         let logs = self.rx.iter().map(|r| r.log.clone()).collect();
         let vf = self.streams.iter().map(|st| st.vframes.clone()).collect();
@@ -2260,7 +2552,32 @@ pub fn report(seeds: u64) -> String {
         }
     }
     out.extend(sensitivity_lines(seeds));
+    out.extend(energy_lines());
     out.join("\n")
+}
+
+/// Energy-relevant counts per device class (`HOOKS.md` §1), seed 1, households busy, tail-drop:
+/// per participant-hour in the call. DERIVED from the engine's events; no power attached.
+#[must_use]
+pub fn energy_lines() -> Vec<String> {
+    let mut out = vec!["energy counts per participant-hour (seed 1, busy,fifo; DERIVED; MB = 10^6 wire bytes; no watts)".to_owned()];
+    for (name, f) in SCENARIOS {
+        let r = Engine::new(f(1, true, Discipline::TailDrop)).run();
+        for c in energy_by_class(&r) {
+            let e = c.sum;
+            let h = e.present_us.max(1) as f64 / 3.6e9;
+            let mb = |b: u64| b as f64 / 1e6 / h;
+            let k = |x: u64| x as f64 / 1e3 / h;
+            let pm = |us: u64| us as f64 / e.present_us.max(1) as f64 * 1e3;
+            out.push(format!(
+                "  {name:<9} {:?}/{:?} x{}: own tx {:.0} MB, relay tx {:.0} MB, media rx {:.0} MB (dup {:.0}k copies), household tx/rx {:.0}/{:.0} MB; signs {:.0}k, verifies {:.0}k; up busy {:.0} permille ({:.0}k wakes), down busy {:.0} permille ({:.0}k wakes), cpu {:.0} permille",
+                c.host, c.class, c.nodes,
+                mb(e.media_own_tx_bytes), mb(e.media_fwd_tx_bytes), mb(e.media_rx_bytes), k(e.media_rx_dup_copies), mb(e.bg_tx_bytes), mb(e.bg_rx_bytes),
+                k(e.signs), k(e.verifies), pm(e.up_busy_us), k(e.up_wakes), pm(e.down_busy_us), k(e.down_wakes), pm(e.cpu_busy_us),
+            ));
+        }
+    }
+    out
 }
 
 // ------------------------------------------------------------------ tests
@@ -2285,6 +2602,8 @@ mod tests {
         bg_up: BackgroundModel::NONE,
         bg_down: BackgroundModel::NONE,
         relay: true,
+        host: HostKind::HomeNode,
+        class: LinkClass::Fixed,
     };
 
     fn quiet(name: &str, nodes: Vec<NodeSpec>, duration_us: u64) -> Scenario {
@@ -2411,6 +2730,62 @@ mod tests {
         let wire = u64::from(chunk_rns_bytes(60) + IP_UDP_HEADER);
         let want = AMPLE.sign_us + tx_us(wire, AMPLE.up_bps) + prop + tx_us(wire, AMPLE.down_bps) + AMPLE.verify_us;
         assert!(q.audio_lat_samples.iter().skip(5).all(|&l| l == want), "audio latency {:?} vs {want}", &q.audio_lat_samples[..8]);
+    }
+
+    #[test]
+    fn energy_counts_balance_on_a_relayed_lossless_call() {
+        // A publishes; C cannot be reached directly, so B relays to it. A leaves at 10 s with a
+        // signed end and the run drains for 2 s, so nothing is in flight at the end.
+        let nodes = vec![
+            NodeSpec { receives: false, leave_us: Some(10_000_000), ..NodeSpec::member(AMPLE, 0) },
+            NodeSpec { publishes: false, ..NodeSpec::member(AMPLE, 0) },
+            NodeSpec { publishes: false, unreachable: true, ..NodeSpec::member(AMPLE, 0) },
+        ];
+        let sc = quiet("energy", nodes, 12_000_000);
+        let (r, _, vf, af) = Engine::new(sc).run_logged();
+        assert!(r.ledger.balanced() && r.links_conserve);
+        assert_eq!(r.ledger.live + r.ledger.stale + r.ledger.air + r.ledger.tail + r.ledger.aqm, 0);
+        let e = &r.energy;
+        let chunks: u64 = vf[0].iter().map(|f| u64::from(f.frags)).sum::<u64>() + af[0].len() as u64;
+        assert!(chunks > 1_000);
+        assert_eq!(e[0].signs, chunks);
+        assert_eq!(e[0].inner_seals, chunks);
+        assert_eq!(e[1].signs + e[2].signs + e[0].verifies + e[0].inner_opens, 0);
+        // Every copy put on an uplink arrived and was verified once.
+        let tx: u64 = e.iter().map(|x| x.media_own_tx_copies + x.media_fwd_tx_copies).sum();
+        let rx: u64 = e.iter().map(|x| x.media_rx_copies).sum();
+        let ver: u64 = e.iter().map(|x| x.verifies).sum();
+        let sealed: u64 = e.iter().map(|x| x.hop_seal_copies).sum();
+        let opened: u64 = e.iter().map(|x| x.hop_open_copies).sum();
+        assert_eq!(tx, rx);
+        assert_eq!(rx, ver);
+        assert_eq!(opened, ver);
+        assert_eq!(sealed, tx + r.ledger.flushed + r.ledger.absent);
+        // Own versus relay work, and inner opens once per unique chunk at a player.
+        assert_eq!(e[0].media_fwd_tx_copies, 0);
+        assert!(e[1].media_fwd_tx_copies > 0 && e[1].media_own_tx_copies == 0);
+        assert_eq!(e[2].media_fwd_tx_copies + e[2].media_own_tx_copies, 0);
+        for x in &e[1..] {
+            assert_eq!(x.inner_opens + x.media_rx_dup_copies, x.verifies);
+            assert!(x.inner_opens <= chunks);
+        }
+        assert_eq!(e[2].inner_opens, e[1].media_fwd_tx_copies - e[2].media_rx_dup_copies);
+        // Bytes: wire bytes per copy, the same on both ends of a lossless hop.
+        let txb: u64 = e.iter().map(|x| x.media_own_tx_bytes + x.media_fwd_tx_bytes).sum();
+        assert_eq!(txb, e.iter().map(|x| x.media_rx_bytes).sum::<u64>());
+        // Time: A was present 10 s; radio wakes are histogrammed, busy time is positive.
+        assert_eq!(e[0].present_us, 10_000_000);
+        for x in e {
+            assert_eq!(x.up_idle_gap_hist.iter().sum::<u64>(), x.up_wakes);
+            assert_eq!(x.down_idle_gap_hist.iter().sum::<u64>(), x.down_wakes);
+        }
+        assert!(e[0].up_busy_us > 0 && e[2].down_busy_us > 0);
+        // The class sums are the node sums.
+        let by = energy_by_class(&r);
+        assert_eq!(by.len(), 1);
+        assert_eq!(by[0].nodes, 3);
+        assert_eq!(by[0].sum.verifies, ver);
+        assert_eq!((by[0].host, by[0].class), (HostKind::HomeNode, LinkClass::Fixed));
     }
 
     #[test]

@@ -58,6 +58,7 @@ pub mod tiling;
 pub mod capacity;
 pub mod link;
 pub mod media;
+pub mod media_view;
 pub mod qoe;
 
 pub use transport::*;

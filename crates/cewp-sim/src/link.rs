@@ -245,6 +245,33 @@ pub struct LinkStats {
     pub sojourn_max_us: u64,
     /// Packets transmitted (lost on the medium or not).
     pub tx_pkts: u64,
+    /// Time the link spent transmitting, counted when each packet goes on the wire (us). For a
+    /// radio this is time it must be awake; any tail after the last packet is the energy
+    /// package's parameter, not counted here. DERIVED.
+    pub busy_us: u64,
+    /// Idle-to-busy transitions (wake events). DERIVED.
+    pub busy_periods: u64,
+    /// The idle gap before each wake: < 10 ms, < 100 ms, < 1 s, < 10 s, >= 10 s or the first
+    /// wake. Lets a radio tail be priced without re-running. DERIVED.
+    pub idle_gap_hist: [u64; 5],
+    /// When the link last went idle (us); `u64::MAX` before the first wake.
+    pub idle_since_us: u64,
+}
+
+/// Bucket of an idle gap for [`LinkStats::idle_gap_hist`].
+#[must_use]
+pub const fn idle_gap_bucket(gap_us: u64) -> usize {
+    if gap_us < 10_000 {
+        0
+    } else if gap_us < 100_000 {
+        1
+    } else if gap_us < 1_000_000 {
+        2
+    } else if gap_us < 10_000_000 {
+        3
+    } else {
+        4
+    }
 }
 
 /// What `enqueue` did.
@@ -313,7 +340,7 @@ impl LinkDir {
             q_bytes: 0,
             in_service: None,
             codel: CodelState::default(),
-            stats: LinkStats::default(),
+            stats: LinkStats { idle_since_us: u64::MAX, ..LinkStats::default() },
         }
     }
 
@@ -364,7 +391,12 @@ impl LinkDir {
         if self.in_service.is_none() && self.q.is_empty() {
             self.in_service = Some(p);
             self.note_sojourn(0);
-            return Enq::Started(now + tx_us(u64::from(bytes), self.rate_bps()));
+            let gap = if self.stats.idle_since_us == u64::MAX { u64::MAX } else { now - self.stats.idle_since_us };
+            self.stats.idle_gap_hist[idle_gap_bucket(gap)] += 1;
+            self.stats.busy_periods += 1;
+            let t = tx_us(u64::from(bytes), self.rate_bps());
+            self.stats.busy_us += t;
+            return Enq::Started(now + t);
         }
         if self.q_bytes + u64::from(bytes) > self.limit_bytes {
             self.stats.tail_drop_bytes += u64::from(bytes);
@@ -411,8 +443,13 @@ impl LinkDir {
         let next_done_us = next.map(|p| {
             self.note_sojourn(now - p.enq_us);
             self.in_service = Some(p);
-            now + tx_us(u64::from(p.bytes), self.rate_bps())
+            let t = tx_us(u64::from(p.bytes), self.rate_bps());
+            self.stats.busy_us += t;
+            now + t
         });
+        if next_done_us.is_none() {
+            self.stats.idle_since_us = now;
+        }
         TxOutcome { done, lost, next_done_us }
     }
 

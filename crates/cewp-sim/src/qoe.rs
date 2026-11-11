@@ -88,6 +88,8 @@ pub struct RecoveryRec {
     pub child: u16,
     /// Stream.
     pub stream: u16,
+    /// The parent that left.
+    pub parent: u16,
     /// When the parent left (us).
     pub leave_us: u64,
     /// The receiver held a warm standby on another parent.

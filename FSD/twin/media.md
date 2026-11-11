@@ -246,3 +246,60 @@ Inferences from code reading the engine reproduces but that edge tests should co
 reorder window waits a full window at every `chunk_seq` gap a layer cap or a standby leg
 creates (filtered t1 chunks are gaps, and audio shares the sequence); a vanished parent with
 no other active path is detected only by the link's stale timeout under `idle_aware_silence`.
+
+## 9. Energy counters (`HOOKS.md` §1)
+
+`RunResult::energy` holds one `NodeEnergy` per participant and `RunResult::devices` its
+(device, medium); `energy_by_class` sums them per (`micro.rs` `HostKind`, `LinkClass`). Device
+classes used: fibre and DSL homes are `HomeNode`, the cable-home laptop is `Laptop`, both
+phones are `Phone`; media `Fixed` (fibre, DSL), `WiFi` (cable-home laptop, phone at home),
+`Cellular` (phone on LTE). Every count is DERIVED from the engine's own events; no power
+figure is attached (the energy package owns device wattage). `cewp-cli media` prints them per
+participant-hour (`energy_lines`).
+
+| Count | Where the engine takes it |
+|---|---|
+| own / relay tx bytes and copies | a media copy leaving the uplink (lost on the medium or not); relay = another publisher's stream |
+| media rx bytes, copies, duplicates | a copy arriving whole over the downlink; duplicate = a chunk already held (primary and standby both sending) |
+| household tx / rx bytes | background TCP segments on the same links (contention on only) |
+| signs | one Ed25519 per published chunk (`av_chunk_auth.rs`) |
+| verifies | one per copy reaching the CPU, at every relay and receiver (copies dropped stale are not verified) |
+| inner seals / opens | epoch-key AEAD once per chunk at the publisher; opened once per unique chunk at a node that plays the stream (`realtime_av.rs` "inner-once / outer-N"; that a non-playing relay never opens the inner layer is an inference) |
+| hop seal / open copies and bytes | per copy, three encryptions: the per-link outer AEAD (`seal_av_outer`), the E1 link seal (`link_seal.rs`), the RNS link token; bytes = each layer's output (plain + 84; + 72 + 25; + 4) |
+| cpu busy | sign + verify time |
+| up / down busy, wakes, idle-gap histogram | link transmit time counted when a packet goes on the wire; a wake = idle to busy; the gap before each wake in buckets < 10 ms, < 100 ms, < 1 s, < 10 s, >= 10 s (or first), so a radio tail can be priced later without a re-run |
+| present | join to leave or the run's end |
+
+Not counted, because the engine has no such event: control traffic (SUBSCRIBE, C3 frames,
+bindings, RNS keepalives, link setup), storage (a call writes nothing), AS hops and long-haul
+kilometres (the media engine has two regions, not routes; `twin-topology`'s
+`NetPath::counters` is the type to join on once members are placed on its graph). Bytes
+transmitted from a node's queue when it leaves are flushed, not counted as sent; the copy on
+the wire at that moment had its seal counted but not its transmission. The energy test
+(`energy_counts_balance_on_a_relayed_lossless_call`) holds: copies sent = copies received =
+verifies = hop opens, hop seals = sent + flushed, inner opens + duplicates = verifies per
+player, class sums = node sums.
+
+## 10. The globe's view (`media_view.rs`, `HOOKS.md` §2)
+
+Plain functions returning flat `Vec<f32>` / `Vec<u32>` for `kernel-wasm` (owned by
+`twin-globe`); layouts are in each function's doc comment. Scenario: `scenario_view` = the
+churn room (4 homes, 6 phones, 2 phones behind hard NAT through a home relay that leaves with
+a signed end at 30 s), household traffic off, 60 one-second steps. `media_view(seed)` runs it
+once and returns every buffer; the per-buffer functions each run it again.
+
+- members, stride 4: lat, lon, access profile code, nominal uplink bytes/s (MODEL; places are
+  two coarse metro anchors with about a degree of seeded scatter, never an address);
+- tree, stride 3: stream, parent, child for every edge that existed at any step (one tree per
+  publishing member; root = publisher);
+- edges per step, stride 4, aligned to the tree: rate bytes/s, loss permille (copies sent in
+  the step never verified at the child), queue ms (parent uplink + child downlink backlog at
+  the step's end), layer (0 detached, 1 audio + base, 2 full) (DERIVED);
+- rx per step, stride 3, index `stream * n + member`: layer shown (-1 no session, 0 audio
+  only, 1 base, 2 both), stall, mean glass-to-glass ms (DERIVED);
+- events, stride 5: time ms, kind (parent left, audio resumed, video resumed, not resumed),
+  stream, child, departed parent (DERIVED).
+
+The tree is the closed-loop controller's (§3), not `alm.rs` `compute_alm_topology_verified`:
+member ids are the scenario's node indices, so a layer drawn from `alm.rs` for another member
+set does not line up with this one.
