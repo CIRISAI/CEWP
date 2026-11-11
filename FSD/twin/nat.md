@@ -149,6 +149,72 @@ shares); 1 to 4 phones per household; pair mix family 0.65 / community 0.30 / ot
 
 RESULTS_PLACEHOLDER
 
+## 4. Results (`cewp-cli nat 1`; every number MODEL: computed from MODEL/FRONTIER inputs)
+
+**Direct-path probability by access pair**, room peers, facilitator up, ends on different
+networks (4,000 pairs a cell; a fixed end is a home whose node listens if it can, a cellular end
+a client-only phone):
+
+| | cable | fibre | dsl | 4g | 5g |
+|---|---|---|---|---|---|
+| cable | 0.58 | 0.51 | 0.49 | 0.40 | 0.46 |
+| fibre | 0.52 | 0.46 | 0.44 | 0.34 | 0.37 |
+| dsl | 0.51 | 0.44 | 0.45 | 0.31 | 0.33 |
+| 4g | 0.40 | 0.33 | 0.32 | 0.16 | 0.22 |
+| 5g | 0.44 | 0.39 | 0.34 | 0.22 | 0.30 |
+
+Same network (one ISP or one carrier): cable 0.66, fibre 0.54, DSL 0.51, 4G 0.39, 5G 0.52.
+Two phones on ONE carrier are more than twice as likely to go direct as two on different 4G
+carriers (0.39 vs 0.16): they share the carrier's IPv6 deployment and firewall, which outweighs
+the hairpin they need for an IPv4 punch.
+
+Mechanism mix over the matrix cells: public listener 0.14, IPv6 punch 0.15, hole punch 0.04,
+peer-reflexive punch 0.09, relay 0.58.
+
+**Against the micro rule, by class pair** (same endpoints): public x any 1.00 (same);
+punchable x punchable 0.90 (same, by calibration); punchable x hard **0.37** (micro 0); hard x
+hard **0.16** (micro 0). The difference is the peer-reflexive punch (an EIM end whose filter
+admits the new port) and IPv6.
+
+**Relay share** (share of pairs needing a forwarder; family 0.65 / community 0.30 / other 0.05;
+256 metros of 8 streets x 60 households; mean (standard error) [p10, p90] across metros):
+
+| regime (FSD 4.4) | correlated | independent, same marginals | delta (se) |
+|---|---|---|---|
+| Optimistic (reach 0.65) | 0.288 (0.006) [0.17, 0.43] | 0.290 (0.001) [0.27, 0.31] | -0.002 (0.006) |
+| Expected (0.40) | 0.437 (0.006) [0.31, 0.55] | 0.444 (0.001) [0.42, 0.46] | -0.007 (0.006) |
+| Pessimistic (0.15) | 0.585 (0.003) [0.52, 0.64] | 0.591 (0.001) [0.58, 0.61] | -0.006 (0.003) |
+| Adversarial (0) | 0.653 (0.001) [0.64, 0.67] | 0.652 (0.001) [0.64, 0.67] | +0.001 (0.001) |
+
+(Adversarial is not 1: family pairs on one household LAN stay direct.)
+
+Decomposition at Expected, correlated: the micro rule on the same worlds gives 0.573; switching
+off IPv6 candidates gives 0.527; switching off IPv6 and peer-reflexive gives 0.575, i.e. the
+joint model with both off reproduces the micro rule (the comparability check).
+
+**Per street** (community pairs, every cross-household pair of a street, 256 streets):
+correlated mean 0.60, p10 0.31, p50 0.60, p90 0.88; independent mean 0.65, p10 0.58, p50 0.65,
+p90 0.73.
+
+**The finding (MODEL).** At the same per-endpoint marginals, correlation barely moves the mean
+relay share (Expected: -0.007, about one standard error; no regime moves it by more than 0.007),
+but it widens the spread: the p10-p90 band across metros grows from 0.04 to 0.24 wide, and across
+streets from 0.15 to 0.57. A street served by an EIM ISP with IPv6 relays a third of its pairs;
+one on a symmetric CGN relays nearly nine in ten. The mean is the wrong summary for the R5
+street and for seat or relay sizing: provisioning for the mean street under-provisions the
+streets that need relays most. This depends on the MODEL world shape (1 to 3 ISPs a street,
+skewed market shares) and should be re-run on the `topology` package's AS graph.
+
+**The second finding (MODEL).** The joint model's Expected relay share (0.44) is 0.14 below the
+micro rule's on the same endpoints (0.57). That gap is not correlation; it is two mechanisms the
+micro rule leaves out and edge has: IPv6 host candidates (0.09 of it: 0.527 -> 0.437) and the
+peer-reflexive punch (0.05: 0.575 -> 0.527). If those are right, the micro tier over-counts relayed pairs at its own defaults.
+
+**Calibration tension (inference).** Hitting 28 % punchable homes with this structure needs only
+38 % of home routers to map endpoint-independently (`router_eim_share` 0.376). NAT-type surveys
+of consumer routers generally report a majority as cone (EIM) NATs; if that holds for CIRIS
+homes, today's `reach_home_share` 0.40 is pessimistic. Only C1 of section 5 can settle it.
+
 ## 5. Fleet-measurement request (for the lead to put to the server session)
 
 Goal: turn the MODEL shares above into MEASURED ones without any per-device row or identifier
