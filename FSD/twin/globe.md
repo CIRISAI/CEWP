@@ -99,6 +99,11 @@ the dock never stops that event. Phase 2 contracts are not in `CEWP_LAYERS` unti
 Phase 2 contracts are registered but hidden until their exports exist: topology, failures, nat,
 media, people, holon, calibration. Their buffer layouts were sent to each package's agent.
 
+Cross-platform check owed when media lands: the page's media buffers must match a native run bit for bit.
+twin-media's basis (a source read, not a run): integer µs/bytes engine, exact `Rng::f`, no hash-order
+iteration; the one transcendental (`f64::ln` in `BackgroundModel::next_gap_us`) runs only with household
+contention on, which the view scenario leaves off. A view with contention on may differ by an ulp in wasm.
+
 ## What the globe cannot say
 
 * The world the tick runs on is built in JavaScript (`buildWorld`) from the population grid. The
