@@ -960,6 +960,7 @@ fn print_help() {
     println!("  all, --all            Run all 6 pipeline phases and emit docs/kernel/tables/evidence_bundle.json");
     println!("  --emit-bundle <PATH>  Serialize complete evidence_bundle.json to file");
     println!("  nat [SEED]            Joint NAT reachability report (cewp_sim::reach)");
+    println!("  nat-cf [SEED]         UPnP/PCP and IPv6-listener counterfactuals (cewp_sim::reach)");
     println!("  --help, -h            Print this help text");
 }
 
@@ -972,6 +973,11 @@ fn main() {
         match args[i].as_str() {
             "--help" | "-h" => {
                 print_help();
+                return;
+            }
+            "nat-cf" => {
+                let seed = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(1);
+                print!("{}", cewp_sim::reach::counterfactual::report(seed));
                 return;
             }
             "nat" => {

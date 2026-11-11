@@ -56,6 +56,7 @@
 //! inside [`R::PunchSuccessShare`]. It is not a mechanism here.
 
 
+pub mod counterfactual;
 pub mod hooks;
 pub mod topo;
 
@@ -161,6 +162,7 @@ reach_params! {
     Ipv6Candidates = "ipv6_candidates", 1.0, Derived, "1: leviculum same_nat_alternates always punches the peer's global IPv6 host candidate on the dual-stack session socket (bind_session_socket, host_candidates). 0 = IPv4 only";
     PeerReflexive = "peer_reflexive", 1.0, Derived, "1: leviculum direct_link::punch acks and punches the address a punch came from (PEER_REFLEXIVE_MAX = 4). 0 = advertised addresses only";
     Ipv6Listener = "ipv6_listener", 0.0, Derived, "0: edge's documented listen_addr default is 0.0.0.0:4242 (src/ffi/pyo3.rs:7002), IPv4 only. 1 = counterfactual: a home with no IPv6 firewall is dialled over IPv6";
+    PortMappingPunch = "port_mapping_punch", 0.0, Derived, "with port_mapping_client = 1 only: 1 = every device behind a mapping-capable router also maps the socket it punches from, so its punch socket is endpoint-independent (EIM, EIF); 0 = the client maps the listener only. Counterfactual, used to split the gain";
 }
 
 /// Number of reachability parameters.
@@ -528,14 +530,17 @@ fn v4_punch(a: &Endpoint, b: &Endpoint, p: &ReachParams) -> Option<Mechanism> {
     if same_cgn(a, b) && !(a.cgn_hairpin && b.cgn_hairpin) {
         return None;
     }
-    let (ea, eb) = (a.mapping() == Mapping::Eim, b.mapping() == Mapping::Eim);
+    // counterfactual: a port-mapping client that maps its punch socket makes that socket
+    // endpoint-independent in mapping and filtering (a mapped port admits any source)
+    let mapped = |e: &Endpoint| p.on(R::PortMappingClient) && p.on(R::PortMappingPunch) && e.port_map_capable;
+    let (ea, eb) = (mapped(a) || a.mapping() == Mapping::Eim, mapped(b) || b.mapping() == Mapping::Eim);
     if ea && eb {
         return Some(Mechanism::HolePunch);
     }
     if !p.on(R::PeerReflexive) {
         return None;
     }
-    let admits = |e: &Endpoint| e.filtering() != Filtering::Apdf;
+    let admits = |e: &Endpoint| mapped(e) || e.filtering() != Filtering::Apdf;
     if (ea && admits(a)) || (eb && admits(b)) {
         return Some(Mechanism::PeerReflexivePunch);
     }

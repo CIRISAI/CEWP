@@ -137,6 +137,7 @@ carriers without CGN) is refused, not clamped.
 | `ipv6_candidates` | 1.0 | DERIVED | 1: leviculum same_nat_alternates always punches the peer's global IPv6 host candidate on the dual-stack session socket (bind_session_socket, host_candidates). 0 = IPv4 only |
 | `peer_reflexive` | 1.0 | DERIVED | 1: leviculum direct_link::punch acks and punches the address a punch came from (PEER_REFLEXIVE_MAX = 4). 0 = advertised addresses only |
 | `ipv6_listener` | 0.0 | DERIVED | 0: edge's documented listen_addr default is 0.0.0.0:4242 (src/ffi/pyo3.rs:7002), IPv4 only. 1 = counterfactual: a home with no IPv6 firewall is dialled over IPv6 |
+| `port_mapping_punch` | 0.0 | DERIVED | with `port_mapping_client` = 1 only: 1 = each device behind a mapping-capable router also maps its punch socket (EIM, EIF); 0 = the listener only. Counterfactual, splits the gain (section 10) |
 
 Solved at the defaults (DERIVED, `ReachModel::new`): `port_forward_share` 0.1808,
 `router_eim_share` 0.3764, `cell_cgn_eim_share` 0.1053.
@@ -390,3 +391,101 @@ carriers, correlated; every family pair, 120 community pairs, 30 others. All MOD
   2 hole-punched, 3 relayed without attempt, 4 punch failed then relayed, 5 same LAN).
 - `nat_view_joint(seed) -> Vec<f32>`: `[3, 7, 21 shares]`, access class x NAT behaviour over 16
   default-shape metros, summing to 1.
+
+## 10. Counterfactuals: a UPnP/PCP client and an IPv6 listener (`cewp-cli nat-cf 1`)
+
+Neither exists in edge at 8e46165 (section 2). Same 256 correlated metros, pairs and seeds as the
+section 4 regime table, and the same 256 streets; case (a) reproduces that table exactly.
+**Every number in this section is MODEL** (computed from MODEL/FRONTIER inputs). Relay share is
+the weighted share of pairs needing a forwarder, mean (se) [p10, p90] across metros; street =
+community-pair relay share per street, p10 / p50 / p90; gain = (a) minus the case.
+
+Cases: (a) as shipped; (b-l) `port_mapping_client` = 1, listener only: a home node behind a
+router with UPnP/PCP on maps its listener port and is dialled like a public listener; (b) the
+client also maps the socket each device punches from, so that socket is endpoint-independent in
+mapping and filtering (a phone on the home Wi-Fi gains here, not in (b-l)); (c) `ipv6_listener`
+= 1; (d) (b) and (c).
+
+### 10.1 Expected regime
+
+| case | relay share | gain | street p10 | p50 | p90 |
+|---|---|---|---|---|---|
+| (a) as shipped | 0.437 (0.006) [0.309, 0.551] | - | 0.310 | 0.597 | 0.876 |
+| (b-l) listener only | 0.373 (0.006) [0.253, 0.489] | 0.064 | 0.247 | 0.495 | 0.766 |
+| (b) listener + punch socket | 0.299 (0.006) [0.186, 0.440] | 0.138 | 0.137 | 0.267 | 0.722 |
+| (c) IPv6 listener | 0.436 (0.006) [0.306, 0.549] | 0.001 | 0.310 | 0.597 | 0.870 |
+| (d) (b) + (c) | 0.299 (0.006) [0.184, 0.439] | 0.138 | 0.137 | 0.267 | 0.722 |
+
+Mechanism mix (weighted pairs; `relay` = no mechanism at all, a punch still fails 10%):
+
+| case | LAN | public listener | port mapped | IPv6 punch | hole punch | peer-reflexive | relay |
+|---|---|---|---|---|---|---|---|
+| (a) | 0.347 | 0.037 | 0 | 0.121 | 0.033 | 0.044 | 0.417 |
+| (b-l) | 0.347 | 0.037 | 0.097 | 0.103 | 0.026 | 0.034 | 0.357 |
+| (b) | 0.347 | 0.037 | 0.097 | 0.103 | 0.044 | 0.097 | 0.275 |
+| (c) | 0.347 | 0.041 | 0 | 0.118 | 0.033 | 0.044 | 0.417 |
+| (d) | 0.347 | 0.041 | 0.095 | 0.102 | 0.044 | 0.097 | 0.275 |
+
+Direct share, room peers not on one LAN (family and community pairs; home = the household's
+fixed endpoint, phone = on Wi-Fi or a carrier):
+
+| case | home x home | phone x home | phone x phone |
+|---|---|---|---|
+| (a) | 0.521 | 0.371 | 0.304 |
+| (b-l) | 0.749 | 0.590 | 0.304 |
+| (b) | 0.749 | 0.602 | 0.498 |
+| (c) | 0.524 | 0.375 | 0.304 |
+| (d) | 0.750 | 0.604 | 0.498 |
+
+### 10.2 `router_upnp_share` sweep (Expected; the calibration does not involve it)
+
+| upnp | homes map-capable | (b-l) relay (gain) | (b) relay (gain) | (b) street p10 / p50 / p90 | (b) direct home x home / phone x home / phone x phone | (d) relay |
+|---|---|---|---|---|---|---|
+| 0.2 | 0.125 | 0.416 (0.021) | 0.390 (0.047) | 0.207 / 0.530 / 0.805 | 0.603 / 0.448 / 0.368 | 0.389 |
+| 0.4 | 0.259 | 0.395 (0.042) | 0.345 (0.092) | 0.169 / 0.401 / 0.756 | 0.681 / 0.524 / 0.431 | 0.345 |
+| 0.6 | 0.404 | 0.373 (0.064) | 0.299 (0.138) | 0.137 / 0.267 / 0.722 | 0.749 / 0.602 / 0.498 | 0.299 |
+| 0.8 | 0.538 | 0.351 (0.086) | 0.255 (0.182) | 0.103 / 0.184 / 0.631 | 0.803 / 0.680 / 0.564 | 0.255 |
+
+(se of every relay mean 0.006 to 0.007.) The gain is close to linear in the share of homes whose
+router would map: about 0.34 of relay share per unit of map-capable homes for (b), 0.16 for (b-l).
+
+### 10.3 Other regimes
+
+| regime | (a) | (b) (gain) | (c) (gain) | (d) (gain) | street p50 (a) -> (b) |
+|---|---|---|---|---|---|
+| Optimistic | 0.288 (0.006) [0.169, 0.429] | 0.214 (0.074) | 0.286 (0.002) | 0.213 (0.075) | 0.299 -> 0.165 |
+| Pessimistic | 0.585 (0.003) [0.519, 0.635] | 0.377 (0.208) | 0.585 (0.000) | 0.377 (0.208) | 0.918 -> 0.418 |
+| Adversarial | 0.653 (0.001) [0.640, 0.666] | 0.604 (0.049) | 0.653 (0.000) | 0.604 (0.049) | 1.000 -> 1.000 (p10 1.000 -> 0.490) |
+
+The regimes move the reachability targets but not `router_upnp_share`, so a mapping client gains
+the most where punching is weakest (Pessimistic). In Adversarial the gain is an artefact of that:
+the regime assumes no home is reachable, yet 0.6 of routers still map. Read the Adversarial (b)
+row as "if routers still map", not as a regime result.
+
+### 10.4 What limits the mapping gain
+- **CGN and double NAT.** A mapping on the home router opens a port on the router's WAN address;
+  behind a carrier NAT or a second home NAT that address is not public, so the mapping reaches no
+  one (`port_map_capable` = public IPv4 WAN and UPnP/PCP on). In these worlds 0.675 of homes have a
+  public IPv4 WAN with no second NAT: that is the ceiling at any upnp share. At 0.6, 0.404 of homes
+  can map. A PCP client could also ask a PCP-capable CGN (RFC 6887); the model gives CGNs no PCP,
+  so that path is outside it. Phones on a carrier gain nothing (no router to ask).
+- **Listener versus punch socket.** Of (b)'s 0.138 gain, 0.064 (46%) is the listener becoming
+  public (b-l) and 0.074 (54%) the punch socket becoming endpoint-independent. They help different
+  pairs: the listener lifts every pair with a home node in it (home x home 0.521 -> 0.749, phone x
+  home 0.371 -> 0.590) and does nothing for phone x phone (0.304 both); only the mapped punch socket
+  lifts phone x phone (0.304 -> 0.498), via a phone on a mapping-capable home Wi-Fi. A client that
+  maps only the listener port leaves half the gain on the table.
+
+### 10.5 Why an IPv6 listener gains almost nothing
+- The model gives an IPv6 home an open inbound firewall with `fixed_v6_fw_open` = 0.05, class
+  **FRONTIER** (RFC 6092 recommends a stateful default; no measured number). In these worlds 0.422
+  of homes have global IPv6 and 0.046 of those have no inbound firewall, about 2% of homes.
+- A listener helps only a host that accepts an UNSOLICITED inbound connection. Behind a stateful
+  IPv6 firewall the dial is dropped; that home's direct IPv6 path comes only from the simultaneous
+  send of the punch, which leviculum already does on the dual-stack session socket (`Ipv6Punch`).
+  So a stateful-firewall home gains nothing from a listener that the IPv6 punch does not already
+  give. The open-firewall homes already punch over IPv6 with room peers too; the listener adds only
+  the 10% of punches that fail and pairs that may not punch (not room peers).
+- (c) is therefore a gain of 0.001 (Expected), 0.002 (Optimistic), 0.000 otherwise, inside one se.
+  Only if `fixed_v6_fw_open` were far higher than the FRONTIER guess would it matter; B6 / B1 of
+  section 5 would measure it.
