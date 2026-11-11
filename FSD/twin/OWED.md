@@ -11,12 +11,21 @@ A package with no entry listed nothing as owed in its spec at the merged head.
 > iteration; the one transcendental (`f64::ln` in `BackgroundModel::next_gap_us`) runs only with household
 > contention on, which the view scenario leaves off. A view with contention on may differ by an ulp in wasm.
 
+**Done:** `views_media_bits_match_the_wasm_build` (kernel-wasm views.rs) checks the FNV-1a digest of
+slots 20-25 natively against the built wasm's.
+
 ## nat, topology, people, holon, evidence, media
 
 No item marked owed in their specs at the merged heads (3115c11's nat, 0f0aef4, 77c0bc2, 13682fa,
 140d068, 716379e). The globe item above names media: it is now merged, and the check is still owed.
 
 ## calibration (`FSD/twin/calibration.md` §10, at twin/calibration c13cee5)
+
+**Applied on twin/globe (the commit that adds this line):** §4.7.2 to §4.7.4 regenerated from
+`cargo run --release -p cewp-sim --example capacity_sweep` on the merged calibrated model (every
+knee an interval against g), the prose corrections below made in §4.7.1, the reading bullets and
+§4.7.5, and README :13. The `docs/` items were done by twin-globe (seat card on `view_seat_fleet`,
+knee from `calibration_view_knee`).
 
 > For the lead (this package does not edit the main FSD, README or `docs/`). Line numbers at
 > f73b918.

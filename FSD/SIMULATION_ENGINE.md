@@ -435,7 +435,7 @@ Constants copied from the stack are not parameters. They carry their citation in
 | 38 | `suburban_density` | 250.0 | MODEL | people/km2 above which the patch is suburban; below it a village |
 | 39 | `start_local_hour` | 9.0 | MODEL | local clock at build (the page passes its own) |
 | 40 | `claimed_share` | 0.70 | MODEL | share of person devices with an owner (claimed); servers, seats and CI runners are always claimed |
-| 41 | `bundle_bootstrap` | 1.0 | MODEL | edge #881 bundle bootstrap rounds: on, the v45 LTS default (ruled; CIRISEdge#971 c580298, required-set Pull); 0 = off, as on v44 |
+| 41 | `bundle_bootstrap` | 1.0 | MODEL | edge #881 bundle bootstrap rounds: on, the v45 LTS default (ruled; release/45.0.0 at 8e46165, runtime.rs `BUNDLE_ROUND_PLANES` :1140, required-set Pull); 0 = off, as on v44 |
 | 42 | `seat_km_min` | 1,500 | MODEL | nearest a seat is drawn from the street: one seat serves the whole mesh, so it is usually a continent away (no real site is used); 120 in `design_multi_seat` |
 | 43 | `seat_km_max` | 8,000 | MODEL | farthest a seat is drawn; 650 in `design_multi_seat` |
 
@@ -550,7 +550,7 @@ The tiling lays procedural streets and homes over all settled land at street sca
 
 ### 4.7 Seat Capacity: Cost Ledger and Sweep (`crates/cewp-sim/src/capacity.rs`)
 
-**Measured from a live mesh.** The seat's costs are calibrated from measurements taken on the live production CIRIS mesh on 2026-11-10: four 60-second windows of the serve node's own counters (one of them with CPU), its store composition, and its announced-node count. Device behaviour is derived from edge source: CIRISEdge v45.0.0 (in release), read at commit `c580298` (cited beside each constant in `edge_971`) and its read-fix series. The idle Pull's cost and the drain cost per index page are MEASURED on an edge debug build (contact-4413 at 26efbc4); the release rerun is pending. Everything beyond today's fleet size is a model projection, and each figure is labelled MEASURED, DERIVED or MODEL. In the README scoreboard's vocabulary (MEASURED / MODEL / PROJECTED / FRONTIER), DERIVED and PROVISIONAL are both MODEL: DERIVED is computed by stated arithmetic from measured counts and the edge source, PROVISIONAL is a MODEL figure resting on an open calibration question (§4.7.1). Only aggregate counts are kept; the serve node is called seat-1. Today's measured peer load is booked as a fixed baseline in every scenario (`today_peers_booked`, default on): window B's round and door counts are MEASURED, how they scale is MODEL; with no bundle devices the seat reproduces window B's 0.652 cores.
+**Measured from a live mesh.** The seat's costs are calibrated from measurements taken on the live production CIRIS mesh on 2026-11-10: four 60-second windows of the serve node's own counters (one of them with CPU), its store composition, and its announced-node count. Device behaviour is derived from edge source: CIRISEdge release/45.0.0 at 8e46165 (untagged when read; cited before at c580298, now e3c20ec), beside each constant in `edge_971`, with its read-fix series. The idle Pull's cost and the drain cost per index page are MEASURED on an edge debug build (contact-4413 at 26efbc4); the release rerun is pending. Everything beyond today's fleet size is a model projection, and each figure is labelled MEASURED, DERIVED or MODEL. In the README scoreboard's vocabulary (MEASURED / MODEL / PROJECTED / FRONTIER), DERIVED and PROVISIONAL are both MODEL: DERIVED is computed by stated arithmetic from measured counts and the edge source, PROVISIONAL is a MODEL figure resting on an open calibration question (§4.7.1). Only aggregate counts are kept; the serve node is called seat-1. Today's measured peer load is booked as a fixed baseline in every scenario (`today_peers_booked`, default on): window B's round and door counts are MEASURED, how they scale is MODEL; with no bundle devices the seat reproduces window B's 0.652 cores.
 
 The question: what one serve seat ("seat-1") can carry once devices round with it by default (edge v45, #881), and which term binds first. Production showed the cost is store reads driven by replication rounds, not cryptography or shaping.
 
@@ -566,7 +566,7 @@ Run it: `cargo run -p cewp-sim --example capacity_sweep` (any parameter can be o
 - **Round schedule.** A bootstrap device rounds on five planes (key, identity occurrence, transport destination, revocation, occurrence revocation) with each seat it uses, every 30 s. Fellow seats and proxies round on all six. A round that carries a new row adds one admission: a hybrid verify and `ingest_reads_per_row` reads.
 - **Round shapes.**
   - *Whole-plane diff* (not shipped as the v45 default): the Summary is the full ref list, each way.
-  - *Required-set Pull* (the v45 baseline, ruled). Read from CIRISEdge#971 at c580298 (the frozen series; 0dc3274 on top is test-only), `src/replication/runtime.rs`. The twin keeps these as `capacity::edge_971`, and the test `edge_971_constants_match_the_source` compares them with the branch when `CEWP_EDGE_RUNTIME_RS` is set. This shape applies only toward a seat that is not also a consent peer.
+  - *Required-set Pull* (the v45 baseline, ruled). Read from release/45.0.0 at 8e46165, untagged when read (the series was cited before at c580298, now e3c20ec; none of the old shas is an ancestor of 8e46165), `src/replication/runtime.rs`. The twin keeps these as `capacity::edge_971`, and the test `edge_971_constants_match_the_source` compares them with the branch when `CEWP_EDGE_RUNTIME_RS` is set. This shape applies only toward a seat that is not also a consent peer.
     - **Pull planes (`BUNDLE_PULL_PLANES`, :1016):** Key, IdentityOccurrence, TransportDestination and IdentityOccurrenceRevocation go by subject Pull. A Pull carries the device itself and the seat (`pull_planes` = 4).
     - **Owner leg (`BUNDLE_OWNER_PLANES`, :1027):** asked on Key, IdentityOccurrence and IdentityOccurrenceRevocation, never the route plane, and on timer cycles only (:1461, :1503).
     - **Timer:** 600 s (:1051), with each device drawing from 300–900 s, so there is no herd.
@@ -574,17 +574,17 @@ Run it: `cargo run -p cewp-sim --example capacity_sweep` (any parameter can be o
     - **Writes and kicks:** a write on a Pull plane pulls the device itself on that plane only. An Attestation-plane write kicks nothing (:1320). A host kick runs the self and seat legs. An idle phone makes no edge-side kick.
     - **The one ordinary round (`BUNDLE_ROUND_PLANES`, :1037):** Revocation, every 30 s, after attribution. The seat's offer there is `Projection::Global`, the revocations it holds of any key in own ∪ cohort, which on a seat is every key it holds (bridge.rs:11640). The refs are few (`rev_plane_refs`, MODEL until the #971 idle-cost test prints the measured figure), but the listing walks a per-subject memo over every key each round, reading the store only for subjects the memo lacks (the CIRISEdge#930 comment there).
     - **Consent peers and old peers:** a device whose host names the seat as a consent peer rounds on every bootstrap plane as on v44 (`consent_peer_share`, MODEL, default 0), and so does a device still on v44 (`old_peer_share`, MODEL, default 0). Old peers are kept on purpose, so production will be mixed for a long time; the share that lists both Global planes, 1 − (1 − consent)(1 − old), is an explicit axis (`mixed_fleet_table`). That is the case that brings the whole-plane bytes and the occurrence-withdrawal listing back.
-    - **Source of the key-plane and permit terms.** Edge source read 2026-11-10 at v44.1.2 (withhold-rate's answer, relayed by team-lead), with the c580298 lines beside it. Line numbers are at v44.1.2 unless marked c580298.
-    - **The four key planes, apart from the read ledger.** Key, IdentityOccurrence, Revocation and IdentityOccurrenceRevocation each keep a memo behind its own tokio Mutex, and `key_plane_listing` (c580298 bridge.rs:7303) holds it for the whole listing: the walk, the change probe and any subject reads. Each plane is one server, so lock utilisation ρ = listings/s × hold + refill reads/s × read time, and the seat's cores do not help. The sweep reports the busiest plane and the fleet where its ρ reaches 1 (`lock_knee`).
-      - **Who walks what.** Key and IdentityOccurrence list the host's publish set (`self_own_subjects` → `KindPublishSelector`, c580298 :7115): `key_subjects_at_seat` 8,211 and `io_subjects_at_seat` ~5,650 on seat-1 (DERIVED, scaled per announced node). The two Global planes list `subjects_for_projection(Global)` = self_provider ∪ cohort (c580298 :7142, runtime.rs:1237), tens of subjects (`global_subjects_at_seat` 30, a MODEL pick, held fixed in fleet size). So the large walks are Key and IdentityOccurrence, the planes every whole-plane round lists.
+    - **Source of the key-plane and permit terms.** Edge source read 2026-11-10 at v44.1.2 (withhold-rate's answer, relayed by team-lead), with the 8e46165 lines beside it. Line numbers are at v44.1.2 unless marked 8e46165.
+    - **The four key planes, apart from the read ledger.** Key, IdentityOccurrence, Revocation and IdentityOccurrenceRevocation each keep a memo behind its own tokio Mutex, and `key_plane_listing` (8e46165 bridge.rs:7478) holds it for the whole listing: the walk, the change probe and any subject reads. Each plane is one server, so lock utilisation ρ = listings/s × hold + refill reads/s × read time, and the seat's cores do not help. The sweep reports the busiest plane and the fleet where its ρ reaches 1 (`lock_knee`).
+      - **Who walks what.** Key and IdentityOccurrence list the host's publish set (`self_own_subjects` → `KindPublishSelector`, 8e46165): `key_subjects_at_seat` 8,211 and `io_subjects_at_seat` ~5,650 on seat-1 (DERIVED, scaled per announced node). The two Global planes list `subjects_for_projection(Global)` = self_provider ∪ cohort, which on a canonical is every key it holds: 8,211 to 8,698 subjects at seat-1 (`global_subjects_at_seat`, DERIVED band), not tens. So every key plane walks thousands of subjects on a seat.
       - **Under v45.** A no-consent device lists only Revocation (its one ordinary round). It Pulls Key, IdentityOccurrence, TransportDestination and IdentityOccurrenceRevocation by subject. A subject Pull reads the store directly (`subject_holdings_inner`), outside every plane lock, with one sweep permit. So at the seat, Key and IdentityOccurrence are listed only by today's peers and by old and consent peers.
       - **Hold.** a + b × subjects plus one probe page. b = `key_plane_walk_per_subject_s` 0.55 µs, DERIVED: a warm Key listing at 8,211 subjects takes ~3–6 ms, midpoint 4.5 ms. The same b is used on every plane (MODEL); a and the probe-page time are MODEL. After the read fix, one shared probe per second per plane.
     - **TTL refill, a periodic burst.** Each memo is cleared whole every 10 min (`MEMO_TTL`, key_plane_memo.rs:61, `needs_rebuild` :253). The next listing then reads every subject in one burst, under the plane's lock, one sweep permit per read (bridge.rs:7149). Reads per subject: Key 1 (DERIVED); IdentityOccurrence 1–2 (DERIVED, midpoint 1.5, mostly not `attestation_query`); Revocation about 1, IdentityOccurrenceRevocation 4–6 (MODEL). At ~2 ms a read (`store_read_s`, DERIVED) a Key refill stalls ~16 s and an IdentityOccurrence refill 11–22 s. Each plane has its own phase. Averaged, that is ~820 Key and ~850 IdentityOccurrence reads a minute at seat-1. The refill is lazy, so a plane nobody lists never refills; under v45 with one seat that is the occurrence-withdrawal plane. `Dirt::Plane` clears (`rev_plane_clears_per_hour`, `ior_plane_clears_per_hour`) are MEASURED 0 at seat-1, and 0.5 per hour is the named stress row.
     - **What a sweep permit counts.** A holdings drain takes one per page (:10072). An Attestation listing takes 2–4, however many rows it withholds (watermarked head and after-head pages, :3979, :3998). The required-rows read takes one (:10966) and a route listing 1–2 (MODEL 1.5). A key-plane listing takes one per probe page and one per subject it reads (:7233, :7149); a subject Pull takes one. **No withhold site takes a permit:** the grant read (`list_live_consent_grants_by`) runs inside the page permit. The earlier withheld-row reading of the counter (permits = withholds, B 2,262 vs 2,263) is false and is dropped from the model and the report; what tracks withholds is grant reads (A: 2,104 against 2,078).
-    - **Permit residuals, UNEXPLAINED.** Measured permits less drains plus listing pages plus key-plane probes, with no refill: B 2,262 − 1,577.5 = 684.5, A′ 6,386 − 1,683 = 4,703, C 7,512 − 3,105 = 4,407 a minute (`permit_residual_*_per_min`). None is absorbed into a constant. The excess is in permits, not `attestation_query`. The 43 IdentityOccurrence finals in C are unexplained too.
-    - **TTL refill as the candidate for A′ and C, MODEL: fits A′/C, not proven.** About one 60 s window in ten per plane holds a refill. A whole Key refill is ~8,200 permits, an IdentityOccurrence refill 5,650–11,300. A′ and C show ~4,700 and ~4,400: the size of part of a burst cut by a window edge, or of an occurrence refill at the low end. B's 684 is no burst. Two of three windows with a refill is more than one in ten per plane predicts. The three residuals stay UNEXPLAINED until v45's `key_plane_sweep.rebuilds_ttl` and `sweep_permits.key_plane_subject` counters settle it. The calibration windows book no refill, so the fit does not move with the refill parameters.
-    - **The read fix (commit 3, 4897789).** The reach half now runs before the gates that read the store. For every row the reach refuses, it removes the grant read and the quarantine consult. It removes no permit. DERIVED for window B: grant reads fall from ~2,100 to ~50 a minute (`grant_reads_per_att_listing_after_fix`, about one per local key per listing). Quarantine consults fall by a similar count; no counter books them, so they are not in the seat figures. A row the reach half refuses reads nothing. A row the row half refuses (`may_receive`) still reads at today's cost per row; that share is `refused_reads_left_after_fix` (MODEL, not measured, default 1, the upper bound). bb6ca83 removes the first-contact withholds, about 2,000 of window B's 2,263 a minute (`first_contact_withhold_share`), on the v45 read path.
-    - **The listing cache and the read budget, in v45.0.0 (Eric's ruling), MODEL until measured.** (b) a listing cache per plane generation: warm, the Key listing at 8,211 subjects drops from ~3–6 ms to ~0.2 ms (`warm_listing_s`, scaled per subject) and reads nothing, so no probe. A per-listing read budget, K = 256 (`listing_budget_k`), with stale-while-revalidate: it caps the lock hold at ~K reads (~0.5 s) and leaves the reads per minute unchanged. So the budget moves the stall and not ρ; (b) moves the listing hold and the probes and not the refill reads. `ListingFix`, `Scenario::with_candidate`; `fix_table` shows each alone and together beside the read fix and a removed TTL.
+    - **Permit residuals, UNEXPLAINED.** Measured permits less drains plus listing pages plus key-plane probes, with no refill: B 678.5, A′ 4,697, C 4,401 a minute after the send-set floor (`permit_residual_*_per_min`). None is absorbed into a constant. The excess is in permits, not `attestation_query`. The 43 IdentityOccurrence finals in C are unexplained too.
+    - **TTL refill as the candidate for A′ and C, MODEL: fits A′/C, not proven.** About one 60 s window in ten per plane holds a refill. A whole Key refill is ~8,200 permits, an IdentityOccurrence refill 5,650–11,300. A′ and C show ~4,700 and ~4,400: the size of part of a burst cut by a window edge, or of an occurrence refill at the low end. B's 678.5 is no burst. At 8e46165 the burst cannot occur: stale-while-revalidate revalidates at most 256 reads a listing. Two of three windows with a refill is more than one in ten per plane predicts. The three residuals stay UNEXPLAINED until v45's `key_plane_sweep.rebuilds_ttl` and `sweep_permits.key_plane_subject` counters settle it. The calibration windows book no refill, so the fit does not move with the refill parameters.
+    - **The read fix (commit 3, 7fa7105; cited before as 4897789).** The reach half now runs before the gates that read the store. For every row the reach refuses, it removes the grant read and the quarantine consult. It removes no permit. DERIVED for window B: grant reads fall from ~2,100 to ~50 a minute (`grant_reads_per_att_listing_after_fix`, about one per local key per listing). Quarantine consults fall by a similar count; no counter books them, so they are not in the seat figures. A row the reach half refuses reads nothing. A row the row half refuses (`may_receive`) still reads at today's cost per row; that share is `refused_reads_left_after_fix` (MODEL, not measured, default 1, the upper bound). 3bffbdc (cited before as bb6ca83) removes the first-contact withholds, about 2,000 of window B's 2,263 a minute (`first_contact_withhold_share`), on the v45 read path.
+    - **The listing cache and the read budget, in v45.0.0 (Eric's ruling): both BUILT and on by default at 8e46165; only their timings are MODEL.** (b) a listing cache per plane generation: warm, the Key listing at 8,211 subjects drops from ~3–6 ms to ~0.2 ms (`warm_listing_s`, scaled per subject) and reads nothing, so no probe. A per-listing read budget, K = 256 (`listing_budget_k`), with stale-while-revalidate: it caps the lock hold at ~K reads (~0.5 s) and leaves the reads per minute unchanged. So the budget moves the stall and not ρ; (b) moves the listing hold and the probes and not the refill reads. `ListingFix`, `Scenario::with_candidate`; `fix_table` shows each alone and together beside the read fix and a removed TTL.
     - **Today's fleet, two rows.** "v44 today (MEASURED rounds)" puts window B's rounds through the four planes: Key and IdentityOccurrence each listed ~10 times a minute, the Global planes not at all (MEASURED 0 finals). "v45 at today's fleet" adds every announced node's Revocation round every 30 s (about 45 listings a second at 1,349 nodes). Neither row is a measured lock wait.
     - **Cold restart (named scenario, not a default).** The seat restarts with every memo empty. The lock makes each refill single flight, so each listed plane reads every subject once (`capacity::cold_restart`). Every round that arrives on that plane during its stall waits on the lock; with the budget, the stall is capped at K reads.
     - **Cost as shipped:** the Revocation round still drains the attestation index on each responder round (the window B drain model), so the baseline is cheap only after read minimisation. Per-device seat cost is MODEL until the edge witness measures it.
@@ -597,85 +597,484 @@ Run it: `cargo run -p cewp-sim --example capacity_sweep` (any parameter can be o
 
 #### 4.7.2 Calibration against seat-1
 
-Generated by `cargo run -p cewp-sim --example capacity_sweep` (seat-1 calibration, 2026-11-10; edge source read 2026-11-10 at v44.1.2 and c580298). Every figure past today's fleet is MODEL; what each knee rests on is stated below it. Contact-4413's idle-round figures are MEASURED on an edge debug build (in-memory store, wall time, one sample per point); the release rerun on a disk store comes from the v45 gate.
+Generated by `cargo run --release -p cewp-sim --example capacity_sweep` on twin/globe (seat-1 calibration, 2026-11-10; edge source read 2026-11-10 at v44.1.2 and at release/45.0.0 8e46165, untagged when read; the calibrated model of FSD/twin/calibration.md). Every figure past today's fleet is MODEL with its interval (outer bounds over the input intervals, not a probability); what each rests on is stated with it. Contact-4413's idle-round figures are MEASURED on an edge debug build (in-memory store, wall time, one sample per point); the release rerun on a disk store comes from the v45 gate.
+
 
 | series | model | measured | gap | tag |
 |---|---|---|---|---|
-| window B sweep permits / min (drains + listings + probes) | 1578 | 2262 | -30.3% | UNEXPLAINED residual |
-| window B attestation queries / min | 21.4k | 19.8k | +8.4% | MEASURED ratios |
-| window B composer lookups / min | 4189 | 4512 | -7.1% | MEASURED ratios |
+| window B sweep permits / min (drains + listings + probes) | 1584 | 2262 | -30.0% | UNEXPLAINED residual |
+| window B attestation queries / min | 21.4k | 19.8k | +8.5% | MEASURED ratios |
+| window B composer lookups / min | 3867 | 4512 | -14.3% | MEASURED ratios |
 | window B CPU, cores | 0.652 | 0.652 | +0.0% | FITTED (exact by construction) |
-| busy hour CPU, cores (at its permit and query rates) | 1.12 | 1.00 | +11.9% | check, not fitted |
-| window A' sweep permits / min | 1683 | 6386 | -73.6% | UNEXPLAINED residual |
-| window C sweep permits / min | 3105 | 7512 | -58.7% | UNEXPLAINED residual |
-| window A consent-grant reads / min (one per withheld row) | 2078 | 2104 | -1.2% | MEASURED ratio |
+| busy hour CPU, cores (at its permit and query rates) | 1.12 | 1.00 | +11.7% | check, not fitted |
+| window A' sweep permits / min | 1689 | 6386 | -73.6% | UNEXPLAINED residual |
+| window C sweep permits / min | 3111 | 7512 | -58.6% | UNEXPLAINED residual |
+| window A consent-grant reads / min (one per withheld row) | 2104 | 2104 | +0.0% | MEASURED ratio |
 
-Fitted `cpu_per_byte_s` = 1.298e-7 CPU-s per decoded byte (7.7 MB/s per core); one index page = 9.57 ms.
-Window B CPU split: index pages 0.239 cores, counted queries 0.307 cores, verifies + frames + key planes + server context 0.106 cores (split PROVISIONAL: one CPU window cannot separate the two byte classes).
+Fitted `cpu_per_byte_s` = 1.294e-7 CPU-s per decoded byte (7.7 MB/s per core); one index page = 9.54 ms.
+Window B CPU split: index pages 0.238 cores, counted queries 0.308 cores, verifies + frames + key planes + server context 0.106 cores (split PROVISIONAL: one CPU window cannot separate the two byte classes).
 Summaries per completed round, fitted from window B's permits: 1.508 (derived: 1.0).
-What a sweep permit counts (edge source read 2026-11-10 at v44.1.2): a holdings drain takes one per PAGE (bridge.rs:10072); an Attestation listing 2 to 4 however many rows it withholds, the required-rows read one, a route listing 1 or 2; a key-plane listing one per probe page and one per subject it reads (bridge.rs:7233, :7149); a subject Pull one. No withhold site takes one: the grant read runs inside the page permit. So the withheld-row reading of the counter is false and is dropped; what follows withholds is grant reads (A: 2104 against 2078). Predicted from the finals with no refill: drains B 1500, A' 1602, C 2988 of permits B 1578, A' 1683, C 3105. Residuals B 684, A' 4703, C 4407 a minute, UNEXPLAINED and absorbed into no constant. The excess is in permits, not in attestation_query (window C: 15.1k queries over 66 finals that drain the attestation index).
+What a sweep permit counts (edge source read 2026-11-10 at v44.1.2): a holdings drain takes one per PAGE (bridge.rs:10072); an Attestation listing 2 to 4 however many rows it withholds, the required-rows read one, a route listing 1 or 2; a key-plane listing one per probe page and one per subject it reads (bridge.rs:7233, :7149); a subject Pull one. No withhold site takes one: the grant read runs inside the page permit. So the withheld-row reading of the counter is false and is dropped; what follows withholds is grant reads (A: 2104 against 2078). Predicted from the finals with no refill: drains B 1500, A' 1602, C 2988 of permits B 1584, A' 1689, C 3111. Residuals B 678, A' 4697, C 4401 a minute, UNEXPLAINED and absorbed into no constant. The excess is in permits, not in attestation_query (window C: 15.1k queries over 66 finals that drain the attestation index).
 
-**TTL refill against the windows.** The candidate explanation for the A' and C excess (MODEL: fits A' and C, not proven). A Key or occurrence TTL refill reads every subject in one burst while holding that plane's lock, one sweep permit per read (v44.1.2 bridge.rs:7149). Each plane runs on its own phase, so about one 60 s window in 10 per plane holds one: a Key refill is 8211 reads in about 16.42 s, an occurrence refill 5650 to 11.3k reads in 11.30 to 22.60 s (1 to 2 reads per subject, mostly not attestation_query, which fits permits rising while that counter does not).
+###### Fit split and held-out error
 
-- The residuals after drains and listings are 684 (B), 4703 (A') and 4407 (C) a minute. A' and C are the size of part of one burst, or of an occurrence refill at the low end; neither is a whole Key burst. B's residual is not a burst at all and stays UNEXPLAINED. Two of three windows holding a refill is more than one in 10 per plane predicts. Not tuned to fit; all three residuals stay UNEXPLAINED until v45's `key_plane_sweep.rebuilds_ttl` and `sweep_permits.key_plane_subject` counters settle it.
-- Averaged, the refills add 821 (Key) and 848 (occurrence) reads a minute at seat-1; the per-listing budget (K = 256) leaves that unchanged and caps a stall at 0.512 s.
+Fit on: window A's store doors (the door ratios) and window B's CPU at window B's round mix (`cpu_per_byte_s`). Held out: everything below. With four 60 s windows of one seat, a quiet one among them, this is a thin check: seven held-out counters, five of them permit or query counts the fit has no free parameter for, so a held-out error here says the model is missing a term, not that a parameter is mis-set.
+
+| window | counter | predicted | measured | held-out error |
+|---|---|---|---|---|
+| B | AttQueries | 21440.5 | 19754.0 | +8.5% |
+| B | Composer | 3867.0 | 4512.0 | -14.3% |
+| B | Permits | 1583.5 | 2262.0 | -30.0% |
+| APrime | Permits | 1689.0 | 6386.0 | -73.6% |
+| C | Permits | 3111.0 | 7512.0 | -58.6% |
+| C | AttQueries | 21670.0 | 15068.0 | +43.8% |
+| BusyHour | Cpu | 1.117 | 1.000 | +11.7% |
+
+###### Permit residuals, term by term
+
+| term (permits a minute) | B | A' | C |
+|---|---|---|---|
+| index drains on the Attestation index (Key, occurrence, Attestation finals x 42 pages) | 1302.0 | 1386.0 | 2772.0 |
+| index drains on the route index (route finals x 18 pages) | 198.0 | 216.0 | 216.0 |
+| Attestation listing and required-rows pages | 40.0 | 40.0 | 44.0 |
+| route listing pages | 16.5 | 18.0 | 18.0 |
+| key-plane change probes (one per Key and occurrence listing) | 21.0 | 23.0 | 55.0 |
+| consent send-set reads (>= one per 10 s memo; ADDED 2026-11-11) | 6.0 | 6.0 | 6.0 |
+| **model** | 1583.5 | 1689.0 | 3111.0 |
+| **measured** | 2262 | 6386 | 7512 |
+| **left, UNEXPLAINED** | 678.5 | 4697.0 | 4401.0 |
+| closed by the 2026-11-11 corrections | 6.0 (0.9%) | 6.0 (0.1%) | 6.0 (0.1%) |
+
+The residual is the measured count less every term above; no constant absorbs it. Candidate causes, each a permit site v44.1.2 has that the model does not book, with the v45 counter that settles it (8e46165 observability.rs labels the sweep-permit counter by site):
+
+- **H1, a TTL refill burst** (v44.1.2 cleared the memo every 10 min and the next listing read every subject in one burst under the lock). A Key burst is 8211 permits, an occurrence burst 5650 to 11300. A' (4697) and C (4401) are the size of part of a burst; B (678) is not. One 60 s window in 10 per listed plane holds one, so two of three is more than chance predicts. Settled by `sweep_permits.key_plane_subject` and `key_plane_sweep.rebuilds_ttl`. At 8e46165 the TTL revalidates at most 256 reads a listing, so a v45 window cannot show this burst.
+- **H2, rounds on the planes the windows did not count.** v44.1.2 lists twelve more planes through `sweep_paged`, one or two permits a listing; the windows counted finals on four. If every inbound link rounded on all twelve every cadence: at most 720 (B, 15 links), 864 (A', 18), 960 (C, 20) a minute. That could close B; it cannot close A' or C alone. Settled by `sweep_permits.plane_page` and responder finals on all planes.
+- **H3, subject Pulls answered for today's peers** (`subject_pull_answer`, one permit each). Settled by `sweep_permits.subject_pull` and `announced_testimony`.
+- **H4, the seat's own initiator rounds.** A reply Summary drains the whole index as shipped: the residual is worth 16.2 (B), 111.8 (A'), 104.8 (C) whole drains of 42 pages a minute. Settled by the `initiator_peers` gauges and initiator finals beside responder finals.
+- **H5, consent send-set reads** beyond the 6 a minute the memo floor gives (each invalidation reads again). Settled by `sweep_permits.send_set`.
+- **H6, accord-evidence pages** (`accord_evidence_since`, one permit). Settled by `sweep_permits.accord_evidence`.
+- **H7, Summaries that drain but never reach a final** (a round that times out or aborts after its Summary drained). Settled by received Summaries per plane beside `sweep_permits.holdings_index` / 42.
+
+None is fitted. The 43 occurrence finals in C (against 10 to 12 elsewhere) are unexplained too.
+
+###### v45.0.0 knee against key_publish_set growth (MODEL, interval)
+
+One seat of 4 cores, ceiling 70%, edge 8e46165 (release/45.0.0, untagged when read). Each knee is an outer bound over every input interval below (each term's knee propagated alone by the vertex method, then the smallest lower and the smallest upper end), at one value of the growth axis; no single device count stands. 'Binds' names the term that reaches the ceiling first at each end.
+
+| key_publish_set growth g (FRONTIER) | v45.0.0 knee, devices (MODEL, interval) | binds at the low end | binds at the high end | with 25% of devices on v44 (MODEL, interval) | seat initiating to 1% of devices (MODEL, interval) |
+|---|---|---|---|---|---|
+| 0 | 14,253 to 75,879 | sweep permits | CPU | 2,925 to 22,933 | 10,015 to 67,076 |
+| 0.25 | 7,961 to 24,430 | CPU | CPU | 2,623 to 18,057 | 6,177 to 23,730 |
+| 0.5 | 6,316 to 18,438 | CPU | CPU | 2,418 to 14,003 | 4,691 to 17,830 |
+| 0.75 | 5,440 to 15,534 | CPU | CPU | 2,268 to 11,835 | 3,903 to 14,955 |
+| 1 | 4,882 to 13,723 | CPU | CPU | 2,155 to 10,462 | 3,413 to 13,145 |
+
+###### Input intervals
+
+| input | point | interval | how |
+|---|---|---|---|
+| `composer_per_att_round` | 386.7 | 386.7 to 451.2 | MEASURED: window A and window B composer lookups per Attestation round |
+| `queries_per_refused_row` | 9.408 | 8.729 to 9.408 | MEASURED: window A and window B attestation queries per withheld row |
+| `refused_rows_per_att_round` | 207.8 | 207.8 to 226.3 | MEASURED: window A and window B rows withheld per Attestation round |
+| `today_rounds_scale` | 1.000 | 0.909 to 1.200 | MEASURED: the other windows' responder finals per plane against window B's (C's 43 occurrence finals left out) |
+| `consent_per_refused_row` | 1.013 | 0.975 to 1.050 | MEASURED in window A only: the relative half-range of queries per withheld row across A and B |
+| `rows_per_att_query` | 7.540 | 7.258 to 7.822 | MEASURED in window A only: the relative half-range of queries per withheld row across A and B |
+| `cpu_window_b_cores` | 0.652 | 0.534 to 0.770 | MEASURED in window B only (the one CPU window): the relative half-range of attestation queries per Attestation round across A, B and C |
+| `stale_routes_per_s` | 2.800 | 2.293 to 3.307 | MEASURED once: the relative half-range of attestation queries per Attestation round across A, B and C |
+| `server_refresh_cores` | 0.100 | 0.050 to 0.150 | MEASURED-CONTEXT, approximate (~10% of a core): +-50% |
+| `announced_nodes` | 1349.0 | 1322.0 to 1376.0 | MEASURED once (one snapshot; drift over the day not observed): +-2%, MODEL band |
+| `announced_owners` | 1338.0 | 1311.2 to 1364.8 | MEASURED once: +-2%, MODEL band |
+| `seat_att_rows` | 42520.0 | 41669.6 to 43370.4 | MEASURED once (window A): +-2%, MODEL band |
+| `seat_td_rows` | 18313.0 | 17946.7 to 18679.3 | MEASURED once (window A): +-2%, MODEL band |
+| `seat_key_rows` | 8698.0 | 8524.0 to 8872.0 | MEASURED once (window A): +-2%, MODEL band |
+| `pull_calls_per_cycle` | 10.0 | 8.000 to 12.0 | MEASURED (debug) on one fixture store: one call per leg pair either way, MODEL band |
+| `pull_permits_per_cycle` | 8.000 | 8.000 to 8.000 | MEASURED (debug), a point: a count of code-path legs (self and seat on four planes, runtime.rs cycle :1574), not a sample; a build does not change it |
+| `pull_reply_bytes_per_cycle` | 562.0 | 449.6 to 674.4 | MEASURED (debug) on one fixture: +-20%, MODEL band |
+| `drain_page_key_s` | 2.630e-3 | 6.575e-4 to 2.630e-3 | MEASURED (debug wall time): a release build is faster, by up to 4x (MODEL) |
+| `drain_page_io_s` | 1.840e-3 | 4.600e-4 to 1.840e-3 | MEASURED (debug wall time): up to 4x faster in release (MODEL) |
+| `drain_page_rev_s` | 3.310e-3 | 8.275e-4 to 3.310e-3 | MEASURED (debug wall time): up to 4x faster in release (MODEL) |
+| `drain_page_ior_s` | 3.770e-3 | 9.425e-4 to 3.770e-3 | MEASURED (debug wall time): up to 4x faster in release (MODEL) |
+| `global_subjects_at_seat` | 8698.0 | 8211.0 to 8698.0 | DERIVED: own ∪ cohort lies between the Key publish set (8,211) and every key held (8,698) |
+| `io_subjects_at_seat` | 5650.0 | 5600.0 to 5700.0 | DERIVED: ~5.6k to 5.7k (withhold-rate's source answer) |
+| `store_read_s` | 2.000e-3 | 1.000e-3 to 3.000e-3 | DERIVED ~2 ms from a key-plane refill, not measured on a Pull: 1 to 3 ms, MODEL band |
+| `warm_listing_s` | 2.000e-4 | 1.000e-4 to 4.000e-4 | MODEL: a cache hit's set comparison at 8,211 subjects, 0.1 to 0.4 ms |
+| `key_plane_walk_per_subject_s` | 5.500e-7 | 3.654e-7 to 7.307e-7 | DERIVED: the warm Key listing's 3 to 6 ms over 8,211 subjects |
+| `subject_set_build_per_subject_s` | 1.000e-7 | 5.000e-8 to 3.000e-7 | MODEL: building own ∪ cohort as a HashSet<String>, 0.05 to 0.3 µs a subject |
+| `probe_read_s` | 5.000e-4 | 2.000e-4 to 1.000e-3 | MODEL: one probe page, 0.2 to 1 ms |
+| `reach_unowned_share` | 0.500 | 0.237 to 0.761 | DERIVED bounds: owners / occurrence subjects (an identity key has no owner) to 1 - announced nodes / occurrence subjects (an announced node is owned) |
+| `reach_reads_per_unowned_subject` | 1.500 | 1.000 to 2.000 | DERIVED from unowned_reach: one read always, up to four when another identity holds the node (the own set is shared per identity) |
+| `announce_memo_clears_per_hour` | 6.000 | 0 to 60.0 | MODEL: ownership events and host local-write doors at the seat, 0 to 60 an hour (server-side, not measured) |
+| `key_record_writes_per_device_day` | 0.050 | 0.010 to 1.000 | MODEL: enrolment to a daily re-publish |
+| `claimed_share` | 0.500 | 0.250 to 0.750 | MODEL: share of bootstrap devices with an owner |
+| `owner_leg_permit_share` | 1.000 | 0 to 1.000 | MODEL: owner legs answered in the entitled arm (a mutual trust root) or refused |
+| `hybrid_verify_cpu_s` | 1.500e-3 | 1.000e-3 to 3.000e-3 | MODEL: not profiled |
+| `round_overhead_cpu_s` | 2.000e-4 | 1.000e-4 to 5.000e-4 | MODEL: frame handling per Summary |
+| `io_queries_per_subject` | 1.500 | 1.000 to 2.000 | DERIVED: 1 to 2 reads per occurrence subject |
+| `ior_queries_per_subject` | 5.000 | 4.000 to 6.000 | MODEL: 4 to 6 reads per occurrence-withdrawal subject |
+| `att_listing_permits` | 3.000 | 2.000 to 4.000 | DERIVED: 2 to 4 pages per Attestation listing |
+| `td_listing_permits` | 1.500 | 1.000 to 2.000 | MODEL: 1 to 2 pages per route listing |
+| `att_required_queries` | 15.0 | 10.0 to 20.0 | DERIVED: 10 to 20 counted queries per required read |
+| `row_bytes` | 800.0 | 675.0 to 954.0 | DERIVED: the seat-1 profile's 675 to 954 B a row |
+| `hash_ref_bytes` | 72.0 | 64.0 to 80.0 | MODEL: 64 hex chars plus framing |
+| `call_overhead_bytes` | 400.0 | 200.0 to 800.0 | MODEL: a 0-row call's cost |
+| `new_rows_per_device_day` | 20.0 | 10.0 to 40.0 | MODEL |
+| `runtime_starts_per_device_day` | 4.000 | 1.000 to 12.0 | MODEL |
+| `pull_plane_writes_per_device_day` | 10.0 | 2.000 to 30.0 | MODEL |
+| `first_contact_cycles` | 2.000 | 1.000 to 6.000 | MODEL, bounded by BUNDLE_FIRST_CONTACT_TRIES |
+
+###### Measurements that would make it sound (aggregates only)
+
+- Longer windows: at least one continuous hour of the seat's own counters at 60 s resolution (sweep permits by site label, store calls by caller label, responder AND initiator finals on every plane, received Summaries per plane, the key_plane_sweep counters, process utime+stime), so a 10-minute TTL cycle is seen whole six times.
+- A busy hour and a quiet hour: the same counters in the roll hour and overnight, to separate load-proportional terms from fixed ones and to give the CPU fit a second point (one CPU window cannot split page cost from query cost).
+- The release build: the seat runs v45 in release; with it, sweep_permit_wait_seconds sum and count per site, key_plane_sweep_ms, listing-cache hits, and the unread and stale gauges per plane (the Pull's permit hold and the cache hit's lock hold are MODEL until then).
+- Per-term counters for the residuals: sweep_permits by site (holdings_index, plane_page, subject_pull, announced_testimony, key_plane_subject, feed_attestation, feed_route, send_set, advertise_page, advertise_required, accord_evidence), the initiator_peers gauges (host, bundle, homed), and the reach evaluations (announce_reads) per minute.
+- Store composition at the start and end of each window: attestation, route and key row counts, announced nodes and owners, and the size of the host's key publish set and of own ∪ cohort (the Global set).
+- The server's rule for key_publish_set: what it includes and how it grows as devices join (it decides the knee between its ends, see the growth table).
+- Ownership events and host local-write doors per hour at the seat (each clears the reach memo), and key:record rows landing per hour.
+- A second seat, if one is ever run: the same aggregates, to tell a seat property from a seat-1 property.
+
+###### Energy counters (HOOKS.md, counts only)
+
+Counts only (DERIVED from the model's events; no power figure). Edge 8e46165 schedule: one Revocation round a 30 s cadence, a Pull cycle every 600 s mean (jittered 0.5x to 1.5x), first-contact, write and kick cycles on top. The runtime does not branch on host kind, so every class below has the same schedule; claimed devices add owner legs.
+
+| class | claimed | wake-ups / h | rounds / h | idle rounds / h | Pull cycles / h | idle Pull cycles / h | bytes / h each way | seat reads / h |
+|---|---|---|---|---|---|---|---|---|
+| any edge device (Phone shown) | true | 126.75 | 120.0 | 120.0 | 6.75 | 5.60 | 77313 | 117.9 |
+| any edge device (Phone shown) | false | 126.75 | 120.0 | 120.0 | 6.75 | 5.60 | 76049 | 86.4 |
+
+| devices | seat rounds / h | Pulls / h | store reads / h | index pages / h | permits / h | egress bytes / h | reads per round | bytes per round |
+|---|---|---|---|---|---|---|---|---|
+| 1349 | 164400 | 82570 | 1534827 | 3600 | 242377 | 102589651 | 6.215 | 415 |
+| 5000 | 602520 | 306042 | 4623386 | 13260 | 884228 | 380243333 | 5.089 | 419 |
+| 10000 | 1202520 | 612083 | 8853129 | 26460 | 1763206 | 760486667 | 4.879 | 419 |
+
 
 #### 4.7.3 Results
 
-**Knees by version** (one seat of 4 cores, ceiling 70%; no old peers unless stated).
+##### Knees by version
 
-v45.0.0 (in release) is the required-set Pull with the read fix, the listing cache (b) and the read budget (Eric's ruling, 2026-11-10: the read fix ships in v45). Its knee binds on the sweep permits. It rests on two terms not measured on a release build, so it is PROVISIONAL in them: how long a Pull holds its permit (`store_read_s`, ~2 ms, DERIVED from a key-plane refill, not measured on a Pull) and the Pull's own cost (`pull_calls_per_cycle`, `pull_permits_per_cycle`: MEASURED on an edge debug build, release rerun pending). The listing cache and the read budget are MODEL until measured.
+v45.0.0 is release/45.0.0 at 8e46165 (untagged when read 2026-11-11): the required-set Pull with the read minimisation series, the listing cache and the read budget (both BUILT and on by default, not MODEL candidates), and the reach rule (6244795). Its Global planes walk every key the seat holds (8,698 at seat-1), not tens. Every knee below is an interval over the input intervals (seat_calibration), MODEL with its interval (not PROJECTED in FSD §8.2's sense: no tier is certified), and the growth of the server's key_publish_set (FRONTIER) is swept in its own table, because which term binds turns on it. It rests on terms not measured on a release build: how long a Pull holds its permit (`store_read_s`, ~2 ms, DERIVED from a key-plane refill), a cache hit's set comparison (`warm_listing_s`, MODEL) and the Pull's own cost (`pull_calls_per_cycle`, `pull_permits_per_cycle`: MEASURED on an edge debug build).
 
-The row without the read fix was never released. Each attributed device's 30 s Revocation round drains the whole attestation index at the seat (42 pages at seat-1), so it binds on the permits, and its knee rests on what one index page costs in CPU (PROVISIONAL). Measured per page on an edge debug build (wall time, in-memory store, release rerun pending), that drain at 1349 devices costs 6.3 cores; with whole-plane rounds on the four planes that read the index it would cost 21.8. The model puts the whole seat at 18.8 cores at that fleet.
+The row without the read fix was never released. Each attributed device's 30 s Revocation round drains the whole attestation index at the seat (42 pages at seat-1), so it binds on the permits, and its knee rests on what one index page costs in CPU (PROVISIONAL). Measured per page on an edge debug build (wall time, in-memory store, release rerun pending), that drain at 1349 devices costs 6.3 cores; with whole-plane rounds on the four planes that read the index it would cost 21.8. The model puts the whole seat at 19.0 cores at that fleet.
 
-What a sweep permit counts is settled from source (edge source read 2026-11-10 at v44.1.2): drains one per page, listings 2 to 4, key-plane probes and subject reads one each, withholds none. The lock knees rest on b (DERIVED from the warm Key listing), the subject-read time (DERIVED, ~2 ms) and the probe-page time (MODEL).
+What a sweep permit counts is settled from source (edge source read 2026-11-10 at v44.1.2; the sites by label at 8e46165): drains one per page, listings 2 to 4, key-plane probes and subject reads one each, a consent send-set read one, withholds none. The lock knees rest on b (DERIVED from the warm Key listing), the subject-read time (DERIVED, ~2 ms) and the probe-page time (MODEL).
 
-| version | seat knee | binds at the knee | at the knee: cores in pages / queries / frames + verifies / key planes / context; permit rho | lock knee (plane) | seat knee, 25% old peers | today's fleet: seat CPU cores, busiest lock rho |
-|---|---|---|---|---|---|---|
-| v44 (today's code): every device that rounds with the seat on v44, whole-plane rounds on five planes | 18 | sweep permits | 1.31 / 0.308 / 0.005 / 0.011 / 0.100; 0.69 | 2,827 (key) | same (all v44) | 81.18 cores, 0.255 (key) |
-| v45 without the read fix (not released; c580298 as committed) | 81 | sweep permits | 1.32 / 0.308 / 0.005 / 0.006 / 0.100; 0.70 | 46,803 (identity_occurrence) | 43 | 18.77 cores, 0.029 (identity_occurrence) |
-| v45.0.0 (in release): required-set Pull, read fix, listing cache, read budget | 18,229 | sweep permits | 0.128 / 0.300 / 0.188 / 0.060 / 0.100; 0.70 | 47,709 (identity_occurrence) | 7,355 | 0.188 cores, 0.028 (identity_occurrence) |
+At key_publish_set_growth = 1 (FRONTIER; swept in the growth table). Every figure is an interval over the input intervals.
 
-**By shape, read set and seats.**
+| version | seat knee, devices (MODEL, interval) | binds at the low / high end | lock knee, devices (MODEL, interval) | seat knee, 25% old peers (MODEL, interval) | today's fleet: seat CPU cores |
+|---|---|---|---|---|---|
+| v44 (today's code): every device that rounds with the seat on v44, whole-plane rounds on five planes | 5 to 36 | sweep permits / sweep permits | 1,877 to 3,398 | same (all v44) | 42.73 to 136 |
+| v45 without the read fix (never released; e3c20ec, cited before as c580298) | 33 to 179 | sweep permits / sweep permits | 2,297 to 3,590 | 11 to 91 | 10.00 to 31.69 |
+| v45.0.0 (release/45.0.0 at 8e46165, untagged): required-set Pull, read minimisation, listing cache, read budget, reach rule | 4,882 to 13,723 | CPU / CPU | 8,175 to 18,091 | 2,155 to 10,462 | 0.135 to 0.563 |
+
+##### Knee: largest fleet with the seat under the ceiling, by shape, read set and seats
 
 | round shape | read set | 1 seat | 2 seats, all | 2 seats, home one | 4 seats, all | 4 seats, home one |
 |---|---|---|---|---|---|---|
-| whole-plane diff (not shipped) | as shipped | 18 | 15 | 31 | 10 | 42 |
-| whole-plane diff (not shipped) | after read minimisation | 2,407 | 2,407 | 3,353 | 2,407 | 4,638 |
-| required-set Pull (v45 baseline) | as shipped | 81 | 69 | 139 | 46 | 187 |
-| required-set Pull (v45 baseline) | after read minimisation | 18,217 | 18,194 | 22,276 | 18,148 | 25,040 |
-| digest (after the LTS, not built) | as shipped | 18 | 15 | 31 | 10 | 42 |
-| digest (after the LTS, not built) | after read minimisation | 2,407 | 2,407 | 3,353 | 2,407 | 4,638 |
-| stretched cadence (not built) | as shipped | 182 | 156 | 313 | 105 | 421 |
-| stretched cadence (not built) | after read minimisation | 7,032 | 7,028 | 9,467 | 7,019 | 12,481 |
+| whole-plane diff (not shipped) | as shipped | 5 to 36 | 2 to 35 | 4 to 71 | 0 to 28 | 0 to 122 |
+| whole-plane diff (not shipped) | after read minimisation | 896 to 2,836 | 892 to 2,836 | 1,613 to 3,868 | 884 to 2,836 | 2,322 to 5,198 |
+| required-set Pull (v45 baseline) | as shipped | 33 to 179 | 11 to 159 | 21 to 320 | 0 to 136 | 0 to 550 |
+| required-set Pull (v45 baseline) | after read minimisation | 1,987 to 3,030 | 1,986 to 3,028 | 2,753 to 4,248 | 1,985 to 3,028 | 3,781 to 5,925 |
+| digest (after the LTS, not built) | as shipped | 5 to 36 | 2 to 35 | 4 to 71 | 0 to 28 | 0 to 122 |
+| digest (after the LTS, not built) | after read minimisation | 896 to 2,836 | 892 to 2,836 | 1,613 to 3,868 | 884 to 2,836 | 2,322 to 5,198 |
+| stretched cadence (not built) | as shipped | 49 to 384 | 23 to 359 | 44 to 723 | 0 to 309 | 0 to 1,237 |
+| stretched cadence (not built) | after read minimisation | 2,874 to 7,444 | 2,872 to 7,440 | 3,142 to 9,431 | 2,868 to 7,435 | 3,313 to 11,488 |
 
-**Key planes at today's fleet.**
+##### One-seat sweep
 
-| row | plane | subjects | listings/s | hold ms | refill reads (one burst) | stall s | rho lock |
+**whole-plane diff (not shipped), as shipped, one seat (4 cores)**
+
+| devices | att-index rows | counted reads/s | index pages/s | CPU cores | rho cpu | rho permits | round latency | egress Mbit/s |
+|---|---|---|---|---|---|---|---|---|
+| 10.00 | 42.5k | 584 | 87.00 | 1.27 | 0.32 | 0.54 | 1.1 s | 1.06 |
+| 30.00 | 42.5k | 592 | 211 | 2.47 | 0.62 | 1.13 | unbounded | 3.18 |
+| 100 | 42.5k | 617 | 645 | 6.66 | 1.67 | 3.22 | unbounded | 10.61 |
+| 300 | 42.5k | 691 | 1885 | 18.65 | 4.66 | 9.19 | unbounded | 31.84 |
+| 1000 | 42.5k | 948 | 6225 | 60.59 | 15.15 | 30.08 | unbounded | 106 |
+| 3000 | 94.6k | 1823 | 41.3k | 399 | 99.71 | 197.86 | unbounded | 706 |
+| 10.0k | 315.2k | 4990 | 455.2k | 4394 | 1098.52 | 2174.77 | unbounded | 7837 |
+| 30.0k | 945.6k | 14.0k | 4.09M | 39.5k | 9879.23 | 19541.43 | unbounded | 70.5k |
+| 100.0k | 3.15M | 45.7k | 45.48M | 438.9k | 109714.56 | 216949.08 | unbounded | 783.3k |
+
+**whole-plane diff (not shipped), after read minimisation, one seat (4 cores)**
+
+| devices | att-index rows | counted reads/s | index pages/s | CPU cores | rho cpu | rho permits | round latency | egress Mbit/s |
+|---|---|---|---|---|---|---|---|---|
+| 10.00 | 42.5k | 226 | 1.00 | 0.176 | 0.04 | 0.13 | 37.8 ms | 1.06 |
+| 30.00 | 42.5k | 231 | 1.00 | 0.191 | 0.05 | 0.13 | 18.9 ms | 3.18 |
+| 100 | 42.5k | 248 | 1.00 | 0.244 | 0.06 | 0.15 | 9.9 ms | 10.61 |
+| 300 | 42.5k | 294 | 1.00 | 0.394 | 0.10 | 0.20 | 7.2 ms | 31.84 |
+| 1000 | 42.5k | 458 | 1.00 | 0.919 | 0.23 | 0.37 | 7.7 ms | 106 |
+| 3000 | 94.6k | 1067 | 2.22 | 4.94 | 1.24 | 0.99 | unbounded | 706 |
+| 10.0k | 315.2k | 3303 | 7.35 | 51.28 | 12.82 | 3.29 | unbounded | 7837 |
+| 30.0k | 945.6k | 9690 | 22.03 | 455 | 113.70 | 9.85 | unbounded | 70.5k |
+| 100.0k | 3.15M | 32.0k | 73.42 | 5030 | 1257.46 | 32.83 | unbounded | 783.3k |
+
+**required-set Pull (v45 baseline), as shipped, one seat (4 cores)**
+
+| devices | att-index rows | counted reads/s | index pages/s | CPU cores | rho cpu | rho permits | round latency | egress Mbit/s |
+|---|---|---|---|---|---|---|---|---|
+| 10.00 | 42.5k | 509 | 39.00 | 0.794 | 0.20 | 0.23 | 876.8 ms | 0.002 |
+| 30.00 | 42.5k | 512 | 67.00 | 1.07 | 0.27 | 0.37 | 898.5 ms | 0.005 |
+| 100 | 42.5k | 521 | 165 | 2.02 | 0.50 | 0.84 | 2.9 s | 0.017 |
+| 300 | 42.5k | 546 | 445 | 4.73 | 1.18 | 2.18 | unbounded | 0.051 |
+| 1000 | 42.5k | 633 | 1425 | 14.23 | 3.56 | 6.87 | unbounded | 0.169 |
+| 3000 | 94.6k | 934 | 9355 | 91.03 | 22.76 | 44.80 | unbounded | 0.507 |
+| 10.0k | 315.2k | 2027 | 102.9k | 996 | 248.98 | 491.16 | unbounded | 1.69 |
+| 30.0k | 945.6k | 5148 | 924.6k | 8947 | 2236.83 | 4411.73 | unbounded | 5.07 |
+| 100.0k | 3.15M | 16.1k | 10.27M | 99.3k | 24832.33 | 48969.76 | unbounded | 16.90 |
+
+**required-set Pull (v45 baseline), after read minimisation, one seat (4 cores)**
+
+| devices | att-index rows | counted reads/s | index pages/s | CPU cores | rho cpu | rho permits | round latency | egress Mbit/s |
+|---|---|---|---|---|---|---|---|---|
+| 10.00 | 42.5k | 153 | 1.00 | 0.160 | 0.04 | 0.05 | 61.2 ms | 0.002 |
+| 30.00 | 42.5k | 154 | 1.00 | 0.164 | 0.04 | 0.05 | 39.9 ms | 0.005 |
+| 100 | 42.5k | 161 | 1.00 | 0.179 | 0.04 | 0.06 | 20.8 ms | 0.017 |
+| 300 | 42.5k | 179 | 1.00 | 0.222 | 0.06 | 0.06 | 12.3 ms | 0.051 |
+| 1000 | 42.5k | 243 | 1.00 | 0.371 | 0.09 | 0.07 | 9.8 ms | 0.169 |
+| 3000 | 94.6k | 478 | 2.22 | 1.51 | 0.38 | 0.16 | unbounded | 0.507 |
+| 10.0k | 315.2k | 1339 | 7.35 | 14.49 | 3.62 | 0.53 | unbounded | 1.69 |
+| 30.0k | 945.6k | 3798 | 22.03 | 127 | 31.75 | 1.58 | unbounded | 5.07 |
+| 100.0k | 3.15M | 12.4k | 73.42 | 1401 | 350.24 | 5.25 | unbounded | 16.90 |
+
+##### Key planes: lock, walk and TTL refill, apart from the read ledger (MODEL)
+
+###### Today's fleet
+
+At the point inputs (a diagnostic, MODEL). 'refill reads' is one TTL refill: at v44.1.2 one burst under the lock; at 8e46165 spread over listings at most K reads each, so the stall is K reads.
+
+| row | plane | subjects | listings/s | mean hold ms | refill reads (one TTL) | longest stall s | rho lock |
 |---|---|---|---|---|---|---|---|
 | v44 today (MEASURED rounds, window B) | key | 8211 | 0.167 | 5.04 | 8211 | 16.42 | 0.0282 |
 | v44 today (MEASURED rounds, window B) | identity_occurrence | 5650 | 0.183 | 3.63 | 8475 | 16.95 | 0.0289 |
-| v44 today (MEASURED rounds, window B) | revocation | 30.00 | 0 | 0.037 | none (not listed) | 0 | 0.0000 |
-| v44 today (MEASURED rounds, window B) | io_revocation | 30.00 | 0 | 0.037 | none (not listed) | 0 | 0.0000 |
-| v45 at today's fleet (default ON, one seat) | key | 8211 | 0.167 | 5.04 | 8211 | 16.42 | 0.0282 |
-| v45 at today's fleet (default ON, one seat) | identity_occurrence | 5650 | 0.183 | 3.63 | 8475 | 16.95 | 0.0289 |
-| v45 at today's fleet (default ON, one seat) | revocation | 30.00 | 44.97 | 0.536 | 30.00 | 0.060 | 0.0242 |
-| v45 at today's fleet (default ON, one seat) | io_revocation | 30.00 | 0 | 0.037 | none (not listed) | 0 | 0.0000 |
+| v44 today (MEASURED rounds, window B) | revocation | 8698 | 0 | 4.80 | none (not listed) | 0 | 0.0000 |
+| v44 today (MEASURED rounds, window B) | io_revocation | 8698 | 0 | 4.80 | none (not listed) | 0 | 0.0000 |
+| v45.0.0 at today's fleet (8e46165, one seat) | key | 8211 | 0.167 | 1.65 | 8211 | 0.512 | 0.0276 |
+| v45.0.0 at today's fleet (8e46165, one seat) | identity_occurrence | 5650 | 0.183 | 1.06 | 8475 | 0.512 | 0.0284 |
+| v45.0.0 at today's fleet (8e46165, one seat) | revocation | 8698 | 44.97 | 0.218 | 8698 | 0.512 | 0.0388 |
+| v45.0.0 at today's fleet (8e46165, one seat) | io_revocation | 8698 | 0 | 4.80 | none (not listed) | 0 | 0.0000 |
 
-Today's fleet is 1349 announced nodes. The large walks are Key and occurrence, through the host's publish selector; the two Global planes are own ∪ cohort, 30.00 subjects (MODEL within tens). Under v45 a no-consent device lists only Revocation (its one ordinary round) and Pulls the rest by subject, which reads the store directly, outside every plane lock; Key and occurrence are listed by today's peers and by old and consent peers.
+Today's fleet is 1349 announced nodes. Key and occurrence walk the host's publish selector; the two Global planes walk own ∪ cohort, which on a seat is every key it holds: 8698 subjects at seat-1 (DERIVED, 8e46165 bridge.rs :13152; the twin had 30 until 2026-11-11). Under v45 a no-consent device lists only Revocation (its one ordinary round), so the Revocation walk is the one that grows with devices; it Pulls the rest by subject, outside every plane lock. Key and occurrence are listed by today's peers and by old and consent peers.
 
-Today's fleet is 1349 announced nodes. The large walks are Key and occurrence, through the host's publish selector; the two Global planes are own ∪ cohort, 30.00 subjects (MODEL within tens). Under v45 a no-consent device lists only Revocation (its one ordinary round) and Pulls the rest by subject, which reads the store directly, outside every plane lock; Key and occurrence are listed by today's peers and by old and consent peers.
+###### By fleet size (no old peers)
+
+**required-set Pull (v45 baseline), as shipped**: a = 0.00002 s, b = 0.00000055 s per subject (DERIVED from the warm Key listing), one subject read = 0.002 s and one probe page = 0.0005 s under the lock; a plane's lock is one server, the seat's 4 cores do not help
+
+| devices | Key subjects | Key listings/s | Key hold ms | rho lock Key | rho lock IO | rho lock Rev | Key refill stall s | rounds per Key stall | key-plane CPU cores | seat CPU cores |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 10.00 | 8211 | 0.167 | 5.04 | 0.028 | 0.029 | 0.031 | 16.42 | 2.74 | 0.010 | 0.794 |
+| 30.00 | 8211 | 0.167 | 5.04 | 0.028 | 0.029 | 0.034 | 16.42 | 2.74 | 0.013 | 1.07 |
+| 100 | 8211 | 0.167 | 5.04 | 0.028 | 0.029 | 0.047 | 16.42 | 2.74 | 0.024 | 2.02 |
+| 300 | 8211 | 0.167 | 5.04 | 0.028 | 0.029 | 0.082 | 16.42 | 2.74 | 0.058 | 4.73 |
+| 1000 | 8211 | 0.167 | 5.04 | 0.028 | 0.029 | 0.206 | 16.42 | 2.74 | 0.173 | 14.23 |
+| 3000 | 18.3k | 0.167 | 10.56 | 0.063 | 0.064 | 1.180 | 36.52 | 6.09 | 1.10 | 91.03 |
+| 10.0k | 60.9k | 0.167 | 34.00 | 0.209 | 0.214 | 12.209 | 122 | 20.29 | 11.94 | 996 |
+| 30.0k | 182.6k | 0.167 | 101 | 0.626 | 0.641 | 107.553 | 365 | 60.87 | 107 | 8947 |
+| 100.0k | 608.7k | 0.167 | 335 | 2.085 | 2.136 | 1185.968 | 1217 | 203 | 1183 | 99.3k |
+
+Cold restart at 10,000 devices (named scenario): 188.2k store reads over the listed planes, longest stall 129 s on the revocation plane, 43.0k rounds waiting on it.
+
+**whole-plane diff (not shipped), as shipped**: a = 0.00002 s, b = 0.00000055 s per subject (DERIVED from the warm Key listing), one subject read = 0.002 s and one probe page = 0.0005 s under the lock; a plane's lock is one server, the seat's 4 cores do not help
+
+| devices | Key subjects | Key listings/s | Key hold ms | rho lock Key | rho lock IO | rho lock Rev | Key refill stall s | rounds per Key stall | key-plane CPU cores | seat CPU cores |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 10.00 | 8211 | 0.500 | 5.04 | 0.030 | 0.030 | 0.031 | 16.42 | 8.21 | 0.025 | 1.27 |
+| 30.00 | 8211 | 1.17 | 5.04 | 0.033 | 0.033 | 0.034 | 16.42 | 19.16 | 0.037 | 2.47 |
+| 100 | 8211 | 3.50 | 5.04 | 0.045 | 0.041 | 0.047 | 16.42 | 57.48 | 0.079 | 6.66 |
+| 300 | 8211 | 10.17 | 5.04 | 0.079 | 0.065 | 0.082 | 16.42 | 167 | 0.198 | 18.65 |
+| 1000 | 8211 | 33.50 | 5.04 | 0.196 | 0.150 | 0.206 | 16.42 | 550 | 0.616 | 60.59 |
+| 3000 | 18.3k | 100 | 10.56 | 1.119 | 0.807 | 1.180 | 36.52 | 3658 | 3.94 | 399 |
+| 10.0k | 60.9k | 334 | 34.00 | 11.541 | 8.066 | 12.209 | 122 | 40.6k | 42.85 | 4394 |
+| 30.0k | 182.6k | 1000 | 101 | 101.577 | 70.268 | 107.553 | 365 | 365.3k | 383 | 39.5k |
+| 100.0k | 608.7k | 3334 | 335 | 1119.719 | 771.723 | 1185.968 | 1217 | 4.06M | 4252 | 438.9k |
+
+Cold restart at 10,000 devices (named scenario): 510.6k store reads over the listed planes, longest stall 645 s on the io_revocation plane, 214.9k rounds waiting on it.
+
+###### Old peers: share that still rounds on every bootstrap plane
+
+| devices | old peer share | rho lock Key | rho lock IO | rho lock Rev | refill reads/s | seat CPU cores | seat rho | lock knee (MODEL, interval) | seat knee (MODEL, interval) |
+|---|---|---|---|---|---|---|---|---|---|
+| 1349 | 0 | 0.028 | 0.028 | 0.039 | 42.31 | 0.262 | 0.078 | 8,175 to 18,091 | 4,882 to 13,723 |
+| 1349 | 0.1 | 0.029 | 0.029 | 0.039 | 115 | 0.294 | 0.180 | 4,803 to 18,011 | 2,802 to 11,955 |
+| 1349 | 0.25 | 0.030 | 0.030 | 0.039 | 115 | 0.322 | 0.225 | 4,647 to 17,740 | 2,155 to 10,462 |
+| 1349 | 0.5 | 0.032 | 0.032 | 0.039 | 115 | 0.368 | 0.300 | 4,421 to 15,652 | 1,556 to 8,588 |
+| 1349 | 1 | 0.037 | 0.035 | 0.039 | 115 | 0.462 | 0.450 | 4,069 to 13,153 | 896 to 5,799 |
+| 10.0k | 0 | 0.208 | 0.214 | 0.753 | 314 | 3.38 | 0.844 | 8,175 to 18,091 | 4,882 to 13,723 |
+| 10.0k | 0.1 | 0.265 | 0.253 | 0.753 | 851 | 4.28 | 1.291 | 4,803 to 18,011 | 2,802 to 11,955 |
+| 10.0k | 0.25 | 0.340 | 0.304 | 0.753 | 851 | 5.39 | 1.624 | 4,647 to 17,740 | 2,155 to 10,462 |
+| 10.0k | 0.5 | 0.463 | 0.389 | 0.753 | 851 | 7.24 | 2.179 | 4,421 to 15,652 | 1,556 to 8,588 |
+| 10.0k | 1 | 0.710 | 0.559 | 0.753 | 851 | 10.93 | 3.289 | 4,069 to 13,153 | 896 to 5,799 |
+| 100.0k | 0 | 2.085 | 2.136 | 55.942 | 3136 | 274 | 68.589 | 8,175 to 18,091 | 4,882 to 13,723 |
+| 100.0k | 0.1 | 8.260 | 6.397 | 55.942 | 8509 | 354 | 88.542 | 4,803 to 18,011 | 2,802 to 11,955 |
+| 100.0k | 0.25 | 15.673 | 11.498 | 55.942 | 8509 | 459 | 114.707 | 4,647 to 17,740 | 2,155 to 10,462 |
+| 100.0k | 0.5 | 28.028 | 20.000 | 55.942 | 8509 | 633 | 158.314 | 4,421 to 15,652 | 1,556 to 8,588 |
+| 100.0k | 1 | 52.737 | 37.002 | 55.942 | 8509 | 982 | 245.529 | 4,069 to 13,153 | 896 to 5,799 |
+
+###### Which fix moves which term
+
+**10.0k devices, required-set Pull (v45 baseline), one seat** (rates at the point inputs, a diagnostic; knees are intervals)
+
+| read fix | (b) cache | budget | TTL rebuild | drain pages/s | permits/s | probe reads/s | refill reads/s | key-plane CPU cores | rho lock (plane) | longest stall s | lock knee (MODEL, interval) | seat knee (MODEL, interval) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| no | no | no | TTL rebuild whole (as shipped) | 102.9k | 103.7k | 334 | 314 | 11.94 | 12.209 (revocation) | 129 | 2,297 to 3,590 | 33 to 179 |
+| yes | no | no | TTL rebuild whole (as shipped) | 7.35 | 490 | 0 | 314 | 11.89 | 12.042 (revocation) | 129 | 2,393 to 3,636 | 1,987 to 3,030 |
+| no | yes | no | TTL rebuild whole (as shipped) | 102.9k | 103.3k | 0 | 314 | 0.573 | 0.739 (revocation) | 129 | 8,237 to 18,356 | 33 to 180 |
+| no | no | yes | TTL rebuild whole (as shipped) | 102.9k | 103.7k | 334 | 314 | 11.94 | 12.209 (revocation) | 0.512 | 2,297 to 3,590 | 33 to 179 |
+| no | yes | yes | TTL rebuild whole (as shipped) | 102.9k | 103.3k | 0 | 314 | 0.596 | 0.753 (revocation) | 0.512 | 8,175 to 18,091 | 33 to 180 |
+| yes | yes | yes | TTL rebuild whole (as shipped) | 7.35 | 490 | 0 | 314 | 0.596 | 0.753 (revocation) | 0.512 | 8,175 to 18,091 | 5,355 to 13,827 |
+| no | no | no | TTL rebuild removed (not built) | 102.9k | 103.3k | 334 | 0.012 | 11.89 | 11.994 (revocation) | 0 | 2,393 to 3,657 | 40 to 183 |
+
+Stress row (named, not a default; seat-1 measures 0 clears per hour): 0.5 clears per hour on each Global plane, as shipped: refill reads/s 323, rho lock 12.227.
+
+**100.0k devices, required-set Pull (v45 baseline), one seat** (rates at the point inputs, a diagnostic; knees are intervals)
+
+| read fix | (b) cache | budget | TTL rebuild | drain pages/s | permits/s | probe reads/s | refill reads/s | key-plane CPU cores | rho lock (plane) | longest stall s | lock knee (MODEL, interval) | seat knee (MODEL, interval) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| no | no | no | TTL rebuild whole (as shipped) | 10.27M | 10.27M | 3334 | 3136 | 1183 | 1185.968 (revocation) | 1290 | 2,297 to 3,590 | 33 to 179 |
+| yes | no | no | TTL rebuild whole (as shipped) | 73.42 | 4885 | 0 | 3136 | 1183 | 1184.302 (revocation) | 1290 | 2,393 to 3,636 | 1,987 to 3,030 |
+| no | yes | no | TTL rebuild whole (as shipped) | 10.27M | 10.27M | 0 | 3136 | 52.88 | 54.520 (revocation) | 1290 | 8,237 to 18,356 | 33 to 180 |
+| no | no | yes | TTL rebuild whole (as shipped) | 10.27M | 10.27M | 3334 | 3136 | 1183 | 1185.968 (revocation) | 0.512 | 2,297 to 3,590 | 33 to 179 |
+| no | yes | yes | TTL rebuild whole (as shipped) | 10.27M | 10.27M | 0 | 3136 | 54.38 | 55.942 (revocation) | 0.512 | 8,175 to 18,091 | 33 to 180 |
+| yes | yes | yes | TTL rebuild whole (as shipped) | 73.42 | 4885 | 0 | 3136 | 54.38 | 55.942 (revocation) | 0.512 | 8,175 to 18,091 | 5,355 to 13,827 |
+| no | no | no | TTL rebuild removed (not built) | 10.27M | 10.27M | 3334 | 0.116 | 1183 | 1183.819 (revocation) | 0 | 2,393 to 3,657 | 40 to 183 |
+
+Stress row (named, not a default; seat-1 measures 0 clears per hour): 0.5 clears per hour on each Global plane, as shipped: refill reads/s 3226, rho lock 1186.147.
+
+**3000 devices, whole-plane diff (not shipped), one seat** (rates at the point inputs, a diagnostic; knees are intervals)
+
+| read fix | (b) cache | budget | TTL rebuild | drain pages/s | permits/s | probe reads/s | refill reads/s | key-plane CPU cores | rho lock (plane) | longest stall s | lock knee (MODEL, interval) | seat knee (MODEL, interval) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| no | no | no | TTL rebuild whole (as shipped) | 41.3k | 42.1k | 400 | 255 | 3.94 | 1.438 (io_revocation) | 193 | 1,877 to 3,398 | 5 to 36 |
+| yes | no | no | TTL rebuild whole (as shipped) | 2.22 | 410 | 0 | 255 | 3.87 | 1.388 (io_revocation) | 193 | 1,955 to 3,439 | 896 to 2,836 |
+| no | yes | no | TTL rebuild whole (as shipped) | 41.3k | 41.7k | 0 | 255 | 0.209 | 0.370 (io_revocation) | 193 | 4,137 to 13,697 | 5 to 36 |
+| no | no | yes | TTL rebuild whole (as shipped) | 41.3k | 42.1k | 400 | 255 | 3.94 | 1.438 (io_revocation) | 0.512 | 1,877 to 3,398 | 5 to 36 |
+| no | yes | yes | TTL rebuild whole (as shipped) | 41.3k | 41.7k | 0 | 255 | 0.219 | 0.376 (io_revocation) | 0.512 | 4,069 to 13,153 | 5 to 36 |
+| yes | yes | yes | TTL rebuild whole (as shipped) | 2.22 | 410 | 0 | 255 | 0.219 | 0.376 (io_revocation) | 0.512 | 4,069 to 13,153 | 896 to 5,799 |
+| no | no | no | TTL rebuild removed (not built) | 41.3k | 41.8k | 400 | 0.003 | 3.90 | 1.116 (revocation) | 0 | 2,393 to 3,654 | 9 to 39 |
+
+Stress row (named, not a default; seat-1 measures 0 clears per hour): 0.5 clears per hour on each Global plane, as shipped: refill reads/s 271, rho lock 1.465.
+
+###### TTL refill against the measured windows
+
+The candidate explanation for the A' and C excess (MODEL: fits A' and C, not proven). At v44.1.2, the code the windows measured, a Key or occurrence TTL refill read every subject in one burst while holding that plane's lock, one sweep permit per read (v44.1.2 bridge.rs:7149). At 8e46165 the TTL opens a new epoch instead (stale-while-revalidate) and a listing reads at most K subjects, so the burst is gone from a v45 window: the same reads spread over listings. Each plane runs on its own phase, so about one 60 s window in 10 per plane holds one: a Key refill is 8211 reads in about 16.42 s, an occurrence refill 5650 to 11.3k reads in 11.30 to 22.60 s (1 to 2 reads per subject, mostly not attestation_query, which fits permits rising while that counter does not).
+
+- The residuals after drains and listings are 678 (B), 4697 (A') and 4401 (C) a minute. A' and C are the size of part of one burst, or of an occurrence refill at the low end; neither is a whole Key burst. B's residual is not a burst at all and stays UNEXPLAINED. Two of three windows holding a refill is more than one in 10 per plane predicts. Not tuned to fit; all three residuals stay UNEXPLAINED until v45's `key_plane_sweep.rebuilds_ttl` and `sweep_permits.key_plane_subject` counters settle it.
+- Averaged, the refills add 821 (Key) and 848 (occurrence) reads a minute at seat-1; the per-listing budget (K = 256, built and on at 8e46165) leaves that unchanged and caps a stall at 0.512 s.
+
+##### Offload: referral + proxy (MODEL)
+
+**Offload at 10.0k devices, whole-plane diff (not shipped), one seat** (seat cores / one proxy's cores; returns to the seat each start)
+
+| f | S | seat, as shipped | proxy, as shipped | seat, after | proxy, after | seat CPU per proxy peer, as shipped | per proxy peer, after |
+|---|---|---|---|---|---|---|---|
+| 0 | - | 4394 | - | 51.28 | - | - | - |
+| 0.5 | 1 | 2199 | 2197 | 25.84 | 25.67 | 0.539 | 0.007 |
+| 0.5 | 4 | 2200 | 550 | 25.86 | 6.57 | 0.539 | 0.007 |
+| 0.5 | 16 | 2207 | 138 | 25.94 | 1.79 | 0.539 | 0.007 |
+| 0.5 | 64 | 2233 | 35.03 | 26.25 | 0.600 | 0.539 | 0.007 |
+| 0.9 | 1 | 442 | 3953 | 5.48 | 46.04 | 0.539 | 0.007 |
+| 0.9 | 4 | 444 | 989 | 5.50 | 11.66 | 0.539 | 0.007 |
+| 0.9 | 16 | 450 | 248 | 5.58 | 3.07 | 0.539 | 0.007 |
+| 0.9 | 64 | 476 | 62.48 | 5.90 | 0.919 | 0.539 | 0.007 |
+| 1 | 1 | 2.88 | 4392 | 0.394 | 51.13 | 0.539 | 0.007 |
+| 1 | 4 | 4.49 | 1099 | 0.414 | 12.93 | 0.539 | 0.007 |
+| 1 | 16 | 10.96 | 275 | 0.492 | 3.39 | 0.539 | 0.007 |
+| 1 | 64 | 36.81 | 69.34 | 0.806 | 0.998 | 0.539 | 0.007 |
+
+**Offload at 10.0k devices, required-set Pull (v45 baseline), one seat** (seat cores / one proxy's cores; returns to the seat each start)
+
+| f | S | seat, as shipped | proxy, as shipped | seat, after | proxy, after | seat CPU per proxy peer, as shipped | per proxy peer, after |
+|---|---|---|---|---|---|---|---|
+| 0 | - | 996 | - | 14.49 | - | - | - |
+| 0.5 | 1 | 500 | 497 | 7.49 | 7.20 | 0.539 | 0.007 |
+| 0.5 | 4 | 501 | 125 | 7.51 | 1.86 | 0.539 | 0.007 |
+| 0.5 | 16 | 508 | 31.66 | 7.59 | 0.531 | 0.539 | 0.007 |
+| 0.5 | 64 | 534 | 8.37 | 7.90 | 0.198 | 0.539 | 0.007 |
+| 0.9 | 1 | 102 | 895 | 1.81 | 12.89 | 0.539 | 0.007 |
+| 0.9 | 4 | 104 | 224 | 1.83 | 3.29 | 0.539 | 0.007 |
+| 0.9 | 16 | 110 | 56.50 | 1.91 | 0.887 | 0.539 | 0.007 |
+| 0.9 | 64 | 136 | 14.58 | 2.22 | 0.287 | 0.539 | 0.007 |
+| 1 | 1 | 2.88 | 994 | 0.394 | 14.31 | 0.539 | 0.007 |
+| 1 | 4 | 4.49 | 249 | 0.414 | 3.64 | 0.539 | 0.007 |
+| 1 | 16 | 10.96 | 62.71 | 0.492 | 0.976 | 0.539 | 0.007 |
+| 1 | 64 | 36.81 | 16.13 | 0.806 | 0.309 | 0.539 | 0.007 |
+
+##### Idle bytes
+
+| announced refs K | round shape | bytes / cadence each way | phone bytes / day (both ways, awake share) | fits cellular shaped | fits Wi-Fi shaped | seat egress 1k / 10k / 100k devices (Mbit/s) | first contact | first contact at cellular shaped rate |
+|---|---|---|---|---|---|---|---|---|
+| 100 | whole-plane diff (not shipped) | 16.5 KB | 80.8 MB | no | yes | 4.40 / 44.01 / 440 | 835.9 KB | 4776.5 s |
+| 100 | stretched cadence (not built) | 1.7 KB | 8.1 MB | yes | yes | 0.440 / 4.40 / 44.01 | 835.9 KB | 4776.5 s |
+| 100 | digest (after the LTS, not built) | 820 B | 4.0 MB | yes | yes | 0.219 / 2.19 / 21.87 | 835.9 KB | 4776.5 s |
+| 100 | required-set Pull (v45 baseline) | 634 B | 3.1 MB | yes | yes | 0.169 / 1.69 / 16.90 | 14.1 KB | 80.6 s |
+| 1000 | whole-plane diff (not shipped) | 149.2 KB | 730.5 MB | no | no | 39.79 / 398 / 3979 | 8.3 MB | 47641.5 s |
+| 1000 | stretched cadence (not built) | 14.9 KB | 73.1 MB | no | yes | 3.98 / 39.79 / 398 | 8.3 MB | 47641.5 s |
+| 1000 | digest (after the LTS, not built) | 820 B | 4.0 MB | yes | yes | 0.219 / 2.19 / 21.87 | 8.3 MB | 47641.5 s |
+| 1000 | required-set Pull (v45 baseline) | 634 B | 3.1 MB | yes | yes | 0.169 / 1.69 / 16.90 | 14.1 KB | 80.6 s |
+| 2690 | whole-plane diff (not shipped) | 398.4 KB | 1.95 GB | no | no | 106 / 1062 / 10.6k | 22.4 MB | 128132.3 s |
+| 2690 | stretched cadence (not built) | 39.8 KB | 195.1 MB | no | no | 10.62 / 106 / 1062 | 22.4 MB | 128132.3 s |
+| 2690 | digest (after the LTS, not built) | 820 B | 4.0 MB | yes | yes | 0.219 / 2.19 / 21.87 | 22.4 MB | 128132.3 s |
+| 2690 | required-set Pull (v45 baseline) | 634 B | 3.1 MB | yes | yes | 0.169 / 1.69 / 16.90 | 14.1 KB | 80.6 s |
+| 8698 | whole-plane diff (not shipped) | 1.3 MB | 6.29 GB | no | no | 342 / 3425 / 34.2k | 72.5 MB | 414279.8 s |
+| 8698 | stretched cadence (not built) | 128.4 KB | 628.8 MB | no | no | 34.25 / 342 / 3425 | 72.5 MB | 414279.8 s |
+| 8698 | digest (after the LTS, not built) | 820 B | 4.0 MB | yes | yes | 0.219 / 2.19 / 21.87 | 72.5 MB | 414279.8 s |
+| 8698 | required-set Pull (v45 baseline) | 634 B | 3.1 MB | yes | yes | 0.169 / 1.69 / 16.90 | 14.1 KB | 80.6 s |
+
+##### 1M devices, v45 baseline (required-set Pull), one seat, as shipped
+
+| term | value | tag |
+|---|---|---|
+| index pages (drains / audit) | 1.03G pages/s, 9.79M cores | DERIVED (page model) x FITTED (cpu/byte) |
+| subject Pull reads | 17.3k reads/s, 2.69 cores | MEASURED (debug; release rerun pending): 10 calls per 10-minute cycle; MODEL: first-contact, write and kick legs |
+| attribution-check reads | 33.3k reads/s, 5.18 cores | DERIVED (3 s cache vs 30 s cadence) |
+| frame handling | 9.97 cores | MODEL |
+| server relay refresh | 0.100 cores | MEASURED-CONTEXT (not edge) |
+| seat CPU total | 9.93M cores of 4.00 (rho 4894251.3) | sum |
+| sweep permits | rho 4894251.34 | DERIVED |
+| seat egress | 169 Mbit/s | DERIVED (ref bytes) / MODEL (refs per Pull) |
+| device links at the seat | 1.00M (cap 1024) | PROVISIONAL cap |
+| shaped device links at the seat | 8 of 1.00M (the rest run unshaped on the same homing link) | SOURCED (edge link_shaping.rs:751 NODE_CAP_LINKS; seat class is seat to seat only, :2867) |
+| subject Pull legs | 16.5k per s (1426 per device per day) | DERIVED (8e46165 runtime.rs BUNDLE_PULL_PLANES, 600 s timer) + MODEL (starts, writes, kicks) |
+| Revocation rounds | 33.3k per s (one per device per 30 s, the seat's Projection::Global offer) | DERIVED (8e46165 runtime.rs BUNDLE_ROUND_PLANES) / MODEL (offer size) |
+| reach-rule reads (6244795) | 0 reads/s | not in this code |
+| subject-set builds before each key-plane listing | 21.5k cores | MODEL (per-subject cost); DERIVED (Global = every key, bridge.rs :13152) |
+| key-plane listings | 33.3k listings/s, 118.2k cores, 33.3k probe reads/s, 31.4k refill reads/s, busiest lock rho 118247.38 on revocation (one server per plane) | DERIVED b (warm Key listing) / MODEL a, probe, cache hit; lock held per listing (8e46165 bridge.rs key_plane_listing :7664); TTL revalidation key_plane_memo.rs :462, budget :296 |
+| holdings memory (v45 plan) | 0 B | DERIVED |
+
+##### 1M devices, v45 baseline (required-set Pull), one seat, after read minimisation
+
+| term | value | tag |
+|---|---|---|
+| index pages (drains / audit) | 734 pages/s, 7.00 cores | DERIVED (page model) x FITTED (cpu/byte) |
+| subject Pull reads | 17.3k reads/s, 2.69 cores | MEASURED (debug; release rerun pending): 10 calls per 10-minute cycle; MODEL: first-contact, write and kick legs |
+| attribution-check reads | 33.3k reads/s, 5.18 cores | DERIVED (3 s cache vs 30 s cadence) |
+| frame handling | 9.97 cores | MODEL |
+| server relay refresh | 0.100 cores | MEASURED-CONTEXT (not edge) |
+| seat CPU total | 26.9k cores of 4.00 (rho 6731.7) | sum |
+| sweep permits | rho 52.48 | DERIVED |
+| seat egress | 169 Mbit/s | DERIVED (ref bytes) / MODEL (refs per Pull) |
+| device links at the seat | 1.00M (cap 1024) | PROVISIONAL cap |
+| shaped device links at the seat | 8 of 1.00M (the rest run unshaped on the same homing link) | SOURCED (edge link_shaping.rs:751 NODE_CAP_LINKS; seat class is seat to seat only, :2867) |
+| subject Pull legs | 16.5k per s (1426 per device per day) | DERIVED (8e46165 runtime.rs BUNDLE_PULL_PLANES, 600 s timer) + MODEL (starts, writes, kicks) |
+| Revocation rounds | 33.3k per s (one per device per 30 s, the seat's Projection::Global offer) | DERIVED (8e46165 runtime.rs BUNDLE_ROUND_PLANES) / MODEL (offer size) |
+| reach-rule reads (6244795) | 112.0k reads/s | DERIVED (bridge.rs unowned_reach) / MODEL (unowned share, reads per subject) |
+| subject-set builds before each key-plane listing | 21.5k cores | MODEL (per-subject cost); DERIVED (Global = every key, bridge.rs :13152) |
+| key-plane listings | 33.3k listings/s, 5385 cores, 0 probe reads/s, 31.4k refill reads/s, busiest lock rho 5400.77 on revocation (one server per plane) | DERIVED b (warm Key listing) / MODEL a, probe, cache hit; lock held per listing (8e46165 bridge.rs key_plane_listing :7664); TTL revalidation key_plane_memo.rs :462, budget :296 |
+| holdings memory (v45 plan) | 2.71 GB | DERIVED |
+
 
 **Reading the results.**
 
-- **v45.0.0 (in release) is the default.** It is the required-set Pull with the read-minimisation series (the holdings index, 95a85ca, and the read fix, 4897789), the listing cache (b) and the read budget. Eric ruled on 2026-11-10 that the read fix ships in v45. It holds about 18,200 devices on one 4-core seat (MODEL, PROVISIONAL in how long a Pull holds its permit and in the Pull's release-build cost). It binds on the sweep permits, and they are Pull permits: 8 per device per 10-minute cycle, MEASURED on a debug build, each held about 2 ms (DERIVED from a key-plane refill, not measured on a Pull). At today's 1,349 devices it books 0.19 cores, below today's measured 0.65, because the read fix and bb6ca83 remove today's peers' withheld-row reads. That rests on `refused_reads_left_after_fix` at its upper bound of 1.
-- **Withheld rows.** The withhold gates are on the Attestation plane only and scale with its rounds, not with devices or the store. Composer lookups are booked per Attestation round, not per withheld row. bb6ca83 removes the first-contact withholds, about 2,000 of window B's 2,263 a minute. After the read fix, a row the reach half refuses reads nothing, and a row the row half refuses (`may_receive`) still reads at today's cost. How many are the row half's is not measured. All from edge source read 2026-11-10 at v44.1.2 (withhold-rate).
-- **Without the read fix (not released).** Each attributed device's 30 s Revocation round drains the whole 42-page attestation index at the seat, so the seat saturates near 80 devices. Measured per page on a debug build, that drain is about 6.3 cores of wall time at 1,349 devices. With whole-plane rounds on the four planes that read the index it would be about 21.8 cores. The model's own estimate of the whole seat there is 18.8 cores.
-- **The lock that comes first for v45 is the occurrence plane, at about 47,700 devices,** and the TTL refill is what fills it. Revocation walks own ∪ cohort, tens of subjects, so its listing is about 0.5 ms (MODEL).
-- **Old peers.** Whole-plane rounds list Key and occurrence every 30 s per device over a walk that grows with the fleet, so v44 peers bring the Key lock back. An all-v44 fleet's lock knee is about 2,800 (Key). With a quarter of the devices on v44, v45's seat knee falls from about 18,200 to about 7,400.
-- **What (b) and the budget buy.** At seat-1 size a Key refill holds the plane for about 16 s, and an occurrence refill for 11–22 s. The budget caps that stall at about 0.5 s. (b) takes the warm Key listing from about 5 ms to about 0.2 ms and the probes to zero. They are stall and old-peer relief, not first-order capacity.
+- **v45.0.0 (release/45.0.0 at 8e46165, untagged when read) is the default.** It is the required-set Pull with the read-minimisation series (the holdings index, 5f86c2d, and the read fix, 7fa7105), the listing cache (b) and the read budget, both BUILT and on by default at 8e46165 (only their timings are MODEL). Its knee is not one count: on one 4-core seat at 70 % it is 4,882 to 13,723 devices if the server's publish set grows with the fleet (g = 1) and 14,253 to 75,879 if it stays at today's size (g = 0), MODEL with its interval; which of the two holds is FRONTIER (the growth table above, never one count). PROVISIONAL in how long a Pull holds its permit and in the Pull's release-build cost.
+- **Withheld rows.** The withhold gates are on the Attestation plane only and scale with its rounds, not with devices or the store. Composer lookups are booked per Attestation round, not per withheld row. 3bffbdc (cited before as bb6ca83) removes the first-contact withholds, about 2,000 of window B's 2,263 a minute. After the read fix, a row the reach half refuses reads nothing, and a row the row half refuses (`may_receive`) still reads at today's cost. How many are the row half's is not measured. All from edge source read 2026-11-10 at v44.1.2 (withhold-rate).
+- **Without the read fix (never released).** Each attributed device's 30 s Revocation round drains the whole 42-page attestation index at the seat, so the seat saturates within tens to a few hundred devices (the table above gives the interval).
+- **Global planes.** Revocation and occurrence-withdrawal walk own ∪ cohort, which on a canonical is every key held: 8,211 to 8,698 subjects at seat-1, not tens. The lock knee is in the table above as an interval.
+- **Old peers.** Whole-plane rounds list Key and occurrence every 30 s per device over a walk that grows with the fleet, so v44 peers bring the Key lock back. With a quarter of the devices on v44, v45's knee falls to the interval in the growth table's old-peer column (2,155 to 10,462 at g = 1, 2,925 to 22,933 at g = 0).
+- **What (b) and the budget buy.** The TTL burst that held a plane for a whole refill cannot occur at 8e46165: stale-while-revalidate revalidates at most 256 reads a listing. (b) takes the warm Key listing from a few ms to about 0.2 ms and the probes to zero. They are stall and old-peer relief, not first-order capacity.
 
 #### 4.7.4 Parameters
+
 
 | parameter | value | tag | source |
 |---|---|---|---|
@@ -684,61 +1083,65 @@ Today's fleet is 1349 announced nodes. The large walks are Key and occurrence, t
 | `seat_key_rows` | 8698 | MEASURED | seat-1 keys, window A; also the code bound on the Key-plane offer |
 | `announced_nodes` | 1349 | MEASURED | seat-1 relay report announced_nodes |
 | `announced_owners` | 1338 | MEASURED | seat-1 relay report owners |
-| `today_peers_booked` | 1.00 | MODEL | 1 books window B's measured round mix (today's peers at seat-1: 10/11/10/11 responder finals a minute on attestation/occurrence/key/route, 0 Global, 2,263 rows withheld; MEASURED) as a fixed baseline in every scenario; how it scales is MODEL: the rounds stay fixed and the rows withheld per attestation round grow with the attestation store. Devices drawn as consent or old peers on top may double-count some of it. AfterReadMin drops its withheld-row cost, which rests on withhold-rate's source answer (not back). 0 shows the devices alone |
+| `today_peers_booked` | 1.00 | MODEL | 1 books window B's measured round mix (today's peers at seat-1: 10/11/10/11 responder finals a minute on attestation/occurrence/key/route, 0 Global, 2,263 rows withheld; MEASURED) as a fixed baseline in every scenario; the rounds and the rows withheld per attestation round stay fixed (the withhold gates scale with Attestation rounds, not devices: edge source read 2026-11-10 at v44.1.2 (withhold-rate)). Devices drawn as consent or old peers on top may double-count some of it. On the v45 read path bb6ca83 removes the first-contact withholds and the read fix the reach half's reads. 0 shows the devices alone |
+| `today_rounds_scale` | 1.00 | MEASURED | multiplies window B's responder finals and withholds when today's peers are booked; 1 is window B itself; the interval [0.91, 1.20] is the range of the other windows' finals per plane against B's (A, A' and C on Attestation, Key, route and occurrence; C's 43 occurrence finals are left out as unexplained), seat_calibration::INPUT_INTERVALS |
 | `store_floor_nodes` | 1349 | MODEL | the store never holds fewer nodes than today's announced set: N_nodes = max(devices, floor) |
 | `page_rows` | 1024 | DERIVED | holdings drain page size (edge code trace, team-lead 2026-11-10) |
 | `cadence_s` | 30.00 | DERIVED | bootstrap round cadence per plane per peer (edge #881) |
 | `small_reads_per_cadence` | 6.00 | DERIVED | about 6 small reads per device per cadence beside the drains (edge code trace) |
 | `summaries_per_round` | 1.00 | DERIVED | one drain per completed responder round (edge code trace); with the Revocation and occurrence-revocation finals at 0 (window C) window B predicts 1,500 pages against 2,262 permits measured, so it no longer fits: see the permit residuals |
 | `att_required_queries` | 15.00 | DERIVED | required read of 10-20 counted queries per attestation round (midpoint) |
-| `refused_rows_per_att_round` | 208 | MEASURED | 2,078 rows withheld / 10 attestation rounds, window A |
-| `queries_per_refused_row` | 9.40 | MEASURED | 19,550 attestation queries / 2,078 withheld rows, window A |
+| `refused_rows_per_att_round` | 208 | MEASURED | 2,078 rows withheld / 10 attestation rounds, window A (fit split); window B gives 226.3, the interval's other end |
+| `queries_per_refused_row` | 9.41 | MEASURED | 19,550 attestation queries / 2,078 withheld rows, window A (fit split); window B gives 19,754 / 2,263 = 8.73, the interval's other end |
 | `composer_per_refused_row` | 1.86 | MEASURED | 3,867 composer lookups / 2,078 withheld rows, window A (all returned 0 rows); kept for the calibration table only: composers are not a per-withheld-row cost (edge source read 2026-11-10 at v44.1.2 (withhold-rate)), so the ledger books them per Attestation round |
-| `composer_per_att_round` | 419 | MEASURED | composer lookups per Attestation round, the mean of the two windows that count them: A 3,867 / 10 rounds, B 4,512 / 10 (each within 8% of the mean); booked per round in both read sets, untouched by the read fix |
-| `first_contact_withhold_share` | 0.884 | DERIVED | share of today's withholds that are first-contact withholds, which bb6ca83 removes: ~2,000 of window B's 2,263 a minute (edge source read 2026-11-10 at v44.1.2 (withhold-rate)); applied on the v45 read path |
-| `consent_per_refused_row` | 1.00 | MEASURED | 2,104 live-consent-grant reads / 2,078 withheld rows, window A; each read runs inside the page permit and takes none of its own (edge source read 2026-11-10 at v44.1.2 (withhold-rate)) |
-| `grant_reads_per_att_listing_after_fix` | 5.00 | DERIVED | after the read fix (commit 3, 4897789: the reach half runs before the gates that read the store) a refused row reads no grant: about one grant read per local key per Attestation listing, ~50 a minute at window B's 10 listings, from ~2,100 (edge source read 2026-11-10 at v44.1.2 (withhold-rate)); the quarantine consults fall by a similar count and are not in the seat figures (no counter books them) |
+| `composer_per_att_round` | 387 | MEASURED | composer lookups per Attestation round, fitted on window A alone (3,867 / 10 rounds; the declared fit split, seat_calibration::FIT); window B (4,512 / 10 = 451.2) is held out and predicted at -14.3%; the two windows bound the interval [386.7, 451.2]; booked per round in both read sets, untouched by the read fix |
+| `first_contact_withhold_share` | 0.884 | DERIVED | share of today's withholds that are first-contact withholds, which bb6ca83 (8e46165: 3bffbdc) removes: ~2,000 of window B's 2,263 a minute (edge source read 2026-11-10 at v44.1.2 (withhold-rate)); applied on the v45 read path |
+| `consent_per_refused_row` | 1.01 | MEASURED | 2,104 live-consent-grant reads / 2,078 withheld rows, window A (fit split; no other window counts them); each read runs inside the page permit and takes none of its own (edge source read 2026-11-10 at v44.1.2 (withhold-rate)) |
+| `grant_reads_per_att_listing_after_fix` | 5.00 | DERIVED | after the read fix (commit 3, 4897789, in 8e46165 as 7fa7105: the reach half runs before the gates that read the store) a refused row reads no grant: about one grant read per local key per Attestation listing, ~50 a minute at window B's 10 listings, from ~2,100 (edge source read 2026-11-10 at v44.1.2 (withhold-rate)); the quarantine consults fall by a similar count and are not in the seat figures (no counter books them) |
 | `refused_reads_left_after_fix` | 1.00 | MODEL | after the read fix, the share of withheld rows refused by the row half (may_receive), which still read at today's cost per row; the reach half reads nothing (edge source read 2026-11-10 at v44.1.2 (withhold-rate)). The share is not measured: 1 is the upper bound (every withheld row refused by the row half), 0 makes a withheld row free |
-| `rows_per_att_query` | 7.50 | MEASURED | attestation queries return ~7.5 rows each, window A |
+| `rows_per_att_query` | 7.54 | MEASURED | attestation queries return 147,410 / 19,550 = 7.54 rows each, window A (fit split; no other window counts rows) |
 | `stale_routes_per_s` | 2.80 | MEASURED | seat-1 stale routes re-delivered per second |
 | `stale_route_reads` | 2.00 | DERIVED | two store reads per stale route delivery (edge code trace) |
 | `hybrid_verify_cpu_s` | 0.002 | MODEL | CPU-seconds per hybrid (Ed25519 + ML-DSA-65) signature verify; not profiled |
-| `sweep_permits` | 2.00 | DERIVED | two sweep permits per node: a drain takes one per PAGE, a key-plane listing one per probe page and one per subject it reads (v44.1.2 bridge.rs:7149, :7233, :10072); no withhold site takes one (edge source read 2026-11-10 at v44.1.2 (withhold-rate)) |
+| `sweep_permits` | 2.00 | DERIVED | two sweep permits per node (8e46165 bridge.rs DEFAULT_ADVERTISE_SWEEP_PERMITS :1128): a drain takes one per PAGE, a key-plane listing one per subject it reads (key_plane_listing :7770), a subject Pull answer one (subject_pull_answer :5339), a feed page one (:8357, :8455), a send-set read one (resolved_peer_set :11363); no withhold site takes one (edge source read 2026-11-10 at v44.1.2 (withhold-rate)) |
 | `att_listing_permits` | 3.00 | DERIVED | one Attestation listing takes 2 to 4 permits however many rows it withholds (watermarked sweep, head and after-head pages, v44.1.2 bridge.rs:3979, :3998; edge source read 2026-11-10 at v44.1.2 (withhold-rate)); midpoint |
 | `required_rows_permits` | 1.00 | DERIVED | the required-rows read of an Attestation round takes one permit (v44.1.2 bridge.rs:10966) |
 | `td_listing_permits` | 1.50 | MODEL | a route listing takes the same watermarked sweep (v44.1.2 bridge.rs:7374): 1 or 2 permits, midpoint; not traced per round |
-| `key_memo_expiry_s` | 600 | DERIVED | MEMO_TTL 600 s on each of the four key planes (Key, occurrence, Revocation, occurrence withdrawal): the memo is cleared whole and the next listing reads every subject it asks for under the plane's lock, one permit per read (v44.1.2 key_plane_memo.rs:61, needs_rebuild :253; c580298 the same); lazy, so a plane nobody lists never refills |
+| `send_set_memo_ttl_s` | 10.00 | DERIVED | a consent send-set read takes one sweep permit and is memoized this long (v44.1.2 bridge.rs resolved_peer_set :9828; 8e46165 :11338, permit :11363, CONSENT_SEND_SET_MEMO_TTL :3150): at least one read per 10 s while Attestation rounds arrive that often, so >= 6 a minute in every window; ADDED 2026-11-11, it closes 6 a minute of each permit residual; invalidations add more (not counted at v44.1.2) |
+| `key_memo_expiry_s` | 600 | DERIVED | MEMO_TTL 600 s on each of the four key planes (8e46165 key_plane_memo.rs :97). At v44.1.2 (the calibration windows) the TTL cleared the memo and the next listing re-read every subject in one burst under the lock; at 8e46165 it opens a new epoch (PlaneMemo::revalidate :462): the answers are served stale while they are re-read, at most KEY_PLANE_READ_BUDGET a listing, so every subject is still re-read once per TTL (reads per minute unchanged) but no listing holds the lock for more than K reads; lazy, so a plane nobody lists never refills |
 | `reply_drain` | 1.00 | MODEL | an initiator drains its index on each reply Summary (window A candidate; UNEXPLAINED until the counters split) |
-| `permit_residual_b_per_min` | 684 | UNEXPLAINED | window B: 2,262 sweep permits less 1,577.5 predicted (drains (10 + 11 + 10) x 42 + 11 x 18 = 1,500; listings 10 x (3 + 1) Attestation, 11 x 1.5 route, 21 key-plane probes); no TTL refill fits it (a refill is thousands of permits or none) |
-| `permit_residual_a_prime_per_min` | 4703 | UNEXPLAINED | window A': 6,386 less 1,683 predicted (drains 1,602, listings 81); a Key or occurrence TTL refill in the window is the candidate (MODEL, fits A' and C, not proven) |
-| `permit_residual_c_per_min` | 4407 | UNEXPLAINED | window C: 7,512 less 3,105 predicted (drains 2,988, listings 117); the 43 occurrence finals are themselves unexplained; a TTL refill is the candidate (MODEL, not proven) |
-| `probe_per_s` | 1.00 | DERIVED | v45 plan: one shared holdings probe at most once a second per index kind |
-| `audit_drain_s` | 60.00 | DERIVED | v45 plan: one full audit drain per 60 s per index kind |
+| `permit_residual_b_per_min` | 678 | UNEXPLAINED | window B: 2,262 sweep permits less 1,583.5 predicted (drains (10 + 11 + 10) x 42 + 11 x 18 = 1,500; listings 10 x (3 + 1) Attestation, 11 x 1.5 route, 21 key-plane probes, 6 send-set reads); no TTL refill fits it (a refill is thousands of permits or none); decomposed with its candidate causes in seat_calibration::residuals |
+| `permit_residual_a_prime_per_min` | 4697 | UNEXPLAINED | window A': 6,386 less 1,689 predicted (drains 1,602, listings 81, send-set reads 6); a Key or occurrence TTL refill in the window is the candidate (MODEL, fits A' and C, not proven) |
+| `permit_residual_c_per_min` | 4401 | UNEXPLAINED | window C: 7,512 less 3,111 predicted (drains 2,988, listings 117, send-set reads 6); the 43 occurrence finals are themselves unexplained; a TTL refill is the candidate (MODEL, not proven) |
+| `probe_per_s` | 0.200 | DERIVED | probes per second per serve-cursor feed when no door marked it dirty: FEED_PROBE_SPACING 5 s (8e46165 store_feed.rs :86), one feed shared by the four key-plane memos and the holdings index, two cursors (Attestation, route), one permit a page (bridge.rs :8357, :8455); every admitted row marks the feed dirty, so the next ask drains again (the earlier 'one probe per second per index kind' was the v45 plan, not the code) |
+| `audit_drain_s` | 60.00 | DERIVED | one full audit drain per 60 s per index kind (8e46165 holdings_index.rs DEFAULT_AUDIT_EVERY :222) |
 | `holdings_bytes_per_hash` | 60.00 | DERIVED | v45 plan: 40-80 bytes per hash held in the shared holdings set |
 | `hash_ref_bytes` | 72.00 | MODEL | decoded bytes per index entry (64 hex chars + framing) |
 | `row_bytes` | 800 | DERIVED | 43-103 MB decoded over 8.5k-14.4k calls per 30 s at 7.5 rows a call: 675-954 B a row (seat-1 profile) |
 | `call_overhead_bytes` | 400 | MODEL | fixed cost of one counted call in decoded-byte equivalents (a 0-row call still costs) |
-| `cpu_per_byte_s` | 1.298e-7 | FITTED | fitted so window B's predicted CPU equals 65.2% of a core; see calibrate() |
+| `cpu_per_byte_s` | 1.294e-7 | FITTED | fitted so window B's predicted CPU equals cpu_window_b_cores; see calibrate() and seat_calibration::FIT |
+| `cpu_window_b_cores` | 0.652 | MEASURED | window B process CPU, cores (utime+stime over 60 s, the one window with CPU); the input cpu_per_byte_s is fitted to; interval in seat_calibration::INPUT_INTERVALS |
 | `round_overhead_cpu_s` | 2.000e-4 | MODEL | frame handling per received Summary beside its reads |
 | `server_refresh_cores` | 0.100 | MEASURED-CONTEXT | server announced-relay refresh, ~1/min at p50 6.7 s, ~10% of a core, being fixed server-side; not an edge cost |
 | `seat_cores` | 4.00 | MODEL | cores the seat can use (seat-1 reached 171% in the roll hour, so at least 2) |
 | `proxy_cores` | 2.00 | MODEL | cores a server-class proxy can use |
 | `cpu_ceiling` | 0.700 | MODEL | utilisation the sweep treats as the ceiling (cores and permits) |
-| `pull_planes` | 4.00 | DERIVED | BUNDLE_PULL_PLANES: Key, IdentityOccurrence, TransportDestination, IdentityOccurrenceRevocation; the self and seat legs (CIRISEdge#971 c580298 runtime.rs:1016) |
-| `owner_planes` | 3.00 | DERIVED | BUNDLE_OWNER_PLANES: Key, IdentityOccurrence, IdentityOccurrenceRevocation, never the route plane; the owner leg, timer cycles only (c580298 runtime.rs:1027, :1461, :1503) |
-| `pull_cycle_s` | 600 | DERIVED | BUNDLE_PULL_INTERVAL, each device draws 300-900 s, mean 600 s (c580298 runtime.rs:1051, bundle_pull_delay :1538, jittered :1550) |
-| `first_contact_spacing_s` | 30.00 | DERIVED | BUNDLE_PULL_MIN_SPACING: kicked cycles at least this far apart; first-contact retries drawn U[0.5, 1.5] of it, mean 30 s (c580298 runtime.rs:1056, first_contact_delay :1545) |
-| `first_contact_tries` | 6.00 | DERIVED | BUNDLE_FIRST_CONTACT_TRIES: quick cycles before the jittered 600 s timer when a seat never attributes; the give-up is counted and warned once (c580298 runtime.rs:1262, :1628) |
-| `first_contact_cycles` | 2.00 | MODEL | first-contact cycles a start costs when the seat already holds the key and route: the offering Key and TD answers of the first cycle attribute at the second (c580298 runtime.rs:1522); at most first_contact_tries |
-| `runtime_starts_per_device_day` | 4.00 | MODEL | replication runtime starts per device per day; each is first contact with every seat (self and seat legs on Key, IO and TD; IOR held until attributed, c580298 runtime.rs:1474) |
-| `pull_plane_writes_per_device_day` | 10.00 | MODEL | kicked write cycles per device per day: own rows on a Pull plane (a route change on a network move dominates), merged 30 s apart, one self leg each; Attestation-plane writes kick nothing (c580298 runtime.rs:1320) |
+| `pull_planes` | 4.00 | DERIVED | BUNDLE_PULL_PLANES: Key, IdentityOccurrence, TransportDestination, IdentityOccurrenceRevocation; the self and seat legs (8e46165 runtime.rs :1113, BundlePull::cycle :1550) |
+| `owner_planes` | 3.00 | DERIVED | BUNDLE_OWNER_PLANES: Key, IdentityOccurrence, IdentityOccurrenceRevocation, never the route plane; the owner leg, timer cycles only (8e46165 runtime.rs :1124, cycle :1550) |
+| `pull_cycle_s` | 600 | DERIVED | BUNDLE_PULL_INTERVAL from_mins(10), each device draws 300-900 s, mean 600 s (8e46165 runtime.rs :1154, bundle_pull_delay :1641, jittered :1653) |
+| `first_contact_spacing_s` | 30.00 | DERIVED | BUNDLE_PULL_MIN_SPACING: kicked cycles at least this far apart; first-contact retries drawn U[0.5, 1.5] of it, mean 30 s (8e46165 runtime.rs :1159, first_contact_delay :1648) |
+| `first_contact_tries` | 6.00 | DERIVED | BUNDLE_FIRST_CONTACT_TRIES: quick cycles before the jittered 600 s timer when a seat never attributes; the give-up is counted and warned once (8e46165 runtime.rs :1365, note_first_contact_gave_up :1665, spawn_bundle_pull :1683) |
+| `first_contact_cycles` | 2.00 | MODEL | first-contact cycles a start costs when the seat already holds the key and route: the offering Key and TD answers of the first cycle attribute at the second (8e46165 runtime.rs cycle :1620); at most first_contact_tries |
+| `runtime_starts_per_device_day` | 4.00 | MODEL | replication runtime starts per device per day; each is first contact with every seat (self and seat legs on Key, IO and TD; IOR held until attributed, 8e46165 runtime.rs :1574) |
+| `pull_plane_writes_per_device_day` | 10.00 | MODEL | kicked write cycles per device per day: own rows on a Pull plane (a route change on a network move dominates), merged 30 s apart, one self leg each; Attestation-plane writes kick nothing (8e46165 runtime.rs kick_wrote :1422) |
 | `host_kicks_per_device_day` | 0 | MODEL | host round_now kicks per device per day (self and seat legs on the four Pull planes); an idle phone makes none |
-| `consent_peer_share` | 0 | MODEL | share of devices whose host names the seat as a consent peer: those round on every bootstrap plane as on v44 (c580298 runtime.rs:1271 targets, :2534); the case that brings the whole-plane bytes back |
+| `consent_peer_share` | 0 | MODEL | share of devices whose host names the seat as a consent peer: those round on every bootstrap plane as on v44 (8e46165 runtime.rs BundlePull::host, set_peers :2637); the case that brings the whole-plane bytes back |
 | `old_peer_share` | 0 | MODEL | share of devices still on v44 that round with the seat on every bootstrap plane (old peers are kept on purpose, so production is mixed for a long time); with consent peers, the share that lists both Global planes |
 | `pull_reads_per_leg` | 1.00 | MODEL | counted reads per Pull leg (one subject on one plane); unknown until the edge witness |
 | `pull_refs_per_leg` | 2.00 | MODEL | refs returned per Pull leg when in sync |
 | `pull_calls_per_cycle` | 10.00 | MEASURED (debug); release rerun pending | store directory calls per device per 10-minute Pull cycle (contact-4413's idle-round witness at 26efbc4); about 22 reads/s at 1,349 devices; pull_reads_per_leg stays for first-contact, write and kick legs |
-| `pull_permits_per_cycle` | 8.00 | MEASURED (debug); release rerun pending | sweep permits per device per 10-minute Pull cycle, 0 index pages (contact-4413 at 26efbc4) |
+| `pull_permits_per_cycle` | 8.00 | MEASURED (debug); release rerun pending | sweep permits per UNCLAIMED device per 10-minute Pull cycle, 0 index pages (contact-4413 at 26efbc4, an ancestor of 8e46165; a count, so not build-dependent); a claimed device adds its owner legs (owner_leg_permit_share) |
+| `owner_leg_permit_share` | 1.00 | MODEL | share of owner legs the seat answers inside the entitled arm, taking a permit (8e46165 bridge.rs subject_pull_answer :5339; entitled by a mutual trust root, refused without one, CIRISEdge#979); 1 is the upper bound |
 | `pull_reply_bytes_per_cycle` | 562 | MEASURED (debug); release rerun pending | reply bytes per device per 10-minute Pull cycle (contact-4413 at 26efbc4) |
 | `drain_page_key_s` | 0.003 | MEASURED (debug); release rerun pending | seconds (wall) per 1,024-row index page drained on a Key round, intercept ~0 (contact-4413 at 26efbc4); used only for the 'without the read fix (not released)' row |
 | `drain_page_io_s` | 0.002 | MEASURED (debug); release rerun pending | the same on an occurrence round |
@@ -751,33 +1154,36 @@ Today's fleet is 1349 announced nodes. The large walks are Key and occurrence, t
 | `key_record_bytes` | 7500 | DERIVED | 7-8 KB per hybrid key record: ML-DSA-65 public key 1,952 B and signature 3,309 B (FIPS 204) plus Ed25519 and encoding |
 | `occurrence_record_bytes` | 1500 | MODEL | bytes per identity occurrence record |
 | `route_record_bytes` | 600 | MODEL | bytes per transport destination record |
-| `rev_plane_refs` | 5.00 | MODEL | refs in a revocation plane's offer: the seat's Projection::Global set, revocations it holds of any key in own ∪ cohort (c580298 bridge.rs:11640, the #930 comment there); few, MODEL until the #971 idle-cost test prints it |
-| `key_subjects_at_seat` | 8211 | DERIVED | subjects a Key-plane listing walks at seat-1: self_own_subjects -> the host's KindPublishSelector (c580298 bridge.rs:7115; edge source read 2026-11-10 at v44.1.2 (withhold-rate)); scaled per announced node |
-| `io_subjects_at_seat` | 5650 | DERIVED | subjects an occurrence-plane listing walks at seat-1, ~5.6k to 5.7k, the same selector (edge source read 2026-11-10 at v44.1.2 (withhold-rate)); scaled per announced node |
-| `global_subjects_at_seat` | 30.00 | MODEL | subjects a Revocation or occurrence-withdrawal listing walks: subjects_for_projection(Global) = self_provider ∪ cohort, tens of subjects (c580298 bridge.rs:7142, runtime.rs:1237; edge source read 2026-11-10 at v44.1.2 (withhold-rate)); 30 is a pick within tens, held fixed in fleet size (whether the cohort grows with linked devices is not read) |
-| `listing_probe_reads` | 1.00 | DERIVED | change-probe pages per listing when under 500 rows landed since the cursor, one permit each (refresh_key_plane_memo, PROBE_PAGE 500, v44.1.2 bridge.rs:7233); after the read fix one shared probe per second per plane (probe_per_s) |
+| `rev_plane_refs` | 5.00 | MODEL | refs in a revocation plane's offer: revocations the seat holds of any key in own ∪ cohort (8e46165 bridge.rs list_revocation_rows :13152); seat-1 holds 0 key:revocation rows, so few; MODEL until the #971 idle-cost test prints it |
+| `key_subjects_at_seat` | 8211 | DERIVED | subjects a Key-plane listing walks at seat-1: self_own_subjects -> the host's KindPublishSelector (8e46165 bridge.rs :7465; edge source read 2026-11-10 at v44.1.2 (withhold-rate)); grows with the fleet by key_publish_set_growth |
+| `io_subjects_at_seat` | 5650 | DERIVED | subjects an occurrence-plane listing walks at seat-1, ~5.6k to 5.7k, the same selector (edge source read 2026-11-10 at v44.1.2 (withhold-rate); 5,652 in 8e46165 key_plane_memo.rs :296 docs); grows with the fleet by key_publish_set_growth |
+| `global_subjects_at_seat` | 8698 | DERIVED | subjects a Revocation or occurrence-withdrawal listing walks: subjects_for_projection(Global) = self_provider ∪ cohort (8e46165 bridge.rs :7478, :7492), which on a canonical is every key it holds (list_revocation_rows :13152 'Global is every key on a canonical'; key_plane_memo.rs header: 7,226 on the canonical at #930); seat-1 holds 8,698 keys (window A), the Key publish set is 8,211, so the interval is [8,211, 8,698]. CORRECTED: the twin had 30 ('tens', a MODEL pick) until 2026-11-11; grows with the fleet by key_publish_set_growth |
+| `key_publish_set_growth` | 1.00 | FRONTIER | how the host's publish sets (the server's key_publish_set, which self_provider and every KindPublishSelector answer from) grow with the fleet: subjects(N) = subjects_at_seat x (1 + g (N / announced_nodes - 1)); g = 1 grows with announced nodes like the store, g = 0 stays at today's size. Server-side, not read by the twin: an explicit scenario axis, swept 0 to 1 in seat_calibration::knee_by_growth |
+| `listing_probe_reads` | 1.00 | DERIVED | as shipped at v44.1.2 (the calibration windows): change-probe pages per key-plane listing when under 500 rows landed since the cursor, one permit each (refresh_key_plane_memo, PROBE_PAGE 500, v44.1.2 bridge.rs:7233); at 8e46165 the probe is the shared feed (probe_per_s) |
 | `key_plane_walk_base_s` | 2.000e-5 | MODEL | a in a + b x subjects: fixed seconds per key-plane listing (the call, the empty offer) |
-| `key_plane_walk_per_subject_s` | 5.500e-7 | DERIVED | b in a + b x subjects: a warm Key listing at 8,211 subjects takes ~3 to 6 ms (edge source read 2026-11-10 at v44.1.2 (withhold-rate)), 4.5 ms / 8,211; taken as the same per subject on every key plane (MODEL) |
+| `key_plane_walk_per_subject_s` | 5.500e-7 | DERIVED | b in a + b x subjects: a warm Key listing at 8,211 subjects takes ~3 to 6 ms (edge source read 2026-11-10 at v44.1.2 (withhold-rate)), 4.5 ms / 8,211; taken as the same per subject on every key plane (MODEL); at 8e46165 it is what a listing-cache MISS costs (the classify walk, bridge.rs key_plane_listing :7664) |
 | `store_read_s` | 0.002 | DERIVED | ~2 ms per subject read made under a plane's lock, from which a Key refill stalls ~16 s and an occurrence refill ~11 to 22 s (edge source read 2026-11-10 at v44.1.2 (withhold-rate)) |
 | `probe_read_s` | 5.000e-4 | MODEL | seconds one change-probe page holds the plane lock (usually an empty page); not measured |
 | `key_queries_per_subject` | 1.00 | DERIVED | store reads to refill one Key-plane subject: its key:record rows (key_plane_rows::key_record_rows); 8,211 per refill at seat-1 |
 | `io_queries_per_subject` | 1.50 | DERIVED | store reads to refill one occurrence-plane subject: 1 to 2 (an 11 to 22 s refill at ~2 ms over ~5.6k subjects, edge source read 2026-11-10 at v44.1.2 (withhold-rate)); mostly not attestation_query, so a refill moves permits and not that counter |
-| `rev_queries_per_subject` | 1.00 | MODEL | store queries to refill one Revocation-plane subject: revocations_for, then get_attestation per revocation held, and revocations are few (9a04428 key_plane_rows.rs:153-165) |
-| `ior_queries_per_subject` | 5.00 | MODEL | store queries to refill one occurrence-withdrawal subject: 4 to 6 (9a04428 key_plane_rows.rs:260-283, withhold-rate's reading) |
-| `rev_plane_clears_per_hour` | 0 | MEASURED | key:revocation rows landing per hour: each drops the Revocation memo whole (Dirt::Plane, 9a04428 key_plane_memo.rs:224); seat-1 has held 0 key:revocation:v1 rows ever (server session, 2026-11-09); STRESS_PLANE_CLEARS_PER_HOUR is the named stress value |
-| `ior_plane_clears_per_hour` | 0 | MEASURED | occurrence-revocation carrier rows landing per hour: each drops the occurrence-withdrawal memo whole (Dirt::Plane, key_plane_memo.rs:230); seat-1 holds 9 withdraws rows in all, none since this boot (server session, 2026-11-09) |
+| `rev_queries_per_subject` | 1.00 | MODEL | store queries to refill one Revocation-plane subject: revocations_for, then get_attestation per revocation held, and revocations are few (8e46165 key_plane_rows.rs revocation_rows_of :153) |
+| `ior_queries_per_subject` | 5.00 | MODEL | store queries to refill one occurrence-withdrawal subject: 4 to 6 (8e46165 key_plane_rows.rs occurrence_withdrawals_binding :260, withhold-rate's reading) |
+| `rev_plane_clears_per_hour` | 0 | MEASURED | key:revocation rows landing per hour: each drops the Revocation memo whole (Dirt::Plane, 8e46165 key_plane_memo.rs dirt_of :261); seat-1 has held 0 key:revocation:v1 rows ever (server session, 2026-11-09); STRESS_PLANE_CLEARS_PER_HOUR is the named stress value |
+| `ior_plane_clears_per_hour` | 0 | MEASURED | occurrence-revocation carrier rows landing per hour: each drops the occurrence-withdrawal memo whole (Dirt::Plane, 8e46165 key_plane_memo.rs dirt_of :267); seat-1 holds 9 withdraws rows in all, none since this boot (server session, 2026-11-09) |
 | `rev_non_empty_subjects` | 0 | MEASURED | Revocation-plane subjects with any row at seat-1: 0 (no key:revocation:v1 row ever); scaled per announced node; what a rebuild from the rows that exist reads |
 | `ior_non_empty_subjects` | 9.00 | MEASURED | occurrence-withdrawal subjects with any row at seat-1: at most 9 (9 withdraws rows in all); scaled per announced node |
 | `row_scan_reads` | 1.00 | MODEL | from-rows rebuild only (not built; whether the persist surface lists a plane's rows by type is withhold-rate's question): reads to list the rows that exist on one Global plane |
-| `warm_listing_s` | 2.000e-4 | MODEL | v45 candidate (b), not built: a listing cached per plane generation; warm, the Key listing at 8,211 subjects takes ~0.2 ms (from ~3 to 6 ms) and reads nothing; scaled per subject on every key plane (edge source read 2026-11-10 at v44.1.2 (withhold-rate); MODEL until built) |
-| `listing_budget_k` | 256 | MODEL | v45 candidate, not built: a per-listing read budget with stale-while-revalidate; a listing reads at most K subjects under the lock (~0.5 s at 2 ms) and serves the rest stale, so a refill spreads over listings with the reads per minute unchanged (edge source read 2026-11-10 at v44.1.2 (withhold-rate); MODEL until built) |
+| `warm_listing_s` | 2.000e-4 | MODEL | BUILT (8e46165, on by default: bridge.rs BridgeConfig::key_plane_listing_cache :1004, default :1195): a listing every subject of which was answered fresh is kept per plane generation and served for an equal subject set (key_plane_memo.rs cached_listing :550) under the plane lock (bridge.rs :7674). A hit still compares the whole subject set (HashSet equality), so it scales per subject: ~0.2 ms at 8,211 (edge source read 2026-11-10 at v44.1.2 (withhold-rate)); the timing is MODEL, not measured |
+| `subject_set_build_per_subject_s` | 1.000e-7 | MODEL | CPU seconds per subject to build a listing's subject set before the lock (8e46165 bridge.rs list_revocation_rows :13152: subjects_for_projection(Global) calls self_provider and cohort and collects a HashSet<String>); paid on every listing, cache hit or not; not measured |
+| `key_record_writes_per_device_day` | 0.050 | MODEL | key:record rows landing at the seat per device per day (enrolment, re-publish, rotation): each dirties that subject on the Key and Revocation memos (8e46165 key_plane_memo.rs dirt_of :240), so the generation moves and the next listing on each misses the listing cache and walks the whole set; not measured |
+| `listing_budget_k` | 256 | DERIVED | BUILT (8e46165 key_plane_memo.rs KEY_PLANE_READ_BUDGET :296, on by default bridge.rs :1221): a key-plane listing reads at most K subjects, every cause together, the host's own keys outside it; a stale answer past the budget is served as it stands, an absent one is left out (a missed offer); so a refill spreads over listings with the reads per minute unchanged and a stall capped at ~K reads |
 | `restart_arrival_s` | 30.00 | MODEL | cold-restart scenario only: after a seat restart every peer's first round on each plane arrives within this window (first contact at once, retries U[0.5, 1.5] x 30 s) |
 | `seat_own_routes` | 4.00 | MODEL | routes a seat offers a stranger: its own |
 | `unowned_route_share` | 0.020 | PROVISIONAL | share of routes that are unowned and so served to a stranger |
 | `stretch_factor` | 10.00 | MODEL | stretched idle cadence multiplier (not built) |
 | `digest_bytes` | 64.00 | MODEL | an in-sync round as one small digest frame (not built) |
 | `phone_awake_share` | 0.850 | MODEL | 1 - micro mobile_offline_share: a suspended phone runs no rounds |
-| `live_link_cap` | 1024 | PROVISIONAL | live-link cap with FIFO eviction (CIRISEdge#508, 2026-10); re-read at v45 |
+| `live_link_cap` | 1024 | PROVISIONAL | live-link cap with FIFO eviction (CIRISEdge#508, 2026-10); not re-read at 8e46165 |
 | `proxy_store_share` | 1.00 | MODEL | a proxy's federation-tier store as a share of the seat's |
 | `new_rows_per_device_day` | 20.00 | MODEL | new federation-tier rows a device's subjects produce per day |
 | `proxy_miss_share` | 1.00 | MODEL | share of new rows a proxy lacks and pulls from the seat (one pull per row per proxy) |
@@ -786,12 +1192,16 @@ Today's fleet is 1349 announced nodes. The large walks are Key and occurrence, t
 | `referral_lookup_reads` | 3.00 | MODEL | counted reads to pick up to three relay-offering nodes with a free shaped slot |
 | `rooted_share` | 0 | MODEL | share of offloaded devices that share a trust root with their proxy (CC 5.3.4) |
 | `binding_pulls_per_cadence` | 1.00 | MODEL | owner-binding pulls a claimed unrooted offloaded device keeps on the seat per cadence |
+| `reach_unowned_share` | 0.500 | MODEL | share of the identity-plane publish set with no live owner-binding at the seat, which the reach rule now reads for (8e46165 bridge.rs identity_row_reach :13985 -> unowned_reach): at most 1 - announced_nodes / io_subjects_at_seat = 0.76 (an announced node is owned), at least announced_owners / io_subjects_at_seat = 0.24 (an identity key has no owner); interval [0.24, 0.76]; not measured |
+| `reach_reads_per_unowned_subject` | 1.50 | MODEL | store reads one reach evaluation of an unowned subject adds (6244795): list_identity_occurrences_by_occurrence_key always (1); when another identity holds it, lookup_public_key (1) and that identity's own set, nodes_owned_by + list_identity_occurrences_active (2, memoized per identity for OWNER_BINDING_MEMO_TTL and shared by its nodes); interval [1, 2] |
+| `announce_memo_clears_per_hour` | 6.00 | MODEL | whole clears per hour of the seat's reach memo besides its 30 s TTL: every ownership event (invalidate_owner_memo :13446) and every host local-write door (invalidate_send_set_memos :13621) drops it, so the next identity-plane listing re-reads every subject's reach; server-side rate, not measured; interval [0, 60] |
+| `seat_initiator_device_share` | 0 | FRONTIER | share of devices the server's host names as the seat's own replication peers, so the seat INITIATES a round to each on the five bootstrap planes every cadence (it lists to build its Summary and receives a reply); a node initiates only to host-named peers (8e46165 runtime.rs set_peers :2637), bundle seats (bundle_bootstrap_peers :1162) and homed nodes (HomedPeers::register :1243), so this is the server's choice and not read; 0 unless the server names devices |
 | `ingest_reads_per_row` | 3.00 | MODEL | counted reads to admit one new row (dedup, supersede, standing) beside its verify |
 
 #### 4.7.5 What the twin can and cannot say about capacity
 
 - **Can say, from measurement:** today's seat-1 load (0.652 cores in quiet window B, ~329 attestation queries a second) and its door counts are reproduced by today's peers alone (`today_peers_alone_reproduce_window_b`).
-- **Can say, from source:** what each permit, lock and read is for (the bullets above, edge source read 2026-11-10 at v44.1.2 and c580298); that v45 devices take the Key and occurrence locks only through old and consent peers; that the withheld-row reading of the permit counter is false.
+- **Can say, from source:** what each permit, lock and read is for (the bullets above, edge source read 2026-11-10 at v44.1.2 and at release/45.0.0 8e46165); that v45 devices take the Key and occurrence locks only through old and consent peers; that the withheld-row reading of the permit counter is false.
 - **Cannot say yet:**
   - v45's knee to better than two terms: how long a Pull holds its sweep permit (about 2 ms, DERIVED from a key-plane refill) and the Pull's release-build cost (MEASURED on a debug build only).
   - The row half's share of withheld rows (`refused_reads_left_after_fix`, held at its upper bound of 1).
@@ -799,7 +1209,7 @@ Today's fleet is 1349 announced nodes. The large walks are Key and occurrence, t
   - The probe-page time and `a` (MODEL).
   - Production's old-peer share (an axis, not a measurement).
   - Anything the one-queue model leaves out (§4.7.1).
-- **For the v45 roll:** v45.0.0, with the read fix, holds about 18,000 devices on one seat (MODEL; PROVISIONAL in the Pull permit hold and the Pull's release cost). Old peers are what cut it, to about 7,400 with a quarter on v44. Without the read fix (never released), the same fleet saturates near 80 devices. The 18.8-core receive-side drain at today's 1,349 nodes is the reason the fix ships with v45.
+- **For the v45 roll:** v45.0.0 (release/45.0.0 at 8e46165, untagged when read), with the read fix, holds 4,882 to 13,723 devices on one 4-core seat if the server's publish set grows with the fleet and 14,253 to 75,879 if it stays at today's size (MODEL with its interval; which holds is FRONTIER; PROVISIONAL in the Pull permit hold and the Pull's release cost). Old peers cut it: with a quarter on v44, 2,155 to 10,462 (g = 1) or 2,925 to 22,933 (g = 0). Without the read fix (never released) the same fleet saturates within tens to a few hundred devices, which is why the fix ships with v45.
 
 ---
 
