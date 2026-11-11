@@ -56,6 +56,7 @@ pub mod holon;
 pub mod micro;
 pub mod tiling;
 pub mod capacity;
+pub mod reach;
 
 pub use transport::*;
 pub use alm::*;
