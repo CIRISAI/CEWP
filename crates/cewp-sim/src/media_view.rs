@@ -10,8 +10,10 @@
 //! caller that wants more than one buffer calls [`media_view`] once and reads its fields.
 //!
 //! Field classes use the globe's codes: 0 MEASURED, 1 DERIVED, 2 MODEL, 3 PROJECTED,
-//! 4 FRONTIER. Everything the engine computes is DERIVED from MODEL inputs (the access profiles
-//! and media parameters of [`crate::media`]); the places are MODEL.
+//! 4 FRONTIER. Every field is MODEL: the engine is stochastic (Gilbert-Elliott loss, a Markov
+//! cellular chain, seeded churn) and runs on MODEL inputs (the access profiles and media
+//! parameters of [`crate::media`]), and simulation output over MODEL inputs is MODEL (the lead's
+//! ruling of 2026-11-11, confirmed by twin-media); the places are MODEL.
 
 use std::collections::BTreeMap;
 
@@ -19,7 +21,7 @@ use crate::link::Discipline;
 use crate::media::{scenario_churn, Engine, Scenario, METER_WINDOW_US};
 use crate::micro::Rng;
 
-/// Class code: DERIVED.
+/// Class code: DERIVED (no field of this view carries it; kept for callers that name it).
 pub const CLASS_DERIVED: u8 = 1;
 /// Class code: MODEL.
 pub const CLASS_MODEL: u8 = 2;
@@ -33,11 +35,11 @@ pub const TREE_STRIDE: usize = 3;
 /// Edges buffer stride (per step, per tree edge).
 pub const EDGES_STRIDE: usize = 4;
 /// Class of each edges field: rate, loss, queue delay, layer.
-pub const EDGES_CLASSES: [u8; EDGES_STRIDE] = [CLASS_DERIVED; EDGES_STRIDE];
+pub const EDGES_CLASSES: [u8; EDGES_STRIDE] = [CLASS_MODEL; EDGES_STRIDE];
 /// Receiver buffer stride (per step, per (stream, member)).
 pub const RX_STRIDE: usize = 3;
 /// Class of each receiver field: layer, stall, delay.
-pub const RX_CLASSES: [u8; RX_STRIDE] = [CLASS_DERIVED; RX_STRIDE];
+pub const RX_CLASSES: [u8; RX_STRIDE] = [CLASS_MODEL; RX_STRIDE];
 /// Events buffer stride.
 pub const EVENTS_STRIDE: usize = 5;
 
@@ -280,7 +282,7 @@ pub fn media_view_members(seed: u64) -> Vec<f32> {
 /// Every tree edge that existed at any step, stride 3: `[stream, parent, child]` (member ids;
 /// a stream's root is its publisher, `stream == parent` for a direct leg). Every member
 /// publishes, so a room call is one tree per stream. Edge `k` of this buffer is edge `k` of
-/// every [`media_view_edges`] step. DERIVED.
+/// every [`media_view_edges`] step. MODEL.
 #[must_use]
 pub fn media_view_tree(seed: u64) -> Vec<u32> {
     media_view(seed).tree
@@ -298,7 +300,7 @@ pub fn media_view_steps(seed: u64) -> u32 {
 /// share never verified at the child (copies still in flight when the run ends count as lost).
 /// Queue delay: parent uplink plus child downlink backlog at the step's end, at the current
 /// rate. Layer: 0 not attached, 1 audio + base layer (a warm standby, or a receiver's base-layer
-/// cap), 2 audio + both video layers. Classes [`EDGES_CLASSES`]: all DERIVED. Empty past the
+/// cap), 2 audio + both video layers. Classes [`EDGES_CLASSES`]: all MODEL. Empty past the
 /// last step.
 #[must_use]
 pub fn media_view_edges(seed: u64, step: u32) -> Vec<f32> {
@@ -313,7 +315,7 @@ pub fn media_view_edges(seed: u64, step: u32) -> Vec<f32> {
 /// floor), 1 base video layer shown, 2 both layers shown; stall 1 when the stream has video
 /// and no frame was shown this step; delay = mean glass-to-glass of frames shown this step
 /// (capture + encode included), or of audio frames played when no frame was shown, 0 when
-/// neither. Classes [`RX_CLASSES`]: all DERIVED. Empty
+/// neither. Classes [`RX_CLASSES`]: all MODEL. Empty
 /// past the last step.
 #[must_use]
 pub fn media_view_rx(seed: u64, step: u32) -> Vec<f32> {
@@ -325,7 +327,7 @@ pub fn media_view_rx(seed: u64, step: u32) -> Vec<f32> {
 /// The moments a parent leaves and the tree repairs, stride 5:
 /// `[time ms, kind, stream, child, parent that left]`. Per departure, three rows: the leave
 /// ([`EV_PARENT_LEFT`]), then audio and video each resumed ([`EV_AUDIO_RESUMED`],
-/// [`EV_VIDEO_RESUMED`]) or not by the session's end ([`EV_NOT_RESUMED`], at that end). DERIVED.
+/// [`EV_VIDEO_RESUMED`]) or not by the session's end ([`EV_NOT_RESUMED`], at that end). MODEL.
 #[must_use]
 pub fn media_view_events(seed: u64) -> Vec<f32> {
     media_view(seed).events
