@@ -646,6 +646,17 @@ pub fn side_crossings(id: HolonId, d: Dir, ctx: &LeafContext) -> Vec<Line> {
 /// Main road width, metres (an arterial, every class).
 pub const MAIN_ROAD_M: f64 = 12.0;
 
+/// People per km² from which an apartment-block leaf is laid out as dense mid- and high-rise fabric
+/// (MODEL): narrow lanes instead of 8 m streets, plots filling the leaf rather than lining its
+/// streets, and the leaf's households shared over the buildings that fit, so storeys follow
+/// density (`floors = ceil(households per building / flats per floor)`, at least
+/// [`DENSE_MIN_FLOORS`]). Below it, apartment blocks keep 4 to 7 storeys on street frontage.
+pub const DENSE_FABRIC_KM2: f64 = 12_000.0;
+/// Lane width in dense fabric, metres (MODEL: Old Dhaka, Kowloon and Cairo lanes are 2 to 5 m).
+pub const DENSE_LANE_M: f64 = 4.0;
+/// Fewest storeys a dense-fabric building is drawn with (MODEL).
+pub const DENSE_MIN_FLOORS: u8 = 3;
+
 /// How far every building stays inside its leaf's sides, metres: half the widest road plus the
 /// one-metre clearance a building keeps from any road.
 pub const SIDE_INSET: f64 = MAIN_ROAD_M / 2.0 + 1.0;
@@ -744,6 +755,7 @@ impl LeafLayout {
         // streets: the leaf's own lines, run on to a side where that side has a port there, and a
         // stub in from every port that is not on a line; the grid closes over all of them
         let width = match class {
+            DensityClass::UrbanCore if density_km2 >= DENSE_FABRIC_KM2 => DENSE_LANE_M,
             DensityClass::UrbanCore | DensityClass::Urban => 8.0,
             DensityClass::Suburban => 6.0,
             DensityClass::Village => 5.0,
@@ -791,9 +803,62 @@ impl LeafLayout {
         }
         let mut rng = rng;
         out.roads = roads;
-        out.place_buildings(&mut rng);
+        if class == DensityClass::UrbanCore && density_km2 >= DENSE_FABRIC_KM2 {
+            out.place_dense_fabric(&mut rng);
+        } else {
+            out.place_buildings(&mut rng);
+        }
         out.fit_households(&mut rng);
         out
+    }
+
+    /// Dense fabric (see [`DENSE_FABRIC_KM2`]): plots of 8 to 13 m by 8 to 12 m on a grid that
+    /// fills the leaf, 1 to 2.5 m apart, wherever they clear the lanes; then the leaf's households
+    /// are shared evenly over them and each building gets the storeys its flats need.
+    fn place_dense_fabric(&mut self, rng: &mut Rng) {
+        if self.households == 0 {
+            return;
+        }
+        // a side keeps the full SIDE_INSET only where a main road crosses it (a neighbour's main road
+        // may run beside it); elsewhere plots come to a lane's half-width of the leaf's edge
+        let inset = |dir: Dir| if self.ports.iter().any(|p| p.dir == dir && p.main) { SIDE_INSET } else { DENSE_LANE_M / 2.0 + 0.5 };
+        let (x0, x1) = (-self.w / 2.0 + inset(Dir::W), self.w / 2.0 - inset(Dir::E));
+        let (y0, y1) = (-self.h / 2.0 + inset(Dir::S), self.h / 2.0 - inset(Dir::N));
+        let fits = |l: &Self, b: &Building| {
+            b.cx - b.w / 2.0 >= x0 && b.cx + b.w / 2.0 <= x1 && b.cy - b.d / 2.0 >= y0 && b.cy + b.d / 2.0 <= y1
+                && !l.roads.iter().any(|r| footprint_meets_road(b, r, 0.5))
+                && !l.buildings.iter().any(|o| rects_overlap(b, o, 0.6))
+        };
+        let mut y = y0;
+        while y < y1 {
+            let d = rng.range(8.0, 12.0);
+            let mut x = x0;
+            while x < x1 {
+                let w = rng.range(8.0, 13.0);
+                let b = Building { cx: x + w / 2.0, cy: y + d / 2.0, w, d, angle: 0.0, floors: DENSE_MIN_FLOORS, units: 1 };
+                if fits(self, &b) {
+                    self.buildings.push(b);
+                }
+                x += w + rng.range(1.0, 2.5);
+            }
+            y += d + rng.range(1.0, 2.5);
+        }
+        if self.buildings.is_empty() {
+            return; // fit_households places one block on the first free spot
+        }
+        let n = self.buildings.len() as u64;
+        let (each, extra) = (self.households / n, self.households % n);
+        let mut k = 0;
+        self.buildings.retain(|_| {
+            k += 1;
+            each > 0 || (k as u64) <= extra
+        });
+        for (k, b) in self.buildings.iter_mut().enumerate() {
+            let units = each + u64::from((k as u64) < extra);
+            b.units = units.min(u64::from(u16::MAX)) as u16;
+            let per_floor = (b.w / 6.0).round().max(1.0) as u64;
+            b.floors = (units.div_ceil(per_floor).min(60) as u8).max(DENSE_MIN_FLOORS);
+        }
     }
 
     fn fits(&self, b: &Building) -> bool {
@@ -949,6 +1014,26 @@ impl LeafLayout {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dense_fabric_fills_the_leaf_and_storeys_follow_density() {
+        // a leaf holding 60 households at 40,000 and at 10,000 people per km2
+        let p = MicroParams::default();
+        let id = HolonId::at(9, 23.7, 90.4);
+        let (w, h) = id.size_m();
+        let area = w * h / 1e6;
+        let pph = p.get(P::PersonsPerHousehold);
+        let mk = |dens: f64| { let mut ctx = LeafContext::default(); ctx.budget = (dens * area / pph).round() as u64; LeafLayout::build(id, &ctx, &p) };
+        let dense = mk(80_000.0);
+        assert!(dense.density_km2 >= DENSE_FABRIC_KM2, "{}", dense.density_km2);
+        let units: u64 = dense.buildings.iter().map(|b| u64::from(b.units)).sum();
+        assert_eq!(units, dense.households, "every household has a flat");
+        assert!(dense.buildings.iter().all(|b| b.floors >= DENSE_MIN_FLOORS));
+        assert!(dense.roads.iter().all(|r| r.width <= DENSE_LANE_M || r.width >= MAIN_ROAD_M), "lanes, not 8 m streets");
+        let denser = mk(160_000.0);
+        let mean = |l: &LeafLayout| l.buildings.iter().map(|b| f64::from(b.floors)).sum::<f64>() / l.buildings.len().max(1) as f64;
+        assert!(mean(&denser) > mean(&dense), "storeys follow density: {} vs {}", mean(&denser), mean(&dense));
+    }
 
     /// A synthetic world for the witnesses: land everywhere except a sea patch, people dense
     /// around a "town" and thin elsewhere (no real place: the inputs are made up here).

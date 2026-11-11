@@ -551,6 +551,24 @@
       "failure": ["A majority vote at 1/8 degree erases minority classes: a town smaller than half a cell disappears into the cropland or forest around it.", "Shrubs and herbaceous wetland are the classes the producers map least accurately.", "The ground colour per class is a display choice of this twin (MODEL), not part of the data.", "No data over Antarctica: the page's own ground rule holds there."]
     },
     {
+      "id": "dense-fabric",
+      "class": "MODEL",
+      "code": "MO",
+      "status": "stated",
+      "live": true,
+      "shows": "In an apartment-block leaf at 12,000 people per km2 or more, the street tier draws dense fabric: 4 m lanes, plots filling the leaf, the leaf's households shared over the buildings, and storeys = flats per building / flats per floor (at least 3); the chip names it with the mean storeys and says the density is a 1/8-degree cell average, with denser wards inside.",
+      "source": "crates/cewp-sim/src/tiling.rs LeafLayout::place_dense_fabric, DENSE_FABRIC_KM2, DENSE_LANE_M, DENSE_MIN_FLOORS; docs/globe.js updateFocalChip",
+      "commit": "f73b918",
+      "window": "",
+      "param": "dense-fabric threshold 12,000 people per km2; plots come to 2.5 m of a leaf side unless a main road crosses it; lanes 4 m; plots 8-13 m by 8-12 m, 1-2.5 m apart; one flat per 6 m of frontage a floor; at least 3 storeys; 2.5 persons per household",
+      "dataset": "",
+      "blocker": "",
+      "reproduce": "cargo test -p cewp-sim dense_fabric",
+      "correction": "",
+      "interval": null,
+      "failure": ["GHS-POP at 1/8 degree is a cell average (Karachi's densest cell reads 42,000 per km2; wards inside it, and Cairo's, exceed 100,000): the twin cannot draw what is finer than the cell.", "Persons per household is 2.5 everywhere (MODEL): households in Dhaka, Karachi and Lagos are larger and in Tokyo and Paris smaller, so households and devices per person are off by that ratio there. No approved dataset gives household size; the UN household size database is an approval request.", "No towers: storeys follow households per footprint at the cell average, so Hong Kong and Manhattan read as dense mid-rise, not 40-storey towers."]
+    },
+    {
       "id": "street-floor",
       "class": "MODEL",
       "code": "MO",

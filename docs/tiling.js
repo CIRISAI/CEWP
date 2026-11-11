@@ -114,12 +114,13 @@ function tlBuildLeaf(leaf){
   const seed = (id % 2147483647) | 0;
   // over the whole leaf: soft mottling (meadow and wear) and scattered trees, fewer where it is dense;
   // buildings and streets drawn later cover whatever lands under them
-  { const area = w * h, dens = meta[2] / Math.max(1e-6, area / 1e6), nT = Math.min(300, Math.round(area / (dens > 3000 ? 900 : 380))), nP = Math.min(120, Math.round(area / 2500));
+  { const area = w * h, dens = meta[2] / Math.max(1e-6, area / 1e6), pkm = dens * TL_PPH, nT = pkm >= 6000 ? 0 : Math.min(300, Math.round(area / (pkm >= 1500 ? 900 : 380))), nP = Math.min(120, Math.round(area / 2500)); // no trees where it is apartment blocks or denser
     for (let k = 0; k < nP; k++){ const x = (hsh(seed, 9000 + k) - 0.5) * w, y = (hsh(9000 + k, seed) - 0.5) * h, r = 8 + 18 * hsh(seed ^ k, 77);
       disc(x, y, r, hsh(k, seed) < 0.5 ? [0.5, 0.55, 0.36] : [0.04, 0.07, 0.04], 0.07); }
     for (let k = 0; k < nT; k++){ const x = (hsh(seed, k) - 0.5) * w, y = (hsh(k, seed + 1) - 0.5) * h, r = 1.4 + 2.2 * hsh(seed + 2, k), gk = hsh(k, 31);
       disc(x + 0.8, y - 0.8, r, [0.02, 0.03, 0.02], 0.3); disc(x, y, r, [0.09 + 0.05 * gk, 0.17 + 0.08 * gk, 0.08], 0.8); } }
-  for (let b = 0; b < B.length; b += 8){
+  const lots = meta[2] * TL_PPH / Math.max(1e-6, w * h / 1e6) < 1500; // yards and garden trees only in suburban and village streets
+  for (let b = 0; lots && b < B.length; b += 8){
     const cx = B[b], cy = B[b + 1], bw = B[b + 2] / 2, bd = B[b + 3] / 2, ca = Math.cos(B[b + 4]), sa = Math.sin(B[b + 4]);
     const lw = bw + 2 + 0.35 * bw, ld = bd + 2 + 0.35 * bd, at = (u, v) => [cx + ca * u - sa * v, cy + sa * u + ca * v];
     quad([[-lw, -ld], [lw, -ld], [lw, ld], [-lw, ld]].map(([u, v]) => at(u, v)), [0.42, 0.5, 0.33], 0.16, 1);
@@ -138,7 +139,7 @@ function tlBuildLeaf(leaf){
     const at = (u, v, dx, dy) => [cx + dx + ca * u - sa * v, cy + dy + sa * u + ca * v];
     // a cast shadow (fixed light from the north-west, display only; +x east, +y north), then the roof in two
     // tones split along the long axis, so footprints read as pitched roofs and not flat blocks
-    const sh = 1.2 + 0.08 * Math.min(bw, bd) * 2;
+    const sh = 0.5 + 1.0 * Math.max(1, B[b + 5]); // shadow length follows storeys (about 3 m a storey, low sun; display only)
     quad([[-bw, -bd], [bw, -bd], [bw, bd], [-bw, bd]].map(([u, v]) => at(u, v, sh, -sh)), [0.02, 0.025, 0.03], 0.5, 1);
     const c0 = units > 0 ? [0.44, 0.41, 0.36] : [0.3, 0.29, 0.27], lit = c0.map((v) => v * 1.22), dark = c0.map((v) => v * 0.74);
     if (bw >= bd){ quad([[-bw, 0], [bw, 0], [bw, bd], [-bw, bd]].map(([u, v]) => at(u, v, 0, 0)), lit, 1, 3); quad([[-bw, -bd], [bw, -bd], [bw, 0], [-bw, 0]].map(([u, v]) => at(u, v, 0, 0)), dark, 1, 3); }

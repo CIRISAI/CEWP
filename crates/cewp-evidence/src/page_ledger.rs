@@ -454,6 +454,21 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ..BASE
     },
     PageClaim {
+        id: "dense-fabric",
+        class: Model,
+        live: true,
+        shows: "In an apartment-block leaf at 12,000 people per km2 or more, the street tier draws dense fabric: 4 m lanes, plots filling the leaf, the leaf's households shared over the buildings, and storeys = flats per building / flats per floor (at least 3); the chip names it with the mean storeys and says the density is a 1/8-degree cell average, with denser wards inside.",
+        source: "crates/cewp-sim/src/tiling.rs LeafLayout::place_dense_fabric, DENSE_FABRIC_KM2, DENSE_LANE_M, DENSE_MIN_FLOORS; docs/globe.js updateFocalChip",
+        param: "dense-fabric threshold 12,000 people per km2; plots come to 2.5 m of a leaf side unless a main road crosses it; lanes 4 m; plots 8-13 m by 8-12 m, 1-2.5 m apart; one flat per 6 m of frontage a floor; at least 3 storeys; 2.5 persons per household",
+        failure: &[
+            "GHS-POP at 1/8 degree is a cell average (Karachi's densest cell reads 42,000 per km2; wards inside it, and Cairo's, exceed 100,000): the twin cannot draw what is finer than the cell.",
+            "Persons per household is 2.5 everywhere (MODEL): households in Dhaka, Karachi and Lagos are larger and in Tokyo and Paris smaller, so households and devices per person are off by that ratio there. No approved dataset gives household size; the UN household size database is an approval request.",
+            "No towers: storeys follow households per footprint at the cell average, so Hong Kong and Manhattan read as dense mid-rise, not 40-storey towers.",
+        ],
+        reproduce: "cargo test -p cewp-sim dense_fabric",
+        ..BASE
+    },
+    PageClaim {
         id: "street-floor",
         class: Model,
         shows: "Streets, homes and devices are generated only where GHS-POP holds people: a street tile's households are its rectangle's people divided by 2.5 persons a household, and a 1/8-degree cell under one person per km2 counts zero, so empty land gets no streets and the chip says what GHS-POP reads there.",

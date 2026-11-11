@@ -388,7 +388,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=22"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=24"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2211,7 +2211,7 @@ function microDraw(){
       const cx = B[b], cy = B[b + 1], w = B[b + 2], d = B[b + 3], ang = B[b + 4], units = B[b + 6], adopt = B[b + 7];
       // a cast shadow (fixed light from the north-west, display only), then a pitched roof in two tones
       // split along the long axis, so a footprint reads as a building and not a flat block
-      g.save(); g.globalAlpha = bldA * 0.45; g.translate(cx + 1.2 + 0.08 * Math.min(w, d), cy + 1.2 + 0.08 * Math.min(w, d)); g.rotate(ang); g.fillStyle = "#05070a"; g.fillRect(-w / 2, -d / 2, w, d); g.restore();
+      g.save(); g.globalAlpha = bldA * 0.45; g.translate(cx + 0.35 + 0.7 * Math.max(1, B[b + 5]), cy + 0.35 + 0.7 * Math.max(1, B[b + 5])); // shadow length follows storeys g.rotate(ang); g.fillStyle = "#05070a"; g.fillRect(-w / 2, -d / 2, w, d); g.restore();
       g.save(); g.translate(cx, cy); g.rotate(ang); g.globalAlpha = bldA;
       const base = units === 0 ? [92, 90, 84] : adopt > 0 ? (day > 0.5 ? [170, 152, 128] : [118, 104, 86]) : [128, 130, 138];
       const lit = base.map((v) => Math.min(255, Math.round(v * 1.18))), shade = base.map((v) => Math.round(v * 0.72));
@@ -2498,7 +2498,10 @@ function updateFocalChip(F){
   if (chip.contains(document.activeElement)) return; // a figure focused from the keyboard keeps its focus
   chip._t = performance.now();
   const m = M.meta, hh = m[1], hm = pad2(Math.floor(hh)) + ":" + pad2(Math.floor((hh % 1) * 60));
-  const kinds = [27, 28, 29, 30, 31, 32].map(k => m[k]), dclass = MDCLASS[m[2] | 0];
+  const kinds = [27, 28, 29, 30, 31, 32].map(k => m[k]);
+  // the top of the apartment class is laid out as dense fabric (tiling.rs DENSE_FABRIC_KM2, MODEL): name it, with its mean storeys
+  let dclass = MDCLASS[m[2] | 0];
+  if ((m[2] | 0) === 0 && m[4] >= 12000 && M.bld && M.bld.length){ let fl = 0, nb = 0; for (let b = 0; b < M.bld.length; b += 8) if (M.bld[b + 6] > 0){ fl += M.bld[b + 5]; nb++; } dclass = "dense fabric · " + fig("dense-fabric", (nb ? Math.round(fl / nb) : "?") + " storeys on average; the density is a 1/8° cell average, and wards inside it are denser"); }
   const ppm = F.k / EARTH_M; const scale = ppm > 1.5 ? "street" : ppm > 0.25 ? "neighbourhood" : ppm > 0.02 ? "district" : "region";
   if (F.w < 800){
     chip.innerHTML = `<b>R5 1:1</b> · ${dclass} · ${fig("micro-generated", Math.round(m[4]).toLocaleString() + "/km² · " + kinds.reduce((a, b) => a + b, 0) + " devices")} · ${hm} ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · bootstrap <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_SHORT[microBootstrap]}</button> · tap a device`;
