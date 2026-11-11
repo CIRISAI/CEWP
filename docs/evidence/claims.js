@@ -947,6 +947,23 @@ window.CEWP_LEDGER = {
       "failure": ["Possibly understated by a factor of two."]
     },
     {
+      "id": "layer-illustration",
+      "class": "MODEL",
+      "code": "MO",
+      "status": "stated",
+      "live": false,
+      "shows": "Globe layer: the ocean's colour, the sun's glint and the atmosphere's limb, labelled decoration.",
+      "source": "docs/layers/layers.js: CEWP_LAYERS illustration; gfx.js gfxOcean (shader only, reads no kernel export); lit by kernel-wasm clock_sun",
+      "commit": "twin/globe b4cbfb9",
+      "window": "",
+      "param": "shader colours and glint chosen for looks; sun position from clock_sun(t)",
+      "blocker": "",
+      "reproduce": "",
+      "correction": "",
+      "interval": null,
+      "failure": ["Decoration, not data: nothing in it is measured or modelled from the mesh. Turned off, the globe shows the plain ocean disc of f73b918."]
+    },
+    {
       "id": "layer-glow",
       "class": "MODEL",
       "code": "MO",

@@ -48,7 +48,7 @@ under correction reads "under correction" after the figure.
    (`<button data-layer-claim="<id>">`) opens that entry with the layer's own source, contract and
    the values it drew in the current frame (`last`, refreshed every 0.5 s while the card is open).
    A registered class that disagrees with the ledger is shown on the card as a mismatch.
-   The layer entries (`layer-glow`, `layer-arcs`, `layer-flows`, `layer-alm`, `layer-custody`,
+   The layer entries (`layer-illustration` at `twin/globe b4cbfb9`, `layer-glow`, `layer-arcs`, `layer-flows`, `layer-alm`, `layer-custody`,
    `layer-reach`, `layer-seat`) were written from the globe package's registry at `twin/globe 07865ef`.
    On a tree without `docs/layers/` the reverse direction (an entry with no layer) is not checked;
    `cargo run -p cewp-evidence --example page_ledger -- --docs <tree>/docs` checks an integration

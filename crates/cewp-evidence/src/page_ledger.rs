@@ -708,6 +708,16 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
     // One entry per layer registered in window.CEWP_LAYERS; the scan checks that the class here equals
     // the layer's declared `cls`. The card adds the layer's own source, contract and `last` values.
     PageClaim {
+        id: "layer-illustration",
+        class: Model,
+        shows: "Globe layer: the ocean's colour, the sun's glint and the atmosphere's limb, labelled decoration.",
+        source: "docs/layers/layers.js: CEWP_LAYERS illustration; gfx.js gfxOcean (shader only, reads no kernel export); lit by kernel-wasm clock_sun",
+        commit: "twin/globe b4cbfb9",
+        param: "shader colours and glint chosen for looks; sun position from clock_sun(t)",
+        failure: &["Decoration, not data: nothing in it is measured or modelled from the mesh. Turned off, the globe shows the plain ocean disc of f73b918."],
+        ..BASE
+    },
+    PageClaim {
         id: "layer-glow",
         class: Model,
         live: true,
