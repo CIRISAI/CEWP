@@ -1192,7 +1192,7 @@ window.CEWP_LEDGER = {
       "live": true,
       "shows": "Globe layer: one v45.0.0 seat's utilisation band against fleet size (500 to 100,000 devices), the knee as a lower-to-upper bracket with no central mark, and each seat-1 counter's predicted over observed, in-sample and held-out marked apart.",
       "source": "docs/layers/layers.js: CEWP_LAYERS calibration; kernel-wasm views.rs view_calibration_curve(g), view_calibration_knee(g), view_calibration_residuals(); crates/cewp-sim/src/seat_hooks.rs calibration_view_curve, calibration_view_knee, calibration_view_residuals; FSD/twin/calibration.md",
-      "commit": "twin/calibration c13cee5; twin/globe e42b504",
+      "commit": "twin/calibration c13cee5; twin/globe a824940",
       "window": "",
       "param": "cost model fit to seat-1 counters (MEASURED, 2026-11-10 windows, aggregates); input intervals per seat_calibration::input_intervals (MODEL); key_publish_set growth g FRONTIER (publish-set-growth)",
       "blocker": "",
