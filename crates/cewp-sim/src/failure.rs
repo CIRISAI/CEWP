@@ -900,6 +900,7 @@ const U_HOUSE: u64 = 3 << 40;
 const U_NODE: u64 = 4 << 40;
 const U_COUNTRY: u64 = 5 << 40;
 const U_GLOBAL: u64 = 6 << 40;
+const U_OPER: u64 = 7 << 40;
 
 /// Draw one event of `kind` on `w`.
 pub fn sample_event(w: &DomainWorld, p: &FailureParams, kind: ScenarioKind, r: &mut Rng) -> Event {
@@ -1144,7 +1145,11 @@ pub fn evaluate(w: &DomainWorld, p: &FailureParams, cond: &Condition<'_>) -> Sta
             for &a in &e.leak_acceptors {
                 acceptor[a as usize] = true;
             }
-            for &o in &e.withholding {
+        }
+        // Each withholding operator is noticed and routed around on its own clock (the
+        // Exponential shape is per unit); one shared clock ended the whole coalition at once.
+        for &o in &e.withholding {
+            if e.active(U_OPER + u64::from(o), t) {
                 withholding_p.push(o);
             }
         }
@@ -1619,6 +1624,35 @@ pub fn view_event_steps(w: &DomainWorld, p: &FailureParams, event: &Event, steps
     v
 }
 
+/// The network component of every node over one event's timeline, flat, for drawing islands.
+/// Same hours as [`view_event_steps`]. Output word layout, per step k: one word per node, the
+/// node's network component as a dense label (`0, 1, 2, ...` in order of first appearance by
+/// node index, so the mainland of a connected world is `0`), or `u32::MAX` when the node is
+/// down. Step block length is `nodes`. This is the network partition (access network, country
+/// core, cables) only; route-leak classes and the NAT/relay rule are in
+/// [`view_event_steps`]'s 1 / 2 states.
+#[must_use]
+pub fn view_event_components(w: &DomainWorld, p: &FailureParams, event: &Event, steps: usize, horizon_h: f64) -> Vec<u32> {
+    let n = w.nodes.len();
+    let steps = steps.max(2);
+    let mut v = Vec::with_capacity(steps * n);
+    let evs = std::slice::from_ref(event);
+    for k in 0..steps {
+        let t = k as f64 * horizon_h / (steps - 1) as f64;
+        let st = evaluate(w, p, &Condition { events: evs, t_h: t, removed: None, rejoin: true });
+        let mut dense: BTreeMap<u32, u32> = BTreeMap::new();
+        for i in 0..n {
+            if st.up[i] {
+                let next = dense.len() as u32;
+                v.push(*dense.entry(st.comp[i]).or_insert(next));
+            } else {
+                v.push(u32::MAX);
+            }
+        }
+    }
+    v
+}
+
 /// A small deterministic scenario worth drawing: a 2,000-node world (seed 2026) and a regional
 /// power failure over its most populous grid region, with its default recovery ramp, from onset
 /// to past full restoration.
@@ -1687,13 +1721,24 @@ mod tests {
         let probe = Probe { publishers: 2, ..Probe::default() };
         for kind in SCENARIOS {
             let lost: usize = (0..8).map(|s| paired_run(&w, &p, kind, s, &probe).lost).sum();
-            // Withholding removes no node and, in one component with fungible forwarders, no
-            // pair: it bites only as chunks that are not served.
+            if kind == ScenarioKind::RelayWithholding {
+                // Withholding nodes stay up and stay public, so no node leaves the component;
+                // with nothing else failed the world is one network component and the relays
+                // that still forward are fungible, so no pair is lost either. The scenario
+                // bites only as chunks the withholding holders do not serve. Exact, every seed.
+                for s in 0..8 {
+                    let r = paired_run(&w, &p, kind, s, &probe);
+                    assert_eq!(r.lost, 0, "seed {s}: withholding removed a node");
+                    assert_eq!(r.domain.reach_pairs, 1.0, "seed {s}: withholding removed a pair");
+                    assert!(r.domain.chunk_loss > r.random.chunk_loss, "seed {s}: withholding cost no chunk");
+                }
+                continue;
+            }
             let worse = (0..8).any(|s| {
                 let r = paired_run(&w, &p, kind, s, &probe);
-                r.domain.reach_pairs < 1.0 || r.lost > 0 || r.domain.chunk_loss > r.random.chunk_loss
+                r.domain.reach_pairs < 1.0 || r.lost > 0
             });
-            assert!(worse, "{} never removed a node, a pair or a chunk (lost {lost})", kind.as_str());
+            assert!(worse, "{} never removed a node or a pair (lost {lost})", kind.as_str());
         }
     }
 
@@ -1792,6 +1837,28 @@ mod tests {
         assert!(up(0) < base_up, "the region is dark at onset");
         assert_eq!(up(4), base_up, "everything is back after the duration");
         assert_eq!(v, view_event_steps(&w, &p, &e, 5, 14.0));
+        // Components: a national shutdown makes an island, and the island ends with the event.
+        let mut s = Event::manual(ScenarioKind::NationalShutdown, 9, 10.0);
+        s.shutdown.push(0);
+        let c = view_event_components(&w, &p, &s, 3, 20.0);
+        let n = w.nodes.len();
+        assert_eq!(c.len(), 3 * n);
+        let labels = |k: usize| {
+            let mut l: Vec<u32> = c[k * n..(k + 1) * n].iter().copied().filter(|&x| x != u32::MAX).collect();
+            l.sort_unstable();
+            l.dedup();
+            l
+        };
+        assert_eq!(labels(0), vec![0, 1], "mainland and the shut-down country");
+        assert_eq!(labels(2), vec![0], "one component after the event");
+        // The label splits the up nodes exactly by country 0 (labels are in node order, so
+        // which side is 0 depends on where node 0 lives).
+        let up: Vec<usize> = (0..n).filter(|&i| c[i] != u32::MAX).collect();
+        let first = up[0];
+        for &i in &up {
+            let same_side = (w.nodes[i].country == 0) == (w.nodes[first].country == 0);
+            assert_eq!(c[i] == c[first], same_side, "node {i}");
+        }
     }
 
     #[test]
