@@ -20,7 +20,7 @@ use crate::capacity::{
     self, edge_971, pull_event_legs_per_device_s, run, Binding, CostParams, Plane, Scenario, C,
 };
 use crate::micro::HostKind;
-use crate::seat_calibration::{self, input_intervals, propagate, GROWTH_AXIS};
+use crate::seat_calibration::{self, input_intervals, propagate, Term, GROWTH_AXIS};
 
 // ---------------------------------------------------------------------------
 // 1. Energy counters
@@ -276,8 +276,9 @@ fn params_for(scenario: u32) -> CostParams {
 /// `[devices, rho central, rho lower, rho upper, class, binding code]`.
 /// `rho` is the binding utilisation of one v45.0.0 seat (the larger of CPU, sweep permits and
 /// the busiest key-plane lock); lower and upper are its bounds over every input interval
-/// ([`input_intervals`], vertex method; bounds, not a probability). Class 3 (PROJECTED) at
-/// every point: past 1,349 devices (the measured fleet) it is an extrapolation. The binding code
+/// ([`input_intervals`]): each term's utilisation is propagated alone by the vertex method and
+/// the band is `[max lo, max hi]` over the terms, since `rho` is their maximum and switches term
+/// across the input box (outer bounds, not a probability). Class 3 (PROJECTED) at every point: past 1,349 devices (the measured fleet) it is an extrapolation. The binding code
 /// ([`binding_code`]) is the central case's.
 #[must_use]
 pub fn calibration_view_curve(scenario: u32) -> Vec<f32> {
@@ -287,12 +288,24 @@ pub fn calibration_view_curve(scenario: u32) -> Vec<f32> {
     for d in curve_devices() {
         let sc = Scenario::v45(d);
         let central = run(&p, &sc).seat_load.rho;
-        let pr = propagate(&p, &inputs, |q| run(q, &sc).seat_load.rho);
+        let (mut lo, mut hi) = (0.0_f64, 0.0_f64);
+        for term in [Term::Cpu, Term::Permits, Term::Lock] {
+            let pr = propagate(&p, &inputs, |q| {
+                let l = run(q, &sc).seat_load;
+                match term {
+                    Term::Cpu => l.rho_cpu,
+                    Term::Permits => l.rho_permit,
+                    Term::Lock => l.rho_lock,
+                }
+            });
+            lo = lo.max(pr.interval.lo);
+            hi = hi.max(pr.interval.hi);
+        }
         v.extend_from_slice(&[
             d as f32,
             central as f32,
-            pr.interval.lo as f32,
-            pr.interval.hi as f32,
+            lo as f32,
+            hi as f32,
             class::PROJECTED,
             binding_code(capacity::binding(&p, &sc)),
         ]);
@@ -304,8 +317,8 @@ pub fn calibration_view_curve(scenario: u32) -> Vec<f32> {
 ///
 /// Seven fields: `[knee lower, knee central, knee upper, interval kind, binds at lower,
 /// binds at upper, class]`. Devices; the knee is the largest fleet whose seat stays under the
-/// `cpu_ceiling` on every term. Interval kind 0 = bounds over the input intervals (vertex
-/// method), not a confidence level. Class 3 (PROJECTED). A knee field is -1 when no knee is
+/// `cpu_ceiling` on every term. Interval kind 0 = outer bounds over the input intervals
+/// (`seat_calibration::knee_interval`, per-term), not a confidence level. Class 3 (PROJECTED). A knee field is -1 when no knee is
 /// claimed (the seat is over the ceiling at one device, or under it past 10^9 devices).
 #[must_use]
 pub fn calibration_view_knee(scenario: u32) -> Vec<f32> {

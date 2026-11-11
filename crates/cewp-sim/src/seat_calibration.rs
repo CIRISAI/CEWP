@@ -13,10 +13,12 @@
 //! * **Intervals.** [`INPUT_INTERVALS`] gives each input an interval and how it was derived.
 //!   The derivations that rest on the windows are computed here from the window constants
 //!   ([`window_spreads`]), not typed in.
-//! * **Propagation.** [`knee_interval`] is the vertex method: each input moved alone to each end
-//!   of its interval, then all inputs together at the ends that lower (raise) the knee. The
-//!   knee is monotone in each input over these ranges, so the two corners bound it; the
-//!   one-at-a-time knees are folded in as well, so the interval never narrows below them.
+//! * **Propagation.** [`propagate`] is the vertex method on one monotone output: each input
+//!   moved alone to each end of its interval, then all inputs together at the ends that lower
+//!   (raise) it. [`knee_interval`] runs it on each term's knee alone (CPU, sweep permits, the
+//!   busiest lock), where it is monotone, and takes `[min lo, min hi]` over the terms: the knee
+//!   is a minimum that switches term across the box, so the vertex method on the knee itself
+//!   is not a bound (a failing test found that). An outer bound, not a probability.
 //! * **Growth axis.** How the server's `key_publish_set` grows with the fleet is not known to
 //!   the twin (FRONTIER). [`knee_by_growth`] sweeps it from 0 (today's size) to 1 (with
 //!   announced nodes) instead of choosing one.
@@ -24,7 +26,7 @@
 use std::cell::RefCell;
 
 use crate::capacity::{
-    self, binding, calibrate, edge_971, knee, ledger, measured_mix, run, window_a, window_a_prime, window_b,
+    self, calibrate, edge_971, ledger, measured_mix, run, window_a, window_a_prime, window_b,
     window_c, busy_hour, Binding, CostParams, Plane, ReadSet, Scenario, C,
 };
 
@@ -288,20 +290,90 @@ pub struct KneeInterval {
     pub binds_high: Binding,
 }
 
+/// The three terms the knee is the minimum of: cores, sweep permits, the busiest key-plane lock.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Term {
+    /// CPU utilisation.
+    Cpu,
+    /// Sweep-permit utilisation.
+    Permits,
+    /// The busiest key-plane lock's utilisation.
+    Lock,
+}
+
+/// The largest fleet whose `term` alone stays under the ceiling (bisection, as
+/// [`capacity::knee`]; `capacity::knee` is the minimum of the three).
+#[must_use]
+pub fn term_knee(p: &CostParams, base: &Scenario, term: Term) -> f64 {
+    let ceiling = p.get(C::CpuCeiling);
+    let ok = |d: f64| {
+        let mut s = *base;
+        s.devices = d;
+        let l = run(p, &s).seat_load;
+        let rho = match term {
+            Term::Cpu => l.rho_cpu,
+            Term::Permits => l.rho_permit,
+            Term::Lock => l.rho_lock,
+        };
+        rho <= ceiling
+    };
+    if !ok(1.0) {
+        return 0.0;
+    }
+    let (mut lo, mut hi) = (1.0_f64, 1.0e9_f64);
+    if ok(hi) {
+        return hi;
+    }
+    for _ in 0..80 {
+        let mid = (lo * hi).sqrt();
+        if ok(mid) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+        if hi / lo < 1.001 {
+            break;
+        }
+    }
+    lo.floor()
+}
+
 /// The knee of `sc` over every input interval of `p` (growth held at `p`'s value).
+///
+/// The knee is the minimum of three term knees, and the minimum switches term across the input
+/// box, so the vertex method run on the knee itself is not a bound (it put g = 1's upper end
+/// above g = 0.75's). Each term's knee is propagated alone, where it is monotone in each input,
+/// and the knee's interval is `[min_t lo_t, min_t hi_t]`: for every input point the knee is at
+/// least the smallest term lower end and at most every term's upper end. An outer bound, not a
+/// probability.
 #[must_use]
 pub fn knee_interval(p: &CostParams, sc: &Scenario) -> KneeInterval {
     let inputs = input_intervals(p);
-    let pr = propagate(p, &inputs, |q| knee(q, sc));
-    let at = |q: &CostParams, d: f64| {
-        let mut s = *sc;
-        s.devices = d.max(1.0);
-        binding(q, &s)
+    let mut lo: Option<(f64, Term, CostParams)> = None;
+    let mut hi: Option<(f64, Term, CostParams)> = None;
+    for t in [Term::Cpu, Term::Permits, Term::Lock] {
+        let pr = propagate(p, &inputs, |q| term_knee(q, sc, t));
+        if lo.as_ref().is_none_or(|x| pr.interval.lo < x.0) {
+            lo = Some((pr.interval.lo, t, pr.low_corner.clone()));
+        }
+        if hi.as_ref().is_none_or(|x| pr.interval.hi < x.0) {
+            hi = Some((pr.interval.hi, t, pr.high_corner.clone()));
+        }
+    }
+    let (lo, hi) = (lo.expect("three terms"), hi.expect("three terms"));
+    let bind = |t: Term, q: &CostParams, d: f64| match t {
+        Term::Cpu => Binding::Cpu,
+        Term::Permits => Binding::Permits,
+        Term::Lock => {
+            let mut s = *sc;
+            s.devices = d.max(1.0);
+            Binding::Lock(run(q, &s).seat.busiest_plane())
+        }
     };
     KneeInterval {
-        devices: pr.interval,
-        binds_low: at(&pr.low_corner, knee(&pr.low_corner, sc)),
-        binds_high: at(&pr.high_corner, knee(&pr.high_corner, sc)),
+        devices: Interval::new(lo.0, hi.0),
+        binds_low: bind(lo.1, &lo.2, lo.0),
+        binds_high: bind(hi.1, &hi.2, hi.0),
     }
 }
 
@@ -803,7 +875,7 @@ pub fn report(p: &CostParams) -> String {
     s.push_str(&residual_report(p));
     s.push_str("\n### v45.0.0 knee against key_publish_set growth (PROJECTED)\n\n");
     s.push_str(&format!(
-        "One seat of {} cores, ceiling {:.0}%, edge {} (release/45.0.0, untagged when read). Each knee is an interval over every input interval below (vertex method), at one value of the growth axis; no single device count stands. 'Binds' names the term that reaches the ceiling first at each end.\n\n",
+        "One seat of {} cores, ceiling {:.0}%, edge {} (release/45.0.0, untagged when read). Each knee is an outer bound over every input interval below (each term's knee propagated alone by the vertex method, then the smallest lower and the smallest upper end), at one value of the growth axis; no single device count stands. 'Binds' names the term that reaches the ceiling first at each end.\n\n",
         p.get(C::SeatCores),
         p.get(C::CpuCeiling) * 100.0,
         edge_971::COMMIT
@@ -835,6 +907,7 @@ pub const fn plane_label(p: Plane) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::capacity::knee;
 
     #[test]
     fn fit_and_held_out_do_not_overlap() {
@@ -981,6 +1054,9 @@ mod tests {
         }
         for r in &rows {
             assert!(r.old_quarter.hi <= r.knee.devices.hi * 1.001);
+            // the outer bound holds the knee at the point inputs
+            let q = with_value(&p, C::KeyPublishSetGrowth, r.growth);
+            assert!(r.knee.devices.contains(knee(&q, &Scenario::v45(1.0))), "g {} {:?}", r.growth, r.knee.devices);
         }
     }
 
