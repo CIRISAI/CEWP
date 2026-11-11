@@ -92,6 +92,10 @@ pub struct PageClaim {
 
 /// The globe package's commit the layer entries were read at (branch twin/globe).
 const LAYERS_COMMIT: &str = "twin/globe 07865ef";
+/// Sources of the Phase 2 layers (package view functions, merged on twin/globe).
+const VIEWS_COMMIT: &str = "twin/globe 8b70422";
+/// The calibration layer: package source at twin/calibration, wiring at twin/globe.
+const CAL_LAYER_COMMIT: &str = "twin/calibration c13cee5; twin/globe e42b504";
 
 const BASE: PageClaim = PageClaim {
     id: "",
@@ -112,7 +116,11 @@ const BASE: PageClaim = PageClaim {
 
 use EpistemicClass::{Derived, Frontier, Measured, Model};
 
-const SEAT_CORRECTION: &str = "The seat model is being corrected by the twin-calibration package (seat-capacity residuals, out-of-sample check). The single-number knee does not stand as one number. Until the corrected list is applied here, treat every seat-card capacity figure as under correction.";
+/// twin-calibration's correction list (twin/calibration 1b1d8a2, FSD/twin/calibration.md §4 and §10).
+const CALIBRATION_COMMIT: &str = "twin/calibration c13cee5 (CEWP); release/45.0.0 8e46165 (CIRISEdge, untagged when read)";
+/// The live seat figures still come from the f73b918 kernel until the globe package rebuilds it on
+/// the calibrated model.
+const SEAT_KERNEL_CORRECTION: &str = "These live figures are computed by the kernel built at f73b918, whose seat model counts the Global planes at 30 subjects (8,211 to 8,698 at 8e46165), books no reach-rule reads and no send-set floor, and uses point inputs. twin-calibration (1b1d8a2) replaces it; the figures here follow when the kernel is rebuilt on that model. The knee on this card is already the calibrated interval.";
 
 /// Every figure or statement of fact the page shows, by id.
 pub const PAGE_CLAIMS: &[PageClaim] = &[
@@ -342,19 +350,25 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
     PageClaim {
         id: "key-plane-refill",
         class: Derived,
-        shows: "Each key plane's listing refills every 10 minutes and holds one lock while it does.",
-        source: "crates/cewp-sim/src/capacity.rs: key-plane lock terms (CIRISEdge c580298 bridge.rs:7303; key_plane_memo.rs:61 TTL refill)",
-        commit: "f73b918 (CEWP); c580298 (CIRISEdge)",
-        failure: &["How long a listing holds the lock (b) is DERIVED from one warm listing; the probe time is MODEL."],
+        shows: "Each key plane's listing holds one lock; the 10-minute TTL now revalidates at most 256 reads a listing (stale-while-revalidate), so no listing holds the lock for a whole refill.",
+        source: "FSD/twin/calibration.md §1 and §3 (key_plane_memo.rs KEY_PLANE_READ_BUDGET = 256 :296); crates/cewp-sim/src/capacity.rs key-plane lock terms",
+        commit: CALIBRATION_COMMIT,
+        failure: &[
+            "How long a listing holds the lock (b) is DERIVED from one warm listing; the probe time is MODEL.",
+            "The v44.1.2 burst (the whole plane under the lock) cannot occur at 8e46165, so the measured windows (v44.1.2) do not show the v45 lock.",
+        ],
         ..BASE
     },
     PageClaim {
         id: "edge-source-read",
         class: Derived,
-        shows: "Device behaviour is derived from edge source: v45.0.0 (in release), read at commit c580298 and its read-fix series.",
-        source: "FSD/SIMULATION_ENGINE.md §4.7; crates/cewp-sim/src/capacity.rs edge_971 citations",
-        commit: "f73b918 (CEWP); c580298 (CIRISEdge)",
-        failure: &["Edge moves on: a behaviour changed after c580298 is not in the twin until re-read."],
+        shows: "Device behaviour is derived from edge source: edge release/45.0.0 at 8e46165 (untagged when read 2026-11-11). At that commit the listing cache and read budget are built and on by default; only their timings are MODEL.",
+        source: "FSD/twin/calibration.md §1 and §10 (bridge.rs BridgeConfig::default :1220-:1221, key_plane_memo.rs KEY_PLANE_READ_BUDGET = 256 :296, runtime.rs BUNDLE_ROUND_PLANES :1140)",
+        commit: CALIBRATION_COMMIT,
+        failure: &[
+            "Edge moves on: a behaviour changed after 8e46165 is not in the twin until re-read.",
+            "8e46165 was untagged when read; the tag may land on a later commit.",
+        ],
         ..BASE
     },
     PageClaim {
@@ -551,35 +565,38 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ],
         reproduce: "cargo run -p cewp-sim --example capacity_sweep",
         status: Status::UnderCorrection,
-        correction: SEAT_CORRECTION,
+        correction: SEAT_KERNEL_CORRECTION,
         ..BASE
     },
     PageClaim {
         id: "seat-knee",
         class: Model,
         live: true,
-        shows: "The largest fleet of devices rounding with one seat while it stays under its ceiling, for v45, v44 and the whole-plane design, and the term that binds.",
-        source: "crates/cewp-sim/src/capacity.rs: cap_seat knee (kernel-wasm cap_seat output 13)",
-        param: "COST_SPECS; ceiling share of the seat",
+        shows: "v45.0.0 on one 4-core seat at a 70% ceiling: 4,882 to 13,723 devices if the server's publish set grows with the fleet (binds on CPU); 14,253 to 75,879 if it stays at today's size (binds on sweep permits at the low end, CPU at the high end).",
+        source: "kernel-wasm views.rs (twin/globe e42b504) view_calibration_knee(0) (g 0) and (4) (g 1), wrapping crates/cewp-sim/src/seat_hooks.rs calibration_view_knee (lower and upper fields only; the central field is not shown); FSD/twin/calibration.md §4 (knee_interval: each term's knee propagated alone by the vertex method, [min lo, min hi] over CPU, sweep permits and the busiest lock); crates/cewp-sim/src/seat_calibration.rs",
+        commit: CALIBRATION_COMMIT,
+        param: "key_publish_set growth g from 0 (today's size) to 1 (grows with the fleet), FRONTIER",
+        interval: Some(Interval { lo: 4_882.0, hi: 75_879.0, what: "devices at the knee, outer bounds over the input intervals for g in [0, 1]; g = 1 gives 4,882 to 13,723, g = 0 gives 14,253 to 75,879; bounds, not a probability" }),
         failure: &[
-            "Not a single number: it moves with terms that are not measured on a release build (store_read_s, pull costs) and with key_publish_set.",
-            "Rests on the PROVISIONAL terms named on the card.",
+            "Bounds over stated input ranges, not confidence levels; they assume each term is monotone in each input over its range (checked at the ends, not proven).",
+            "The windows ran v44.1.2; every v45 term is read from source, not measured on a v45 seat.",
+            "Permit residuals of 678.5, 4,697 and 4,401 a minute (windows B, A', C) are UNEXPLAINED; a v45 seat may carry a term of that size the model does not book.",
+            "Pull and drain-page timings are edge debug-build wall times; the release end of their band is MODEL.",
+            "Past 1,349 devices every figure is an extrapolation of one seat's model: MODEL with its interval, not PROJECTED (FSD §8.2 reserves PROJECTED for extrapolation from certified lower tiers, and none is certified).",
         ],
-        reproduce: "cargo run -p cewp-sim --example capacity_sweep",
-        status: Status::UnderCorrection,
-        correction: SEAT_CORRECTION,
+        reproduce: "cargo run --release -p cewp-sim --example capacity_sweep (on twin/calibration c13cee5)",
         ..BASE
     },
     PageClaim {
         id: "seat-lock-model",
         class: Model,
         live: true,
-        shows: "The busiest key-plane lock's utilisation at this patch's fleet, the subjects it walks, and its lock knee.",
+        shows: "The busiest key-plane lock's utilisation at this patch's fleet and the subjects it walks. Where the lock binds the knee, seat-knee's interval says so.",
         source: "crates/cewp-sim/src/capacity.rs: key-plane lock model (kernel-wasm cap_seat outputs 15 to 19)",
         param: "listing hold b (DERIVED), probe-page time (MODEL), 10-minute refill",
         failure: &["One server per plane by construction; the probe-page time is MODEL."],
         status: Status::UnderCorrection,
-        correction: SEAT_CORRECTION,
+        correction: SEAT_KERNEL_CORRECTION,
         ..BASE
     },
     PageClaim {
@@ -588,9 +605,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         shows: "v45's figure is PROVISIONAL in two terms: how long a Pull holds its sweep permit (about 2 ms, derived from a key-plane refill, not measured on a Pull) and the Pull's own cost (measured on a debug build).",
         source: "crates/cewp-sim/src/capacity.rs: COST_SPECS store_read_s, pull_calls_per_cycle, pull_permits_per_cycle; report text 'PROVISIONAL in them'",
         param: "store_read_s ~2 ms",
-        failure: &["Until a release-build Pull is measured, the v45 knee can move by the ratio of the true hold time to 2 ms."],
-        status: Status::UnderCorrection,
-        correction: SEAT_CORRECTION,
+        failure: &["Until a release-build Pull is measured, the v45 knee can move by the ratio of the true hold time to 2 ms (the calibrated knee interval carries this band; FSD/twin/calibration.md §7)."],
         ..BASE
     },
     PageClaim {
@@ -704,6 +719,26 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         failure: &["Possibly understated by a factor of two."],
         ..BASE
     },
+    PageClaim {
+        id: "publish-set-growth",
+        class: Frontier,
+        shows: "Whether the server's key publish set grows with the fleet or stays at today's size is not known; the v45 knee turns on it.",
+        source: "FSD/twin/calibration.md §4 and §7 (key_publish_set growth g)",
+        commit: CALIBRATION_COMMIT,
+        blocker: "No measurement of CIRISServer's key_publish_set against fleet size; the twin sweeps g from 0 to 1.",
+        failure: &["Decides the knee between the rows of the calibration table (g = 0: 14,253 to 75,879; g = 1: 4,882 to 13,723)."],
+        ..BASE
+    },
+    PageClaim {
+        id: "global-subjects-at-seat",
+        class: Derived,
+        shows: "The Global key planes walk every key the seat holds: 8,698 at seat-1.",
+        source: "FSD/twin/calibration.md §1 and §5 global_subjects_at_seat (bridge.rs subjects_for_projection :7478, list_revocation_rows :13152: own and cohort on a canonical is every key held); capacity.rs COST_SPECS seat_key_rows",
+        commit: CALIBRATION_COMMIT,
+        interval: Some(Interval { lo: 8_211.0, hi: 8_698.0, what: "subjects walked by a Global plane listing at seat-1" }),
+        failure: &["8,698 is seat-1's key-row count from one day's store composition; the walk grows with the keys the seat holds."],
+        ..BASE
+    },
     // ------------------------------------------------------------------ globe layers (docs/layers/layers.js, the globe package)
     // One entry per layer registered in window.CEWP_LAYERS; the scan checks that the class here equals
     // the layer's declared `cls`. The card adds the layer's own source, contract and `last` values.
@@ -815,7 +850,89 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ],
         reproduce: "cargo run -p cewp-sim --example capacity_sweep",
         status: Status::UnderCorrection,
-        correction: SEAT_CORRECTION,
+        correction: SEAT_KERNEL_CORRECTION,
+        ..BASE
+    },
+    // Phase 2 layers: one kernel-wasm door (kernel-wasm/src/views.rs, slots 0-15) runs each package's
+    // own view function once per page. Sources below are at VIEWS_COMMIT; views.rs itself lands with
+    // the globe commit that registers these layers.
+    PageClaim {
+        id: "layer-topology",
+        class: Model,
+        live: true,
+        shows: "Globe layer: a generated network of ASes, IXPs and cables over real cities (seed 7: 181 metros, 839 ASes, 95 IXPs, 3,732 links), and one route's AS hops and long-haul km.",
+        source: "docs/layers/layers.js: CEWP_LAYERS topology; kernel-wasm views.rs view_topology, view_topology_path; crates/cewp-sim/src/netgraph/view.rs TopologyView, view_classes (every field MODEL); FSD/twin/topology.md",
+        commit: VIEWS_COMMIT,
+        param: "netgraph NetParams::default() at seed 7 (FSD/twin/topology.md parameter table, all MODEL)",
+        failure: &[
+            "Every AS, IXP, peering relationship and cable is invented; no PeeringDB, CAIDA or cable-map data is approved or used.",
+            "AS positions are a display spiral around their metro, not locations.",
+            "Only the metros are real places, at city grain.",
+        ],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-nat",
+        class: Model,
+        live: true,
+        shows: "Globe layer (drawn in a dock panel, not on the globe): devices of a generated street frame by access class and NAT behaviour, each pair's outcome (IPv6, listener, punched, relayed without a punch, punch failed then relayed, same LAN), and the 3 x 7 access-by-behaviour joint.",
+        source: "docs/layers/layers.js: CEWP_LAYERS nat; kernel-wasm views.rs view_nat; crates/cewp-sim/src/reach/hooks.rs nat_view_nodes, nat_view_node_pos, nat_view_pairs, nat_view_joint; FSD/twin/nat.md",
+        commit: VIEWS_COMMIT,
+        param: "reach ReachModel behaviour shares, calibrated to micro.rs PARAM_SPECS router-class marginals (MODEL)",
+        failure: &[
+            "The street frame is generated, in metres, at no real place.",
+            "Behaviour shares are MODEL, fitted to micro's marginals; no NAT survey stands behind the joint.",
+            "One seeded draw per pair: an outcome shown is one sample, not a rate.",
+        ],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-people",
+        class: Model,
+        live: true,
+        shows: "Globe layer: localities sized by the week-intensity multiplier at the simulation's hour of week, the strongest cross-locality ties, and the week's synchronized events (flash crowd first).",
+        source: "docs/layers/layers.js: CEWP_LAYERS people; kernel-wasm views.rs view_people; crates/cewp-sim/src/people_hooks.rs people_view_localities, people_view_week, people_view_ties, people_view_flash over GLOBE_PERSONS = 6000 generated persons; FSD/twin/people.md",
+        commit: VIEWS_COMMIT,
+        param: "people ActivityParams (MODEL); locality centroids and weights DERIVED from the population grid; synchronized-event inputs FRONTIER",
+        failure: &[
+            "Rhythm and ties come from one MODEL one-week bursty run of 6,000 generated persons; small localities are noisy.",
+            "The flash crowd's peak multiplier is DERIVED from FRONTIER event inputs.",
+            "The population grid behind the localities has no recorded source or licence (pop-grid-source, FRONTIER).",
+            "Hour of week maps the simulation's day 314 (a Tuesday) onto the hook's Monday 00:00 UTC origin.",
+        ],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-holon",
+        class: Derived,
+        live: true,
+        shows: "Globe layer: the coarse-tier cells of the R5 demonstration (host kind x access network, laid out as a patch near Zurich; not places), each certified, refused or not evaluated with its binding bound and margin, and the per-tier certificate table.",
+        source: "docs/layers/layers.js: CEWP_LAYERS holon; kernel-wasm views.rs view_holon; crates/cewp-sim/src/holon_view.rs cells_of, certificates_of, holon_view_bounds over holon_demo::demonstration_seeded(VIEW_HORIZON_S, 43); FSD/twin/holon.md",
+        commit: VIEWS_COMMIT,
+        param: "inputs MODEL: the micro world under the tier; seed 43",
+        failure: &[
+            "A certificate here says the coarse tier matched the finer tier's distributions within budget over the twin's MODEL world; it certifies nothing about the real mesh.",
+            "Refused cells are shown as refusals and sent back to the finer tier, not hidden.",
+            "The patch position (centred 47.3769, 8.5417) is layout only.",
+        ],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-calibration",
+        class: Model,
+        live: true,
+        shows: "Globe layer: one v45.0.0 seat's utilisation band against fleet size (500 to 100,000 devices), the knee as a lower-to-upper bracket with no central mark, and each seat-1 counter's predicted over observed, in-sample and held-out marked apart.",
+        source: "docs/layers/layers.js: CEWP_LAYERS calibration; kernel-wasm views.rs view_calibration_curve(g), view_calibration_knee(g), view_calibration_residuals(); crates/cewp-sim/src/seat_hooks.rs calibration_view_curve, calibration_view_knee, calibration_view_residuals; FSD/twin/calibration.md",
+        commit: CAL_LAYER_COMMIT,
+        param: "cost model fit to seat-1 counters (MEASURED, 2026-11-10 windows, aggregates); input intervals per seat_calibration::input_intervals (MODEL); key_publish_set growth g FRONTIER (publish-set-growth)",
+        interval: Some(Interval { lo: 4_882.0, hi: 75_879.0, what: "devices at the knee, outer bounds over the input intervals for g in [0, 1]; bounds, not a probability" }),
+        failure: &[
+            "g is not measured; the knee spans 4,882 to 75,879 devices across g from 0 to 1.",
+            "The band is outer bounds over the input intervals, not a probability; it assumes each term is monotone in each input over its range.",
+            "v45.0.0 only, read from source at edge 8e46165; the fitted windows ran v44.1.2.",
+            "Held-out counters include permit residuals of 678.5, 4,697 and 4,401 a minute (windows B, A', C) that are UNEXPLAINED; the furthest, window A' permits, is predicted at 1,689 against 6,386 observed (x0.264, FSD/twin/calibration.md residual table).",
+        ],
+        reproduce: "cargo run --release -p cewp-sim --example capacity_sweep (on twin/calibration c13cee5)",
         ..BASE
     },
 ];
@@ -843,7 +960,7 @@ pub const CLASS_NOTES: &[(EpistemicClass, &str)] = &[
     (EpistemicClass::Measured, "Read off real code on real hardware: the production serve seat's counters, or your own browser timing the page. Names its window."),
     (EpistemicClass::Derived, "Read from source code or the constitution, or computed by stated arithmetic from source constants and measured counts. Names the file and symbol."),
     (EpistemicClass::Model, "A stated modelling choice, or the output of the simulation under stated inputs. Names its parameters."),
-    (EpistemicClass::Projected, "Extrapolated to planetary scale from certified lower tiers; always carries an interval. Nothing on this page is PROJECTED yet: no tier is certified."),
+    (EpistemicClass::Projected, "Extrapolated from certified lower tiers (FSD §8.2); always carries an interval. Nothing on this page is PROJECTED: no tier here is certified, so extrapolations past what was measured (the seat knee) are MODEL with their intervals."),
     (EpistemicClass::Frontier, "Open: no source or measurement supports it yet. Names what is missing."),
 ];
 
@@ -1114,8 +1231,14 @@ mod tests {
 
     #[test]
     fn page_ledger_seat_figures_are_under_correction() {
-        for id in ["seat-knee", "seat-load-model", "seat-lock-model", "pull-permit-provisional"] {
+        // still computed by the f73b918 kernel's seat model
+        for id in ["seat-load-model", "seat-lock-model", "layer-seat"] {
             assert_eq!(lookup(id).map(|c| c.status), Some(Status::UnderCorrection), "{id}");
         }
+        // the knee is twin-calibration's interval, never one count
+        let k = lookup("seat-knee").expect("seat-knee");
+        assert_eq!((k.class, k.status, k.live), (EpistemicClass::Model, Status::Stated, true));
+        let i = k.interval.expect("an interval");
+        assert!(i.lo < i.hi && !k.shows.contains("18,2"), "{:?}", k.shows);
     }
 }

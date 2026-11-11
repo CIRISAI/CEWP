@@ -50,6 +50,10 @@ under correction reads "under correction" after the figure.
    A registered class that disagrees with the ledger is shown on the card as a mismatch.
    The layer entries (`layer-illustration` at `twin/globe b4cbfb9`, `layer-glow`, `layer-arcs`, `layer-flows`, `layer-alm`, `layer-custody`,
    `layer-reach`, `layer-seat`) were written from the globe package's registry at `twin/globe 07865ef`.
+   The Phase 2 entries `layer-topology` (MODEL), `layer-nat` (MODEL), `layer-people` (MODEL) and
+   `layer-holon` (DERIVED, inputs MODEL) read the packages' view functions through
+   `kernel-wasm/src/views.rs`; registry lines and sources checked at `twin/globe 8b70422`. A holon "certified" cell means the coarse tier held
+   within budget over the twin's MODEL world, not the real mesh.
    On a tree without `docs/layers/` the reverse direction (an entry with no layer) is not checked;
    `cargo run -p cewp-evidence --example page_ledger -- --docs <tree>/docs` checks an integration
    tree against this ledger. `layer-seat` shares the seat cost model and is under correction with it.
@@ -68,6 +72,31 @@ stated inputs), FRONTIER (no support found; the blocker says what is missing). P
 the page. No tier on the page is CIRISHolon-certified, so nothing qualifies as a certified
 planetary extrapolation; the planetary-population figures of the Controls panel are closed-form
 formulas, ledgered as FRONTIER where their constants are unsourced.
+
+## Calibration corrections applied
+
+twin-calibration's list (twin/calibration 1b1d8a2, its FSD §4 and §10) is applied through the
+ledger:
+- `seat-knee` is no longer the kernel's single count. It is MODEL with its interval for v45.0.0
+  on one 4-core seat at 70%: 4,882 to 13,723 devices if the server's publish set grows with the
+  fleet, 14,253 to 75,879 if it stays at today's size. Which holds is `publish-set-growth`
+  (FRONTIER). At twin/globe e42b504 the seat card reads them live through kernel-wasm
+  `view_calibration_knee(0)` and `(4)` (`seat_hooks::calibration_view_knee`), lower and upper only;
+  this tree still prints them as static text, and the integration keeps the globe package's table
+  (resolution sent to the lead). `layer-calibration` (MODEL) is the band, bracket and residual view.
+  It was first ledgered PROJECTED; at twin/calibration c13cee5 both packages reclassed it MODEL,
+  since FSD §8.2 reserves PROJECTED for extrapolation from certified lower tiers and none is
+  certified. No number changed.
+- `edge-source-read`: edge release/45.0.0 at 8e46165 (untagged when read), replacing c580298
+  and "in release"; listing cache and read budget are built and on by default, timings MODEL.
+- `key-plane-refill`: the 10-minute TTL revalidates at most 256 reads a listing.
+- `global-subjects-at-seat` (new, DERIVED): the Global planes walk every key held, 8,698 at
+  seat-1 (8,211 to 8,698), not "tens".
+- `seat-load-model`, `seat-lock-model`, `layer-seat` stay under correction: their live values
+  are still computed by the f73b918 kernel's seat model until it is rebuilt on the calibrated one.
+- `pull-permit-provisional` is stated (its text already says PROVISIONAL).
+- The permit residuals (678.5 / 4,697 / 4,401 a minute, UNEXPLAINED) are not on the page; they
+  are a failure condition of `seat-knee`.
 
 ## Tier honesty
 
