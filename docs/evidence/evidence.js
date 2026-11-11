@@ -61,7 +61,7 @@ function evLayerLive(id){
   const c = EV.by.get("layer-" + id), last = r.last && typeof r.last === "object" ? Object.entries(r.last) : [];
   const vals = last.length ? `<ul>${last.map(([k, v]) => `<li><code>${evEsc(k)}</code> ${evEsc(typeof v === "number" ? +v.toPrecision(4) : v)}</li>`).join("")}</ul>` : "<p>Nothing drawn yet.</p>";
   return `${c && r.cls !== c.class ? `<p class="ev-corr"><b>Class mismatch.</b> The layer declares ${evEsc(r.cls)}; its ledger entry says ${evEsc(c.class)}.</p>` : ""}
-    ${evField("Layer", r.title || id)}${evField("Draws from", r.source, true)}${evField("Data contract", r.contract)}
+    ${evField("Layer", r.title || id)}${evField("Layer class", r.cls)}${r.inputs ? evField("Its inputs", r.inputs) : ""}${evField("Draws from", r.source, true)}${evField("Data contract", r.contract)}
     <div class="ev-f" data-ev-live><span>Values drawn this frame</span>${vals}</div>`;
 }
 function evOpenLayer(id, opener){
