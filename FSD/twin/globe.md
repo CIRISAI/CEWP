@@ -128,6 +128,8 @@ Still hidden: failures (no view functions on any branch when this was wired; its
 
 The page's media figures are sums, counts and medians over the slices (legs attached, wire rate, sessions with no video frame, median resume gaps); nothing else is computed page-side, and they stay MODEL: one seeded run, so a median is over that run's sessions, not a rate. People, holon and media run their scenario once after the click.
 
+Build: `sh kernel-wasm/build.sh` runs `cargo build --profile wasm --target wasm32-unknown-unknown`. `[profile.wasm]` sits at the workspace root (inherits release; opt-level 3, lto, codegen-units 1, panic abort), because a member crate's own `[profile.release]` is ignored inside a workspace. `kernel-wasm/Cargo.toml` carried such a block from f73b918 on, so earlier binaries were built without it. The workspace `[profile.release]` is untouched, so the native CLI keeps unwinding panics. Size: 1,034,318 bytes before, 1,005,909 after. The media view's digest is unchanged, and `view_media(1)` in node took 222 to 235 ms with both binaries (three runs each, measured once).
+
 Cross-platform check (done): `views_media_bits_match_the_wasm_build` asserts that an FNV-1a digest over the bit patterns of slots 20 to 25 after a native `view_media(1)` equals the digest the built `kernel_scale.wasm` gave in node (0x7175cd5dd795aa63; 10 members, 60 steps, 172 tree edges). The two platforms draw the same call bit for bit. In node the wasm run took 234 ms (measured once, not a budget).
 twin-media's basis (a source read): integer µs/bytes engine, exact `Rng::f`, no hash-order
 iteration; the one transcendental (`f64::ln` in `BackgroundModel::next_gap_us`) runs only with household
