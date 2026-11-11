@@ -57,6 +57,7 @@ pub mod micro;
 pub mod tiling;
 pub mod capacity;
 pub mod reach;
+pub mod netgraph;
 
 pub use transport::*;
 pub use alm::*;

@@ -961,6 +961,7 @@ fn print_help() {
     println!("  --emit-bundle <PATH>  Serialize complete evidence_bundle.json to file");
     println!("  nat [SEED]            Joint NAT reachability report (cewp_sim::reach)");
     println!("  nat-cf [SEED]         UPnP/PCP and IPv6-listener counterfactuals (cewp_sim::reach)");
+    println!("  netgraph [SEED]       Print the MODEL stand-in AS topology report (not real data)");
     println!("  --help, -h            Print this help text");
 }
 
@@ -983,6 +984,13 @@ fn main() {
             "nat" => {
                 let seed = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(1);
                 print!("{}", cewp_sim::reach::report(seed));
+                return;
+            }
+            "netgraph" => {
+                // MODEL stand-in AS topology report (FSD/twin/topology.md); optional seed
+                let seed = args.get(i + 1).and_then(|s| s.parse().ok()).unwrap_or(7);
+                let g = cewp_sim::netgraph::generate(seed, &cewp_sim::netgraph::NetParams::default());
+                print!("{}", cewp_sim::netgraph::report(&g));
                 return;
             }
             "all" | "--all" => {
