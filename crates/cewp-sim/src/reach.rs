@@ -1119,6 +1119,37 @@ pub fn world_relay(m: &ReachModel, seed: u64, shape: WorldShape, corr: Correlati
     [k[0], k[1], k[2], PAIR_MIX[0] * k[0] + PAIR_MIX[1] * k[1] + PAIR_MIX[2] * k[2]]
 }
 
+/// The micro tier's rule ([`legacy_direct`] on each end's class, LAN kept) on the same world and
+/// pairs: [family, community, other, weighted]. What the old independent shares would say about
+/// exactly these endpoints.
+#[must_use]
+pub fn world_relay_legacy(m: &ReachModel, seed: u64, shape: WorldShape, corr: Correlation, community_pairs: usize) -> [f64; 4] {
+    let w = World::generate(m, seed, shape, corr);
+    let pr = w.pairs(seed, community_pairs);
+    let k: Vec<f64> = pr
+        .iter()
+        .map(|x| {
+            if x.is_empty() {
+                return 0.0;
+            }
+            let s: f64 = x
+                .iter()
+                .map(|&(a, b, c)| {
+                    let d = if c.same_lan {
+                        1.0
+                    } else {
+                        let l = legacy_direct(w.devices[a].ep.class(), w.devices[b].ep.class(), &m.params);
+                        if !c.may_punch && l < 1.0 { 0.0 } else { l }
+                    };
+                    1.0 - d
+                })
+                .sum();
+            s / x.len() as f64
+        })
+        .collect();
+    [k[0], k[1], k[2], PAIR_MIX[0] * k[0] + PAIR_MIX[1] * k[1] + PAIR_MIX[2] * k[2]]
+}
+
 /// Summary of a sample: mean, 10th, 50th and 90th percentile.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Dist {
@@ -1130,6 +1161,8 @@ pub struct Dist {
     pub p50: f64,
     /// 90th percentile.
     pub p90: f64,
+    /// Standard error of the mean (sample sd / sqrt(n)).
+    pub se: f64,
 }
 
 impl Dist {
@@ -1139,8 +1172,10 @@ impl Dist {
         let mut v = xs.to_vec();
         v.sort_by(|a, b| a.total_cmp(b));
         let q = |f: f64| if v.is_empty() { 0.0 } else { v[((v.len() - 1) as f64 * f).round() as usize] };
-        let mean = if v.is_empty() { 0.0 } else { v.iter().sum::<f64>() / v.len() as f64 };
-        Self { mean, p10: q(0.1), p50: q(0.5), p90: q(0.9) }
+        let n = v.len() as f64;
+        let mean = if v.is_empty() { 0.0 } else { v.iter().sum::<f64>() / n };
+        let se = if v.len() < 2 { 0.0 } else { (v.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt() / n.sqrt() };
+        Self { mean, p10: q(0.1), p50: q(0.5), p90: q(0.9), se }
     }
 }
 
@@ -1283,6 +1318,9 @@ pub fn legacy_direct(a: ReachClass, b: ReachClass, p: &ReachParams) -> f64 {
     }
 }
 
+/// Metros per regime in [`report`].
+const METROS: usize = 256;
+
 /// The text report `cewp-cli nat` prints.
 #[must_use]
 pub fn report(seed: u64) -> String {
@@ -1336,8 +1374,8 @@ pub fn report(seed: u64) -> String {
             let _ = writeln!(s, "  {:>9} x {:<9} joint {pd:.3}  micro {l:.3}  (n {n})", ReachClass::ALL[x].as_str(), ReachClass::ALL[y].as_str());
         }
     }
-    let _ = writeln!(s, "\nRelay share (pairs needing a forwarder, weighted family {:.2} / community {:.2} / other {:.2}), 64 metros:", PAIR_MIX[0], PAIR_MIX[1], PAIR_MIX[2]);
-    let _ = writeln!(s, "  {:<12} {:>26} {:>26} {:>9}", "regime", "correlated mean [p10,p90]", "independent mean [p10,p90]", "delta");
+    let _ = writeln!(s, "\nRelay share (pairs needing a forwarder, weighted family {:.2} / community {:.2} / other {:.2}), {} metros, mean (se) [p10,p90]:", PAIR_MIX[0], PAIR_MIX[1], PAIR_MIX[2], METROS);
+    let _ = writeln!(s, "  {:<12} {:>30} {:>30} {:>16}", "regime", "correlated", "independent", "delta (se)");
     for g in [G::Optimistic, G::Expected, G::Pessimistic, G::Adversarial] {
         let mg = match ReachModel::new(ReachParams::for_regime(g)) {
             Ok(x) => x,
@@ -1346,16 +1384,32 @@ pub fn report(seed: u64) -> String {
                 continue;
             }
         };
-        let (c, _) = relay_distribution(&mg, seed, 64, Correlation::Correlated);
-        let (i, _) = relay_distribution(&mg, seed, 64, Correlation::Independent);
-        let _ = writeln!(s, "  {:<12} {:>8.3} [{:.3},{:.3}]    {:>8.3} [{:.3},{:.3}]    {:+.3}", format!("{g:?}"), c.mean, c.p10, c.p90, i.mean, i.p10, i.p90, c.mean - i.mean);
+        let (c, _) = relay_distribution(&mg, seed, METROS, Correlation::Correlated);
+        let (i, _) = relay_distribution(&mg, seed, METROS, Correlation::Independent);
+        let _ = writeln!(s, "  {:<12} {:>7.3} ({:.3}) [{:.3},{:.3}]   {:>7.3} ({:.3}) [{:.3},{:.3}]   {:+.3} ({:.3})", format!("{g:?}"), c.mean, c.se, c.p10, c.p90, i.mean, i.se, i.p10, i.p90, c.mean - i.mean, c.se.hypot(i.se));
     }
-    let (_, cc) = relay_distribution(&m, seed, 64, Correlation::Correlated);
-    let (_, ci) = relay_distribution(&m, seed, 64, Correlation::Independent);
-    let _ = writeln!(s, "\nCommunity pairs only (Expected): correlated {:.3} [{:.3},{:.3}]  independent {:.3} [{:.3},{:.3}]", cc.mean, cc.p10, cc.p90, ci.mean, ci.p10, ci.p90);
-    let nc = neighbourhood_distribution(&m, seed, 16, Correlation::Correlated);
-    let ni = neighbourhood_distribution(&m, seed, 16, Correlation::Independent);
-    let _ = writeln!(s, "Per-neighbourhood community relay share (128 streets): correlated mean {:.3} p10 {:.3} p50 {:.3} p90 {:.3}; independent mean {:.3} p10 {:.3} p50 {:.3} p90 {:.3}", nc.mean, nc.p10, nc.p50, nc.p90, ni.mean, ni.p10, ni.p50, ni.p90);
+    let legacy: Vec<f64> = (0..METROS).map(|i| world_relay_legacy(&m, mix(seed, 0x5745_4C44, i as u64), WorldShape::default(), Correlation::Correlated, 400)[3]).collect();
+    let lg = Dist::of(&legacy);
+    let _ = writeln!(s, "  micro rule on the same Expected worlds: {:.3} [{:.3},{:.3}]", lg.mean, lg.p10, lg.p90);
+    let mut v4 = m.params.clone();
+    v4.set(R::Ipv6Candidates, 0.0);
+    let m4 = ReachModel::new(v4.clone()).expect("calibrates");
+    let (c4, _) = relay_distribution(&m4, seed, METROS, Correlation::Correlated);
+    let (i4, _) = relay_distribution(&m4, seed, METROS, Correlation::Independent);
+    let _ = writeln!(s, "  Expected, IPv6 candidates off: correlated {:.3} [{:.3},{:.3}]  independent {:.3} [{:.3},{:.3}]  delta {:+.3}", c4.mean, c4.p10, c4.p90, i4.mean, i4.p10, i4.p90, c4.mean - i4.mean);
+    let mut pr = v4.clone();
+    pr.set(R::PeerReflexive, 0.0);
+    let mp = ReachModel::new(pr).expect("calibrates");
+    let (cp, _) = relay_distribution(&mp, seed, METROS, Correlation::Correlated);
+    let _ = writeln!(s, "  Expected, IPv6 and peer-reflexive off (closest to the micro rule): correlated {:.3}", cp.mean);
+    let (_, cc) = relay_distribution(&m, seed, METROS, Correlation::Correlated);
+    let (_, ci) = relay_distribution(&m, seed, METROS, Correlation::Independent);
+    let _ = writeln!(s, "\nCommunity pairs only (Expected): correlated {:.3} ({:.3}) [{:.3},{:.3}]  independent {:.3} ({:.3}) [{:.3},{:.3}]", cc.mean, cc.se, cc.p10, cc.p90, ci.mean, ci.se, ci.p10, ci.p90);
+    let nc = neighbourhood_distribution(&m, seed, 32, Correlation::Correlated);
+    let ni = neighbourhood_distribution(&m, seed, 32, Correlation::Independent);
+    let _ = writeln!(s, "Per-street community relay share (256 streets, every cross-household pair):");
+    let _ = writeln!(s, "  correlated  mean {:.3} ({:.3}) p10 {:.3} p50 {:.3} p90 {:.3}", nc.mean, nc.se, nc.p10, nc.p50, nc.p90);
+    let _ = writeln!(s, "  independent mean {:.3} ({:.3}) p10 {:.3} p50 {:.3} p90 {:.3}", ni.mean, ni.se, ni.p10, ni.p50, ni.p90);
     let _ = writeln!(s, "\nEvery input is MODEL or FRONTIER except the DERIVED switches and calibration; no output is MEASURED.");
     s
 }
@@ -1613,6 +1667,16 @@ mod tests {
         let c = world_relay(&m, 2024, WorldShape::default(), Correlation::Correlated, 2000);
         let i = world_relay(&m, 2024, WorldShape::default(), Correlation::Independent, 2000);
         assert!((c[3] - i[3]).abs() > 1e-3, "correlated {c:?} independent {i:?}");
+    }
+
+    #[test]
+    fn shared_networks_widen_the_spread_across_streets() {
+        // the finding, pinned on a fixed seed: with the same per-endpoint marginals, streets
+        // sharing their ISPs and carriers spread their community relay share much wider
+        let m = ReachModel::default_model();
+        let c = neighbourhood_distribution(&m, 77, 8, Correlation::Correlated);
+        let i = neighbourhood_distribution(&m, 77, 8, Correlation::Independent);
+        assert!(c.p90 - c.p10 > 2.0 * (i.p90 - i.p10), "correlated {c:?} independent {i:?}");
     }
 
     #[test]
