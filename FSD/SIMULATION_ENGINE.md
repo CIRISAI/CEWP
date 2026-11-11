@@ -1056,6 +1056,21 @@ CEWP/
 | **Phase 5** | **Empirical Calibration & Four-Baseline Comparison** | Fix compound-Poisson + IMIX workload generator (§4.1). Implement baselines `A1_HYPERSCALE_CDN`, `A2_MULTIREGION_SFU`, and `A3_HYBRID_P2P` (§4.3). Calibrate `cewp-sim` against real `CIRISServer` / Shadow runs on representative ARM/x86 hardware. | Published confidence intervals and error bounds for CPU, bandwidth, latency, and storage predictions; 4-regime sensitivity sweeps (`optimistic`, `expected`, `pessimistic`, `adversarial`). |
 | **Phase 6** | **Certified Multiscale (`CIRISHolon`) & Planetary Simulation** | Implement boundary-stub cohort coarsening (`cewp-topology/src/coarsen.rs`) and `CIRISHolon` closure defect (`D_v² ≤ β`) + non-expansive (`K ≤ 1.05`) certificates across `R5 → R4 → R3 → R2 → R1 → R0`. Emit visualization snapshots for `docs/index.html` and `AlephScene.tsx`. | Each coarser tier passes its `Closed` and `Carried` certification gates against the finer tier; `5B–8.1B` results are emitted with `PROJECTED` error bars in `evidence_bundle.json`. |
 
+
+### 9.3 Twin realism packages (`FSD/twin/`)
+
+Each package's own spec, with its parameters, classes and validity envelope. Corrections the
+packages say are owed to this document are collected, unapplied, in [`FSD/twin/OWED.md`](twin/OWED.md).
+
+| Spec | What it covers |
+|---|---|
+| [`twin/globe.md`](twin/globe.md) | The WebGL globe, its render layers and `kernel-wasm/`: every layer draws only what a kernel export produced, with its class as text. |
+| [`twin/nat.md`](twin/nat.md) | `cewp_sim::reach`: joint residential/cellular NAT reachability distribution and the UPnP/PCP and IPv6-listener counterfactuals (`cewp-cli nat`, `nat-cf`). |
+| [`twin/topology.md`](twin/topology.md) | `cewp_sim::netgraph`: AS-aware network graph (access ISP, transit, IXP) replacing geography as network distance; a MODEL stand-in behind a loader seam (`cewp-cli netgraph`). |
+| [`twin/people.md`](twin/people.md) | `social`, `activity`, `locality`: social graph, bursty weekly workload and emergent social locality (`cewp-cli people`). |
+| [`twin/holon.md`](twin/holon.md) | `holon_dist`, `holon_demo`, `holon_view`: distributional holon certificates with validity envelopes, refused outside them (`SecondSquareFence::use_certificate`, `cewp-cli holon-demo`). |
+| [`twin/evidence.md`](twin/evidence.md) | `cewp-evidence` `page_ledger` / `page_scan`: one ledger entry per figure on the public page, and a scan that fails on an unledgered figure. |
+
 ---
 
 ## 10. References
