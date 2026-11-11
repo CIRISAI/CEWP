@@ -959,6 +959,8 @@ fn print_help() {
     println!("Options / Subcommands:");
     println!("  all, --all            Run all 6 pipeline phases and emit docs/kernel/tables/evidence_bundle.json");
     println!("  --emit-bundle <PATH>  Serialize complete evidence_bundle.json to file");
+    println!("  people [--persons N] [--days D] [--sweep-days D] [--seed S] [--geo PATH|stand-in]");
+    println!("                        Social graph, bursty workload and emergent locality report (FSD/twin/people.md)");
     println!("  --help, -h            Print this help text");
 }
 
@@ -973,6 +975,16 @@ fn main() {
                 print_help();
                 return;
             }
+            "people" => match cewp_sim::locality::cli(&args[i + 1..]) {
+                Ok(report) => {
+                    print!("{report}");
+                    return;
+                }
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    process::exit(1);
+                }
+            },
             "all" | "--all" => {
                 if emit_path.is_none() {
                     emit_path = Some("docs/kernel/tables/evidence_bundle.json".to_string());
