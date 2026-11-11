@@ -278,7 +278,7 @@ fn params_for(scenario: u32) -> CostParams {
 /// the busiest key-plane lock); lower and upper are its bounds over every input interval
 /// ([`input_intervals`]): each term's utilisation is propagated alone by the vertex method and
 /// the band is `[max lo, max hi]` over the terms, since `rho` is their maximum and switches term
-/// across the input box (outer bounds, not a probability). Class 3 (PROJECTED) at every point: past 1,349 devices (the measured fleet) it is an extrapolation. The binding code
+/// across the input box (outer bounds, not a probability). Class 2 (MODEL) at every point: past 1,349 devices (the measured fleet) it is an extrapolation of one seat's model, not PROJECTED in FSD §8.2's sense (no certified lower tier). The binding code
 /// ([`binding_code`]) is the central case's.
 #[must_use]
 pub fn calibration_view_curve(scenario: u32) -> Vec<f32> {
@@ -306,7 +306,7 @@ pub fn calibration_view_curve(scenario: u32) -> Vec<f32> {
             central as f32,
             lo as f32,
             hi as f32,
-            class::PROJECTED,
+            class::MODEL,
             binding_code(capacity::binding(&p, &sc)),
         ]);
     }
@@ -318,7 +318,7 @@ pub fn calibration_view_curve(scenario: u32) -> Vec<f32> {
 /// Seven fields: `[knee lower, knee central, knee upper, interval kind, binds at lower,
 /// binds at upper, class]`. Devices; the knee is the largest fleet whose seat stays under the
 /// `cpu_ceiling` on every term. Interval kind 0 = outer bounds over the input intervals
-/// (`seat_calibration::knee_interval`, per-term), not a confidence level. Class 3 (PROJECTED). A knee field is -1 when no knee is
+/// (`seat_calibration::knee_interval`, per-term), not a confidence level. Class 2 (MODEL, with its interval; not PROJECTED in FSD §8.2's sense: no certified lower tier). A knee field is -1 when no knee is
 /// claimed (the seat is over the ceiling at one device, or under it past 10^9 devices).
 #[must_use]
 pub fn calibration_view_knee(scenario: u32) -> Vec<f32> {
@@ -334,7 +334,7 @@ pub fn calibration_view_knee(scenario: u32) -> Vec<f32> {
         0.0,
         binding_code(k.binds_low),
         binding_code(k.binds_high),
-        class::PROJECTED,
+        class::MODEL,
     ]
 }
 
@@ -434,7 +434,7 @@ mod tests {
         for r in v.chunks(6) {
             assert!(r[2] <= r[1] && r[1] <= r[3], "{r:?}");
             assert!(r[2] < r[3], "a point at {r:?}");
-            assert!((r[4] - class::PROJECTED).abs() < f32::EPSILON);
+            assert!((r[4] - class::MODEL).abs() < f32::EPSILON);
         }
         // load rises with devices
         assert!(v[6 * 23 + 1] > v[1]);

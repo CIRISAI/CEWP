@@ -5,7 +5,7 @@
 //! The production evidence is four 60-second windows of one seat's counters (seat-1,
 //! 2026-11-10, edge v44.1.2) and one approximate busy-hour reading. That is thin, and this
 //! module says so in every output: no knee is printed as one number, every knee is tagged
-//! `PROJECTED` with its interval and the term that binds at each end of it.
+//! `MODEL` with its interval and the term that binds at each end of it.
 //!
 //! * **Split.** [`FIT`] names every (window, counter) a fitted or measured-ratio parameter may
 //!   read; [`HELD_OUT`] names the counters the fit must predict. [`fit`] reads windows only
@@ -282,7 +282,7 @@ pub fn propagate(p: &CostParams, inputs: &[InputInterval], f: impl Fn(&CostParam
 /// A knee with its interval and what binds at each end.
 #[derive(Debug, Clone)]
 pub struct KneeInterval {
-    /// Devices, PROJECTED.
+    /// Devices, MODEL with an interval.
     pub devices: Interval,
     /// What binds at the low end.
     pub binds_low: Binding,
@@ -393,7 +393,7 @@ pub struct GrowthRow {
     pub initiator_1pct: Interval,
 }
 
-/// v45.0.0's knee (8e46165, one seat) against `key_publish_set` growth, PROJECTED.
+/// v45.0.0's knee (8e46165, one seat) against `key_publish_set` growth, MODEL with an interval.
 #[must_use]
 pub fn knee_by_growth(p: &CostParams) -> Vec<GrowthRow> {
     GROWTH_AXIS
@@ -417,7 +417,7 @@ pub fn knee_by_growth(p: &CostParams) -> Vec<GrowthRow> {
 #[must_use]
 pub fn growth_table(p: &CostParams) -> String {
     let mut s = String::from(
-        "| key_publish_set growth g (FRONTIER) | v45.0.0 knee, devices (PROJECTED) | binds at the low end | binds at the high end | with 25% of devices on v44 (PROJECTED) | seat initiating to 1% of devices (PROJECTED) |\n|---|---|---|---|---|---|\n",
+        "| key_publish_set growth g (FRONTIER) | v45.0.0 knee, devices (MODEL, interval) | binds at the low end | binds at the high end | with 25% of devices on v44 (MODEL, interval) | seat initiating to 1% of devices (MODEL, interval) |\n|---|---|---|---|---|---|\n",
     );
     for r in knee_by_growth(p) {
         s.push_str(&format!(
@@ -873,7 +873,7 @@ pub fn report(p: &CostParams) -> String {
     s.push_str(&held_out_table(p));
     s.push_str("\n### Permit residuals, term by term\n\n");
     s.push_str(&residual_report(p));
-    s.push_str("\n### v45.0.0 knee against key_publish_set growth (PROJECTED)\n\n");
+    s.push_str("\n### v45.0.0 knee against key_publish_set growth (MODEL, interval)\n\n");
     s.push_str(&format!(
         "One seat of {} cores, ceiling {:.0}%, edge {} (release/45.0.0, untagged when read). Each knee is an outer bound over every input interval below (each term's knee propagated alone by the vertex method, then the smallest lower and the smallest upper end), at one value of the growth axis; no single device count stands. 'Binds' names the term that reaches the ceiling first at each end.\n\n",
         p.get(C::SeatCores),

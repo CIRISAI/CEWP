@@ -1817,14 +1817,14 @@ pub fn drain_cores_debug(p: &CostParams, devices: f64, pages: f64, planes: &[Pla
     devices / p.get(C::CadenceS) * pages * per_page
 }
 
-/// Knees by version, each an interval over the input intervals (PROJECTED) at this
+/// Knees by version, each an interval over the input intervals (MODEL, interval) at this
 /// `key_publish_set_growth`: the seat knee and what binds at its two ends, the lock knee, the
 /// seat knee with a quarter of the devices still on v44, and the seat's cores at today's fleet.
 #[must_use]
 pub fn versions_table(p: &CostParams) -> String {
     use crate::seat_calibration::{cores_interval, input_intervals, knee_interval, propagate};
     let mut s = format!(
-        "At key_publish_set_growth = {} (FRONTIER; swept in the growth table). Every figure is an interval over the input intervals.\n\n| version | seat knee, devices (PROJECTED) | binds at the low / high end | lock knee, devices (PROJECTED) | seat knee, 25% old peers (PROJECTED) | today's fleet: seat CPU cores |\n|---|---|---|---|---|---|\n",
+        "At key_publish_set_growth = {} (FRONTIER; swept in the growth table). Every figure is an interval over the input intervals.\n\n| version | seat knee, devices (MODEL, interval) | binds at the low / high end | lock knee, devices (MODEL, interval) | seat knee, 25% old peers (MODEL, interval) | today's fleet: seat CPU cores |\n|---|---|---|---|---|---|\n",
         p.get(C::KeyPublishSetGrowth)
     );
     let mut q = p.clone();
@@ -1886,12 +1886,12 @@ pub fn key_planes_today_table(p: &CostParams) -> String {
 
 /// The old-peer axis: the share of devices that still round on every bootstrap plane (v44
 /// peers kept on purpose, consent peers), by fleet size; v45.0.0 (8e46165), one seat. The rho
-/// and core columns are at the point inputs (diagnostic); the knees are intervals (PROJECTED).
+/// and core columns are at the point inputs (diagnostic); the knees are intervals (MODEL, interval).
 #[must_use]
 pub fn mixed_fleet_table(p: &CostParams) -> String {
     use crate::seat_calibration::{input_intervals, knee_interval, propagate};
     let mut s = String::from(
-        "| devices | old peer share | rho lock Key | rho lock IO | rho lock Rev | refill reads/s | seat CPU cores | seat rho | lock knee (PROJECTED) | seat knee (PROJECTED) |\n|---|---|---|---|---|---|---|---|---|---|\n",
+        "| devices | old peer share | rho lock Key | rho lock IO | rho lock Rev | refill reads/s | seat CPU cores | seat rho | lock knee (MODEL, interval) | seat knee (MODEL, interval) |\n|---|---|---|---|---|---|---|---|---|---|\n",
     );
     for d in [p.get(C::AnnouncedNodes), 10_000.0, 100_000.0] {
         for share in OLD_PEER_SHARES {
@@ -1967,7 +1967,7 @@ pub fn key_plane_table(p: &CostParams, shape: RoundShape) -> String {
 #[must_use]
 pub fn fix_table(p: &CostParams, devices: f64, shape: RoundShape) -> String {
     let mut s = format!(
-        "**{} devices, {}, one seat** (rates at the point inputs, a diagnostic; knees are intervals)\n\n| read fix | (b) cache | budget | TTL rebuild | drain pages/s | permits/s | probe reads/s | refill reads/s | key-plane CPU cores | rho lock (plane) | longest stall s | lock knee (PROJECTED) | seat knee (PROJECTED) |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+        "**{} devices, {}, one seat** (rates at the point inputs, a diagnostic; knees are intervals)\n\n| read fix | (b) cache | budget | TTL rebuild | drain pages/s | permits/s | probe reads/s | refill reads/s | key-plane CPU cores | rho lock (plane) | longest stall s | lock knee (MODEL, interval) | seat knee (MODEL, interval) |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
         fmt_n(devices),
         shape.as_str()
     );
@@ -2512,7 +2512,7 @@ pub fn knee_status(p: &CostParams) -> String {
     shipped.devices = n;
     let model = run(p, &shipped).seat_load.cpu_cores;
     format!(
-        "v45.0.0 is release/45.0.0 at 8e46165 (untagged when read 2026-11-11): the required-set Pull with the read minimisation series, the listing cache and the read budget (both BUILT and on by default, not MODEL candidates), and the reach rule (6244795). Its Global planes walk every key the seat holds (8,698 at seat-1), not tens. Every knee below is an interval over the input intervals (seat_calibration), PROJECTED, and the growth of the server's key_publish_set (FRONTIER) is swept in its own table, because which term binds turns on it. It rests on terms not measured on a release build: how long a Pull holds its permit (`store_read_s`, ~2 ms, DERIVED from a key-plane refill), a cache hit's set comparison (`warm_listing_s`, MODEL) and the Pull's own cost (`pull_calls_per_cycle`, `pull_permits_per_cycle`: MEASURED on an edge debug build).\n\nThe row without the read fix was never released. Each attributed device's 30 s Revocation round drains the whole attestation index at the seat ({pages:.0} pages at seat-1), so it binds on the permits, and its knee rests on what one index page costs in CPU (PROVISIONAL). Measured per page on an edge debug build (wall time, in-memory store, release rerun pending), that drain at {n:.0} devices costs {rev:.1} cores; with whole-plane rounds on the four planes that read the index it would cost {five:.1}. The model puts the whole seat at {model:.1} cores at that fleet.\n\nWhat a sweep permit counts is settled from source (edge source read 2026-11-10 at v44.1.2; the sites by label at 8e46165): drains one per page, listings 2 to 4, key-plane probes and subject reads one each, a consent send-set read one, withholds none. The lock knees rest on b (DERIVED from the warm Key listing), the subject-read time (DERIVED, ~2 ms) and the probe-page time (MODEL)."
+        "v45.0.0 is release/45.0.0 at 8e46165 (untagged when read 2026-11-11): the required-set Pull with the read minimisation series, the listing cache and the read budget (both BUILT and on by default, not MODEL candidates), and the reach rule (6244795). Its Global planes walk every key the seat holds (8,698 at seat-1), not tens. Every knee below is an interval over the input intervals (seat_calibration), MODEL with its interval (not PROJECTED in FSD §8.2's sense: no tier is certified), and the growth of the server's key_publish_set (FRONTIER) is swept in its own table, because which term binds turns on it. It rests on terms not measured on a release build: how long a Pull holds its permit (`store_read_s`, ~2 ms, DERIVED from a key-plane refill), a cache hit's set comparison (`warm_listing_s`, MODEL) and the Pull's own cost (`pull_calls_per_cycle`, `pull_permits_per_cycle`: MEASURED on an edge debug build).\n\nThe row without the read fix was never released. Each attributed device's 30 s Revocation round drains the whole attestation index at the seat ({pages:.0} pages at seat-1), so it binds on the permits, and its knee rests on what one index page costs in CPU (PROVISIONAL). Measured per page on an edge debug build (wall time, in-memory store, release rerun pending), that drain at {n:.0} devices costs {rev:.1} cores; with whole-plane rounds on the four planes that read the index it would cost {five:.1}. The model puts the whole seat at {model:.1} cores at that fleet.\n\nWhat a sweep permit counts is settled from source (edge source read 2026-11-10 at v44.1.2; the sites by label at 8e46165): drains one per page, listings 2 to 4, key-plane probes and subject reads one each, a consent send-set read one, withholds none. The lock knees rest on b (DERIVED from the warm Key listing), the subject-read time (DERIVED, ~2 ms) and the probe-page time (MODEL)."
     )
 }
 

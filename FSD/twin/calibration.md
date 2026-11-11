@@ -138,7 +138,7 @@ box, so the vertex method run on the knee itself is not a bound (it put g = 1's 
 takes `[min lo, min hi]`: an outer bound. The globe curve's rho band is built the same way
 (`[max lo, max hi]` over terms).
 
-v45.0.0 knee, devices on one 4-core seat at a 70% ceiling (PROJECTED, outer bounds over the
+v45.0.0 knee, devices on one 4-core seat at a 70% ceiling (MODEL with an interval: outer bounds over the
 input intervals, not a probability), against the server's `key_publish_set` growth g
 (FRONTIER):
 
@@ -150,7 +150,7 @@ input intervals, not a probability), against the server's `key_publish_set` grow
 | 0.75 | 5,440 to 15,534 | CPU / CPU | 2,268 to 11,835 | 3,903 to 14,955 |
 | 1 | 4,882 to 13,723 | CPU / CPU | 2,155 to 10,462 | 3,413 to 13,145 |
 
-By version at g = 1 (PROJECTED): v44 whole-plane rounds 5 to 36 devices (permits), lock knee
+By version at g = 1 (MODEL, intervals): v44 whole-plane rounds 5 to 36 devices (permits), lock knee
 1,877 to 3,398, today's fleet 42.7 to 136 cores; v45 without the read fix (never released)
 33 to 179 (permits); v45.0.0 4,882 to 13,723 (CPU), lock knee 8,175 to 18,091, today's fleet
 0.135 to 0.563 cores.
@@ -211,7 +211,7 @@ the same seat (section 8), and the server's publish-set rule.
 - Permit residuals of 678 to 4,697 a minute are UNEXPLAINED; a v45 seat may carry a term of
   that size the model does not book.
 - No revocation was ever observed: the Revocation carry rate is 0 by construction.
-- Past 1,349 devices every figure is an extrapolation (PROJECTED).
+- Past 1,349 devices every figure is an extrapolation of one seat's model. It is classed MODEL with its interval, not PROJECTED: FSD §8.2 reserves PROJECTED for extrapolation from certified lower tiers, and none is certified.
 
 ## 8. Aggregate measurements that would make it sound
 
