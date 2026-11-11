@@ -929,7 +929,7 @@ function draw(){
   const sunCam=[R[0]*sx+R[3]*sy+R[6]*sz, R[1]*sx+R[4]*sy+R[7]*sz, R[2]*sx+R[5]*sy+R[8]*sz];
   const peakLon=(15.0-simUtc)*15.0*Math.PI/180;
   const peakDir=[Math.sin(peakLon), Math.cos(peakLon)];
-  if (typeof gfxOcean==="function") gfxOcean(S,asp,sunCam,false); else { gl.useProgram(pD); gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); const dp=gl.getAttribLocation(pD,"p"); gl.enableVertexAttribArray(dp); gl.vertexAttribPointer(dp,2,gl.FLOAT,false,0,0); gl.uniform1f(gl.getUniformLocation(pD,"S"),S); gl.uniform2fv(gl.getUniformLocation(pD,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pD,"uSunCam"),sunCam); gl.drawArrays(gl.TRIANGLES,0,96*3); }
+  if (typeof gfxOcean==="function"&&(!window.LAYERS||LAYERS.on("illustration"))) gfxOcean(S,asp,sunCam,false); else { gl.useProgram(pD); gl.bindBuffer(gl.ARRAY_BUFFER,discBuf); const dp=gl.getAttribLocation(pD,"p"); gl.enableVertexAttribArray(dp); gl.vertexAttribPointer(dp,2,gl.FLOAT,false,0,0); gl.uniform1f(gl.getUniformLocation(pD,"S"),S); gl.uniform2fv(gl.getUniformLocation(pD,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pD,"uSunCam"),sunCam); gl.drawArrays(gl.TRIANGLES,0,96*3); }
   const landA=Math.max(0,Math.min(1,(zoom-3)/9));
   const mpp=EARTH_M/(0.86*zoom*Math.min(w,h)/2), gsets=geoSets(w,h,mpp); GEO.rf=sstep(30,90,mpp);
   if (landVerts){ gl.useProgram(pG); gl.uniformMatrix3fv(gl.getUniformLocation(pG,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pG,"S"),S); gl.uniform2fv(gl.getUniformLocation(pG,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pG,"uSunWorld"),sunWorld); gl.uniform1f(gl.getUniformLocation(pG,"uA"),landA);
@@ -992,7 +992,7 @@ function draw(){
     gl.bindBuffer(gl.ARRAY_BUFFER,lineParamBuf); gl.enableVertexAttribArray(lparam); gl.vertexAttribPointer(lparam,4,gl.FLOAT,false,0,0);
     gl.drawArrays(gl.LINES,0,arcCount*SEG_VERTS); }
   // aerial perspective over land and sea (illustration), then each layer's GL marks
-  if (typeof gfxOcean==="function") gfxOcean(S,asp,sunCam,true);
+  if (typeof gfxOcean==="function"&&(!window.LAYERS||LAYERS.on("illustration"))) gfxOcean(S,asp,sunCam,true); // illustration layer off: the flat disc above, no haze
   if (typeof LAYERS!=="undefined") LAYERS.drawGL(R,S,asp,w,h,mpp,nowSec);
 }
 // rotation per pixel: the old feel near the planet; at depth, exactly one pixel of ground per pixel dragged

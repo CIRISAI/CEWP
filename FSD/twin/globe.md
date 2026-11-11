@@ -87,6 +87,7 @@ the dock never stops that event. Phase 2 contracts are not in `CEWP_LAYERS` unti
 
 | id | draws | export | class |
 |---|---|---|---|
+| illustration | ocean colour, sun glint, atmosphere limb: decoration, draws no data; off falls back to the f73b918 flat disc | none (shader in gfx.js, lit by `clock_sun`) | MODEL |
 | glow | night side lit where people are | population grid + `clock_sun` | MODEL |
 | arcs | a sample of the tick's deliveries | `tick` arcs buffer | DERIVED (sample) |
 | flows | top 60 locality pairs over the last 25 ticks, width ∝ log count, counts on the top 5 | buffers 10, 2 | DERIVED |

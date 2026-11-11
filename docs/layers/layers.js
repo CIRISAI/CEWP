@@ -12,7 +12,7 @@ const U32 = (which) => new Uint32Array(mem.buffer, wasm.globe_buf_ptr(which) >>>
 const has = (...names) => () => !!(wasm && names.every((n) => typeof wasm[n] === "function"));
 const fmt = (x) => !isFinite(x) ? "–" : x >= 1e6 ? (x / 1e6).toFixed(2) + "M" : x >= 1e4 ? (x / 1e3).toFixed(1) + "k" : Math.round(x).toLocaleString();
 const proj = (F, la, lo) => projLL(F, la, lo); // [x, y, z]; z < 0 is behind the globe
-const KEEP = { on: new Set(["glow", "arcs"]) };
+const KEEP = { on: new Set(["illustration", "glow", "arcs"]) };
 try { const s = localStorage.getItem("cewp.layers"); if (s) KEEP.on = new Set(JSON.parse(s)); } catch (e) {}
 const save = () => { try { localStorage.setItem("cewp.layers", JSON.stringify([...KEEP.on])); } catch (e) {} };
 
@@ -22,6 +22,10 @@ function layer(def){ def.last = {}; def.info = {}; REG.push(def); return def; }
 window.CEWP_LAYERS = {};
 
 // ------------------------------------------------------------------ illustration (not data)
+window.CEWP_LAYERS["illustration"] = layer({ id: "illustration", title: "Ocean colour, glint and atmosphere", cls: "MODEL",
+  source: "gfx.js gfxOcean (shader only; reads no kernel export)",
+  contract: "Decoration. It draws no data: the ocean's colour, the sun's glint and the atmosphere's limb are a shading illustration lit by the sim sun (clock_sun) and nothing else. Off, the globe falls back to the plain ocean disc of f73b918 with no atmosphere.",
+  available: () => true, status(){ this.last = {}; return "decoration, no data"; } });
 window.CEWP_LAYERS["glow"] = layer({ id: "glow", title: "Night side lit by where people are", cls: "MODEL", decorative: false,
   source: "population grid (globe.js POP_GRID) · clock_sun",
   contract: "The population grid the sim places people on (MODEL input, 1.5° cells, scattered ±cellRad), blurred 3 px into a 1024×512 image; lit where the sun from clock_sun(t) is below the horizon. Not satellite night lights. Read once at load; the sun every frame.",
@@ -243,7 +247,7 @@ function render(){
     return `<div class="ly-row${on ? " on" : ""}"><button class="ly-sw" data-layer="${d.id}" aria-pressed="${on}"><span class="ly-box" aria-hidden="true">${on ? "■" : "□"}</span><span class="ly-t">${d.title}</span></button>
       <button type="button" class="ly-cls" data-layer-claim="${d.id}" title="${d.cls}: class of what this layer draws (FSD §8.2); open its evidence card" aria-label="${d.cls}, open the evidence card for ${d.title}">${CODE[d.cls]}</button>${d.inputs ? `<span class="ly-in" title="inputs: ${d.inputs}">inputs ${d.inputs.split(" ")[0]}</span>` : ""}
       ${on ? `<div class="ly-st" id="ly-st-${d.id}"></div>${d.panel ? `<canvas class="ly-chart" id="ly-ch-${d.id}" aria-label="${d.title} chart"></canvas>` : ""}${ctl}<details class="ly-src"><summary>Where this comes from</summary><p><code>${d.source}</code></p><p>${d.contract}</p></details>` : ""}</div>`; }).join("") +
-    `<p class="ly-note">Not data: the ocean's colour and glint and the atmosphere are illustration.</p></div>`;
+    `</div>`;
   refresh();
 }
 function refresh(){ if (!dock || !open) return; for (const d of REG){ if (!LAYERS.on(d.id)) continue; const el = $id("ly-st-" + d.id); if (el && d.status) el.textContent = d.status(); const c = $id("ly-ch-" + d.id); if (c && d.panel) d.panel(c); } }
