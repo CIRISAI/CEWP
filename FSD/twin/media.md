@@ -303,3 +303,65 @@ once and returns every buffer; the per-buffer functions each run it again.
 The tree is the closed-loop controller's (§3), not `alm.rs` `compute_alm_topology_verified`:
 member ids are the scenario's node indices, so a layer drawn from `alm.rs` for another member
 set does not line up with this one.
+
+## 11. Two people (`media_call2.rs`, `cewp-cli media-call2 5`)
+
+Asked when v45.0.0 was weighed to ship calls limited to two people. One publisher each way,
+audio and video, no relay tree, no warm standby, household traffic on (and off, for scale).
+Four conditions: a laptop and a phone on home Wi-Fi, or a laptop on Wi-Fi and a phone on LTE;
+each either punched direct at a probed MTU of 1,400 (frame budget 1,142 B; MODEL that the path
+probes that high) or through a hosted relay at the base MTU (246 B). The relay is a third
+node (`SERVER_RELAY`, 1 Gbit/s, 20 ms buffers, no loss; MODEL) that both members must use.
+The model's relay verifies each chunk where an RNS transport hop would not; at 60 us per
+verify on that host it is never the bottleneck.
+
+MODEL output, 5 seeds, 10 sessions per condition (p95 is therefore the worst session), p50/p95:
+
+| busy household | audio missing ‰ | audio lat p95 ms | freeze s/min | keyframe loss ‰ | g2g p95 ms | join s |
+|---|---|---|---|---|---|---|
+| Wi-Fi, direct 1400 | 7 / 19 | 76 / 173 | 14.4 / 21.9 | 107 / 214 | 157 / 258 | 2.1 / 4.0 |
+| Wi-Fi, relayed 500 | 2 / 18 | 125 / 192 | 40.0 / 47.7 | 428 / 535 | 209 / 344 | 2.1 / 8.1 |
+| LTE, direct 1400 | 13 / 375 | 156 / 2,782 | 15.9 / 22.0 | 107 / 214 | 249 / 2,542 | 2.1 / 4.1 |
+| LTE, relayed 500 | 4 / 403 | 145 / 8,028 | 37.7 / 48.3 | 360 / 560 | 244 / 7,709 | 2.5 / 8.1 |
+
+Quiet household: audio missing ≤ 13 ‰ at p95 except LTE relayed (288 ‰); freeze unchanged
+(14–15 s/min direct, 37–39 s/min relayed). Chunk loss is 3–9 ‰ everywhere.
+
+Reading (inference from the model's structure): audio is usable in all four conditions at the
+median; its tail on LTE is video sharing a 1 s FIFO uplink through capacity dips with no
+bitrate adaptation and no audio priority. Video is not smooth in any condition. A lost
+fragment of a reference frame freezes the picture until the next forced keyframe (2 s; no
+keyframe request, no retransmit), and at 7 ‰ chunk loss most two-second groups lose one. At
+the base MTU an IDR is ~4.6× as many fragments, keyframe loss rises from ~10 % to ~43 %, and the
+freeze nearly triples. Freeze scales with the MODEL Wi-Fi loss (Gilbert-Elliott, §2): by
+arithmetic alone, not run, 1 ‰ chunk loss would freeze a direct call about 3–4 s/min.
+
+## 12. Audio-only full-mesh room (`media_call2.rs`, `cewp-cli media-audio 5`)
+
+The server's relay-off full mesh (≤ 9 members): Opus only, every member `relay: false`, no
+standby, base MTU (one 20 ms Opus frame is one datagram at either MTU). N = 4 and 9; mixes
+(MODEL): `wifi` alternates laptop and phone on home Wi-Fi; `wifi+lte` alternates a Wi-Fi
+laptop and an LTE phone; `wifi+1dsl` is the Wi-Fi mix with member 0 on the 1 Mbit/s DSL line.
+
+Each member's uplink carries N − 1 copies: 413–416 kbit/s at N = 4, 1,104–1,112 kbit/s at
+N = 9, ~139 kbit/s per 24 kbit/s voice copy (§8 item 9). MODEL output, 5 seeds, p50/p95 over
+sessions; worst publisher = highest median missing over one publisher's streams:
+
+| busy household | audio missing ‰ | worst publisher ‰ | audio lat p50 ms | audio lat p95 ms |
+|---|---|---|---|---|
+| N=4 wifi | 6 / 10 | 7 | 22 / 22 | 39 / 134 |
+| N=4 wifi+lte | 8 / 38 | 11 | 39 / 58 | 59 / 257 |
+| N=4 wifi+1dsl | 8 / 176 | 58 | 22 / 53 | 57 / 475 |
+| N=9 wifi | 7 / 17 | 7 | 23 / 25 | 41 / 143 |
+| N=9 wifi+lte | 9 / 584 | 411 | 40 / 874 | 81 / 7,739 |
+| N=9 wifi+1dsl | 7 / 944 | 943 | 23 / 520 | 43 / 584 |
+
+Quiet household: N = 4 is ≤ 10 ‰ at p95 on every mix; N = 9 wifi 6/9; N = 9 wifi+lte 7/346
+(worst publisher 65); N = 9 wifi+1dsl still 943 ‰ for the DSL publisher.
+
+Reading: a member whose sustained uplink falls under (N − 1) × 139 kbit/s loses its voice to
+everyone, since there is no adaptation and no relay offload. A 1 Mbit/s line holds 7 copies
+(N ≤ 8, quiet only); an LTE phone in a 10 % dip (600 kbit/s, MODEL) holds 4 (N ≤ 5). N = 9 is
+also the publisher's initial fan-out of 8 (edge `PUBLISHER_INITIAL_FANOUT`, DERIVED); a tenth
+member would not be admitted without a relay. Not run: packing several Opus frames per chunk,
+which would cut the per-copy overhead.
