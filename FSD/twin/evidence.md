@@ -80,8 +80,10 @@ ledger:
 - `seat-knee` is no longer the kernel's single count. It is MODEL with its interval for v45.0.0
   on one 4-core seat at 70%: 4,882 to 13,723 devices if the server's publish set grows with the
   fleet, 14,253 to 75,879 if it stays at today's size. Which holds is `publish-set-growth`
-  (FRONTIER). The page shows these as static text from that FSD until the globe package wires
-  `seat_hooks::calibration_view_knee`; then the entry becomes live with the same class.
+  (FRONTIER). At twin/globe e42b504 the seat card reads them live through kernel-wasm
+  `view_calibration_knee(0)` and `(4)` (`seat_hooks::calibration_view_knee`), lower and upper only;
+  this tree still prints them as static text, and the integration keeps the globe package's table
+  (resolution sent to the lead). `layer-calibration` (MODEL) is the band, bracket and residual view.
   It was first ledgered PROJECTED; at twin/calibration c13cee5 both packages reclassed it MODEL,
   since FSD §8.2 reserves PROJECTED for extrapolation from certified lower tiers and none is
   certified. No number changed.

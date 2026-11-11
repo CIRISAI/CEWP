@@ -94,6 +94,8 @@ pub struct PageClaim {
 const LAYERS_COMMIT: &str = "twin/globe 07865ef";
 /// Sources of the Phase 2 layers (package view functions, merged on twin/globe).
 const VIEWS_COMMIT: &str = "twin/globe 8b70422";
+/// The calibration layer: package source at twin/calibration, wiring at twin/globe.
+const CAL_LAYER_COMMIT: &str = "twin/calibration c13cee5; twin/globe e42b504";
 
 const BASE: PageClaim = PageClaim {
     id: "",
@@ -569,8 +571,9 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
     PageClaim {
         id: "seat-knee",
         class: Model,
-        shows: "v45.0.0 on one 4-core seat at a 70% ceiling: 4,882 to 13,723 devices if the server's publish set grows with the fleet (binds on CPU); 14,253 to 75,879 if it stays at today's size (binds on sweep permits at the low end, CPU at the high end). The busiest key-plane lock alone would bind at 8,175 to 18,091 devices if the publish set grows with the fleet.",
-        source: "FSD/twin/calibration.md §4 (knee_interval: each term's knee propagated alone by the vertex method, [min lo, min hi] over CPU, sweep permits and the busiest lock); crates/cewp-sim/src/seat_calibration.rs",
+        live: true,
+        shows: "v45.0.0 on one 4-core seat at a 70% ceiling: 4,882 to 13,723 devices if the server's publish set grows with the fleet (binds on CPU); 14,253 to 75,879 if it stays at today's size (binds on sweep permits at the low end, CPU at the high end).",
+        source: "kernel-wasm views.rs (twin/globe e42b504) view_calibration_knee(0) (g 0) and (4) (g 1), wrapping crates/cewp-sim/src/seat_hooks.rs calibration_view_knee (lower and upper fields only; the central field is not shown); FSD/twin/calibration.md §4 (knee_interval: each term's knee propagated alone by the vertex method, [min lo, min hi] over CPU, sweep permits and the busiest lock); crates/cewp-sim/src/seat_calibration.rs",
         commit: CALIBRATION_COMMIT,
         param: "key_publish_set growth g from 0 (today's size) to 1 (grows with the fleet), FRONTIER",
         interval: Some(Interval { lo: 4_882.0, hi: 75_879.0, what: "devices at the knee, outer bounds over the input intervals for g in [0, 1]; g = 1 gives 4,882 to 13,723, g = 0 gives 14,253 to 75,879; bounds, not a probability" }),
@@ -588,7 +591,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         id: "seat-lock-model",
         class: Model,
         live: true,
-        shows: "The busiest key-plane lock's utilisation at this patch's fleet and the subjects it walks (the lock knee shown beside it is the calibrated interval, seat-knee).",
+        shows: "The busiest key-plane lock's utilisation at this patch's fleet and the subjects it walks. Where the lock binds the knee, seat-knee's interval says so.",
         source: "crates/cewp-sim/src/capacity.rs: key-plane lock model (kernel-wasm cap_seat outputs 15 to 19)",
         param: "listing hold b (DERIVED), probe-page time (MODEL), 10-minute refill",
         failure: &["One server per plane by construction; the probe-page time is MODEL."],
@@ -914,6 +917,24 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ],
         ..BASE
     },
+    PageClaim {
+        id: "layer-calibration",
+        class: Model,
+        live: true,
+        shows: "Globe layer: one v45.0.0 seat's utilisation band against fleet size (500 to 100,000 devices), the knee as a lower-to-upper bracket with no central mark, and each seat-1 counter's predicted over observed, in-sample and held-out marked apart.",
+        source: "docs/layers/layers.js: CEWP_LAYERS calibration; kernel-wasm views.rs view_calibration_curve(g), view_calibration_knee(g), view_calibration_residuals(); crates/cewp-sim/src/seat_hooks.rs calibration_view_curve, calibration_view_knee, calibration_view_residuals; FSD/twin/calibration.md",
+        commit: CAL_LAYER_COMMIT,
+        param: "cost model fit to seat-1 counters (MEASURED, 2026-11-10 windows, aggregates); input intervals per seat_calibration::input_intervals (MODEL); key_publish_set growth g FRONTIER (publish-set-growth)",
+        interval: Some(Interval { lo: 4_882.0, hi: 75_879.0, what: "devices at the knee, outer bounds over the input intervals for g in [0, 1]; bounds, not a probability" }),
+        failure: &[
+            "g is not measured; the knee spans 4,882 to 75,879 devices across g from 0 to 1.",
+            "The band is outer bounds over the input intervals, not a probability; it assumes each term is monotone in each input over its range.",
+            "v45.0.0 only, read from source at edge 8e46165; the fitted windows ran v44.1.2.",
+            "Held-out counters include permit residuals of 678.5, 4,697 and 4,401 a minute (windows B, A', C) that are UNEXPLAINED; the furthest, window A' permits, is predicted at 1,689 against 6,386 observed (x0.264, FSD/twin/calibration.md residual table).",
+        ],
+        reproduce: "cargo run --release -p cewp-sim --example capacity_sweep (on twin/calibration c13cee5)",
+        ..BASE
+    },
 ];
 
 /// Looks up an entry by id.
@@ -1216,7 +1237,7 @@ mod tests {
         }
         // the knee is twin-calibration's interval, never one count
         let k = lookup("seat-knee").expect("seat-knee");
-        assert_eq!((k.class, k.status, k.live), (EpistemicClass::Model, Status::Stated, false));
+        assert_eq!((k.class, k.status, k.live), (EpistemicClass::Model, Status::Stated, true));
         let i = k.interval.expect("an interval");
         assert!(i.lo < i.hi && !k.shows.contains("18,2"), "{:?}", k.shows);
     }
