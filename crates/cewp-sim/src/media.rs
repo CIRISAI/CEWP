@@ -155,6 +155,8 @@ pub const MIN_AUDIO_BPS: u64 = 8_000;
 pub const UPLINK_SAFETY_MARGIN_PERMILLE: u64 = 750;
 /// edge `path_meter.rs` `UPLINK_REFUSAL_WINDOWS`.
 pub const UPLINK_REFUSAL_WINDOWS: u32 = 3;
+/// edge `path_meter.rs` `UPLINK_SPAN_MS`.
+pub const UPLINK_SPAN_US: u64 = 30_000_000;
 /// edge `admission.rs` `CEILING_STALE_MS`.
 pub const CEILING_STALE_US: u64 = 60_000_000;
 /// leviculum-core `LINK_KEEPALIVE_SECS` (the keepalive at and above `LINK_KEEPALIVE_MAX_RTT`).
@@ -603,7 +605,7 @@ struct Adm {
     kids: Vec<Kid>,
     order: u64,
     ceiling: Option<u64>,
-    bad_windows: u32,
+    bad_windows: VecDeque<(u64, u64)>,
     ceiling_set_us: u64,
 }
 
@@ -679,6 +681,9 @@ struct Node {
     up: LinkDir,
     down: LinkDir,
     rng: Rng,
+    /// Household traffic draws apart from the medium's, so contention on and off see the same
+    /// loss and cellular realisation (common random numbers).
+    bg_rng: Rng,
     cpu_free: u64,
     cpu_busy_us: u64,
     present: bool,
@@ -785,7 +790,7 @@ impl Engine {
                     l.path_mtu = u64::from(sc.call.path_mtu);
                     l.ip_header = u64::from(sc.call.ip_header);
                 }
-                Node { spec: *s, up, down, rng: Rng::new(sc.seed ^ (i as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)), cpu_free: 0, cpu_busy_us: 0, present: false, left_us: None }
+                Node { spec: *s, up, down, rng: Rng::new(sc.seed ^ (i as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)), bg_rng: Rng::new(sc.seed ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03) ^ 0xB6), cpu_free: 0, cpu_busy_us: 0, present: false, left_us: None }
             })
             .collect();
         let rx = (0..n * n)
@@ -1026,12 +1031,12 @@ impl Engine {
         if self.sc.contention {
             let p = spec.profile;
             for (down, model) in [(false, p.bg_up), (true, p.bg_down)] {
-                let gap = model.next_gap_us(&mut self.nodes[ni].rng);
+                let gap = model.next_gap_us(&mut self.nodes[ni].bg_rng);
                 if let Some(g) = gap {
                     self.push(self.now + g, Ev::BgArrive { n, down, periodic: false });
                 }
                 if model.periodic_bytes > 0 && model.period_ms > 0 {
-                    let phase = self.nodes[ni].rng.next_u64() % (model.period_ms * 1_000);
+                    let phase = self.nodes[ni].bg_rng.next_u64() % (model.period_ms * 1_000);
                     self.push(self.now + phase, Ev::BgArrive { n, down, periodic: true });
                 }
             }
@@ -1384,18 +1389,22 @@ impl Engine {
                 let i = self.ix(s, f);
                 let a = &mut self.adm[i];
                 let mut shed_to = None;
+                while a.bad_windows.front().is_some_and(|&(t, _)| now.saturating_sub(t) > UPLINK_SPAN_US) {
+                    a.bad_windows.pop_front();
+                }
                 if dr && loss_pm >= DEGRADED_LOSS_PERMILLE {
-                    a.bad_windows += 1;
+                    // The span's verdict (path_meter.rs): distinct lossy windows within 30 s.
+                    a.bad_windows.push_back((now, loss_pm));
                     a.streak = 0;
-                    if a.bad_windows >= UPLINK_REFUSAL_WINDOWS {
-                        let c = (committed * (1_000 - loss_pm) / 1_000 * UPLINK_SAFETY_MARGIN_PERMILLE / 1_000).max(if s == f { 1_000 } else { 0 });
+                    if a.bad_windows.len() >= UPLINK_REFUSAL_WINDOWS as usize {
+                        let worst = a.bad_windows.iter().map(|x| x.1).max().unwrap_or(loss_pm).min(1_000);
+                        let c = (committed * (1_000 - worst) / 1_000 * UPLINK_SAFETY_MARGIN_PERMILLE / 1_000).max(if s == f { 1_000 } else { 0 });
                         a.ceiling = Some(c);
                         a.ceiling_set_us = now;
-                        a.bad_windows = 0;
+                        a.bad_windows.clear();
                         shed_to = Some(c);
                     }
                 } else {
-                    a.bad_windows = 0;
                     a.streak += 1;
                     if a.ceiling.is_some() && now.saturating_sub(a.ceiling_set_us) >= CEILING_STALE_US {
                         a.ceiling = None;
@@ -1817,11 +1826,11 @@ impl Engine {
         let ni = usize::from(n);
         let p = self.nodes[ni].spec.profile;
         let model = if down { p.bg_down } else { p.bg_up };
-        let bytes = if periodic { model.periodic_bytes } else { model.draw_bytes(&mut self.nodes[ni].rng) };
+        let bytes = if periodic { model.periodic_bytes } else { model.draw_bytes(&mut self.nodes[ni].bg_rng) };
         let f = self.flows.len() as u32;
         self.flows.push(RenoFlow::new(n, down, bytes, self.now));
         self.bg_pump(f);
-        let next = if periodic { Some(model.period_ms * 1_000) } else { model.next_gap_us(&mut self.nodes[ni].rng) };
+        let next = if periodic { Some(model.period_ms * 1_000) } else { model.next_gap_us(&mut self.nodes[ni].bg_rng) };
         if let Some(g) = next {
             self.push(self.now + g, Ev::BgArrive { n, down, periodic });
         }
@@ -2041,6 +2050,8 @@ pub struct Pooled {
     pub peak_cpu_permille: Vec<u64>,
     /// Max publisher fan-out per run.
     pub max_fanout: Vec<u64>,
+    /// Summed packet ledger.
+    pub ledger: Ledger,
 }
 
 /// Run `f` under `cond` for `seeds` seeds.
@@ -2053,6 +2064,17 @@ pub fn pool(f: ScenarioFn, cond: Condition, seeds: u64) -> Pooled {
         let r = Engine::new(sc).run();
         out.conserved &= r.ledger.balanced() && r.links_conserve;
         out.switches += r.switches;
+        let l = &mut out.ledger;
+        l.created += r.ledger.created;
+        l.verified += r.ledger.verified;
+        l.bg_done += r.ledger.bg_done;
+        l.air += r.ledger.air;
+        l.tail += r.ledger.tail;
+        l.aqm += r.ledger.aqm;
+        l.flushed += r.ledger.flushed;
+        l.absent += r.ledger.absent;
+        l.stale += r.ledger.stale;
+        l.live += r.ledger.live;
         out.sessions.extend(r.sessions);
         out.recoveries.extend(r.recoveries);
         for (a, b) in out.amp.iter_mut().zip(&r.amp) {
@@ -2105,7 +2127,7 @@ pub fn report_line(name: &str, cond: &Condition, p: &Pooled) -> String {
     let layer: Vec<u64> = s.iter().filter(|q| q.layer_windows > 0).map(|q| permille(q.layer_ok_windows, q.layer_windows)).collect();
     let chunk: Vec<u64> = s.iter().map(|q| q.chunk_loss_ppm / 1_000).collect();
     format!(
-        "{name:<32} {:<15} n={:<4} noVideo={:<3} join_ms={:<16} g2g_d1_ms={:<14} g2g_d2+_ms={:<14} chunkLoss_pm={:<12} keyLoss_pm={:<14} p0Loss_pm={:<12} freeze_ms/min={:<16} audioMiss_pm={:<12} audioLat_ms={:<12} layerOK_pm={:<12} sw={} sojournMax_ms={} cpuPeak_pm={} fanoutMax={} conserved={}",
+        "{name:<32} {:<15} n={:<4} noVideo={:<3} join_ms={:<16} g2g_d1_ms={:<14} g2g_d2+_ms={:<14} chunkLoss_pm={:<12} keyLoss_pm={:<14} p0Loss_pm={:<12} freeze_ms/min={:<16} audioMiss_pm={:<12} audioLat_ms={:<12} layerOK_pm={:<12} sw={} sojournMax_ms={} cpuPeak_pm={} fanoutMax={} conserved={} pkts={} tail={} air={} aqm={} stale={}",
         cond.label,
         s.len(),
         never,
@@ -2124,6 +2146,11 @@ pub fn report_line(name: &str, cond: &Condition, p: &Pooled) -> String {
         d3(&p.peak_cpu_permille),
         d3(&p.max_fanout),
         p.conserved,
+        p.ledger.created,
+        p.ledger.tail,
+        p.ledger.air,
+        p.ledger.aqm,
+        p.ledger.stale,
     )
 }
 
@@ -2174,6 +2201,41 @@ pub fn recovery_line(p: &Pooled) -> String {
     )
 }
 
+/// What the call-4 result hinges on: the busy, tail-drop call with one MODEL driver changed at
+/// a time.
+#[must_use]
+pub fn sensitivity_lines(seeds: u64) -> Vec<String> {
+    type Tweak = fn(&mut Scenario);
+    let tweaks: [(&str, Tweak); 6] = [
+        ("as modelled", |_| {}),
+        ("no medium loss/cell dips", |sc| sc.impairments = false),
+        ("no warm standby", |sc| sc.call.standby = false),
+        ("IDR every 0.5 s", |sc| sc.call.gop_us = 500_000),
+        ("RNS MTU 1400", |sc| sc.call.rns_mtu = 1_400),
+        ("Wi-Fi/LTE residual loss /10", |sc| {
+            for n in &mut sc.nodes {
+                n.profile.ge.loss_good_ppm /= 10;
+                n.profile.ge.loss_bad_ppm /= 10;
+            }
+        }),
+    ];
+    let mut out = vec!["sensitivity (call4, busy, tail-drop):".to_owned()];
+    for (label, t) in tweaks {
+        let f: ScenarioFn = scenario_call4;
+        let mut p = Pooled { conserved: true, amp: amp_buckets(), ..Pooled::default() };
+        for seed in 1..=seeds {
+            let mut sc = f(seed, true, Discipline::TailDrop);
+            t(&mut sc);
+            let r = Engine::new(sc).run();
+            p.conserved &= r.ledger.balanced() && r.links_conserve;
+            p.sessions.extend(r.sessions);
+            p.switches += r.switches;
+        }
+        out.push(report_line(label, &CONDITIONS[1], &p));
+    }
+    out
+}
+
 /// The whole report: every scenario under every condition.
 #[must_use]
 pub fn report(seeds: u64) -> String {
@@ -2197,6 +2259,7 @@ pub fn report(seeds: u64) -> String {
             }
         }
     }
+    out.extend(sensitivity_lines(seeds));
     out.join("\n")
 }
 
@@ -2424,5 +2487,31 @@ mod tests {
         assert!(quiet.conserved && busy.conserved);
         let miss = |p: &Pooled| p.sessions.iter().filter(|q| q.stream == 0).map(|q| q.audio_missing).sum::<u64>();
         assert!(miss(&busy) > miss(&quiet), "a backup on the DSL uplink costs its publisher's audio");
+    }
+}
+
+#[cfg(test)]
+mod diag {
+    use super::*;
+
+    #[test]
+    #[ignore = "diagnostic dump, run by hand"]
+    fn dump_call4() {
+        for imp in [true, false] {
+            let mut sc = scenario_call4(1, false, Discipline::TailDrop);
+            sc.impairments = imp;
+            let r = Engine::new(sc).run();
+            println!("impairments={imp} ledger={:?}", r.ledger);
+            for q in &r.sessions {
+                println!(
+                    "s{}->r{} chunkLoss_ppm={} key {}/{} p0 {}/{} p1 {}/{} undec={} freezes={} freeze_ms={} span_ms={} audio miss {}/{} join={:?} g2g={:?}",
+                    q.stream, q.receiver, q.chunk_loss_ppm, q.key_lost, q.key_sent, q.p0_lost, q.p0_sent, q.p1_lost, q.p1_sent, q.undecodable,
+                    q.freezes, q.freeze_us / 1000, q.span_us / 1000, q.audio_missing, q.audio_sent, q.join_us.map(|j| j / 1000), q.g2g_median_by_depth.map(|o| o.map(|v| v / 1000))
+                );
+            }
+            for (i, l) in r.links.iter().enumerate() {
+                println!("n{i} {} up off={} tail={} air={} soj_max_ms={} | down off={} tail={} air={} soj_max_ms={} cpu_pm={}", l.0, l.1.offered_bytes, l.1.tail_drop_bytes, l.1.air_loss_bytes, l.1.sojourn_max_us / 1000, l.2.offered_bytes, l.2.tail_drop_bytes, l.2.air_loss_bytes, l.2.sojourn_max_us / 1000, l.3);
+            }
+        }
     }
 }

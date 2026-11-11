@@ -141,8 +141,9 @@ first window waits from `chunk_seq` 0 (as edge does) and skips.
 
 Opus 24 kbit/s in 20 ms frames (60 B, one chunk, no marker). H.264 500 kbit/s at 15 fps,
 two temporal layers alternating (t1 non-reference), IDR every 2 s; IDR = 8 × a t0 P-frame,
-t1 = 0.7 × t0, ±20 % per frame. At these settings a t0 P-frame is ~1.9 KB (8 fragments), a
-t1 ~1.3 KB (6), an IDR ~15 KB (64). Capture + encode 50 ms, decode + render 30 ms. Ed25519
+t1 = 0.7 × t0, ±20 % per frame. At these settings a t0 P-frame is ~3.8 KB (17 fragments), a
+t1 ~2.7 KB (12), an IDR ~31 KB (130); the base layer (t0 incl. IDRs) is 69 % of the video
+bytes, so a warm standby (audio + base) costs 0.69 of a full stream. Capture + encode 50 ms, decode + render 30 ms. Ed25519
 verify 60 µs desktop / 150 µs phone, sign 25 / 60 µs (FRONTIER: a release-build measurement
 on a phone core is requested).
 
@@ -195,6 +196,53 @@ Broadband America raw data (access rates, latency under load, loss), the MONROE 
 style cellular traces (capacity over time), and published Wi-Fi airtime/loss traces. Each
 would drop in behind `AccessProfile` / `CellModel` / `GeParams`.
 
-## 8. Findings
+## 8. Findings (`cewp-cli media 5`: MODEL output, 5 seeds, p50/p95/p99 over sessions)
 
-Filled from `cewp-cli media` output; see the package report.
+Conditions: `quiet` = no household traffic, `busy` = household traffic on; `fifo` / `codel`
+= queue discipline; `#975` = the delivery-report counterfactual. Every run conserved bytes per
+link and packets per ledger.
+
+1. **Contention on vs off is second-order here.** In call4, busy vs quiet moves audio-missing
+   p50 from 333 to 434 permille and g2g p95 from 866 to 1175 ms; the DSL+backup call moves
+   audio latency p95 from 1.5 s to 2.7 s; broadcast and room20 do not move. The sensitivity
+   block (call4, busy) shows why: with medium loss and cellular dips off, the busy call is
+   near perfect (audio missing p50 0, every window at the requested layer, freeze p50
+   4.3 s/min from IDR serialisation), so household traffic alone (at these MODEL rates) is not
+   what breaks the call. What breaks it is how edge's media structure meets ordinary loss.
+2. **No keyframe recovery turns small chunk loss into long freezes.** With no keyframe
+   request and no resend, a lost IDR (130 fragments) or any lost t0 P-frame (17) freezes the
+   base chain until the next IDR. At ~0.4 % chunk loss (a Wi-Fi receiver of a fibre
+   publisher) a session lost 8 of 28 IDRs and could not decode 350 complete frames: half the
+   call frozen. The closed form `1 − (1 − p)^n` holds under independent loss (tested); in the
+   scenarios loss is burst- and size-correlated, so measured frame loss by bucket sits well
+   below the pooled closed form while IDRs still lose 30–97 %.
+3. **IDR fan-out bursts overflow a shallow buffer (broadcast).** The publisher signs a
+   130-fragment IDR in ~3 ms and copies it to every child at once: 24 × 130 × 527 B = 1.6 MB
+   into a 50 ms (312 KB) fibre buffer. IDR loss 965 permille; 114 of 120 viewer sessions
+   never show a frame, while P-frame loss stays under 4 %. Edge has no media pacing on a UDP
+   interface (§3.2), so this is the model's reading of edge, conditional on the MODEL buffer.
+4. **Admission never learns the uplink on datagram legs; fan-out follows demand.** Broadcast
+   fan-out reaches all 24 viewers direct; room20 publishers reach 18–19 children each (full
+   mesh), the room collapses (1787 of 1900 sessions never show video, audio missing 965
+   permille). The #975 counterfactual caps broadcast fan-out at 4 (no-video sessions 114 →
+   24 of 120) and room20's at 4 (no-video 1800 → 1258), at the price of long joins.
+5. **The warm standby is expensive.** Standby = audio + base = 0.69 of a stream at this GOP;
+   relaying standbys overloads 6 Mbit/s Wi-Fi uplinks. call4 without standbys: audio missing
+   p50 434 → 17 permille, chunk loss p95 435 → 118.
+6. **MTU is the largest single lever.** RNS MTU 1400 (frame budget 1142 B): IDR 28 fragments,
+   call4 freeze p50 39 → 9 s/min, IDR loss p50 357 → 35, layer windows at request p50 428 →
+   910 permille.
+7. **CoDel trades IDRs for latency.** call4: g2g p95 1175 → 563 ms, audio latency p95
+   1717 → 613 ms, but IDR loss p50 357 → 535 and join p95 4.4 → 16 s (the AQM's drops land on
+   the large bursts).
+8. **Relay recovery under load is far from the unloaded bound.** Churn, busy: 47 relay
+   departures, 44 with a standby; audio gap p50 1.2 s, p95 20 s; video gap p50 4.6 s; 10 never
+   resumed in the run. Unloaded, the tested bound holds (§5).
+9. **Wire efficiency at the base MTU**: video 238/527 B (45 %), Opus 60/351 B (17 %); a
+   24 kbit/s voice copy is ~140 kbit/s on the uplink. A frame over 974,848 B (4096 × 238) is
+   refused at the base MTU although `MAX_FRAME_BYTES` is 1 MiB.
+
+Inferences from code reading the engine reproduces but that edge tests should confirm: the
+reorder window waits a full window at every `chunk_seq` gap a layer cap or a standby leg
+creates (filtered t1 chunks are gaps, and audio shares the sequence); a vanished parent with
+no other active path is detected only by the link's stale timeout under `idle_aware_silence`.
