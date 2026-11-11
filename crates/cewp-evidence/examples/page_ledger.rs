@@ -4,6 +4,7 @@
 //! no entry.
 //!
 //!     cargo run -p cewp-evidence --example page_ledger -- --write
+//!     cargo run -p cewp-evidence --example page_ledger -- --docs <another tree>/docs
 
 use cewp_evidence::page_ledger::{docs_dir, ledger_js, ledger_json, validate_ledger, GENERATE_CMD};
 use cewp_evidence::page_scan::check_page;
@@ -29,7 +30,10 @@ fn main() {
             bad = true;
         }
     }
-    let found = check_page(&docs_dir());
+    // `--docs <dir>` scans another tree (an integration checkout) against this ledger
+    let args: Vec<String> = std::env::args().collect();
+    let docs = args.iter().position(|a| a == "--docs").and_then(|i| args.get(i + 1)).map(std::path::PathBuf::from).unwrap_or_else(docs_dir);
+    let found = check_page(&docs);
     for f in &found {
         eprintln!("{f}");
     }

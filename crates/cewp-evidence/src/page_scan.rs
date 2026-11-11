@@ -203,6 +203,11 @@ pub fn check_layers(layers: &[(String, String)]) -> Vec<Finding> {
             }
         }
     }
+    // a tree with no layer files (a branch before the globe package merges) leaves the layer entries
+    // unchecked in this direction; once any layer file exists every entry must name a layer
+    if layers.is_empty() {
+        return out;
+    }
     for c in PAGE_CLAIMS {
         if let Some(id) = c.id.strip_prefix("layer-") {
             if !seen.contains(id) {

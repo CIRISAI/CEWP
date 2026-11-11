@@ -90,6 +90,9 @@ pub struct PageClaim {
     pub correction: &'static str,
 }
 
+/// The globe package's commit the layer entries were read at (branch twin/globe).
+const LAYERS_COMMIT: &str = "twin/globe 07865ef";
+
 const BASE: PageClaim = PageClaim {
     id: "",
     class: EpistemicClass::Frontier,
@@ -699,6 +702,110 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         source: "docs/globe.js: static markup, options 1 and 2",
         blocker: "No derivation in source. They are half the frame interval at the TCP MDU (frame-interval: 2.3 s, 5.8 s); under a Poisson schedule the mean wait for the next frame equals the mean interval, not half of it. Needs the derivation or a correction.",
         failure: &["Possibly understated by a factor of two."],
+        ..BASE
+    },
+    // ------------------------------------------------------------------ globe layers (docs/layers/layers.js, the globe package)
+    // One entry per layer registered in window.CEWP_LAYERS; the scan checks that the class here equals
+    // the layer's declared `cls`. The card adds the layer's own source, contract and `last` values.
+    PageClaim {
+        id: "layer-glow",
+        class: Model,
+        live: true,
+        shows: "Globe layer: the night side lit where the simulated population lives.",
+        source: "docs/layers/layers.js: CEWP_LAYERS glow; docs/globe.js POP_GRID (population grid); kernel-wasm clock_sun",
+        commit: LAYERS_COMMIT,
+        param: "the population grid (1.5 degree cells, blurred 3 px into a 1024 x 512 image); sun position from clock_sun(t)",
+        failure: &[
+            "It is a picture of the model's input, not satellite night lights.",
+            "The population grid it draws has no recorded source or licence (pop-grid-source, FRONTIER).",
+        ],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-arcs",
+        class: Derived,
+        live: true,
+        shows: "Globe layer: a sample of deliveries crossing localities, coloured by tier (shaped hop, seat replication, relay tree or unshaped, onion).",
+        source: "docs/layers/layers.js: CEWP_LAYERS arcs; kernel-wasm tick, arcs buffer (u32 x 2: signer, target | tier << 28)",
+        commit: LAYERS_COMMIT,
+        failure: &[
+            "A sample: the tick keeps up to 420 pairs (1 in 3 to 1 in 48 of its deliveries) and the page draws at most 10 a tick, so arc density is not traffic volume.",
+            "Derived from the kernel's MODEL world (kernel-traffic, kernel-locality); no real traffic.",
+        ],
+        reproduce: "node --test docs/kernel/kernel.test.js",
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-flows",
+        class: Derived,
+        live: true,
+        shows: "Globe layer: exact counts of deliveries between localities over the last 25 ticks, the largest 60 pairs drawn.",
+        source: "docs/layers/layers.js: CEWP_LAYERS flows; kernel-wasm tick (globe buffer 10, a 181 x 181 u32 matrix) and locality_centroids (buffer 2)",
+        commit: LAYERS_COMMIT,
+        failure: &[
+            "The counts are exact for the simulated world, which is a MODEL (kernel-locality: the 90/9/1 room mix largely sets them).",
+            "The layer checks every tick that the matrix sums to out[6] + out[7]; a mismatch shows on its status line and as check_ok = 0 on this card.",
+        ],
+        reproduce: "node --test docs/kernel/kernel.test.js",
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-alm",
+        class: Derived,
+        live: true,
+        shows: "Globe layer: the relay tree of one region's room (CC 6.1.6), its depth, busiest parent and fan-out bound.",
+        source: "docs/layers/layers.js: CEWP_LAYERS alm; kernel-wasm alm_room, alm_bounds; crates/cewp-sim/src/alm.rs compute_alm_topology_verified_with_publisher",
+        commit: LAYERS_COMMIT,
+        param: "MODEL inputs: device class shares 30/30/15/25 %, uplinks 2/8/12/20 Mbit/s, max subscribers 1/2/4/8, RTT = 10 ms + 2 x 1.6 x km / 200, trust depth 1 for every pair, first 64 members",
+        failure: &[
+            "The tree is computed exactly, but over MODEL inputs: uplinks, class shares and the RTT formula are not measured.",
+            "Trust depth 1 for all pairs removes the trust constraint the real tree builder applies.",
+        ],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-custody",
+        class: Derived,
+        live: true,
+        shows: "Globe layer: which members of a room hold its sealed chunk, and whether custody is Full, Partial or envelope only.",
+        source: "docs/layers/layers.js: CEWP_LAYERS custody; kernel-wasm custody_room (globe buffers 7 and 8); chunk_custody classify(present, 20, 6), effective_source_count",
+        commit: LAYERS_COMMIT,
+        param: "present_pm (the slider): the share of holders reachable, drawn per holder; target 20, minimum viable 6",
+        failure: &[
+            "Who is reachable is a MODEL draw from the slider, a stand-in until the failures package supplies correlated outages.",
+            "Holders are the room's members; no custody placement policy beyond that is modelled.",
+        ],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-reach",
+        class: Model,
+        live: true,
+        shows: "Globe layer at street scale: each generated home marked public listener, punchable NAT or hard NAT / CGNAT.",
+        source: "docs/layers/layers.js: CEWP_LAYERS reach; kernel-wasm micro_export (micro buffer 6, router class); crates/cewp-sim/src/micro.rs PARAM_SPECS",
+        commit: LAYERS_COMMIT,
+        param: "micro.rs PARAM_SPECS router class shares (MODEL)",
+        failure: &[
+            "The homes are generated and the router shares are modelling choices; no NAT survey stands behind them.",
+            "Independent per home: no ISP-wide CGNAT correlation (the nat package's work).",
+        ],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-seat",
+        class: Model,
+        live: true,
+        shows: "Globe layer: serve-seat load (CPU and permit utilisation) across fleet sizes from 10 to 100,000 devices, and this street's point on it. No knee is drawn.",
+        source: "docs/layers/layers.js: CEWP_LAYERS seat; kernel-wasm cap_curve (globe buffer 9), cap_seat; crates/cewp-sim/src/capacity.rs run, COST_SPECS",
+        commit: LAYERS_COMMIT,
+        param: "COST_SPECS (calibrated to seat-1 aggregates); bundle-bootstrap setting from the street chip (v44, v45, whole-plane); 64 fleet sizes",
+        failure: &[
+            "Rests on the same cost model as seat-load-model, which is being recalibrated.",
+            "One queue with Poisson-smooth arrivals (capacity.rs module doc).",
+        ],
+        reproduce: "cargo run -p cewp-sim --example capacity_sweep",
+        status: Status::UnderCorrection,
+        correction: SEAT_CORRECTION,
         ..BASE
     },
 ];
