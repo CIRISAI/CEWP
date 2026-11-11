@@ -93,7 +93,7 @@ pub struct PageClaim {
 /// The globe package's commit the layer entries were read at (branch twin/globe).
 const LAYERS_COMMIT: &str = "twin/globe 07865ef";
 /// Sources of the Phase 2 layers (package view functions, merged on twin/globe).
-const VIEWS_COMMIT: &str = "twin/globe 1dd1c16";
+const VIEWS_COMMIT: &str = "twin/globe 8b70422";
 
 const BASE: PageClaim = PageClaim {
     id: "",
@@ -112,10 +112,10 @@ const BASE: PageClaim = PageClaim {
     correction: "",
 };
 
-use EpistemicClass::{Derived, Frontier, Measured, Model, Projected};
+use EpistemicClass::{Derived, Frontier, Measured, Model};
 
 /// twin-calibration's correction list (twin/calibration 1b1d8a2, FSD/twin/calibration.md §4 and §10).
-const CALIBRATION_COMMIT: &str = "twin/calibration 1b1d8a2 (CEWP); release/45.0.0 8e46165 (CIRISEdge, untagged when read)";
+const CALIBRATION_COMMIT: &str = "twin/calibration c13cee5 (CEWP); release/45.0.0 8e46165 (CIRISEdge, untagged when read)";
 /// The live seat figures still come from the f73b918 kernel until the globe package rebuilds it on
 /// the calibrated model.
 const SEAT_KERNEL_CORRECTION: &str = "These live figures are computed by the kernel built at f73b918, whose seat model counts the Global planes at 30 subjects (8,211 to 8,698 at 8e46165), books no reach-rule reads and no send-set floor, and uses point inputs. twin-calibration (1b1d8a2) replaces it; the figures here follow when the kernel is rebuilt on that model. The knee on this card is already the calibrated interval.";
@@ -568,7 +568,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
     },
     PageClaim {
         id: "seat-knee",
-        class: Projected,
+        class: Model,
         shows: "v45.0.0 on one 4-core seat at a 70% ceiling: 4,882 to 13,723 devices if the server's publish set grows with the fleet (binds on CPU); 14,253 to 75,879 if it stays at today's size (binds on sweep permits at the low end, CPU at the high end). The busiest key-plane lock alone would bind at 8,175 to 18,091 devices if the publish set grows with the fleet.",
         source: "FSD/twin/calibration.md §4 (knee_interval: each term's knee propagated alone by the vertex method, [min lo, min hi] over CPU, sweep permits and the busiest lock); crates/cewp-sim/src/seat_calibration.rs",
         commit: CALIBRATION_COMMIT,
@@ -579,9 +579,9 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
             "The windows ran v44.1.2; every v45 term is read from source, not measured on a v45 seat.",
             "Permit residuals of 678.5, 4,697 and 4,401 a minute (windows B, A', C) are UNEXPLAINED; a v45 seat may carry a term of that size the model does not book.",
             "Pull and drain-page timings are edge debug-build wall times; the release end of their band is MODEL.",
-            "Past 1,349 devices every figure is an extrapolation.",
+            "Past 1,349 devices every figure is an extrapolation of one seat's model: MODEL with its interval, not PROJECTED (FSD §8.2 reserves PROJECTED for extrapolation from certified lower tiers, and none is certified).",
         ],
-        reproduce: "cargo run --release -p cewp-sim --example capacity_sweep (on twin/calibration 1b1d8a2)",
+        reproduce: "cargo run --release -p cewp-sim --example capacity_sweep (on twin/calibration c13cee5)",
         ..BASE
     },
     PageClaim {
@@ -939,7 +939,7 @@ pub const CLASS_NOTES: &[(EpistemicClass, &str)] = &[
     (EpistemicClass::Measured, "Read off real code on real hardware: the production serve seat's counters, or your own browser timing the page. Names its window."),
     (EpistemicClass::Derived, "Read from source code or the constitution, or computed by stated arithmetic from source constants and measured counts. Names the file and symbol."),
     (EpistemicClass::Model, "A stated modelling choice, or the output of the simulation under stated inputs. Names its parameters."),
-    (EpistemicClass::Projected, "Extrapolated past what was measured; always carries an interval. FSD §8.2 means extrapolation from certified lower tiers, and no tier on this page is certified: the one PROJECTED figure here (the seat knee) extrapolates one seat's measured windows, as bounds over its input ranges, not a probability."),
+    (EpistemicClass::Projected, "Extrapolated from certified lower tiers (FSD §8.2); always carries an interval. Nothing on this page is PROJECTED: no tier here is certified, so extrapolations past what was measured (the seat knee) are MODEL with their intervals."),
     (EpistemicClass::Frontier, "Open: no source or measurement supports it yet. Names what is missing."),
 ];
 
@@ -1216,7 +1216,7 @@ mod tests {
         }
         // the knee is twin-calibration's interval, never one count
         let k = lookup("seat-knee").expect("seat-knee");
-        assert_eq!((k.class, k.status, k.live), (EpistemicClass::Projected, Status::Stated, false));
+        assert_eq!((k.class, k.status, k.live), (EpistemicClass::Model, Status::Stated, false));
         let i = k.interval.expect("an interval");
         assert!(i.lo < i.hi && !k.shows.contains("18,2"), "{:?}", k.shows);
     }

@@ -51,10 +51,8 @@ under correction reads "under correction" after the figure.
    The layer entries (`layer-illustration` at `twin/globe b4cbfb9`, `layer-glow`, `layer-arcs`, `layer-flows`, `layer-alm`, `layer-custody`,
    `layer-reach`, `layer-seat`) were written from the globe package's registry at `twin/globe 07865ef`.
    The Phase 2 entries `layer-topology` (MODEL), `layer-nat` (MODEL), `layer-people` (MODEL) and
-   `layer-holon` (DERIVED, inputs MODEL) were written from the globe package's announcement; their
-   sources (the packages' view functions) were checked at `twin/globe 1dd1c16`, before the registry
-   lines and `kernel-wasm/src/views.rs` landed. Until they land, the integration check reports these
-   four entries as having no registered layer. A holon "certified" cell means the coarse tier held
+   `layer-holon` (DERIVED, inputs MODEL) read the packages' view functions through
+   `kernel-wasm/src/views.rs`; registry lines and sources checked at `twin/globe 8b70422`. A holon "certified" cell means the coarse tier held
    within budget over the twin's MODEL world, not the real mesh.
    On a tree without `docs/layers/` the reverse direction (an entry with no layer) is not checked;
    `cargo run -p cewp-evidence --example page_ledger -- --docs <tree>/docs` checks an integration
@@ -79,11 +77,14 @@ formulas, ledgered as FRONTIER where their constants are unsourced.
 
 twin-calibration's list (twin/calibration 1b1d8a2, its FSD §4 and §10) is applied through the
 ledger:
-- `seat-knee` is no longer the kernel's single count. It is PROJECTED, the interval for v45.0.0
+- `seat-knee` is no longer the kernel's single count. It is MODEL with its interval for v45.0.0
   on one 4-core seat at 70%: 4,882 to 13,723 devices if the server's publish set grows with the
   fleet, 14,253 to 75,879 if it stays at today's size. Which holds is `publish-set-growth`
   (FRONTIER). The page shows these as static text from that FSD until the globe package wires
   `seat_hooks::calibration_view_knee`; then the entry becomes live with the same class.
+  It was first ledgered PROJECTED; at twin/calibration c13cee5 both packages reclassed it MODEL,
+  since FSD §8.2 reserves PROJECTED for extrapolation from certified lower tiers and none is
+  certified. No number changed.
 - `edge-source-read`: edge release/45.0.0 at 8e46165 (untagged when read), replacing c580298
   and "in release"; listing cache and read budget are built and on by default, timings MODEL.
 - `key-plane-refill`: the 10-minute TTL revalidates at most 256 reads a listing.
