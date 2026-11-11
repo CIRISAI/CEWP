@@ -2382,11 +2382,11 @@ pub fn pool(f: ScenarioFn, cond: Condition, seeds: u64) -> Pooled {
     out
 }
 
-fn ms(us: u64) -> u64 {
+pub(crate) fn ms(us: u64) -> u64 {
     us / 1_000
 }
 
-fn d3(v: &[u64]) -> String {
+pub(crate) fn d3(v: &[u64]) -> String {
     let d = crate::qoe::Dist::of(v);
     if d.n == 0 {
         return "-".to_owned();
@@ -2394,7 +2394,7 @@ fn d3(v: &[u64]) -> String {
     format!("{}/{}/{}", d.p50, d.p95, d.p99)
 }
 
-fn permille(num: u64, den: u64) -> u64 {
+pub(crate) fn permille(num: u64, den: u64) -> u64 {
     if den == 0 {
         0
     } else {

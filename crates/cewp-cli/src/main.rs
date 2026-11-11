@@ -960,6 +960,8 @@ fn print_help() {
     println!("  all, --all            Run all 6 pipeline phases and emit docs/kernel/tables/evidence_bundle.json");
     println!("  --emit-bundle <PATH>  Serialize complete evidence_bundle.json to file");
     println!("  media [SEEDS]         Room-call quality over modelled access links (FSD/twin/media.md)");
+    println!("  media-call2 [SEEDS]   Two-person call: Wi-Fi/LTE, direct (MTU 1400) or relayed (MTU 500)");
+    println!("  media-audio [SEEDS]   Audio-only full-mesh room at N = 4 and 9");
     println!("  --help, -h            Print this help text");
 }
 
@@ -978,6 +980,18 @@ fn main() {
                 // FSD/twin/media.md: call quality over access links, `media [seeds]`.
                 let seeds = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(3);
                 println!("{}", cewp_sim::media::report(seeds));
+                return;
+            }
+            "media-call2" => {
+                // FSD/twin/media.md §11: the two-person call, `media-call2 [seeds]`.
+                let seeds = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(5);
+                println!("{}", cewp_sim::media_call2::call2_lines(seeds).join("\n"));
+                return;
+            }
+            "media-audio" => {
+                // FSD/twin/media.md §12: the audio-only room, `media-audio [seeds]`.
+                let seeds = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(5);
+                println!("{}", cewp_sim::media_call2::audio_room_lines(seeds).join("\n"));
                 return;
             }
             "all" | "--all" => {
