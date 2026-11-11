@@ -12,14 +12,16 @@
 //  11 holon cells (stride 8)         12 holon bound codes (u32)         13 holon certificates u32
 //  14 holon certificates f32         15 topology field classes (u32)
 //  16 holon bound names: the UTF-8 bytes of BOUND_NAMES.concat(), one per u32 (slot 12 indexes them)
+//  17 calibration curve (stride 6)  18 calibration knee (7 fields)    19 calibration residuals (stride 4)
 use cewp_sim::holon_demo::demonstration_seeded;
 use cewp_sim::holon_view::{certificates_of, cells_of, holon_view_bounds, BOUND_NAMES, VIEW_HORIZON_S};
 use cewp_sim::netgraph::view::{view_classes, TopologyView};
 use cewp_sim::people_hooks::{people_view_flash, people_view_localities, people_view_ties, people_view_week};
 use cewp_sim::reach::hooks::{nat_view_joint, nat_view_node_pos, nat_view_nodes, nat_view_pairs};
+use cewp_sim::seat_hooks::{calibration_view_curve, calibration_view_knee, calibration_view_residuals};
 
-pub const SLOTS: usize = 17;
-const U32_SLOTS: [bool; SLOTS] = [false, true, false, true, false, true, false, false, false, true, false, false, true, true, false, true, true];
+pub const SLOTS: usize = 20;
+const U32_SLOTS: [bool; SLOTS] = [false, true, false, true, false, true, false, false, false, true, false, false, true, true, false, true, true, false, false, false];
 
 pub struct Views {
     f: Vec<Vec<f32>>,
@@ -101,6 +103,34 @@ pub extern "C" fn view_holon(seed: u32) -> u32 {
     (v.f[11].len() / 8) as u32
 }
 
+/// Seat knee (twin-calibration, seat_hooks) for growth scenario `scenario` (0..4 picks
+/// key_publish_set growth g = 0, 0.25, 0.5, 0.75, 1): slot 18, seven fields [lower, central,
+/// upper, interval kind, binds at lower, binds at upper, class], -1 = no claim. Returns 7.
+#[no_mangle]
+pub extern "C" fn view_calibration_knee(scenario: u32) -> u32 {
+    let v = views();
+    v.f[18] = calibration_view_knee(scenario);
+    v.f[18].len() as u32
+}
+
+/// Seat load against fleet size with its outer band for growth scenario `scenario`: slot 17,
+/// stride 6 [devices, rho central, rho lower, rho upper, class, binding code]. Returns the rows.
+#[no_mangle]
+pub extern "C" fn view_calibration_curve(scenario: u32) -> u32 {
+    let v = views();
+    v.f[17] = calibration_view_curve(scenario);
+    (v.f[17].len() / 6) as u32
+}
+
+/// The seat fit's counters, in-sample and held out: slot 19, stride 4 [counter id, observed,
+/// predicted, out of sample]. Returns the rows.
+#[no_mangle]
+pub extern "C" fn view_calibration_residuals() -> u32 {
+    let v = views();
+    v.f[19] = calibration_view_residuals();
+    (v.f[19].len() / 4) as u32
+}
+
 /// Address of a view slot (u32 slots and f32 slots are both 4-byte elements).
 #[no_mangle]
 pub extern "C" fn view_ptr(slot: u32) -> u32 {
@@ -142,6 +172,29 @@ mod tests {
         assert_eq!(view_len(1) / 3, 3732);
         assert_eq!(view_is_u32(1), 1);
         assert_eq!(view_is_u32(0), 0);
+    }
+
+    #[test]
+    fn views_calibration_matches_the_package() {
+        let _t = TURN.lock().unwrap_or_else(|e| e.into_inner());
+        for sc in [0, 4] {
+            assert_eq!(view_calibration_knee(sc), 7);
+            assert_eq!(views().f[18], calibration_view_knee(sc));
+            // class 2 (MODEL, with its interval); interval kind 0 (outer bounds)
+            assert_eq!((views().f[18][3], views().f[18][6]), (0.0, 2.0));
+        }
+        // twin-calibration's reported intervals at c13cee5: g 1 is 4,882 to 13,723 devices
+        let k = &views().f[18];
+        assert_eq!((k[0].round(), k[2].round()), (4882.0, 13723.0));
+        view_calibration_knee(0);
+        let k = &views().f[18];
+        assert_eq!((k[0].round(), k[2].round()), (14253.0, 75879.0));
+        assert_eq!(view_calibration_curve(4), 24);
+        assert_eq!(views().f[17], calibration_view_curve(4));
+        let n = view_calibration_residuals();
+        assert_eq!(views().f[19], calibration_view_residuals());
+        assert_eq!(view_len(19), n * 4);
+        assert_eq!(view_is_u32(18), 0);
     }
 
     #[test]

@@ -107,14 +107,21 @@ test checks the slots equal the package functions' output (topology seed 7: 1,11
 | topology | generated AS / IXP / cable graph over the 181 real localities; glyph per role (dot fixed access, triangle mobile, square transit, diamond content, large diamond tier-1, plus IXP, ring metro); provider-customer, terrestrial (solid) and submarine (dashed) by default, peering and IXP membership on a toggle; one route between fixed access ASes with AS hops and long-haul km | 0, 1, 2, 15 | MODEL (all fields, `view_classes`) |
 | nat | a generated street (metres, no place) in a dock panel: devices by access class (square, disc, triangle), behaviour by mark (white centre public, ring behind CGN), pairs by outcome (solid direct, dotted punched, dashed relayed, dash-dot after a failed punch) | 3–6 | MODEL |
 | people | localities: ring = population weight, disc = week multiplier at the sim's hour of week; 40 strongest cross-locality ties dotted; a live event as an expanding ring with its onset multiplier | 7–10 | MODEL (FRONTIER event inputs) |
-| holon | the R5 tier's cells on the generated street patch: certified filled, refused crossed, not evaluated dashed; a marked square with the counts while the patch is under 5 px | 11–14, 16 | DERIVED (MODEL world) |
+| holon | the R5 tier's cells on the generated street patch: certified filled, refused crossed, not evaluated dashed; a marked square with the counts while the patch is under 5 px. Certified means the coarse tier held within budget over the twin's MODEL world, not the real mesh | 11–14, 16 | DERIVED (MODEL world) |
+| calibration | dock panel: one v45.0.0 seat's ρ outer band (500 to 100,000 devices, log axis) with the central model line dotted, the ρ 0.70 ceiling, the knee as a lower-to-upper bracket only (no central tick), and predicted / observed per seat-1 counter (filled square in-sample, ring held out); a slider picks key_publish_set growth g = 0, 0.25, 0.5, 0.75, 1 (FRONTIER) | 17 curve, 18 knee, 19 residuals (`view_calibration_curve(g)`, `view_calibration_knee(g)`, `view_calibration_residuals()`) | MODEL, interval (twin-calibration c13cee5 class field 2) |
 
 People and holon run their scenario after the click (one shot, status says so): the week takes about
 1.6 s and the tier demonstration about 4 s of main-thread time in Chrome on the test box (measured once,
 not a budget). Hour of week = sim hours since 00:00 UTC of day 314 + 24, because day 314 of 2026 is a
 Tuesday and the hook's hour 0 is Monday 00:00 UTC.
 
-Still hidden: failures, media, calibration (not merged when this was wired).
+The seat card's knee line reads `view_calibration_knee(0)` and `(4)` and prints both intervals with g named:
+g 0 is 14,253 to 75,879 devices (binds on sweep permits at the low end, CPU at the high end), g 1 is 4,882
+to 13,723 (binds on CPU), MODEL with its interval (outer bounds over the fit's input intervals, not a
+confidence level). The native test asserts those four numbers. cap_seat's single-point knee, the v44 and
+whole-plane knees and the single lock knee are no longer printed (calibration covers v45.0.0 only).
+
+Still hidden: failures, media (not merged when this was wired).
 
 Cross-platform check owed when media lands: the page's media buffers must match a native run bit for bit.
 twin-media's basis (a source read, not a run): integer µs/bytes engine, exact `Rng::f`, no hash-order
@@ -130,7 +137,9 @@ contention on, which the view scenario leaves off. A view with contention on may
 * The relay tree is alm.rs's real algorithm on MODEL inputs. Its shape says what the algorithm
   does, not what a deployed call looks like.
 * Custody reachability is a uniform per-holder draw until failures supplies correlated outages.
-* The seat curve is the calibrated capacity model under recalibration. No knee is marked.
+* The seat curve layer is cap_seat's capacity model at the street chip's setting and marks no knee. The
+  knee exists only as an interval (calibration layer, seat card), and it hinges on g, which nothing
+  measures: across g 0..1 it spans 4,882 to 75,879 devices.
 * The topology is an invented graph on real cities: no AS, IXP or cable there exists. Route lengths are
   the model's, not the Internet's.
 * The NAT street, the people's week and the holon cells are generated scenarios run once with a fixed

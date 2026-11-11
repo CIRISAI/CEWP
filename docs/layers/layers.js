@@ -169,7 +169,7 @@ window.CEWP_LAYERS["reach"] = layer({ id: "reach", title: "How each home is reac
 const SEAT = { curve: null, key: "" };
 window.CEWP_LAYERS["seat"] = layer({ id: "seat", title: "Serve-seat load across fleet sizes", cls: "MODEL", inputs: "calibrated to seat-1 (MEASURED/DERIVED/MODEL per capacity.rs COST_SPECS)",
   source: "cap_curve → globe buffer 9 (f64 × 4: devices, ρ cpu, ρ permits, round latency s)",
-  contract: "cap_curve(d0 = 10, d1 = 100,000, n = 64, shape, read, seats, select, cand) runs capacity::run over 64 fleet sizes with the bundle-bootstrap setting the street chip shows (v44 / v45 / whole-plane). Buffer 9 f64 × 4. The patch marker is seatRounders() from the street world through cap_seat (buffer 12, ρ cpu). No knee is printed: the knee is under correction by the calibration package.",
+  contract: "cap_curve(d0 = 10, d1 = 100,000, n = 64, shape, read, seats, select, cand) runs capacity::run over 64 fleet sizes with the bundle-bootstrap setting the street chip shows (v44 / v45 / whole-plane). Buffer 9 f64 × 4. The patch marker is seatRounders() from the street world through cap_seat (buffer 12, ρ cpu). No knee is printed here: cap_seat's knee is a single point; the knee with its interval is the calibration layer (seat_hooks).",
   available: has("cap_curve"),
   compute(){
     const [shape, read, cand] = (typeof bsCap === "function") ? bsCap() : [1, 1, 1];
@@ -192,7 +192,7 @@ window.CEWP_LAYERS["seat"] = layer({ id: "seat", title: "Serve-seat load across 
     if (here && here.devices >= 10){ const x = lx(here.devices), y = ly(here.rho); g.fillStyle = "#fff"; g.beginPath(); g.arc(x, y, 3.5, 0, 6.2832); g.fill(); }
     this.last = { points: C.length / 4, first_devices: C[0], first_rho_cpu: C[1], last_devices: C[C.length - 4], last_rho_cpu: C[C.length - 3] }; if (here){ this.last.street_devices = here.devices; this.last.street_rho_cpu = here.rho; } this.info = { setting: SEAT.key };
   },
-  status(){ const h = this.last; return "solid ρ CPU · dashed ρ permits" + (h.street_devices ? ` · this street's seat: ${h.street_devices} devices round with it, ρ ${h.street_rho_cpu.toFixed(3)}` : "") + " · no knee is marked: the seat model is being recalibrated"; } });
+  status(){ const h = this.last; return "solid ρ CPU · dashed ρ permits" + (h.street_devices ? ` · this street's seat: ${h.street_devices} devices round with it, ρ ${h.street_rho_cpu.toFixed(3)}` : "") + " · no knee here: the knee is an interval, in the calibration layer"; } });
 
 // ------------------------------------------------------------------ package views (kernel-wasm views.rs): each runs once per page
 const VW = (slot) => { const p = wasm.view_ptr(slot) >>> 0, n = wasm.view_len(slot) >>> 0; return (wasm.view_is_u32(slot) ? new Uint32Array(mem.buffer, p, n) : new Float32Array(mem.buffer, p, n)).slice(); };
@@ -274,7 +274,7 @@ window.CEWP_LAYERS["nat"] = layer({ id: "nat", title: "How each pair of devices 
   onShow(){ this.compute(); },
   panel(c){
     this.compute(); const N = NAT.nodes, X = NAT.pos, Pp = NAT.pairs; if (!N) return;
-    const dpr = window.devicePixelRatio || 1, W2 = c.clientWidth || 260, H2 = 200; if (c.width !== Math.round(W2 * dpr)){ c.width = Math.round(W2 * dpr); c.height = H2 * dpr; NAT.key = ""; }
+    const dpr = window.devicePixelRatio || 1, W2 = c.clientWidth || 260, H2 = 200; if (c.style.height !== H2 + "px") c.style.height = H2 + "px"; if (c.width !== Math.round(W2 * dpr)){ c.width = Math.round(W2 * dpr); c.height = H2 * dpr; NAT.key = ""; }
     if (NAT.key === "drawn") return; NAT.key = "drawn";
     const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W2, H2);
     let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (let i = 0; i < X.length; i += 2){ x0 = Math.min(x0, X[i]); x1 = Math.max(x1, X[i]); y0 = Math.min(y0, X[i + 1]); y1 = Math.max(y1, X[i + 1]); }
@@ -370,8 +370,69 @@ CONTRACT("failures", "Failure domains going dark, the mesh re-forming", "MODEL",
   "nodes f32 × 3 (lat, lon, kind); domains f32 × 6 (lat, lon, radius km, kind, step down, step up | -1); step(s) u32 per node: component id, u32::MAX = down; summary f32 × 4 per step.");
 CONTRACT("media", "A room call: one tree per publisher, a parent leaves, the tree repairs", "DERIVED", ["media_view_members", "media_view_tree", "media_view_edges", "media_view_rx", "media_view_steps", "media_view_events"],
   "Built once per page (the scenario runs once; slice it, never per frame). members f32 × 4 (lat, lon, access 0 fibre home 1 cable laptop Wi-Fi 2 DSL home 3 phone home Wi-Fi 4 phone LTE, nominal uplink B/s), MODEL; tree u32 × 3 (stream, parent, child; every edge at any step; stream == parent is a direct leg); edges(step) f32 × 4 aligned to tree (rate B/s, loss ‰, queue ms, layer 0 detached 1 audio+base 2 full), DERIVED; rx(step) f32 × 3 at stream·n + member (layer -1 none 0 audio 1 base 2 both, stall 0/1, glass-to-glass ms), DERIVED; steps = 60 (1 s); events f32 × 5 (t ms, kind 0 parent left 1 audio resumed 2 video resumed 3 not resumed, stream, child, parent). The tree is edge v45's closed-loop controller, not alm.rs.");
-CONTRACT("calibration", "Seat knee with its interval", "DERIVED", ["calibration_view_curve", "calibration_view_knee", "calibration_view_residuals"],
-  "curve(scenario) f64 × 6, 24 rows (devices, ρ central, lower, upper, class, binding code 0-5); knee(scenario) 7 fields (lower, central, upper, interval kind, binds lower, binds upper, class), -1 = none, crossing ρ 0.70, drawn only as its interval, never the central value alone, never labelled with a confidence level; residuals f64 × 4 (counter id, observed, predicted, out-of-sample). Not shown until twin-calibration says the knee is safe.");
+// ------------------------------------------------------------------ seat knee with its interval (twin-calibration: seat_hooks.rs)
+const CAL = { sc: 4, curve: new Map(), knee: new Map(), res: null, key: "" };
+const CAL_GROWTH = [0, 0.25, 0.5, 0.75, 1];
+const CAL_COUNTER = ["window B CPU", "window A composer", "window A attestation queries", "window B attestation queries", "window B composer", "window B permits", "window A' permits", "window C permits", "window C attestation queries", "busy-hour CPU"];
+const CAL_BIND = (c) => c === 0 ? "CPU" : c === 1 ? "sweep permits" : c >= 2 ? (["Key", "occurrence", "Revocation", "occurrence-withdrawal"][c - 2] || "a key-plane") + " plane lock" : "nothing";
+const CAL_CLS = ["MEASURED", "DERIVED", "MODEL", "PROJECTED", "FRONTIER"];
+const CAL_CEIL = 0.70;
+window.CEWP_LAYERS["calibration"] = layer({ id: "calibration", title: "Seat load and its knee, as an interval", cls: "MODEL", inputs: "fit to seat-1 counters (MEASURED); key_publish_set growth g FRONTIER",
+  source: "view_calibration_curve(g) → slot 17, view_calibration_knee(g) → slot 18, view_calibration_residuals() → slot 19 (cewp_sim::seat_hooks calibration_view_*)",
+  contract: "twin-calibration's seat views for one v45.0.0 seat. Scenario 0..4 picks key_publish_set growth g = 0, 0.25, 0.5, 0.75, 1 (FRONTIER: how fast the published key set grows with announced nodes is not measured). curve(g) f32 × 6, 24 rows (devices 500 to 100,000, ρ central, lower, upper, class, binding code: 0 CPU, 1 sweep permits, 2+ a key-plane lock); the band is outer bounds per term over the fit's input intervals, not a probability. knee(g) 7 fields (lower, central, upper, interval kind 0 outer bounds, binds at lower, binds at upper, class), -1 = no claim; the knee is where the seat crosses ρ 0.70 on any term. Drawn only as its interval with g named, never the central value alone, never with a confidence level. residuals f32 × 4 (counter id, observed, predicted, out of sample 0/1): predicted over observed per counter, in-sample counters marked apart from held-out ones. Class 2, MODEL with its interval (past the measured fleet it is an extrapolation of one seat's model, not PROJECTED in FSD §8.2's sense).",
+  available: has("view_calibration_curve", "view_calibration_knee", "view_calibration_residuals", "view_ptr"),
+  compute(){
+    const sc = CAL.sc;
+    if (!CAL.curve.has(sc)){ wasm.view_calibration_curve(sc); CAL.curve.set(sc, VW(17)); }
+    if (!CAL.knee.has(sc)){ wasm.view_calibration_knee(sc); CAL.knee.set(sc, VW(18)); }
+    if (!CAL.res){ wasm.view_calibration_residuals(); CAL.res = VW(19); }
+    const C = CAL.curve.get(sc), K = CAL.knee.get(sc), R = CAL.res;
+    let inN = 0, outN = 0, worst = 0, worstId = -1, worstR = NaN;
+    for (let i = 0; i < R.length; i += 4){ if (R[i + 3]) outN++; else inN++; const r = R[i + 2] / R[i + 1]; const e = Math.abs(Math.log(r)); if (R[i + 3] && isFinite(e) && e > worst){ worst = e; worstId = R[i]; worstR = r; } }
+    this.last = { growth_g: CAL_GROWTH[sc], curve_rows: C.length / 6, knee_lower: K[0] < 0 ? -1 : Math.round(K[0]), knee_upper: K[2] < 0 ? -1 : Math.round(K[2]), binds_lower: K[4], binds_upper: K[5], class: K[6], ceiling: CAL_CEIL, counters_in_sample: inN, counters_held_out: outN, worst_held_out_pred_over_obs: worstId >= 0 ? +worstR.toFixed(3) : -1, worst_held_out_counter: worstId };
+    this.info = { knee: "an interval only (outer bounds over the fit's input intervals, not a confidence level); the central value is not shown", growth: "g " + CAL_GROWTH[sc] + " (FRONTIER)", binds: CAL_BIND(K[4]) + (K[4] !== K[5] ? " at the low end, " + CAL_BIND(K[5]) + " at the high end" : ""), class: CAL_CLS[K[6]] || "?", counters: CAL_COUNTER.map((c, i) => i + " " + c).join(", ") };
+  },
+  onShow(){ later(this); },
+  panel(c){
+    if (this.busy || !CAL.curve.has(CAL.sc)) return; const C = CAL.curve.get(CAL.sc), K = CAL.knee.get(CAL.sc), R = CAL.res;
+    const dpr = window.devicePixelRatio || 1, W2 = c.clientWidth || 260, H2 = 196; if (c.style.height !== H2 + "px") c.style.height = H2 + "px"; if (c.width !== Math.round(W2 * dpr)){ c.width = Math.round(W2 * dpr); c.height = H2 * dpr; CAL.key = ""; }
+    if (CAL.key === String(CAL.sc)) return; CAL.key = String(CAL.sc);
+    const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W2, H2);
+    // the band: ρ against devices, log axis 500 .. 100,000
+    const L = 34, T = 8, B = 108, Rr = W2 - 10, d0 = Math.log10(500), d1 = 5;
+    const lx = (d) => L + (Math.log10(d) - d0) / (d1 - d0) * (Rr - L), RMAX = 2, ly = (r) => B - Math.min(RMAX, Math.max(0, r)) / RMAX * (B - T);
+    g.font = "10px " + MFONT; g.fillStyle = "#aab4c2"; g.strokeStyle = "rgba(200,210,225,0.22)"; g.lineWidth = 1;
+    for (const d of [1000, 10000, 100000]){ g.beginPath(); g.moveTo(lx(d), T); g.lineTo(lx(d), B); g.stroke(); const t = d / 1000 + "k"; g.fillText(t, Math.min(lx(d) - 8, Rr - g.measureText(t).width), B + 11); }
+    g.fillText("500", L - 4, B + 11); g.fillText("ρ 0", 4, B); g.fillText("ρ 2", 4, T + 8);
+    // the knee interval as a bracket on the ceiling line (no central tick)
+    const klo = K[0] >= 0 ? lx(Math.max(500, K[0])) : L, khi = K[2] >= 0 ? lx(Math.min(100000, K[2])) : Rr;
+    g.fillStyle = "rgba(255,207,122,0.10)"; g.fillRect(klo, T, khi - klo, B - T);
+    g.strokeStyle = "#ffcf7a"; g.lineWidth = 1.4; g.beginPath(); g.moveTo(klo, B + 2); g.lineTo(klo, T); g.moveTo(khi, B + 2); g.lineTo(khi, T); g.stroke();
+    g.setLineDash([2, 3]); g.strokeStyle = "rgba(255,255,255,0.55)"; g.lineWidth = 1; g.beginPath(); g.moveTo(L, ly(CAL_CEIL)); g.lineTo(Rr, ly(CAL_CEIL)); g.stroke(); g.setLineDash([]);
+    g.fillStyle = "#aab4c2"; g.fillText("ρ 0.70", 4, ly(CAL_CEIL) + 3);
+    // outer band, hatched by its edges; central dotted (a model line, not a point estimate of the knee)
+    g.fillStyle = "rgba(127,208,255,0.22)"; g.beginPath();
+    for (let i = 0; i < C.length; i += 6){ const x = lx(C[i]), y = ly(C[i + 3]); i ? g.lineTo(x, y) : g.moveTo(x, y); }
+    for (let i = C.length - 6; i >= 0; i -= 6) g.lineTo(lx(C[i]), ly(C[i + 2]));
+    g.closePath(); g.fill();
+    g.strokeStyle = "#7fd0ff"; g.lineWidth = 1; for (const off of [2, 3]){ g.beginPath(); for (let i = 0; i < C.length; i += 6){ const x = lx(C[i]), y = ly(C[i + off]); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); }
+    g.setLineDash([1, 2]); g.lineWidth = 1.6; g.beginPath(); for (let i = 0; i < C.length; i += 6){ const x = lx(C[i]), y = ly(C[i + 1]); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); g.setLineDash([]);
+    const kt = (K[0] < 0 ? "no claim" : Math.round(K[0]).toLocaleString()) + " to " + (K[2] < 0 ? "no claim" : Math.round(K[2]).toLocaleString()) + " devices";
+    g.font = "600 10px " + MFONT; g.lineWidth = 3; g.strokeStyle = "rgba(6,9,14,0.9)"; const tx = Math.max(L + 2, Math.min(klo + 3, Rr - g.measureText(kt).width - 2));
+    g.strokeText(kt, tx, T + 10); g.fillStyle = "#ffcf7a"; g.fillText(kt, tx, T + 10);
+    // residuals: predicted / observed per counter on a log strip 0.5 .. 2; in-sample filled square, held out open ring
+    const RY = 146, rx = (r) => L + (Math.log2(Math.min(4, Math.max(0.25, r))) + 2) / 4 * (Rr - L);
+    g.strokeStyle = "rgba(200,210,225,0.3)"; g.lineWidth = 1; g.beginPath(); g.moveTo(L, RY); g.lineTo(Rr, RY); for (const t of [0.5, 1, 2]){ g.moveTo(rx(t), RY - (t === 1 ? 9 : 4)); g.lineTo(rx(t), RY + (t === 1 ? 9 : 4)); } g.stroke();
+    g.font = "10px " + MFONT; g.fillStyle = "#aab4c2"; g.fillText("×¼", L - 4, RY + 19); g.fillText("×1", rx(1) - 6, RY + 19); g.fillText("×4", Rr - 14, RY + 19); g.fillText("predicted / observed, per seat-1 counter", L - 4, RY - 13);
+    for (let i = 0, j = 0; i < R.length; i += 4, j++){ const r = R[i + 2] / R[i + 1], x = rx(r), y = RY + ((j % 3) - 1) * 4;
+      if (r > 4 || r < 0.25){ const e = r > 4 ? 1 : -1; g.fillStyle = R[i + 3] ? "#ff9d7a" : "#e8eef6"; g.beginPath(); g.moveTo(x + 6 * e, RY); g.lineTo(x, RY - 4); g.lineTo(x, RY + 4); g.closePath(); g.fill(); // off the strip: an arrow at the edge with its value, never clamped silently
+        const t = "×" + (r >= 10 ? r.toFixed(0) : r.toFixed(2)); g.fillText(t, r > 4 ? x - g.measureText(t).width - 2 : x + 4, RY - 7 - ((j % 2) * 9)); continue; }
+      if (R[i + 3]){ g.strokeStyle = "#ff9d7a"; g.lineWidth = 1.4; g.beginPath(); g.arc(x, y, 3.2, 0, 6.2832); g.stroke(); } else { g.fillStyle = "#e8eef6"; g.fillRect(x - 2.5, y - 2.5, 5, 5); } }
+    g.fillStyle = "#aab4c2"; g.fillText("■ the fit read it   ○ held out", 4, H2 - 18);
+    g.fillText("g " + CAL_GROWTH[CAL.sc] + " (FRONTIER) · band = outer bounds", 4, H2 - 5);
+  },
+  status(){ const l = this.last; if (this.busy) return "running the seat model's input intervals once…"; return l.curve_rows ? `knee at g ${l.growth_g} (FRONTIER): ${l.knee_lower < 0 ? "no claim" : fmt(l.knee_lower)} to ${l.knee_upper < 0 ? "no claim" : fmt(l.knee_upper)} devices, ${this.info.binds} · MODEL, interval · ${l.counters_held_out} held-out counters, furthest: ${CAL_COUNTER[l.worst_held_out_counter] || "?"} predicted at ×${l.worst_held_out_pred_over_obs} of observed` : "–"; },
+  controls: [{ range: [0, 4, 1], label: "Key set growth g", value: () => CAL.sc, set(v){ if (v === CAL.sc) return; CAL.sc = v; CAL.key = ""; this.ran = false; later(this); }, show: (v) => CAL_GROWTH[v] + " (FRONTIER)" }] });
 
 // ------------------------------------------------------------------ the dock
 const LAYERS = window.LAYERS = {

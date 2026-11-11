@@ -388,7 +388,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=14"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=15"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2027,6 +2027,28 @@ function capSeat(devices, shape, read, cand){
   const r = { cpu: b[0], rhoCpu: b[1], rhoPermit: b[2], latency: b[3], reads: b[4], pages: b[5], egress: b[6], links: b[7], attr: b[8], cpuIndex: b[9], cpuQuery: b[10], cpuCtx: b[11], cores: b[12], knee: b[13], ceiling: b[14], walk: b[15], walkKeys: b[16], lock: b[17], lockPlane: b[18], lockKnee: b[19], binds: b[20] };
   capMemo.set(key, r); return r;
 }
+// the seat knee as an interval (twin-calibration, cewp_sim::seat_hooks::calibration_view_knee via
+// kernel-wasm view_calibration_knee, slot 18): [lower, central, upper, kind, binds lower, binds upper,
+// class], -1 = no claim. Scenario 0..4 is key_publish_set growth g = 0, 0.25, 0.5, 0.75, 1 (FRONTIER).
+// Shown only as lower to upper with g named; the central value is never printed alone.
+const CAL_G = [0, 0.25, 0.5, 0.75, 1];
+const calKneeMemo = new Map();
+function calKnee(sc){
+  if (!wasm || !wasm.view_calibration_knee) return null;
+  if (calKneeMemo.has(sc)) return calKneeMemo.get(sc);
+  wasm.view_calibration_knee(sc);
+  const p = wasm.view_ptr(18) >>> 0, n = wasm.view_len(18) >>> 0, b = new Float32Array(mem.buffer, p, n).slice();
+  const r = n === 7 ? { lo: b[0], hi: b[2], kind: b[3], bindsLo: b[4], bindsHi: b[5], cls: b[6], g: CAL_G[sc] } : null;
+  calKneeMemo.set(sc, r); return r;
+}
+const CLS_NAME = ["MEASURED", "DERIVED", "MODEL", "PROJECTED", "FRONTIER"];
+const calBinds = (c) => c === 0 ? "CPU" : c === 1 ? "sweep permits" : c >= 2 ? (KEY_PLANE[c - 2] || "a key-plane") + " plane lock" : "nothing";
+function calKneeText(k){
+  if (!k) return "–";
+  const d = (x) => x < 0 ? "no claim" : Math.round(x).toLocaleString();
+  const binds = k.bindsLo === k.bindsHi ? "binds on " + calBinds(k.bindsLo) : "binds on " + calBinds(k.bindsLo) + " at the low end, " + calBinds(k.bindsHi) + " at the high end";
+  return "g " + k.g + ": " + d(k.lo) + " to " + d(k.hi) + " devices, " + binds;
+}
 // devices in this patch that round with seat s now (online, homed on s, with a seat as peer)
 function seatRounders(s){
   let n = 0;
@@ -2501,18 +2523,18 @@ function renderNodeCard(){
     else repl = `unclaimed: announces (${fig("micro-activity", String(ann))}) on the link it opened, but no seat opens a round for it (no owner, no consent; bundle bootstrap off, as on v44) · ${fig("micro-activity", rounds + " served")}`;
   }
   let capHtml = "";
-  const fmtKnee = (d) => !isFinite(d) ? "∞" : Math.round(d).toLocaleString(); // a knee is a whole number of devices
   if (kind === 4 && wasm && wasm.cap_seat){
     const here = seatRounders(i), sizes = [here, 1000, 10000, 100000];
     const cell = (c) => c ? fmtN(c.cpu) + " cores · " + fmtN(c.reads) + " reads/s" + (c.rhoCpu >= 1 || c.rhoPermit >= 1 ? " · <b>saturated</b>" : "") : "–";
     const tr = sizes.map((d, j) => `<tr><td>${fig("seat-load-model", j ? fmtN(d) : d + " (this patch)")}</td><td>${fig("seat-load-model", cell(capSeat(d, ...bsCap())))}</td></tr>`).join("");
-    const k45 = capSeat(1, ...CAP_ARGS[1]), k44 = capSeat(1, ...CAP_ARGS[0]), kwp = capSeat(1, ...CAP_ARGS[2]);
+    const k45 = capSeat(1, ...CAP_ARGS[1]);
     capHtml = `<div class="card-links"><span>seat load, ${BS_LABEL[microBootstrap]}${microBootstrap === 0 ? " (ordinary whole-plane rounds, claimed devices only)" : ""}, ${fig("seat-load-model", "one seat of " + (k45 ? k45.cores : "?") + " cores")} · MODEL, calibrated to seat-1</span>
       <div class="kv"><span>includes today's measured peer load at seat-1 as a fixed baseline (MEASURED round mix, MODEL scaling)</span></div>
       <table class="cap"><tr><th>devices</th><th>${BS_LABEL[microBootstrap]} (MODEL)</th></tr>${tr}</table>
-      <div class="kv"><span>${fig("seat-knee", "largest fleet of devices rounding with the seat, under " + (k45 ? Math.round(k45.ceiling * 100) : 70) + "% of it")} (MODEL)</span><b>${fig("seat-knee", "v45 (shipping) " + (k45 ? fmtKnee(k45.knee) + ", binds on " + (CAP_BINDS[k45.binds] || "?") : "–") + " · v44 (today) " + (k44 ? fmtKnee(k44.knee) : "–") + " · whole-plane " + (kwp ? fmtKnee(kwp.knee) : "–"))}</b></div>
+      <div class="kv"><span>${fig("seat-knee", "largest v45.0.0 fleet that keeps one seat under " + (k45 ? Math.round(k45.ceiling * 100) : 70) + "% on every term")} (${(calKnee(0) && CLS_NAME[calKnee(0).cls]) || "MODEL"}, interval: outer bounds over the fit's input intervals, not a confidence level). It hinges on g, how fast the published key set grows with announced nodes (FRONTIER, unmeasured).</span></div>
+      <table class="cap"><tr><th>key set growth g (FRONTIER)</th><th>knee, devices (MODEL, interval)</th></tr>${[0, 4].map((sc) => { const k = calKnee(sc); return `<tr><td>${k ? "g " + k.g : "–"}</td><td>${fig("seat-knee", calKneeText(k).replace(/^g [0-9.]+: /, ""))}</td></tr>`; }).join("")}</table>
       <div class="kv cap-which"><span><span class="fig" data-claim="pull-permit-provisional">v45's figure is PROVISIONAL in two terms: how long a Pull holds its sweep permit (about 2 ms, derived from a key-plane refill, not measured on a Pull), and the Pull's own cost (MEASURED on a debug build; the release rerun is pending)</span>. The listing cache and read budget are MODEL until measured.</span></div>
-      <div class="kv"><span>key-plane locks, ${fig("micro-activity", fmtN(here) + " devices")} (MODEL: each plane's listing and its ${fig("key-plane-refill", "10-minute refill")} hold one lock; Key and occurrence walk thousands of subjects, the Global planes tens)</span><b>${fig("seat-lock-model", (() => { const w = capSeat(here, ...bsCap()); return w && w.lock >= 0 ? "busiest: " + (KEY_PLANE[w.lockPlane] || "?") + " plane, ρ " + w.lock.toFixed(2) + " over " + fmtN(w.walkKeys) + " subjects (one server, cores do not help) · lock knee " + fmtKnee(w.lockKnee) + " devices" : "–"; })())}</b></div>
+      <div class="kv"><span>key-plane locks, ${fig("micro-activity", Math.round(here).toLocaleString() + " devices")} (MODEL: each plane's listing and its ${fig("key-plane-refill", "10-minute refill")} hold one lock; Key and occurrence walk thousands of subjects, the Global planes tens)</span><b>${fig("seat-lock-model", (() => { const w = capSeat(here, ...bsCap()); return w && w.lock >= 0 ? "busiest: " + (KEY_PLANE[w.lockPlane] || "?") + " plane, ρ " + w.lock.toFixed(2) + " over " + fmtN(w.walkKeys) + " subjects (one server, cores do not help)" : "–"; })())}</b></div>
       <div class="kv"><span>seat-1 measured</span><b><span class="fig" data-claim="seat1-cpu-quiet">0.65 cores</span>, <span class="fig" data-claim="seat1-att-queries">~329 attestation queries/s (quiet 60 s window)</span></b></div></div>`;
   }
   const state = !(f & NF.present) ? "not present" : !(f & NF.awake) ? "asleep" : (f & NF.online) ? "online" : "resuming";
