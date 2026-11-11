@@ -32,7 +32,7 @@ window.CEWP_LAYERS["glow"] = layer({ id: "glow", title: "Night side lit by where
   available: () => true, status(){ this.last = { sun_lat_deg: +GFX.sunLL[0].toFixed(2), sun_lon_deg: +GFX.sunLL[1].toFixed(2), utc_hour: +GFX.utc.toFixed(3) }; return "sun over " + GFX.sunLL.map((v) => v.toFixed(1) + "°").join(", ") + " · " + String(Math.floor(GFX.utc)).padStart(2, "0") + ":" + String(Math.floor((GFX.utc % 1) * 60)).padStart(2, "0") + " UTC"; } });
 
 // ------------------------------------------------------------------ the tick's sample arcs
-window.CEWP_LAYERS["arcs"] = layer({ id: "arcs", title: "Deliveries crossing localities (a sample)", cls: "DERIVED",
+window.CEWP_LAYERS["arcs"] = layer({ id: "arcs", title: "Deliveries crossing localities (a sample)", cls: "MODEL", inputs: "MODEL (generated world and traffic mix)",
   source: "tick → arcs buffer (u32 × 2: signer, target | tier << 28)",
   contract: "tick() writes up to 420 (signer, target, tier) pairs, itself a 1-in-3 to 1-in-48 sample of the deliveries it ran; the page draws at most 10 a tick. Tier: 0 shaped hop, 1 seat replication, 2 relay tree / unshaped, 3 onion. Read every tick (120 ms). The exact counts are on the flows layer.",
   available: () => true, status(){ this.last = { arcs_on_screen: GFX.arcsDrawn || 0 }; return this.last.arcs_on_screen + " arcs on screen"; } });
@@ -41,7 +41,7 @@ window.CEWP_LAYERS["arcs"] = layer({ id: "arcs", title: "Deliveries crossing loc
 const FLOW = { cent: null, W: null, win: [], sum: null, arcs: [], top: [], checked: "", N: 0 };
 const FLOW_WINDOW = 25; // ticks summed (3 s of sim at 120 ms a tick)
 const FLOW_TOP = 60;
-window.CEWP_LAYERS["flows"] = layer({ id: "flows", title: "Flows between localities (exact counts)", cls: "DERIVED",
+window.CEWP_LAYERS["flows"] = layer({ id: "flows", title: "Flows between localities (exact counts)", cls: "MODEL", inputs: "MODEL (generated world, 90/9/1 room mix)",
   source: "tick → globe buffer 10 (flows) · locality_centroids → buffer 2",
   contract: "During tick() the kernel counts every delivery that leaves its signer's locality, the same events as out[6] + out[7], into a 181 × 181 u32 matrix (row = from, column = to), buffer 10. Positions: locality_centroids(lat, lon, metro, n), buffer 2, f64 × 3 (lat°, lon°, nodes). The page sums the last 25 ticks and draws the 60 largest pairs, ribbon width ∝ log(count). Checked every tick: Σ matrix = out[6] + out[7].",
   available: has("globe_buf_ptr", "locality_centroids"),
@@ -82,7 +82,7 @@ window.CEWP_LAYERS["flows"] = layer({ id: "flows", title: "Flows between localit
 
 // ------------------------------------------------------------------ one room's member relay tree (alm.rs)
 const ALM = { room: -1, members: null, edges: null, unrooted: null, mf: null, arcs: [], pick: 0 };
-window.CEWP_LAYERS["alm"] = layer({ id: "alm", title: "A room's relay tree (CC 6.1.6)", cls: "DERIVED", inputs: "MODEL",
+window.CEWP_LAYERS["alm"] = layer({ id: "alm", title: "A room's relay tree (CC 6.1.6)", cls: "MODEL", inputs: "MODEL (uplinks, class shares, RTT formula, trust)",
   source: "alm_room → globe buffers 3 members, 4 edges, 5 unrooted, 6 member facts",
   contract: "alm_room(lat, lon, room_off, room_mem, room, publisher, max_members = 64, seed) runs cewp_sim::alm::compute_alm_topology_verified_with_publisher on the first 64 members of the region's public room. Inputs are MODEL: uplink by device class (phone cellular 2, phone Wi-Fi 8, laptop 12, home node 20 Mbit/s), RTT = 10 ms + fibre at 200 km/ms over 1.6× the great circle, every member trusting every other at depth 1. This is the CC 6.1.6 reference construction cewp-sim checks conformance against, not the closed-loop controller a live edge v45 call runs (Admission / ParentSelector); the media layer will show that one. Buffer 4: u32 × 3 (parent ix, child ix, child depth). Buffer 6: f64 × 4 (class, uplink, depth or -1, children). Recomputed when shown or when the room changes.",
   available: has("alm_room"),
@@ -119,7 +119,7 @@ const REG_NAMES = ["N. America", "Latin America", "Europe", "MENA", "Sub-Saharan
 
 // ------------------------------------------------------------------ a room's chunk custody (chunk_custody.rs)
 const CUST = { reach: 1000, holders: null, c: null, pick: 0 };
-window.CEWP_LAYERS["custody"] = layer({ id: "custody", title: "Who holds a room's chunk", cls: "DERIVED", inputs: "MODEL (reachability draw)",
+window.CEWP_LAYERS["custody"] = layer({ id: "custody", title: "Who holds a room's chunk", cls: "MODEL", inputs: "MODEL (reachability draw)",
   source: "custody_room → globe buffers 7 (summary), 8 (holders)",
   contract: "custody_room(lat, lon, metro, room_off, room_mem, room, present_pm, seed): the room's members are the sealed chunk's holders; present_pm (the slider) is the share reachable, drawn per holder (a MODEL stand-in until the failures package supplies who is down). The kernel runs chunk_custody::classify(present, 20, 6) with the tick's own thresholds and Kish n_eff (effective_source_count) over the holders' locality masses. Buffer 7 f64: members, present, target, min viable, state (0 Full, 1 Partial, 2 EnvelopeOnly), n_eff, localities, mean km to centroid, max km. Buffer 8 u32 × 2: holder node, reachable. The room: the first community room of 24-80 members in the relay tree's region (Next room steps on).",
   available: has("custody_room"),
@@ -165,34 +165,36 @@ window.CEWP_LAYERS["reach"] = layer({ id: "reach", title: "How each home is reac
   },
   status(){ const l = this.last; return l.households ? `● ${l.public_listener} public · ○ ${l.punchable_nat} punchable NAT · ▨ ${l.hard_nat} hard NAT / CGNAT` : "zoom to a street"; } });
 
-// ------------------------------------------------------------------ seat load against its capacity curve (capacity.rs)
-const SEAT = { curve: null, key: "" };
-window.CEWP_LAYERS["seat"] = layer({ id: "seat", title: "Serve-seat load across fleet sizes", cls: "MODEL", inputs: "calibrated to seat-1 (MEASURED/DERIVED/MODEL per capacity.rs COST_SPECS)",
-  source: "cap_curve → globe buffer 9 (f64 × 4: devices, ρ cpu, ρ permits, round latency s)",
-  contract: "cap_curve(d0 = 10, d1 = 100,000, n = 64, shape, read, seats, select, cand) runs capacity::run over 64 fleet sizes with the bundle-bootstrap setting the street chip shows (v44 / v45 / whole-plane). Buffer 9 f64 × 4. The patch marker is seatRounders() from the street world through cap_seat (buffer 12, ρ cpu). No knee is printed here: cap_seat's knee is a single point; the knee with its interval is the calibration layer (seat_hooks).",
-  available: has("cap_curve"),
-  compute(){
-    const [shape, read, cand] = (typeof bsCap === "function") ? bsCap() : [1, 1, 1];
-    const key = shape + "," + read + "," + cand; if (SEAT.key === key && SEAT.curve) return; SEAT.key = key;
-    wasm.cap_curve(10, 100000, 64, shape, read, 1, 0, cand); SEAT.curve = F64(9).slice();
-  },
-  onShow(){ this.compute(); },
-  panel(c){ // a small chart inside the dock: ρ (CPU solid, permits dashed) against devices on a log axis
-    this.compute(); const C = SEAT.curve; if (!C) return;
-    const dpr = window.devicePixelRatio || 1, W2 = c.clientWidth || 260, H2 = 110; if (c.width !== W2 * dpr){ c.width = W2 * dpr; c.height = H2 * dpr; }
+// ------------------------------------------------------------------ seat load against fleet size on the calibrated model (seat_hooks.rs)
+const SEAT = { curve: new Map(), key: "" };
+window.CEWP_LAYERS["seat"] = layer({ id: "seat", title: "Serve-seat load across fleet sizes (both publish-set cases)", cls: "MODEL", inputs: "MODEL, fit to seat-1 counters (MEASURED); g FRONTIER",
+  source: "view_calibration_curve(0) and (4) → view slot 17 (cewp_sim::seat_hooks::calibration_view_curve) · view_seat_fleet(devices, g) → slot 32 for this street's seat (cewp_sim::seat_view::seat_view_fleet)",
+  contract: "One v45.0.0 seat (edge release/45.0.0 at 8e46165) on the calibrated seat model: CostParams::calibrated() with key_publish_set growth g = 0 (the publish set stays at today's size) and g = 1 (it grows with the fleet); which holds is FRONTIER. Each band is ρ, the binding utilisation (the largest of CPU, sweep permits and the busiest key-plane lock), as outer bounds over the input intervals (seat_calibration::input_intervals, vertex method, each term alone), at 24 fleet sizes from 500 to 100,000 devices: f32 × 6 (devices, ρ central, lower, upper, class 2 MODEL, binding code). Bounds, not a probability. The street's seat is seatRounders() through view_seat_fleet: its ρ interval at both g. No knee here: the knee is an interval on the seat card and in the calibration layer.",
+  available: has("view_calibration_curve", "view_seat_fleet", "view_ptr"),
+  compute(){ for (const sc of [0, 4]) if (!SEAT.curve.has(sc)){ wasm.view_calibration_curve(sc); SEAT.curve.set(sc, VW(17)); } },
+  onShow(){ later(this); },
+  panel(c){ // ρ against devices on a log axis: two outer bands (g 0 amber, g 1 blue), ρ 0.70 and ρ 1 marked
+    if (this.busy || SEAT.curve.size < 2) return;
+    const dpr = window.devicePixelRatio || 1, W2 = c.clientWidth || 260, H2 = 132; if (c.style.height !== H2 + "px") c.style.height = H2 + "px"; if (c.width !== Math.round(W2 * dpr)){ c.width = Math.round(W2 * dpr); c.height = H2 * dpr; }
     const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W2, H2);
-    const L = 34, B = H2 - 18, T = 8, Rr = W2 - 22, lx = (d) => L + (Math.log10(d) - 1) / 4 * (Rr - L), ly = (r) => B - Math.min(1.5, r) / 1.5 * (B - T);
-    g.strokeStyle = "rgba(200,210,225,0.25)"; g.lineWidth = 1; g.font = "10px " + MFONT; g.fillStyle = "#aab4c2";
-    for (const d of [10, 100, 1000, 10000, 100000]){ g.beginPath(); g.moveTo(lx(d), T); g.lineTo(lx(d), B); g.stroke(); g.fillText(d >= 1000 ? d / 1000 + "k" : String(d), lx(d) - 8, H2 - 5); }
-    g.setLineDash([2, 3]); g.beginPath(); g.moveTo(L, ly(1)); g.lineTo(Rr, ly(1)); g.stroke(); g.setLineDash([]); g.fillText("ρ=1", 4, ly(1) + 3); g.fillText("0", 18, B);
-    const line = (off, dash, col) => { g.strokeStyle = col; g.lineWidth = 1.8; g.setLineDash(dash); g.beginPath(); for (let i = 0; i < C.length; i += 4){ const x = lx(C[i]), y = ly(C[i + off]); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); g.setLineDash([]); };
-    line(1, [], "#7fd0ff"); line(2, [5, 3], "#ffcf7a");
-    // this street's seat, if the street world is up: devices that round with it now, through cap_seat
-    let here = null; if (typeof M !== "undefined" && M && typeof seatRounders === "function" && typeof capSeat === "function"){ try { const sids = []; for (let i = 0; i < M.n; i++) if (nodeKind(i) === 4) sids.push(i); if (sids.length){ const d = seatRounders(sids[0]); if (d > 0){ const [sh, rd, cd] = bsCap(); const o = capSeat(d, sh, rd, cd); if (o) here = { devices: d, rho: o.rhoCpu }; } } } catch (e) {} }
-    if (here && here.devices >= 10){ const x = lx(here.devices), y = ly(here.rho); g.fillStyle = "#fff"; g.beginPath(); g.arc(x, y, 3.5, 0, 6.2832); g.fill(); }
-    this.last = { points: C.length / 4, first_devices: C[0], first_rho_cpu: C[1], last_devices: C[C.length - 4], last_rho_cpu: C[C.length - 3] }; if (here){ this.last.street_devices = here.devices; this.last.street_rho_cpu = here.rho; } this.info = { setting: SEAT.key };
+    const L = 34, B = H2 - 34, T = 8, Rr = W2 - 10, d0 = Math.log10(500), lx = (d) => L + (Math.log10(d) - d0) / (5 - d0) * (Rr - L), RM = 2, ly = (r) => B - Math.min(RM, Math.max(0, r)) / RM * (B - T);
+    g.strokeStyle = "rgba(200,210,225,0.22)"; g.lineWidth = 1; g.font = "10px " + MFONT; g.fillStyle = "#aab4c2";
+    for (const d of [1000, 10000, 100000]){ g.beginPath(); g.moveTo(lx(d), T); g.lineTo(lx(d), B); g.stroke(); const t = d / 1000 + "k"; g.fillText(t, Math.min(lx(d) - 8, Rr - g.measureText(t).width), B + 11); }
+    g.fillText("500", L - 4, B + 11);
+    for (const [r, t] of [[0.7, "ρ 0.70"], [1, "ρ 1"]]){ g.setLineDash(r === 1 ? [2, 3] : [5, 3]); g.strokeStyle = "rgba(255,255,255,0.5)"; g.beginPath(); g.moveTo(L, ly(r)); g.lineTo(Rr, ly(r)); g.stroke(); g.setLineDash([]); g.fillText(t, 2, ly(r) + 3); }
+    const band = (C, fill, edge) => { g.fillStyle = fill; g.beginPath(); for (let i = 0; i < C.length; i += 6){ const x = lx(C[i]), y = ly(C[i + 3]); i ? g.lineTo(x, y) : g.moveTo(x, y); } for (let i = C.length - 6; i >= 0; i -= 6) g.lineTo(lx(C[i]), ly(C[i + 2])); g.closePath(); g.fill();
+      g.strokeStyle = edge; g.lineWidth = 1.2; for (const off of [2, 3]){ g.beginPath(); for (let i = 0; i < C.length; i += 6){ const x = lx(C[i]), y = ly(C[i + off]); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); } };
+    band(SEAT.curve.get(0), "rgba(255,207,122,0.22)", "#ffcf7a"); band(SEAT.curve.get(4), "rgba(127,208,255,0.25)", "#7fd0ff");
+    // this street's seat, if the street world is up: its ρ interval at both g, as a vertical bar
+    let here = null; if (typeof M !== "undefined" && M && typeof seatRounders === "function" && typeof seatFleet === "function"){ try { for (let i = 0; i < M.n; i++) if (nodeKind(i) === 4){ const d = seatRounders(i); if (d > 0){ const a = seatFleet(d, 0), b = seatFleet(d, 4); if (a && b) here = { devices: d, lo: Math.min(a.rho[0], b.rho[0]), hi: Math.max(a.rho[1], b.rho[1]) }; } break; } } catch (e) {} }
+    if (here){ const x = lx(Math.max(500, here.devices)); g.strokeStyle = "#fff"; g.lineWidth = 2; g.beginPath(); g.moveTo(x, ly(here.lo) + 2); g.lineTo(x, ly(here.hi) - 2); g.stroke(); g.fillStyle = "#fff"; g.fillText((here.devices < 500 ? "◂ " : "") + "this street's seat", Math.min(x + 4, Rr - 100), ly(here.hi) - 5); }
+    let xx = 4, yy = H2 - 6; for (const [col, t] of [["#ffcf7a", "publish set stays (g 0)"], ["#7fd0ff", "grows with the fleet (g 1)"]]){ const tw = 14 + g.measureText(t).width; if (xx + tw > W2){ xx = 4; yy -= 12; } g.fillStyle = col; g.fillRect(xx, yy - 7, 8, 8); g.fillStyle = "#aab4c2"; g.fillText(t, xx + 11, yy); xx += tw; }
+    const c0 = SEAT.curve.get(0), c4 = SEAT.curve.get(4), last = c0.length - 6;
+    this.last = { points: c0.length / 6, first_devices: c0[0], g0_rho_lower_at_100k: +c0[last + 2].toFixed(3), g0_rho_upper_at_100k: +c0[last + 3].toFixed(3), g1_rho_lower_at_100k: +c4[last + 2].toFixed(3), g1_rho_upper_at_100k: +c4[last + 3].toFixed(3) };
+    if (here){ this.last.street_devices = here.devices; this.last.street_rho_lower = +here.lo.toFixed(4); this.last.street_rho_upper = +here.hi.toFixed(4); }
+    this.info = { band: "outer bounds over the input intervals, not a probability", growth: "g 0 and g 1 (FRONTIER: which holds is not known)" };
   },
-  status(){ const h = this.last; return "solid ρ CPU · dashed ρ permits" + (h.street_devices ? ` · this street's seat: ${h.street_devices} devices round with it, ρ ${h.street_rho_cpu.toFixed(3)}` : "") + " · no knee here: the knee is an interval, in the calibration layer"; } });
+  status(){ const h = this.last; if (this.busy) return "running the seat model's input intervals once…"; return h.points ? `at 100,000 devices ρ ${h.g0_rho_lower_at_100k} to ${h.g0_rho_upper_at_100k} if the publish set stays, ${h.g1_rho_lower_at_100k} to ${h.g1_rho_upper_at_100k} if it grows with the fleet` + (h.street_devices ? ` · this street's seat: ${h.street_devices} devices, ρ ${h.street_rho_lower} to ${h.street_rho_upper}` : "") + " · MODEL, bounds over the inputs · the knee is on the seat card" : "–"; } });
 
 // ------------------------------------------------------------------ package views (kernel-wasm views.rs): each runs once per page
 const VW = (slot) => { const p = wasm.view_ptr(slot) >>> 0, n = wasm.view_len(slot) >>> 0; return (wasm.view_is_u32(slot) ? new Uint32Array(mem.buffer, p, n) : new Float32Array(mem.buffer, p, n)).slice(); };
@@ -332,9 +334,9 @@ window.CEWP_LAYERS["people"] = layer({ id: "people", title: "The week's rhythm, 
 // ------------------------------------------------------------------ holon certificates (twin-holon: holon_view.rs)
 const HOL = { seed: 43, cells: null, names: null, cu: null, cf: null };
 const HOL_STATE = ["certified", "refused", "not evaluated"];
-window.CEWP_LAYERS["holon"] = layer({ id: "holon", title: "Where a coarse tier is trusted (certificates)", cls: "DERIVED", inputs: "MODEL",
+window.CEWP_LAYERS["holon"] = layer({ id: "holon", title: "Where a coarse tier is trusted (certificates)", cls: "MODEL", inputs: "MODEL (the micro world under the tier)",
   source: "view_holon(43) → view slots 11 cells, 12 bound index, 16 bound names, 13/14 certificate table (cewp_sim::holon_view cells_of, certificates_of over holon_demo::demonstration_seeded)",
-  contract: "twin-holon's R5 demonstration, run once per page (two 2-day runs, normal and outage): cells f32 × 8 (lat, lon, half-size°, level 0 the tier / 1 a cell, state 0 certified 1 refused 2 not evaluated, bound index, signed margin in online share, worst normalised defect on record 0). The cells are cells of a tier (host kind × access network), laid out as a patch centred 47.3769, 8.5417; the position is layout only, not a place. Glyph by state: certified solid square, refused crossed square, not evaluated dashed outline. Bound names come from the kernel (BOUND_NAMES). Certificate table: u32 × 9 and f32 × 20 per (tier, observable). DERIVED; the micro world under it is MODEL. A refusal is shown as a refusal: that cell goes back to the finer tier. Certified means the coarse tier held within budget over the twin's MODEL world, not the real mesh.",
+  contract: "twin-holon's R5 demonstration, run once per page (two 2-day runs, normal and outage): cells f32 × 8 (lat, lon, half-size°, level 0 the tier / 1 a cell, state 0 certified 1 refused 2 not evaluated, bound index, signed margin in online share, worst normalised defect on record 0). The cells are cells of a tier (host kind × access network), laid out as a patch centred 47.3769, 8.5417; the position is layout only, not a place. Glyph by state: certified solid square, refused crossed square, not evaluated dashed outline. Bound names come from the kernel (BOUND_NAMES). Certificate table: u32 × 9 and f32 × 20 per (tier, observable). MODEL: the certificates are computed exactly, but over the twin's MODEL micro world, and simulation output over MODEL inputs reads MODEL. A refusal is shown as a refusal: that cell goes back to the finer tier. Certified means the coarse tier held within budget over the twin's MODEL world, not the real mesh.",
   available: has("view_holon", "view_ptr"),
   compute(){
     if (HOL.cells) return; wasm.view_holon(HOL.seed); HOL.cells = VW(11); const B = VW(12), bytes = VW(16); const s = String.fromCharCode(...bytes);

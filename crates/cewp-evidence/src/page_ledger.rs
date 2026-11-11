@@ -123,9 +123,9 @@ use EpistemicClass::{Derived, Frontier, Measured, Model};
 
 /// twin-calibration's correction list (twin/calibration 1b1d8a2, FSD/twin/calibration.md §4 and §10).
 const CALIBRATION_COMMIT: &str = "twin/calibration c13cee5 (CEWP); release/45.0.0 8e46165 (CIRISEdge, untagged when read)";
-/// The live seat figures still come from the f73b918 kernel until the globe package rebuilds it on
-/// the calibrated model.
-const SEAT_KERNEL_CORRECTION: &str = "These live figures are computed by the kernel built at f73b918, whose seat model counts the Global planes at 30 subjects (8,211 to 8,698 at 8e46165), books no reach-rule reads and no send-set floor, and uses point inputs. twin-calibration (1b1d8a2) replaces it; the figures here follow when the kernel is rebuilt on that model. The knee on this card is already the calibrated interval.";
+/// The live seat figures: seat_view.rs and view_seat_fleet landed at twin/globe 6cc2996, on
+/// twin-calibration's model (c13cee5) as merged.
+const SEAT_LAYER_COMMIT: &str = "twin/globe 6cc2996 (seat_view.rs, view_seat_fleet) on twin/calibration c13cee5";
 
 /// Every figure or statement of fact the page shows, by id.
 pub const PAGE_CLAIMS: &[PageClaim] = &[
@@ -561,16 +561,17 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         id: "seat-load-model",
         class: Model,
         live: true,
-        shows: "Seat load by fleet size (cores, reads per second, saturated or not) on the seat card, with today's measured peer load booked as a fixed baseline.",
-        source: "crates/cewp-sim/src/capacity.rs: cap_seat, COST_SPECS; kernel-wasm cap_seat; FSD/SIMULATION_ENGINE.md §4.7",
-        param: "COST_SPECS (MEASURED, DERIVED, FITTED, PROVISIONAL and MODEL rows; one fitted CPU-per-byte parameter)",
+        shows: "Seat load of one 4-core v45.0.0 seat at this patch's fleet and at 1,000, 10,000 and 100,000 devices, each as an interval (lower to upper over the input intervals, bounds not a probability; the central value is not shown) of cores and of the binding utilisation, for both publish-set cases (g 0 and g 1), with today's measured peer load booked as a fixed baseline.",
+        source: "kernel-wasm views.rs view_seat_fleet(devices, g) (slot 32) wrapping crates/cewp-sim/src/seat_view.rs seat_view_fleet: Scenario::v45 on CostParams::calibrated() with key_publish_set growth g, every output propagated over seat_calibration::input_intervals (vertex method, seat_calibration::propagate); the utilisation band is built as seat_hooks::calibration_view_curve builds it (a test checks they agree); docs/globe.js seatFleet, renderNodeCard",
+        commit: SEAT_LAYER_COMMIT,
+        param: "the calibrated cost model (COST_SPECS fit to seat-1 counters, MEASURED 2026-11-10 windows); input intervals per seat_calibration::input_intervals (MODEL bands); key_publish_set growth g 0 and 1 (FRONTIER, publish-set-growth)",
         failure: &[
             "One queue with Poisson-smooth arrivals; no tokio scheduling, SQLite contention, cache misses or memory (capacity.rs module doc).",
-            "Fitted to one CPU window.",
+            "Bounds over stated input ranges, not confidence levels; they assume each term is monotone in each input over its range (checked at the ends, not proven).",
+            "The windows ran v44.1.2; every v45 term is read from source at 8e46165, not measured on a v45 seat. Past 1,349 devices every row is an extrapolation of one seat's model.",
+            "Permit residuals of 678.5, 4,697 and 4,401 a minute (windows B, A', C) are UNEXPLAINED; a v45 seat may carry a term of that size the model does not book.",
         ],
-        reproduce: "cargo run -p cewp-sim --example capacity_sweep",
-        status: Status::UnderCorrection,
-        correction: SEAT_KERNEL_CORRECTION,
+        reproduce: "cargo test -p cewp-sim seat_view; cargo test -p cewp-kernel-scale views_seat",
         ..BASE
     },
     PageClaim {
@@ -596,12 +597,12 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         id: "seat-lock-model",
         class: Model,
         live: true,
-        shows: "The busiest key-plane lock's utilisation at this patch's fleet and the subjects it walks. Where the lock binds the knee, seat-knee's interval says so.",
-        source: "crates/cewp-sim/src/capacity.rs: key-plane lock model (kernel-wasm cap_seat outputs 15 to 19)",
-        param: "listing hold b (DERIVED), probe-page time (MODEL), 10-minute refill",
-        failure: &["One server per plane by construction; the probe-page time is MODEL."],
-        status: Status::UnderCorrection,
-        correction: SEAT_KERNEL_CORRECTION,
+        shows: "The busiest key-plane lock at this patch's fleet for both publish-set cases: which plane, its utilisation as an interval and the subjects it walks. Where the lock binds the knee, seat-knee's interval says so.",
+        source: "crates/cewp-sim/src/seat_view.rs seat_view_fleet fields 12-16 (busiest plane's rho_lock propagated over the input intervals; plane and subjects at the central inputs) via kernel-wasm view_seat_fleet",
+        commit: SEAT_LAYER_COMMIT,
+        param: "listing hold b (DERIVED), probe-page time 0.2 to 1 ms (MODEL band), 10-minute refill; Global subjects 8,211 to 8,698 (DERIVED band); g 0 and 1 (FRONTIER)",
+        failure: &["One server per plane by construction; the probe-page time is MODEL.", "The subject count printed is at the central inputs; the interval covers the Global planes' 8,211 to 8,698 band."],
+        reproduce: "cargo test -p cewp-sim seat_view",
         ..BASE
     },
     PageClaim {
@@ -773,25 +774,27 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
     },
     PageClaim {
         id: "layer-arcs",
-        class: Derived,
+        class: Model,
         live: true,
         shows: "Globe layer: a sample of deliveries crossing localities, coloured by tier (shaped hop, seat replication, relay tree or unshaped, onion).",
         source: "docs/layers/layers.js: CEWP_LAYERS arcs; kernel-wasm tick, arcs buffer (u32 x 2: signer, target | tier << 28)",
         commit: LAYERS_COMMIT,
+        param: "MODEL: simulation output over MODEL inputs reads MODEL (the lead's ruling, 2026-11-11); inputs: the kernel's generated world and traffic mix (kernel-traffic, kernel-locality), the 1-in-3 to 1-in-48 arc sample, at most 10 drawn a tick",
         failure: &[
             "A sample: the tick keeps up to 420 pairs (1 in 3 to 1 in 48 of its deliveries) and the page draws at most 10 a tick, so arc density is not traffic volume.",
-            "Derived from the kernel's MODEL world (kernel-traffic, kernel-locality); no real traffic.",
+            "Computed from the kernel's MODEL world (kernel-traffic, kernel-locality); no real traffic.",
         ],
         reproduce: "node --test docs/kernel/kernel.test.js",
         ..BASE
     },
     PageClaim {
         id: "layer-flows",
-        class: Derived,
+        class: Model,
         live: true,
         shows: "Globe layer: exact counts of deliveries between localities over the last 25 ticks, the largest 60 pairs drawn.",
         source: "docs/layers/layers.js: CEWP_LAYERS flows; kernel-wasm tick (globe buffer 10, a 181 x 181 u32 matrix) and locality_centroids (buffer 2)",
         commit: LAYERS_COMMIT,
+        param: "MODEL: simulation output over MODEL inputs reads MODEL (the lead's ruling, 2026-11-11); inputs: the kernel's generated world and its 90/9/1 room mix (kernel-locality); a 25-tick window, the 60 largest pairs",
         failure: &[
             "The counts are exact for the simulated world, which is a MODEL (kernel-locality: the 90/9/1 room mix largely sets them).",
             "The layer checks every tick that the matrix sums to out[6] + out[7]; a mismatch shows on its status line and as check_ok = 0 on this card.",
@@ -801,12 +804,12 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
     },
     PageClaim {
         id: "layer-alm",
-        class: Derived,
+        class: Model,
         live: true,
         shows: "Globe layer: the relay tree of one region's room (CC 6.1.6), its depth, busiest parent and fan-out bound.",
         source: "docs/layers/layers.js: CEWP_LAYERS alm; kernel-wasm alm_room, alm_bounds; crates/cewp-sim/src/alm.rs compute_alm_topology_verified_with_publisher",
         commit: LAYERS_COMMIT,
-        param: "MODEL inputs: device class shares 30/30/15/25 %, uplinks 2/8/12/20 Mbit/s, max subscribers 1/2/4/8, RTT = 10 ms + 2 x 1.6 x km / 200, trust depth 1 for every pair, first 64 members",
+        param: "MODEL: simulation output over MODEL inputs reads MODEL (the lead's ruling, 2026-11-11); inputs: device class shares 30/30/15/25 %, uplinks 2/8/12/20 Mbit/s, max subscribers 1/2/4/8, RTT = 10 ms + 2 x 1.6 x km / 200, trust depth 1 for every pair, first 64 members",
         failure: &[
             "The tree is computed exactly, but over MODEL inputs: uplinks, class shares and the RTT formula are not measured.",
             "Trust depth 1 for all pairs removes the trust constraint the real tree builder applies.",
@@ -815,12 +818,12 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
     },
     PageClaim {
         id: "layer-custody",
-        class: Derived,
+        class: Model,
         live: true,
         shows: "Globe layer: which members of a room hold its sealed chunk, and whether custody is Full, Partial or envelope only.",
         source: "docs/layers/layers.js: CEWP_LAYERS custody; kernel-wasm custody_room (globe buffers 7 and 8); chunk_custody classify(present, 20, 6), effective_source_count",
         commit: LAYERS_COMMIT,
-        param: "present_pm (the slider): the share of holders reachable, drawn per holder; target 20, minimum viable 6",
+        param: "MODEL: simulation output over MODEL inputs reads MODEL (the lead's ruling, 2026-11-11); inputs: present_pm (the slider): the share of holders reachable, drawn per holder; target 20, minimum viable 6",
         failure: &[
             "Who is reachable is a MODEL draw from the slider, a stand-in until the failures package supplies correlated outages.",
             "Holders are the room's members; no custody placement policy beyond that is modelled.",
@@ -845,17 +848,15 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         id: "layer-seat",
         class: Model,
         live: true,
-        shows: "Globe layer: serve-seat load (CPU and permit utilisation) across fleet sizes from 10 to 100,000 devices, and this street's point on it. No knee is drawn.",
-        source: "docs/layers/layers.js: CEWP_LAYERS seat; kernel-wasm cap_curve (globe buffer 9), cap_seat; crates/cewp-sim/src/capacity.rs run, COST_SPECS",
-        commit: LAYERS_COMMIT,
-        param: "COST_SPECS (calibrated to seat-1 aggregates); bundle-bootstrap setting from the street chip (v44, v45, whole-plane); 64 fleet sizes",
+        shows: "Globe layer: one v45.0.0 seat's binding utilisation against fleet size (500 to 100,000 devices) as two outer bands, the publish set staying at today's size (g 0) and growing with the fleet (g 1), ρ 0.70 and ρ 1 marked, and this street's seat as an interval. No knee is drawn.",
+        source: "docs/layers/layers.js: CEWP_LAYERS seat; kernel-wasm views.rs view_calibration_curve(0) and (4) (slot 17, crates/cewp-sim/src/seat_hooks.rs calibration_view_curve) and view_seat_fleet (slot 32, crates/cewp-sim/src/seat_view.rs)",
+        commit: SEAT_LAYER_COMMIT,
+        param: "the calibrated cost model and its input intervals (as seat-load-model); g 0 and 1 (FRONTIER)",
         failure: &[
-            "Rests on the same cost model as seat-load-model, which is being recalibrated.",
-            "One queue with Poisson-smooth arrivals (capacity.rs module doc).",
+            "Rests on the same cost model as seat-load-model (one queue, Poisson-smooth arrivals).",
+            "Which band holds is FRONTIER: how the server's publish set grows with the fleet is not measured.",
         ],
-        reproduce: "cargo run -p cewp-sim --example capacity_sweep",
-        status: Status::UnderCorrection,
-        correction: SEAT_KERNEL_CORRECTION,
+        reproduce: "cargo test -p cewp-sim seat_hooks; cargo test -p cewp-kernel-scale views_calibration",
         ..BASE
     },
     // Phase 2 layers: one kernel-wasm door (kernel-wasm/src/views.rs, slots 0-15) runs each package's
@@ -909,12 +910,12 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
     },
     PageClaim {
         id: "layer-holon",
-        class: Derived,
+        class: Model,
         live: true,
         shows: "Globe layer: the coarse-tier cells of the R5 demonstration (host kind x access network, laid out as a patch near Zurich; not places), each certified, refused or not evaluated with its binding bound and margin, and the per-tier certificate table.",
         source: "docs/layers/layers.js: CEWP_LAYERS holon; kernel-wasm views.rs view_holon; crates/cewp-sim/src/holon_view.rs cells_of, certificates_of, holon_view_bounds over holon_demo::demonstration_seeded(VIEW_HORIZON_S, 43); FSD/twin/holon.md",
         commit: VIEWS_COMMIT,
-        param: "inputs MODEL: the micro world under the tier; seed 43",
+        param: "MODEL: simulation output over MODEL inputs reads MODEL (the lead's ruling, 2026-11-11); inputs: the micro world under the tier; seed 43",
         failure: &[
             "A certificate here says the coarse tier matched the finer tier's distributions within budget over the twin's MODEL world; it certifies nothing about the real mesh.",
             "Refused cells are shown as refusals and sent back to the finer tier, not hidden.",
@@ -926,12 +927,12 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         id: "layer-media",
         class: Model,
         live: true,
-        shows: "Globe layer: one generated room call (four homes, six phones joining and leaving, two hard-NAT phones relayed through a home that leaves at 30 s), one relay tree per publisher, the tree repairing, and per-second legs attached, wire rate, sessions stalled and median audio and video resume gaps.",
+        shows: "Globe layer: one generated room call (four homes, six phones joining and leaving, two hard-NAT phones relayed through a home that leaves at 30 s), one relay tree per publisher, the tree repairing, and per-second legs attached, wire rate and sessions stalled; over the call the median and slowest audio resume gaps, the median video resume gap, and the sessions whose video never resumed split into receivers that left first and real cases. Every figure MODEL.",
         source: "docs/layers/layers.js: CEWP_LAYERS media; kernel-wasm views.rs view_media(1) (slots 20-25); crates/cewp-sim/src/media_view.rs media_view (scenario_view: the churn room, household traffic off, tail-drop); FSD/twin/media.md §9",
         commit: MEDIA_LAYER_COMMIT,
         param: "media.rs access profiles, Gilbert-Elliott loss, Markov cellular capacity, queue buffers, frame sizes and SETUP_RTTS (all MODEL, FSD/twin/media.md §2-§3); seed 1",
         failure: &[
-            "One seeded run (seed 1): the whole-call figures (6 departures, median audio resume 21 ms, median video resume 10,884 ms, 3 never resumed, as twin-globe reads them at da31099) are over that run's sessions, not rates; another seed gives other numbers.",
+            "One seeded run (seed 1): the whole-call figures (6 departures; audio back in a median 21 ms over 6 resumes, the two slowest 1,640 ms and 1,046 ms; video back in a median 10,884 ms; video never resumed in 3 sessions, 2 because the receiver left the call first and 1 a real case, no video until the run ended) are over that run's sessions, not rates; another seed gives other numbers.",
             "No real codec, no media congestion controller, no measured Wi-Fi, no core congestion (FSD/twin/media.md §6).",
             "The tree is the twin's closed-loop controller with stated simplifications, not edge's code.",
             "Members are a seeded scatter of about a degree around one metro anchor (45.5, -73.6 in this scenario), never an address; people and devices are generated.",
@@ -1269,11 +1270,14 @@ mod tests {
     }
 
     #[test]
-    fn page_ledger_seat_figures_are_under_correction() {
-        // still computed by the f73b918 kernel's seat model
+    fn page_ledger_seat_figures_are_stated_on_the_calibrated_model() {
+        // the live seat figures come from seat_view.rs on the calibrated model; nothing is under correction
         for id in ["seat-load-model", "seat-lock-model", "layer-seat"] {
-            assert_eq!(lookup(id).map(|c| c.status), Some(Status::UnderCorrection), "{id}");
+            let c = lookup(id).expect(id);
+            assert_eq!((c.class, c.status), (EpistemicClass::Model, Status::Stated), "{id}");
+            assert!(c.source.contains("seat_view") || c.source.contains("seat_hooks"), "{id}: {}", c.source);
         }
+        assert!(PAGE_CLAIMS.iter().all(|c| c.status == Status::Stated), "no entry is under correction");
         // the knee is twin-calibration's interval, never one count
         let k = lookup("seat-knee").expect("seat-knee");
         assert_eq!((k.class, k.status, k.live), (EpistemicClass::Model, Status::Stated, true));

@@ -50,13 +50,16 @@ under correction reads "under correction" after the figure.
    A registered class that disagrees with the ledger is shown on the card as a mismatch.
    The layer entries (`layer-illustration` at `twin/globe b4cbfb9`, `layer-glow`, `layer-arcs`, `layer-flows`, `layer-alm`, `layer-custody`,
    `layer-reach`, `layer-seat`) were written from the globe package's registry at `twin/globe 07865ef`.
+   On the lead's ruling of 2026-11-11 (simulation output over MODEL inputs reads MODEL) `layer-arcs`,
+   `layer-flows`, `layer-alm`, `layer-custody` and `layer-holon` are MODEL, each card still naming its
+   inputs; `layer-failures` (MODEL) was added with the failures layer.
    The Phase 2 entries `layer-topology` (MODEL), `layer-nat` (MODEL), `layer-people` (MODEL) and
-   `layer-holon` (DERIVED, inputs MODEL) read the packages' view functions through
+   `layer-holon` (MODEL) read the packages' view functions through
    `kernel-wasm/src/views.rs`; registry lines and sources checked at `twin/globe 8b70422`. A holon "certified" cell means the coarse tier held
    within budget over the twin's MODEL world, not the real mesh.
    On a tree without `docs/layers/` the reverse direction (an entry with no layer) is not checked;
    `cargo run -p cewp-evidence --example page_ledger -- --docs <tree>/docs` checks an integration
-   tree against this ledger. `layer-seat` shares the seat cost model and is under correction with it.
+   tree against this ledger. `layer-seat` shares the calibrated seat model with the seat card.
 
 The scan cannot see: numbers spelled out in words; numbers joined with `+` into a string outside a
 `fig()` (the scanned regions use templates so that this does not happen); `title=` tooltips; canvas
@@ -96,8 +99,11 @@ ledger:
 - `key-plane-refill`: the 10-minute TTL revalidates at most 256 reads a listing.
 - `global-subjects-at-seat` (new, DERIVED): the Global planes walk every key held, 8,698 at
   seat-1 (8,211 to 8,698), not "tens".
-- `seat-load-model`, `seat-lock-model`, `layer-seat` stay under correction: their live values
-  are still computed by the f73b918 kernel's seat model until it is rebuilt on the calibrated one.
+- `seat-load-model`, `seat-lock-model`, `layer-seat` are stated (twin/globe, after 6cc2996): the seat
+  card's rows and the seat layer read `view_seat_fleet` (crates/cewp-sim/src/seat_view.rs) and
+  `view_calibration_curve`, the calibrated model at g 0 and g 1, each figure lower to upper over the
+  input intervals. kernel-wasm `cap_seat` (one point, g fixed at 1) is no longer read by the page.
+  No entry is under correction; the mechanism stays for the next correction.
 - `pull-permit-provisional` is stated (its text already says PROVISIONAL).
 - The permit residuals (678.5 / 4,697 / 4,401 a minute, UNEXPLAINED) are not on the page; they
   are a failure condition of `seat-knee`.

@@ -388,7 +388,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=16"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=17"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2014,19 +2014,25 @@ function microRead(){
   M.cnt = cnt;
   if (!M.capT || now - M.capT > 1000){ M.capT = now; M.seatCap = seatCapPatch(); }
 }
-// ---- seat capacity (cewp_sim::capacity, calibrated to seat-1; MODEL/DERIVED/MEASURED as tagged there)
-const capMemo = new Map();
+// ---- seat capacity: the calibrated seat model (cewp_sim::seat_view / seat_hooks through kernel-wasm views.rs).
+// kernel-wasm's cap_seat (one point, growth fixed at 1, no interval) is no longer read by the page.
 const KEY_PLANE = ["Key", "occurrence", "Revocation", "occurrence-withdrawal"];
-const CAP_BINDS = ["CPU", "sweep permits", "a key-plane lock"];
-function capSeat(devices, shape, read, cand){
-  if (!wasm || !wasm.cap_seat) return null;
-  const key = devices + ":" + shape + ":" + read + ":" + cand; if (capMemo.has(key)) return capMemo.get(key);
-  if (capMemo.size > 512) capMemo.clear();
-  wasm.cap_seat(devices, shape, read, 1, 0, cand ? 1 : 0);
-  const b = microBuf(12, Float64Array);
-  const r = { cpu: b[0], rhoCpu: b[1], rhoPermit: b[2], latency: b[3], reads: b[4], pages: b[5], egress: b[6], links: b[7], attr: b[8], cpuIndex: b[9], cpuQuery: b[10], cpuCtx: b[11], cores: b[12], knee: b[13], ceiling: b[14], walk: b[15], walkKeys: b[16], lock: b[17], lockPlane: b[18], lockKnee: b[19], binds: b[20] };
-  capMemo.set(key, r); return r;
+// the seat card's rows on the calibrated seat model (cewp_sim::seat_view::seat_view_fleet via kernel-wasm
+// view_seat_fleet, slot 32): v45.0.0, one seat, CostParams::calibrated() with key_publish_set growth g by
+// scenario (0 = g 0, today's publish set; 4 = g 1, grows with the fleet), each figure with its outer bounds over
+// the input intervals. Only lower and upper are printed (the central value is never shown alone).
+const seatFleetMemo = new Map();
+function seatFleet(devices, sc){
+  if (!wasm || !wasm.view_seat_fleet) return null;
+  const d = Math.max(1, Math.round(devices)), key = d + ":" + sc; if (seatFleetMemo.has(key)) return seatFleetMemo.get(key);
+  if (seatFleetMemo.size > 256) seatFleetMemo.clear();
+  const n = wasm.view_seat_fleet(d, sc) >>> 0; const p = wasm.view_ptr(32) >>> 0, b = new Float32Array(mem.buffer, p, wasm.view_len(32) >>> 0).slice();
+  const r = n === 18 && b.length === 18 ? { devices: b[0], g: b[1], cores: [b[3], b[4]], reads: [b[6], b[7]], rho: [b[9], b[10]], binds: b[11], lock: [b[13], b[14]], plane: b[15], subjects: b[16], cls: b[17] } : null;
+  seatFleetMemo.set(key, r); return r;
 }
+const ivN = (a, f) => f(a[0]) === f(a[1]) ? f(a[0]) : f(a[0]) + " to " + f(a[1]);
+const ivRho = (a) => ivN(a, (x) => x >= 10 ? x.toFixed(0) : x.toFixed(2));
+const seatCell = (r) => r ? `${ivN(r.cores, fmtN)} cores · ρ ${ivRho(r.rho)}${r.rho[0] >= 1 ? " · <b>saturated</b>" : r.rho[1] >= 1 ? " · may saturate" : ""}` : "–";
 // the seat knee as an interval (twin-calibration, cewp_sim::seat_hooks::calibration_view_knee via
 // kernel-wasm view_calibration_knee, slot 18): [lower, central, upper, kind, binds lower, binds upper,
 // class], -1 = no claim. Scenario 0..4 is key_publish_set growth g = 0, 0.25, 0.5, 0.75, 1 (FRONTIER).
@@ -2060,7 +2066,7 @@ function seatRounders(s){
 }
 function seatCapPatch(){
   const out = new Map();
-  for (let i = 0; i < M.n; i++) if (nodeKind(i) === 4){ const d = seatRounders(i); out.set(i, { d, c: capSeat(d, ...bsCap()) }); }
+  for (let i = 0; i < M.n; i++) if (nodeKind(i) === 4){ const d = seatRounders(i), a = seatFleet(d, 0), b = seatFleet(d, 4); out.set(i, { d, c: a && b ? { cores: [Math.min(a.cores[0], b.cores[0]), Math.max(a.cores[1], b.cores[1])] } : null }); }
   return out;
 }
 // free roam: the tile under the screen centre (the centre of an orthographic view is lat = pitch, lon = yaw)
@@ -2383,7 +2389,7 @@ function drawEdgeMarkers(g, F, alpha){
     const label = parts.join(" + ") + " · " + Math.round(km).toLocaleString() + " km";
     let sub = "";
     if (seats.length){ const s0 = seats[0]; let homed = 0; for (let l = 0; l < M.links.length; l += 4) if ((M.links[l + 2] & 0xff) === 0 && (M.links[l] === s0 || M.links[l + 1] === s0)) homed++; sub = `${nodeShaped(s0)}/8 shaped · ${homed} homed here`;
-      const sc = M.seatCap && M.seatCap.get(s0); if (sc && sc.c) sub += ` · CPU ${fmtN(sc.c.cpu)} cores · ${fmtN(sc.c.reads)} reads/s (MODEL, ${BS_LABEL[microBootstrap]}; includes today's measured peer load)`; }
+      const sc = M.seatCap && M.seatCap.get(s0); if (sc && sc.c) sub += ` · CPU ${ivN(sc.c.cores, fmtN)} cores (MODEL, v45.0.0, interval over g 0 to 1)`; }
     const small = F.w < 800; let label2 = label;
     if (small){ label2 = (seats.length ? "seat" : ci.length ? "CI" : "server") + (parts.length > 1 ? "+" : "") + " · " + Math.round(km).toLocaleString() + " km"; sub = seats.length ? `${nodeShaped(seats[0])}/8 shaped` : ""; }
     drawNodeGlyph(g, mk.node, mx, my, 11, alpha * (microSel < 0 || nodes.includes(microSel) ? 1 : 0.6), 0);
@@ -2523,17 +2529,18 @@ function renderNodeCard(){
     else repl = `unclaimed: announces (${fig("micro-activity", String(ann))}) on the link it opened, but no seat opens a round for it (no owner, no consent; bundle bootstrap off, as on v44) · ${fig("micro-activity", rounds + " served")}`;
   }
   let capHtml = "";
-  if (kind === 4 && wasm && wasm.cap_seat){
+  if (kind === 4 && wasm && wasm.view_seat_fleet){
     const here = seatRounders(i), sizes = [here, 1000, 10000, 100000];
-    const cell = (c) => c ? fmtN(c.cpu) + " cores · " + fmtN(c.reads) + " reads/s" + (c.rhoCpu >= 1 || c.rhoPermit >= 1 ? " · <b>saturated</b>" : "") : "–";
-    const tr = sizes.map((d, j) => `<tr><td>${fig("seat-load-model", j ? fmtN(d) : d + " (this patch)")}</td><td>${fig("seat-load-model", cell(capSeat(d, ...bsCap())))}</td></tr>`).join("");
-    const k45 = capSeat(1, ...CAP_ARGS[1]);
-    capHtml = `<div class="card-links"><span>seat load, ${BS_LABEL[microBootstrap]}${microBootstrap === 0 ? " (ordinary whole-plane rounds, claimed devices only)" : ""}, ${fig("seat-load-model", "one seat of " + (k45 ? k45.cores : "?") + " cores")} · MODEL, calibrated to seat-1</span>
+    const tr = sizes.map((d, j) => `<tr><td>${fig("seat-load-model", j ? fmtN(d) : d + " (this patch)")}</td><td>${fig("seat-load-model", seatCell(seatFleet(d, 0)))}</td><td>${fig("seat-load-model", seatCell(seatFleet(d, 4)))}</td></tr>`).join("");
+    const lk = (sc) => { const w = seatFleet(here, sc); return w ? (KEY_PLANE[w.plane - 2] || "a key") + " plane, ρ " + ivRho(w.lock) + " over " + fmtN(w.subjects) + " subjects" : "–"; };
+    capHtml = `<div class="card-links"><span>${fig("seat-load-model", "seat load of one 4-core v45.0.0 seat (edge release/45.0.0 at 8e46165)")} · MODEL with its interval (outer bounds over the input intervals, not a confidence level)</span>
+      ${microBootstrap !== 1 ? `<div class="kv"><span>this street runs ${BS_LABEL[microBootstrap]}; the calibrated seat model covers v45.0.0 only, so these rows are v45.0.0's</span></div>` : ""}
       <div class="kv"><span>includes today's measured peer load at seat-1 as a fixed baseline (MEASURED round mix, MODEL scaling)</span></div>
-      <table class="cap"><tr><th>devices</th><th>${BS_LABEL[microBootstrap]} (MODEL)</th></tr>${tr}</table>
+      <table class="cap"><tr><th>devices</th><th>publish set stays (${fig("publish-set-growth", "g 0")})</th><th>grows with the fleet (${fig("publish-set-growth", "g 1")})</th></tr>${tr}</table>
+      <div class="kv"><span>${fig("publish-set-growth", "which column holds is not known: how the server's publish set grows with the fleet is not measured")}</span></div>
       <div class="kv"><span>${fig("seat-knee", "largest fleet of v45.0.0 devices rounding with one 4-core seat under 70% of it")}</span><b>${fig("seat-knee", seatKneeText())} (MODEL with its interval, outer bounds over the input intervals; ${fig("publish-set-growth", "which of the two holds is not known")})</b></div>
       <div class="kv cap-which"><span><span class="fig" data-claim="pull-permit-provisional">v45's figure is PROVISIONAL in two terms: how long a Pull holds its sweep permit (about 2 ms, derived from a key-plane refill, not measured on a Pull), and the Pull's own cost (MEASURED on a debug build; the release rerun is pending)</span>. ${fig("edge-source-read", "The listing cache and read budget are built and on by default at 8e46165; only their timings are MODEL.")}</span></div>
-      <div class="kv"><span>key-plane locks, ${fig("micro-activity", Math.round(here).toLocaleString() + " devices")} (MODEL: each plane's listing holds one lock; ${fig("key-plane-refill", "the 10-minute TTL now revalidates at most 256 reads a listing, so no listing holds the lock for a whole refill")}; Key and occurrence walk thousands of subjects, ${fig("global-subjects-at-seat", "the Global planes every key the seat holds (8,698 at seat-1)")})</span><b>${fig("seat-lock-model", (() => { const w = capSeat(here, ...bsCap()); return w && w.lock >= 0 ? "busiest: " + (KEY_PLANE[w.lockPlane] || "?") + " plane, ρ " + w.lock.toFixed(2) + " over " + fmtN(w.walkKeys) + " subjects (one server, cores do not help)" : "–"; })())}</b></div>
+      <div class="kv"><span>key-plane locks, ${fig("micro-activity", Math.round(here).toLocaleString() + " devices")} (MODEL: each plane's listing holds one lock; ${fig("key-plane-refill", "the 10-minute TTL now revalidates at most 256 reads a listing, so no listing holds the lock for a whole refill")}; Key and occurrence walk thousands of subjects, ${fig("global-subjects-at-seat", "the Global planes every key the seat holds (8,698 at seat-1)")})</span><b>${fig("seat-lock-model", "busiest at g 0: " + lk(0) + "; at g 1: " + lk(4) + " (one server, cores do not help)")}</b></div>
       <div class="kv"><span>seat-1 measured</span><b><span class="fig" data-claim="seat1-cpu-quiet">0.65 cores</span>, <span class="fig" data-claim="seat1-att-queries">~329 attestation queries/s (quiet 60 s window)</span></b></div></div>`;
   }
   const state = !(f & NF.present) ? "not present" : !(f & NF.awake) ? "asleep" : (f & NF.online) ? "online" : "resuming";

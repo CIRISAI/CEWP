@@ -99,7 +99,7 @@ function evLegend(){
   <h3>Tier you are looking at now</h3>
   <p id="ev-tier" data-evidence="figs" aria-live="polite"></p>
   <h3>The classes</h3>
-  <p class="ev-means">Every figure is underlined in its class's line style and tagged with its two-letter code; click, tap or press Enter on it to open its entry. A figure tagged "under correction" is being recomputed and should not be quoted.</p>
+  <p class="ev-means">Every figure is underlined in its class's line style and tagged with its two-letter code; click, tap or press Enter on it to open its entry.</p>
   <ul class="ev-legend">${rows}</ul>
   <h3>The full ledger</h3>
   ${groups}
