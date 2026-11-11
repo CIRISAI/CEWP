@@ -350,21 +350,43 @@ window.CEWP_LAYERS["holon"] = layer({ id: "holon", title: "Where a coarse tier i
   onShow(){ later(this); },
   draw2D(g, F){
     const C = HOL.cells; if (!C) return;
-    const c0 = proj(F, C[0], C[1]), c1 = proj(F, C[0] + C[2], C[1]); if (c0[2] < 0.03) return;
-    if (Math.hypot(c1[0] - c0[0], c1[1] - c0[1]) < 5){ // the patch is a street block: mark it until it is big enough to draw
-      const l = this.last; g.lineWidth = 1.5; g.strokeStyle = "#fff"; g.setLineDash([3, 2]); g.strokeRect(c0[0] - 6, c0[1] - 6, 12, 12); g.setLineDash([]);
-      g.font = "600 11px " + MFONT; g.lineWidth = 3; g.strokeStyle = "rgba(6,9,14,0.9)"; const t = `tier certificate: ${l.certified} cells certified, ${l.refused} refused (zoom in)`;
-      g.strokeText(t, c0[0] + 10, c0[1] - 10); g.fillStyle = "#e8eef6"; g.fillText(t, c0[0] + 10, c0[1] - 10); return; }
-    for (let i = 0; i < C.length; i += 8){ const la = C[i], lo = C[i + 1], h = C[i + 2], lv = C[i + 3], s = C[i + 4]; const hl = h / Math.max(0.2, Math.cos(la * DEG));
-      const q = [[la - h, lo - hl], [la - h, lo + hl], [la + h, lo + hl], [la + h, lo - hl]].map(([a, b]) => proj(F, a, b)); if (q.some((p) => p[2] < 0.03)) continue;
-      g.beginPath(); g.moveTo(q[0][0], q[0][1]); for (let k = 1; k < 4; k++) g.lineTo(q[k][0], q[k][1]); g.closePath();
-      if (lv === 0){ g.setLineDash([6, 4]); g.strokeStyle = "rgba(255,255,255,0.7)"; g.lineWidth = 1.5; g.stroke(); g.setLineDash([]); continue; }
-      if (s === 0){ g.fillStyle = "rgba(124,240,176,0.30)"; g.fill(); g.strokeStyle = "#7cf0b0"; g.lineWidth = 1.4; g.stroke(); }
-      else if (s === 1){ g.fillStyle = "rgba(255,138,122,0.25)"; g.fill(); g.strokeStyle = "#ff8a7a"; g.lineWidth = 1.6; g.stroke(); g.beginPath(); g.moveTo(q[0][0], q[0][1]); g.lineTo(q[2][0], q[2][1]); g.moveTo(q[1][0], q[1][1]); g.lineTo(q[3][0], q[3][1]); g.stroke(); }
-      else { g.setLineDash([2, 3]); g.strokeStyle = "rgba(200,210,225,0.8)"; g.lineWidth = 1.2; g.stroke(); g.setLineDash([]); } }
-    g.font = "600 11px " + MFONT; g.lineWidth = 3; g.strokeStyle = "rgba(6,9,14,0.9)"; g.strokeText("cells of a tier, not places", c1[0] - 80, c1[1] - 8); g.fillStyle = "#e8eef6"; g.fillText("cells of a tier, not places", c1[0] - 80, c1[1] - 8);
+    const c0 = proj(F, C[0], C[1]); if (c0[2] < 0.03) return;
+    // the tier's cells are a street-block patch; below a legible size they are drawn enlarged around the
+    // patch's spot (a callout, said so on the map), so certified, refused and unresolved read at any zoom
+    const small = F.w < 600, want = small ? 150 : 230;
+    const ex = proj(F, C[0], C[1] + C[2] / Math.max(0.2, Math.cos(C[0] * DEG))), ey = proj(F, C[0] + C[2], C[1]);
+    const realPx = 2 * Math.max(Math.hypot(ex[0] - c0[0], ex[1] - c0[1]), Math.hypot(ey[0] - c0[0], ey[1] - c0[1]));
+    const k = realPx < want ? want / Math.max(1e-6, realPx) : 1, enlarged = k > 1.01;
+    const ox = enlarged ? (small ? F.w / 2 - c0[0] : want / 2 + 70) : 0, oy = enlarged ? (small ? Math.max(want / 2 + 150, Math.min(F.h * 0.5, c0[1] - 40)) - c0[1] : 0) : 0; // the callout: right of the spot (desktop), mid-screen (phone)
+    const at = (la, lo) => { const p = proj(F, la, lo); return [c0[0] + ox + (p[0] - c0[0]) * k, c0[1] + oy + (p[1] - c0[1]) * k]; };
+    const cx = c0[0] + ox, cy = c0[1] + oy;
+    if (enlarged){ // the spot and a leader to the callout
+      g.strokeStyle = "rgba(255,255,255,0.75)"; g.lineWidth = 1.2; g.beginPath(); g.arc(c0[0], c0[1], 5, 0, 6.2832); g.stroke();
+      g.setLineDash([3, 3]); g.beginPath(); g.moveTo(c0[0], c0[1]); g.lineTo(cx, cy + want * 0.5 + 4); g.stroke(); g.setLineDash([]);
+      g.fillStyle = "rgba(8,12,18,0.82)"; g.strokeStyle = "rgba(200,215,235,0.35)"; g.lineWidth = 1; g.beginPath(); g.roundRect ? g.roundRect(small ? cx - 150 : cx - want / 2 - 14, cy - want / 2 - 30, small ? 300 : Math.max(want + 28, 400), want + (small ? 104 : 78), 10) : g.rect(small ? cx - 150 : cx - want / 2 - 14, cy - want / 2 - 30, small ? 300 : Math.max(want + 28, 400), want + (small ? 104 : 78)); g.fill(); g.stroke(); }
+    const STC = [["124,240,176", "#7cf0b0"], ["255,122,106", "#ff7a6a"], ["200,210,225", "#c8d2e1"]];
+    for (let pass = 0; pass < 2; pass++) for (let i = 0; i < C.length; i += 8){ const la = C[i], lo = C[i + 1], h = C[i + 2], lv = C[i + 3], st = C[i + 4]; const hl = h / Math.max(0.2, Math.cos(la * DEG));
+      const q = [[la - h, lo - hl], [la - h, lo + hl], [la + h, lo + hl], [la + h, lo - hl]].map(([a, b]) => at(a, b));
+      const path = () => { g.beginPath(); g.moveTo(q[0][0], q[0][1]); for (let j = 1; j < 4; j++) g.lineTo(q[j][0], q[j][1]); g.closePath(); };
+      if (lv === 0){ if (pass === 1){ path(); g.setLineDash([6, 4]); g.strokeStyle = "rgba(255,255,255,0.75)"; g.lineWidth = 1.5; g.stroke(); g.setLineDash([]); } continue; }
+      const [rgb, col] = STC[Math.min(2, st)];
+      if (pass === 0){ path(); g.fillStyle = `rgba(${rgb},${st === 2 ? 0.10 : 0.34})`; g.fill(); continue; }
+      path(); g.save(); g.shadowColor = col; g.shadowBlur = st === 2 ? 0 : 10; g.strokeStyle = col; g.lineWidth = st === 2 ? 1.2 : 2; if (st === 2) g.setLineDash([3, 3]); g.stroke(); g.restore(); g.setLineDash([]);
+      if (st === 1){ g.strokeStyle = col; g.lineWidth = 1.6; g.beginPath(); g.moveTo(q[0][0], q[0][1]); g.lineTo(q[2][0], q[2][1]); g.moveTo(q[1][0], q[1][1]); g.lineTo(q[3][0], q[3][1]); g.stroke(); } }
+    // title and legend: shape and dash carry the state, colour repeats it
+    const l = this.last, x0 = enlarged ? (small ? cx - 140 : cx - want / 2 - 4) : c0[0] - 80, yT = enlarged ? cy - want / 2 - 12 : c0[1] - 60, yL = enlarged ? cy + want / 2 + 20 : c0[1] + 60;
+    g.font = "600 11px " + MFONT; g.lineWidth = 3; g.strokeStyle = "rgba(6,9,14,0.9)"; const t = small ? "tier certificates" + (enlarged ? " (enlarged)" : "") : "tier certificates · cells of a tier, not places" + (enlarged ? " (enlarged)" : "");
+    g.strokeText(t, x0, yT); g.fillStyle = "#e8eef6"; g.fillText(t, x0, yT);
+    g.font = "10.5px " + MFONT; let lx = x0;
+    for (const [s2, txt] of [[0, `${l.certified} certified`], [1, `${l.refused} refused`], [2, `${l.not_evaluated} unresolved`]]){ const [rgb, col] = STC[s2];
+      g.fillStyle = `rgba(${rgb},0.34)`; g.fillRect(lx, yL - 9, 11, 11); g.strokeStyle = col; g.lineWidth = 1.5; if (s2 === 2) g.setLineDash([2, 2]); g.strokeRect(lx, yL - 9, 11, 11); g.setLineDash([]);
+      if (s2 === 1){ g.beginPath(); g.moveTo(lx, yL - 9); g.lineTo(lx + 11, yL + 2); g.moveTo(lx + 11, yL - 9); g.lineTo(lx, yL + 2); g.stroke(); }
+      g.lineWidth = 3; g.strokeStyle = "rgba(6,9,14,0.9)"; g.strokeText(txt, lx + 15, yL); g.fillStyle = col; g.fillText(txt, lx + 15, yL); lx += 22 + g.measureText(txt).width; }
+    const t2 = small ? ["cells of a tier, not places;", "certified means the twin's MODEL", "world, not the real mesh"] : ["certified means the twin's MODEL world, not the real mesh"];
+    t2.forEach((tt, j) => { g.lineWidth = 3; g.strokeStyle = "rgba(6,9,14,0.9)"; g.strokeText(tt, x0, yL + 15 + 13 * j); g.fillStyle = "#aab4c2"; g.fillText(tt, x0, yL + 15 + 13 * j); });
+    this.last.enlarged = enlarged ? 1 : 0;
   },
-  status(){ const l = this.last; if (this.busy) return "running the tier demonstration once (two 2-day runs)…"; return l.cells !== undefined ? `■ ${l.certified} certified · ⊠ ${l.refused} refused · ⬚ ${l.not_evaluated} not evaluated of ${l.cells} cells · tier ${this.info.tier_state}${this.info.tier_bound !== "none" ? " (" + this.info.tier_bound + ")" : ""} · cells of a tier, not places · certified means the coarse tier held within budget over the twin's MODEL world, not the real mesh` : "–"; } });
+  status(){ const l = this.last; if (this.busy) return "running the tier demonstration once (two 2-day runs)…"; return l.cells !== undefined ? `■ ${l.certified} certified · ⊠ ${l.refused} refused · ⬚ ${l.not_evaluated} unresolved (not evaluated) of ${l.cells} cells · tier ${this.info.tier_state}${this.info.tier_bound !== "none" ? " (" + this.info.tier_bound + ")" : ""} · cells of a tier, not places${l.enlarged ? ", drawn enlarged around their spot" : ""} · certified means the coarse tier held within budget over the twin's MODEL world, not the real mesh` : "–"; } });
 
 // ------------------------------------------------------------------ a correlated outage stepping through time (twin-failures: failure.rs via failure_view.rs)
 const FAIL = { sc: 0, cache: new Map(), d: null, step: -1, play: null, key: "" };
@@ -610,12 +632,16 @@ function render(){
       if (b.dataset.ctl){ const [id, k] = b.dataset.ctl.split(":"); const d = LAYERS.def(id); d.controls[+k].act.call(d); render(); } });
     dock.addEventListener("input", (e) => { const r = e.target; if (!r.dataset.ctl) return; const [id, k] = r.dataset.ctl.split(":"); const d = LAYERS.def(id); d.controls[+k].set.call(d, +r.value); const o = r.parentElement.querySelector("output"); if (o) o.textContent = d.controls[+k].show(+r.value); refresh(); });
     for (const ev of ["pointerdown", "wheel", "touchstart", "keydown"]) dock.addEventListener(ev, (e) => e.stopPropagation(), { passive: ev !== "keydown" });
-    window.addEventListener("keydown", (e) => { if (e.key === "l" && !/INPUT|TEXTAREA|SELECT/.test((e.target || {}).tagName || "") && !e.metaKey && !e.ctrlKey){ open = !open; render(); } }); }
+    window.addEventListener("keydown", (e) => { if (e.key === "l" && !/INPUT|TEXTAREA|SELECT/.test((e.target || {}).tagName || "") && !e.metaKey && !e.ctrlKey){ open = !open; render(); } });
+    // phone: any gesture on the map collapses the sheet to its button, so the globe is never held under it
+    const fold = () => { if (open && window.innerWidth <= 800){ open = false; render(); } };
+    for (const ev of ["pointerdown", "touchstart", "wheel"]) (typeof cv !== "undefined" && cv ? cv : window).addEventListener(ev, fold, { passive: true }); }
+  document.body.classList.toggle("ly-open", open);
   const shown = REG.filter((d) => d.available() && !d.pending);
   const head = `<button class="ly-toggle" data-toggle="1" aria-expanded="${open}" aria-controls="ly-body">Layers <span class="ly-n">${shown.filter((d) => KEEP.on.has(d.id)).length}/${shown.length}</span></button>`;
   if (!open){ dock.innerHTML = head; dock.classList.remove("open"); return; }
   dock.classList.add("open");
-  dock.innerHTML = head + `<div id="ly-body" class="ly-body">` + shown.map((d) => {
+  dock.innerHTML = head + `<div id="ly-body" class="ly-body"><button class="ly-handle" data-toggle="1" aria-label="Close the layers">Layers · tap or touch the map to close</button>` + shown.map((d) => {
     const on = KEEP.on.has(d.id);
     const ctl = on && d.controls ? d.controls.map((c, k) => c.range ? `<label class="ly-ctl">${c.label} <input type="range" min="${c.range[0]}" max="${c.range[1]}" step="${c.range[2]}" value="${c.value()}" data-ctl="${d.id}:${k}"><output>${c.show(c.value())}</output></label>` : `<button class="ly-ctl-b" data-ctl="${d.id}:${k}">${c.label}</button>`).join("") : "";
     return `<div class="ly-row${on ? " on" : ""}"><button class="ly-sw" data-layer="${d.id}" aria-pressed="${on}"><span class="ly-box" aria-hidden="true">${on ? "■" : "□"}</span><span class="ly-t">${d.title}</span></button>
