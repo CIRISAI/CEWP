@@ -92,6 +92,8 @@ pub struct PageClaim {
 
 /// The globe package's commit the layer entries were read at (branch twin/globe).
 const LAYERS_COMMIT: &str = "twin/globe 07865ef";
+/// Sources of the Phase 2 layers (package view functions, merged on twin/globe).
+const VIEWS_COMMIT: &str = "twin/globe 1dd1c16";
 
 const BASE: PageClaim = PageClaim {
     id: "",
@@ -846,6 +848,70 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         reproduce: "cargo run -p cewp-sim --example capacity_sweep",
         status: Status::UnderCorrection,
         correction: SEAT_KERNEL_CORRECTION,
+        ..BASE
+    },
+    // Phase 2 layers: one kernel-wasm door (kernel-wasm/src/views.rs, slots 0-15) runs each package's
+    // own view function once per page. Sources below are at VIEWS_COMMIT; views.rs itself lands with
+    // the globe commit that registers these layers.
+    PageClaim {
+        id: "layer-topology",
+        class: Model,
+        live: true,
+        shows: "Globe layer: a generated network of ASes, IXPs and cables over real cities (seed 7: 181 metros, 839 ASes, 95 IXPs, 3,732 links), and one route's AS hops and long-haul km.",
+        source: "docs/layers/layers.js: CEWP_LAYERS topology; kernel-wasm views.rs view_topology, view_topology_path; crates/cewp-sim/src/netgraph/view.rs TopologyView, view_classes (every field MODEL); FSD/twin/topology.md",
+        commit: VIEWS_COMMIT,
+        param: "netgraph NetParams::default() at seed 7 (FSD/twin/topology.md parameter table, all MODEL)",
+        failure: &[
+            "Every AS, IXP, peering relationship and cable is invented; no PeeringDB, CAIDA or cable-map data is approved or used.",
+            "AS positions are a display spiral around their metro, not locations.",
+            "Only the metros are real places, at city grain.",
+        ],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-nat",
+        class: Model,
+        live: true,
+        shows: "Globe layer (drawn in a dock panel, not on the globe): devices of a generated street frame by access class and NAT behaviour, each pair's outcome (IPv6, listener, punched, relayed without a punch, punch failed then relayed, same LAN), and the 3 x 7 access-by-behaviour joint.",
+        source: "docs/layers/layers.js: CEWP_LAYERS nat; kernel-wasm views.rs view_nat; crates/cewp-sim/src/reach/hooks.rs nat_view_nodes, nat_view_node_pos, nat_view_pairs, nat_view_joint; FSD/twin/nat.md",
+        commit: VIEWS_COMMIT,
+        param: "reach ReachModel behaviour shares, calibrated to micro.rs PARAM_SPECS router-class marginals (MODEL)",
+        failure: &[
+            "The street frame is generated, in metres, at no real place.",
+            "Behaviour shares are MODEL, fitted to micro's marginals; no NAT survey stands behind the joint.",
+            "One seeded draw per pair: an outcome shown is one sample, not a rate.",
+        ],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-people",
+        class: Model,
+        live: true,
+        shows: "Globe layer: localities sized by the week-intensity multiplier at the simulation's hour of week, the strongest cross-locality ties, and the week's synchronized events (flash crowd first).",
+        source: "docs/layers/layers.js: CEWP_LAYERS people; kernel-wasm views.rs view_people; crates/cewp-sim/src/people_hooks.rs people_view_localities, people_view_week, people_view_ties, people_view_flash over GLOBE_PERSONS = 6000 generated persons; FSD/twin/people.md",
+        commit: VIEWS_COMMIT,
+        param: "people ActivityParams (MODEL); locality centroids and weights DERIVED from the population grid; synchronized-event inputs FRONTIER",
+        failure: &[
+            "Rhythm and ties come from one MODEL one-week bursty run of 6,000 generated persons; small localities are noisy.",
+            "The flash crowd's peak multiplier is DERIVED from FRONTIER event inputs.",
+            "The population grid behind the localities has no recorded source or licence (pop-grid-source, FRONTIER).",
+            "Hour of week maps the simulation's day 314 (a Tuesday) onto the hook's Monday 00:00 UTC origin.",
+        ],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-holon",
+        class: Derived,
+        live: true,
+        shows: "Globe layer: the coarse-tier cells of the R5 demonstration (host kind x access network, laid out as a patch near Zurich; not places), each certified, refused or not evaluated with its binding bound and margin, and the per-tier certificate table.",
+        source: "docs/layers/layers.js: CEWP_LAYERS holon; kernel-wasm views.rs view_holon; crates/cewp-sim/src/holon_view.rs cells_of, certificates_of, holon_view_bounds over holon_demo::demonstration_seeded(VIEW_HORIZON_S, 43); FSD/twin/holon.md",
+        commit: VIEWS_COMMIT,
+        param: "inputs MODEL: the micro world under the tier; seed 43",
+        failure: &[
+            "A certificate here says the coarse tier matched the finer tier's distributions within budget over the twin's MODEL world; it certifies nothing about the real mesh.",
+            "Refused cells are shown as refusals and sent back to the finer tier, not hidden.",
+            "The patch position (centred 47.3769, 8.5417) is layout only.",
+        ],
         ..BASE
     },
 ];

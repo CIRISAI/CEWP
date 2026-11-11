@@ -50,6 +50,12 @@ under correction reads "under correction" after the figure.
    A registered class that disagrees with the ledger is shown on the card as a mismatch.
    The layer entries (`layer-illustration` at `twin/globe b4cbfb9`, `layer-glow`, `layer-arcs`, `layer-flows`, `layer-alm`, `layer-custody`,
    `layer-reach`, `layer-seat`) were written from the globe package's registry at `twin/globe 07865ef`.
+   The Phase 2 entries `layer-topology` (MODEL), `layer-nat` (MODEL), `layer-people` (MODEL) and
+   `layer-holon` (DERIVED, inputs MODEL) were written from the globe package's announcement; their
+   sources (the packages' view functions) were checked at `twin/globe 1dd1c16`, before the registry
+   lines and `kernel-wasm/src/views.rs` landed. Until they land, the integration check reports these
+   four entries as having no registered layer. A holon "certified" cell means the coarse tier held
+   within budget over the twin's MODEL world, not the real mesh.
    On a tree without `docs/layers/` the reverse direction (an entry with no layer) is not checked;
    `cargo run -p cewp-evidence --example page_ledger -- --docs <tree>/docs` checks an integration
    tree against this ledger. `layer-seat` shares the seat cost model and is under correction with it.
