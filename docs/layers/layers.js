@@ -368,8 +368,78 @@ window.CEWP_LAYERS["holon"] = layer({ id: "holon", title: "Where a coarse tier i
 const CONTRACT = (id, title, cls, exp, contract) => layer({ id, title, cls, source: exp.join(", "), contract, available: has(...exp), pending: true });
 CONTRACT("failures", "Failure domains going dark, the mesh re-forming", "MODEL", ["failures_view_nodes", "failures_view_domains", "failures_view_step", "failures_view_steps"],
   "nodes f32 × 3 (lat, lon, kind); domains f32 × 6 (lat, lon, radius km, kind, step down, step up | -1); step(s) u32 per node: component id, u32::MAX = down; summary f32 × 4 per step.");
-CONTRACT("media", "A room call: one tree per publisher, a parent leaves, the tree repairs", "DERIVED", ["media_view_members", "media_view_tree", "media_view_edges", "media_view_rx", "media_view_steps", "media_view_events"],
-  "Built once per page (the scenario runs once; slice it, never per frame). members f32 × 4 (lat, lon, access 0 fibre home 1 cable laptop Wi-Fi 2 DSL home 3 phone home Wi-Fi 4 phone LTE, nominal uplink B/s), MODEL; tree u32 × 3 (stream, parent, child; every edge at any step; stream == parent is a direct leg); edges(step) f32 × 4 aligned to tree (rate B/s, loss ‰, queue ms, layer 0 detached 1 audio+base 2 full), DERIVED; rx(step) f32 × 3 at stream·n + member (layer -1 none 0 audio 1 base 2 both, stall 0/1, glass-to-glass ms), DERIVED; steps = 60 (1 s); events f32 × 5 (t ms, kind 0 parent left 1 audio resumed 2 video resumed 3 not resumed, stream, child, parent). The tree is edge v45's closed-loop controller, not alm.rs.");
+// ------------------------------------------------------------------ a room call, second by second (twin-media: media_view.rs)
+const MED = { seed: 1, n: 0, steps: 0, ec: 0, mem: null, tree: null, edges: null, rx: null, ev: null, step: 0, play: null, key: "" };
+const MED_ACCESS = ["fibre home, wired", "cable home, laptop on Wi-Fi", "DSL home", "phone on home Wi-Fi", "phone on LTE"];
+const MED_EV = ["parent left", "audio resumed", "video resumed", "not resumed"];
+window.CEWP_LAYERS["media"] = layer({ id: "media", title: "A room call: one tree per publisher, a parent leaves, the tree repairs", cls: "DERIVED", inputs: "MODEL",
+  source: "view_media(1) → slots 20 members, 21 tree, 22 edges per step, 23 rx per step, 24 events, 25 dims (cewp_sim::media_view::media_view, run once per page)",
+  contract: "twin-media's churn room with household traffic off: four homes and six phones join and leave over 60 one-second steps; two phones behind hard NAT take every stream through a home relay, and that relay leaves with a signed end at 30 s. Members f32 × 4 (lat, lon, access 0 fibre home, 1 cable laptop Wi-Fi, 2 DSL home, 3 phone home Wi-Fi, 4 phone LTE, nominal uplink B/s), MODEL: places are a seeded scatter of about a degree around one of two metro anchors (this scenario puts every member at the first, 45.5, -73.6), never an address. Tree u32 × 3 (stream, parent, child), one tree per publishing member. Edges per step f32 × 4 aligned to the tree (rate B/s, loss ‰, queue ms, layer 0 detached, 1 audio + base, 2 full), DERIVED. Rx per step f32 × 3 at stream·n + member (layer -1 none, 0 audio only, 1 base, 2 both; stall; glass-to-glass ms), DERIVED. Events f32 × 5 (t ms, kind, stream, child, departed parent), DERIVED. The tree is edge v45's closed-loop controller as twin-media models it, not alm.rs and not a measured call. The page sums streams per (parent, child) pair to draw one line per pair; every other figure is read as given.",
+  available: has("view_media", "view_ptr"),
+  compute(){
+    if (!MED.mem){ MED.n = wasm.view_media(MED.seed); const D = VW(25); MED.steps = D[1]; MED.ec = D[2]; MED.mem = VW(20); MED.tree = VW(21); MED.edges = VW(22); MED.rx = VW(23); MED.ev = VW(24); }
+    this.tally();
+  },
+  // per-step figures, all read from the slices (sums and counts only)
+  tally(){
+    const n = MED.n, st = Math.min(MED.step, MED.steps - 1), E = MED.edges, R = MED.rx, o = st * MED.ec * 4, ro = st * n * n * 3;
+    let attached = 0, full = 0, bytes = 0, lossy = 0; for (let e = 0; e < MED.ec; e++){ const k = o + e * 4; if (E[k + 3] > 0){ attached++; if (E[k + 3] === 2) full++; bytes += E[k]; if (E[k + 1] > 0) lossy++; } }
+    let sess = 0, stalls = 0, audioOnly = 0, none = 0, dmax = 0; for (let i = 0; i < n * n; i++){ const k = ro + i * 3; if (R[k + 2] < 0 && R[k] < 0) continue; sess++; if (R[k + 1] > 0) stalls++; if (R[k] === 0) audioOnly++; if (R[k] < 0) none++; dmax = Math.max(dmax, R[k + 2]); }
+    const ev = MED.ev, left = [], gaps = { 1: [], 2: [] }; let notRes = 0;
+    for (let i = 0; i < ev.length; i += 15){ left.push(ev[i]); for (const j of [5, 10]){ const k = ev[i + j + 1]; if (k === 3) notRes++; else gaps[k].push(ev[i + j] - ev[i]); } }
+    const med = (a) => { if (!a.length) return -1; const b = a.slice().sort((x, y) => x - y); return Math.round(b[(b.length - 1) >> 1]); };
+    this.last = { members: n, steps: MED.steps, tree_edges: MED.ec, step: st, edges_attached: attached, edges_full: full, uplink_bytes_per_s: Math.round(bytes), edges_with_loss: lossy, sessions: sess, stalled: stalls, audio_only: audioOnly, nothing_played: none, worst_glass_to_glass_ms: Math.round(dmax), departures: left.length, audio_resume_median_ms: med(gaps[1]), video_resume_median_ms: med(gaps[2]), not_resumed: notRes };
+    const acc = [0, 0, 0, 0, 0]; for (let i = 0; i < n; i++) acc[MED.mem[i * 4 + 2]]++;
+    this.info = { access: MED_ACCESS.map((a, i) => a + " " + acc[i]).filter((t) => !/ 0$/.test(t)).join(", "), places: "a seeded scatter of about a degree around one metro anchor, not addresses", tree: "edge v45 closed-loop controller as twin-media models it, not a measured call", events: MED_EV.join(", ") };
+  },
+  onShow(){ later(this); },
+  setStep(v){ MED.step = Math.max(0, Math.min(MED.steps ? MED.steps - 1 : 59, v)); if (MED.mem) this.tally(); MED.key = ""; const r = document.querySelector('input[data-ctl="media:0"]'); if (r && +r.value !== MED.step){ r.value = MED.step; const o = r.parentElement.querySelector("output"); if (o) o.textContent = this.controls[0].show(MED.step); } refresh(); gfxDirty(700); },
+  draw2D(g, F){
+    if (!MED.mem) return; const n = MED.n, M = MED.mem, T = MED.tree, E = MED.edges, o = Math.min(MED.step, MED.steps - 1) * MED.ec * 4;
+    // one line per (parent, child) pair: streams summed, the best layer drawn, any loss marked
+    const pair = new Map(); for (let e = 0; e < MED.ec; e++){ const k = o + e * 4; if (E[k + 3] <= 0) continue; const key = T[e * 3 + 1] * 64 + T[e * 3 + 2]; const q = pair.get(key) || { p: T[e * 3 + 1], c: T[e * 3 + 2], rate: 0, layer: 0, loss: 0 }; q.rate += E[k]; q.layer = Math.max(q.layer, E[k + 3]); q.loss = Math.max(q.loss, E[k + 1]); pair.set(key, q); }
+    for (const q of pair.values()){ const a = [M[q.p * 4], M[q.p * 4 + 1]], b = [M[q.c * 4], M[q.c * 4 + 1]];
+      const ll = gcLL(a[0], a[1], b[0], b[1]); g.lineWidth = Math.max(1, Math.min(5, Math.sqrt(q.rate / 4000))); g.strokeStyle = q.layer === 2 ? "rgba(127,208,255,0.85)" : "rgba(255,207,122,0.85)";
+      g.setLineDash(q.layer === 2 ? [] : [5, 3]); g.beginPath(); strokeLL(g, F, ll); g.stroke(); g.setLineDash([]);
+      if (q.loss > 0){ const h = ll.length > 4 ? (ll.length >> 2) * 2 : -1, pa = proj(F, a[0], a[1]), pb = proj(F, b[0], b[1]), m = h >= 0 ? proj(F, ll[h], ll[h + 1]) : [(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2, Math.min(pa[2], pb[2])]; if (m[2] > 0.02){ g.strokeStyle = "#ff8a7a"; g.lineWidth = 1.6; g.beginPath(); g.moveTo(m[0] - 3, m[1] - 3); g.lineTo(m[0] + 3, m[1] + 3); g.moveTo(m[0] + 3, m[1] - 3); g.lineTo(m[0] - 3, m[1] + 3); g.stroke(); } } }
+    // members: square = home, circle = phone; filled while in the call, hollow when out; a ring where a parent left in this second
+    { let la0 = 90, la1 = -90; for (let i = 0; i < n; i++){ la0 = Math.min(la0, M[i * 4]); la1 = Math.max(la1, M[i * 4]); } const lo = M[1], c0 = proj(F, la0, lo), c1 = proj(F, la1, lo);
+      if (c0[2] > 0.02 && Math.hypot(c1[0] - c0[0], c1[1] - c0[1]) < 24){ const l = this.last; g.lineWidth = 1.5; g.strokeStyle = "#fff"; g.setLineDash([3, 2]); g.strokeRect(c0[0] - 8, c1[1] - 8, 16, c0[1] - c1[1] + 16); g.setLineDash([]);
+        const t = `room call: ${n} generated members, second ${l.step} (zoom in or press Zoom to the call)`; g.font = "600 11px " + MFONT; g.lineWidth = 3; g.strokeStyle = "rgba(6,9,14,0.9)"; g.strokeText(t, c0[0] + 12, c1[1] - 10); g.fillStyle = "#e8eef6"; g.fillText(t, c0[0] + 12, c1[1] - 10); return; } }
+    const st = Math.min(MED.step, MED.steps - 1), R = MED.rx, ro = st * n * n * 3, inCall = new Array(n).fill(false);
+    for (let s = 0; s < n; s++) for (let m = 0; m < n; m++){ const k = ro + (s * n + m) * 3; if (!(R[k + 2] < 0 && R[k] < 0)){ inCall[s] = true; inCall[m] = true; } }
+    const leftNow = new Set(); for (let i = 0; i < MED.ev.length; i += 5) if (MED.ev[i + 1] === 0 && Math.floor(MED.ev[i] / 1000) === st) leftNow.add(MED.ev[i + 4]);
+    for (let i = 0; i < n; i++){ const p = proj(F, M[i * 4], M[i * 4 + 1]); if (p[2] < 0.02) continue; const phone = M[i * 4 + 2] >= 3;
+      g.lineWidth = 1.6; g.strokeStyle = inCall[i] ? "rgba(6,9,14,0.9)" : "#c8d2e1"; g.fillStyle = inCall[i] ? (phone ? "#e8eef6" : "#7cf0b0") : "rgba(0,0,0,0)";
+      g.beginPath(); if (phone) g.arc(p[0], p[1], 4.5, 0, 6.2832); else g.rect(p[0] - 4.5, p[1] - 4.5, 9, 9); g.fill(); g.stroke();
+      if (leftNow.has(i)){ g.strokeStyle = "#ff8a7a"; g.lineWidth = 1.6; g.beginPath(); g.arc(p[0], p[1], 10, 0, 6.2832); g.stroke(); } }
+  },
+  panel(c){
+    if (this.busy || !MED.mem) return; const dpr = window.devicePixelRatio || 1, W2 = c.clientWidth || 260, H2 = 146;
+    if (c.style.height !== H2 + "px") c.style.height = H2 + "px"; if (c.width !== Math.round(W2 * dpr)){ c.width = Math.round(W2 * dpr); c.height = H2 * dpr; MED.key = ""; }
+    if (MED.key === String(MED.step)) return; MED.key = String(MED.step);
+    const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W2, H2);
+    const n = MED.n, S = MED.steps, R = MED.rx, L = 30, Rr = W2 - 8, x = (s) => L + s / Math.max(1, S - 1) * (Rr - L);
+    // rows: one per member as receiver; each second coloured by the lowest layer it was shown across the streams it receives, a dark bar where any of them showed no video frame
+    const T = 6, rowH = Math.min(8, (H2 - 40) / n);
+    for (let m = 0; m < n; m++){ const y = T + m * rowH; for (let s = 0; s < S; s++){ let worst = 9, any = false, stall = false; for (let p = 0; p < n; p++){ const k = (s * n * n + p * n + m) * 3; if (R[k + 2] < 0 && R[k] < 0) continue; any = true; if (R[k + 1] > 0) stall = true; worst = Math.min(worst, R[k]); }
+        if (!any) continue; g.fillStyle = worst >= 2 ? "rgba(127,208,255,0.75)" : worst === 1 ? "rgba(127,208,255,0.4)" : worst === 0 ? "rgba(255,207,122,0.7)" : "rgba(255,138,122,0.85)";
+        const w = (Rr - L) / S; g.fillRect(x(s) - w / 2, y, w + 0.3, rowH - 1.5); if (stall){ g.fillStyle = "rgba(6,9,14,0.9)"; g.fillRect(x(s) - w / 2, y + rowH / 2 - 1, w + 0.3, 1.5); } } }
+    g.font = "10px " + MFONT; g.fillStyle = "#aab4c2"; g.fillText("each", 2, T + 8); g.fillText("rcvr", 2, T + 18);
+    const yb = T + n * rowH + 2;
+    // departures as ticks under the rows; the cursor at this second
+    for (let i = 0; i < MED.ev.length; i += 5) if (MED.ev[i + 1] === 0){ const xx = x(MED.ev[i] / 1000); g.strokeStyle = "#ff8a7a"; g.lineWidth = 1.4; g.beginPath(); g.moveTo(xx, yb); g.lineTo(xx, yb + 6); g.stroke(); }
+    g.strokeStyle = "#fff"; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x(MED.step), T - 3); g.lineTo(x(MED.step), yb + 8); g.stroke();
+    g.fillStyle = "#aab4c2"; g.fillText("0 s", L - 6, yb + 18); g.fillText(S + " s", Rr - 22, yb + 18); g.fillStyle = "#ff8a7a"; g.fillText("| a parent left", L + 40, yb + 18);
+    { let xx = 4, yy = H2 - 16; for (const [col, t] of [["rgba(127,208,255,0.75)", "both layers"], ["rgba(127,208,255,0.4)", "base"], ["rgba(255,207,122,0.7)", "audio"], ["rgba(255,138,122,0.85)", "nothing"], ["rgba(6,9,14,0.9)", "▬ no video frame"]]){ const tw = 15 + g.measureText(t).width; if (xx + tw > W2){ xx = 4; yy += 12; } g.fillStyle = col; g.fillRect(xx, yy - 7, 8, 8); g.fillStyle = "#aab4c2"; g.fillText(t, xx + 11, yy); xx += tw; } }
+  },
+  status(){ const l = this.last; if (this.busy) return "running the room call once (60 one-second steps)…"; return l.steps ? `second ${l.step} of ${l.steps}: ${l.edges_attached} tree legs attached (${l.edges_full} full), ${(l.uplink_bytes_per_s * 8 / 1e6).toFixed(1)} Mbit/s on the wire, ${l.stalled} of ${l.sessions} sessions showed no video frame this second (${l.audio_only} kept audio) · whole call: ${l.departures} departures, audio back in ${l.audio_resume_median_ms < 0 ? "–" : fmt(l.audio_resume_median_ms) + " ms"}, video in ${l.video_resume_median_ms < 0 ? "–" : fmt(l.video_resume_median_ms) + " ms"} (medians), ${l.not_resumed} never resumed · DERIVED from MODEL inputs, generated people` : "–"; },
+  controls: [{ range: [0, 59, 1], label: "Second of the call", value: () => MED.step, set(v){ this.setStep(v); }, show: (v) => v + " s" },
+    { label: "Play the call", act(){ if (MED.play){ clearInterval(MED.play); MED.play = null; return; } if (MED.step >= MED.steps - 1) this.setStep(0); MED.play = setInterval(() => { if (!LAYERS.on("media") || MED.step >= MED.steps - 1){ clearInterval(MED.play); MED.play = null; return; } this.setStep(MED.step + 1); }, 400); } },
+    { label: "Zoom to the call", act(){ if (!MED.mem) return; let la = 0, lo = 0; for (let i = 0; i < MED.n; i++){ la += MED.mem[i * 4]; lo += MED.mem[i * 4 + 1]; } la /= MED.n; lo /= MED.n;
+      const w = cv.clientWidth, h = cv.clientHeight, z = EARTH_M / (0.86 * 700 * Math.min(w, h) / 2); velYaw = 0; velPitch = 0; yaw = lo * DEG; pitch = la * DEG; targetZoom = z; zoomAnchor = null; lastTouchTime = performance.now(); gfxDirty(1500); } },
+    { label: "Jump to the relay leaving", act(){ let t = -1; for (let i = 0; i < MED.ev.length; i += 5) if (MED.ev[i + 1] === 0){ t = MED.ev[i]; break; } if (t >= 0) this.setStep(Math.floor(t / 1000)); } }] });
+
 // ------------------------------------------------------------------ seat knee with its interval (twin-calibration: seat_hooks.rs)
 const CAL = { sc: 4, curve: new Map(), knee: new Map(), res: null, key: "" };
 const CAL_GROWTH = [0, 0.25, 0.5, 0.75, 1];

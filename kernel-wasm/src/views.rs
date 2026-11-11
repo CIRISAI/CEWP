@@ -13,15 +13,18 @@
 //  14 holon certificates f32         15 topology field classes (u32)
 //  16 holon bound names: the UTF-8 bytes of BOUND_NAMES.concat(), one per u32 (slot 12 indexes them)
 //  17 calibration curve (stride 6)  18 calibration knee (7 fields)    19 calibration residuals (stride 4)
+//  20 media members (stride 4)       21 media tree (u32, stride 3)      22 media edges, every step (stride 4)
+//  23 media rx, every step (stride 3) 24 media events (stride 5)        25 media dims [n, steps, edge_count] (u32)
 use cewp_sim::holon_demo::demonstration_seeded;
 use cewp_sim::holon_view::{certificates_of, cells_of, holon_view_bounds, BOUND_NAMES, VIEW_HORIZON_S};
 use cewp_sim::netgraph::view::{view_classes, TopologyView};
 use cewp_sim::people_hooks::{people_view_flash, people_view_localities, people_view_ties, people_view_week};
 use cewp_sim::reach::hooks::{nat_view_joint, nat_view_node_pos, nat_view_nodes, nat_view_pairs};
+use cewp_sim::media_view::media_view;
 use cewp_sim::seat_hooks::{calibration_view_curve, calibration_view_knee, calibration_view_residuals};
 
-pub const SLOTS: usize = 20;
-const U32_SLOTS: [bool; SLOTS] = [false, true, false, true, false, true, false, false, false, true, false, false, true, true, false, true, true, false, false, false];
+pub const SLOTS: usize = 26;
+const U32_SLOTS: [bool; SLOTS] = [false, true, false, true, false, true, false, false, false, true, false, false, true, true, false, true, true, false, false, false, false, true, false, false, false, true];
 
 pub struct Views {
     f: Vec<Vec<f32>>,
@@ -131,6 +134,22 @@ pub extern "C" fn view_calibration_residuals() -> u32 {
     (v.f[19].len() / 4) as u32
 }
 
+/// The media call (twin-media, media_view): runs the churn room once and fills slots 20 to 25,
+/// every step at once (`media_view` reruns the scenario per call, so the page asks once and
+/// slices by step itself). Returns the member count.
+#[no_mangle]
+pub extern "C" fn view_media(seed: u32) -> u32 {
+    let m = media_view(u64::from(seed));
+    let v = views();
+    v.f[20] = m.members;
+    v.u[21] = m.tree;
+    v.f[22] = m.edges;
+    v.f[23] = m.rx;
+    v.f[24] = m.events;
+    v.u[25] = vec![m.n, m.steps, m.edge_count];
+    m.n
+}
+
 /// Address of a view slot (u32 slots and f32 slots are both 4-byte elements).
 #[no_mangle]
 pub extern "C" fn view_ptr(slot: u32) -> u32 {
@@ -195,6 +214,46 @@ mod tests {
         assert_eq!(views().f[19], calibration_view_residuals());
         assert_eq!(view_len(19), n * 4);
         assert_eq!(view_is_u32(18), 0);
+    }
+
+    #[test]
+    fn views_media_matches_the_package_step_by_step() {
+        use cewp_sim::media_view::{media_view_edges, media_view_rx, media_view_tree};
+        let _t = TURN.lock().unwrap_or_else(|e| e.into_inner());
+        let n = view_media(1);
+        let m = media_view(1);
+        assert_eq!(n, m.n);
+        assert_eq!(views().u[25], vec![m.n, m.steps, m.edge_count]);
+        assert_eq!(views().u[21], media_view_tree(1));
+        assert_eq!(view_is_u32(21), 1);
+        assert_eq!(view_is_u32(22), 0);
+        // the page's per-step slices are the package's per-step functions
+        let (ec, nn) = (m.edge_count as usize * 4, (m.n as usize).pow(2) * 3);
+        for st in [0u32, 30, m.steps - 1] {
+            let s = st as usize;
+            assert_eq!(views().f[22][s * ec..(s + 1) * ec].to_vec(), media_view_edges(1, st));
+            assert_eq!(views().f[23][s * nn..(s + 1) * nn].to_vec(), media_view_rx(1, st));
+        }
+        assert_eq!(views().f[24], m.events);
+    }
+
+    // native and wasm hold the same bits: FNV-1a over slots 20..=25 (slot, length, then each element's
+    // bit pattern). The constant is what docs/kernel/kernel_scale.wasm gave for view_media(1) in node
+    // when this was written; a mismatch here means the two platforms drew different calls.
+    #[test]
+    fn views_media_bits_match_the_wasm_build() {
+        let _t = TURN.lock().unwrap_or_else(|e| e.into_inner());
+        view_media(1);
+        let (mut h, p) = (0xcbf2_9ce4_8422_2325u64, 0x0100_0000_01b3u64);
+        for s in 20..=25usize {
+            let bits: Vec<u32> = if U32_SLOTS[s] { views().u[s].clone() } else { views().f[s].iter().map(|x| x.to_bits()).collect() };
+            h = (h ^ s as u64).wrapping_mul(p);
+            h = (h ^ bits.len() as u64).wrapping_mul(p);
+            for x in bits {
+                h = (h ^ u64::from(x)).wrapping_mul(p);
+            }
+        }
+        assert_eq!(h, 0x7175_cd5d_d795_aa63);
     }
 
     #[test]

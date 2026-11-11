@@ -109,22 +109,27 @@ test checks the slots equal the package functions' output (topology seed 7: 1,11
 | people | localities: ring = population weight, disc = week multiplier at the sim's hour of week; 40 strongest cross-locality ties dotted; a live event as an expanding ring with its onset multiplier | 7–10 | MODEL (FRONTIER event inputs) |
 | holon | the R5 tier's cells on the generated street patch: certified filled, refused crossed, not evaluated dashed; a marked square with the counts while the patch is under 5 px. Certified means the coarse tier held within budget over the twin's MODEL world, not the real mesh | 11–14, 16 | DERIVED (MODEL world) |
 | calibration | dock panel: one v45.0.0 seat's ρ outer band (500 to 100,000 devices, log axis) with the central model line dotted, the ρ 0.70 ceiling, the knee as a lower-to-upper bracket only (no central tick), and predicted / observed per seat-1 counter (filled square in-sample, ring held out); a slider picks key_publish_set growth g = 0, 0.25, 0.5, 0.75, 1 (FRONTIER) | 17 curve, 18 knee, 19 residuals (`view_calibration_curve(g)`, `view_calibration_knee(g)`, `view_calibration_residuals()`) | MODEL, interval (twin-calibration c13cee5 class field 2) |
+| media | twin-media's churn room (4 homes, 6 phones, a home relay leaving with a signed end at 30 s), one second at a time: members at a generated scatter of about a degree around one metro anchor (square home, disc phone; hollow while out of the call; a ring where a parent left this second); one line per (parent, child) pair with its streams summed, solid when both video layers flow, dashed for audio + base, width by wire rate, a cross where copies were lost. Dock panel: one row per receiver over the 60 s, coloured by the lowest layer it was shown that second across the streams it receives (both layers, base, audio only, nothing), with a dark bar where any of them showed no video frame, departures as ticks, a cursor at the shown second. Controls: second slider, play (400 ms a second), zoom to the call, jump to the relay leaving. While the scatter is under 24 px tall the layer draws a dashed box with a label instead | 20 members, 21 tree, 22 edges per step, 23 rx per step, 24 events, 25 dims (`view_media(1)`, the scenario run once) | DERIVED (MODEL inputs) |
 
 People and holon run their scenario after the click (one shot, status says so): the week takes about
 1.6 s and the tier demonstration about 4 s of main-thread time in Chrome on the test box (measured once,
 not a budget). Hour of week = sim hours since 00:00 UTC of day 314 + 24, because day 314 of 2026 is a
 Tuesday and the hook's hour 0 is Monday 00:00 UTC.
 
-The seat card's knee line reads `view_calibration_knee(0)` and `(4)` and prints both intervals with g named:
-g 0 is 14,253 to 75,879 devices (binds on sweep permits at the low end, CPU at the high end), g 1 is 4,882
-to 13,723 (binds on CPU), MODEL with its interval (outer bounds over the fit's input intervals, not a
-confidence level). The native test asserts those four numbers. cap_seat's single-point knee, the v44 and
-whole-plane knees and the single lock knee are no longer printed (calibration covers v45.0.0 only).
+The seat card's knee line reads `view_calibration_knee(0)` and `(4)` and prints both intervals in one
+sentence that names what it hinges on: 4,882 to 13,723 devices if the server's publish set grows with the
+fleet (g 1, binds on CPU), 14,253 to 75,879 if it stays at today's size (g 0, binds on sweep permits at the
+low end, CPU at the high end), MODEL with its interval (outer bounds over the fit's input intervals, not a
+confidence level), and that which of the two holds is not known (FRONTIER). The native test asserts those
+four numbers. cap_seat's single-point knee, the v44 and whole-plane knees and the single lock knee are no
+longer printed (calibration covers v45.0.0 only).
 
-Still hidden: failures, media (not merged when this was wired).
+Still hidden: failures (no view functions on any branch when this was wired; its contract stays in `layers.js` and the dock does not list it).
 
-Cross-platform check owed when media lands: the page's media buffers must match a native run bit for bit.
-twin-media's basis (a source read, not a run): integer µs/bytes engine, exact `Rng::f`, no hash-order
+The page's media figures are sums, counts and medians over the slices (legs attached, wire rate, sessions stalled, median resume gaps); nothing else is computed page-side. People, holon and media run their scenario once after the click.
+
+Cross-platform check (done): `views_media_bits_match_the_wasm_build` asserts that an FNV-1a digest over the bit patterns of slots 20 to 25 after a native `view_media(1)` equals the digest the built `kernel_scale.wasm` gave in node (0x7175cd5dd795aa63; 10 members, 60 steps, 172 tree edges). The two platforms draw the same call bit for bit. In node the wasm run took 234 ms (measured once, not a budget).
+twin-media's basis (a source read): integer µs/bytes engine, exact `Rng::f`, no hash-order
 iteration; the one transcendental (`f64::ln` in `BackgroundModel::next_gap_us`) runs only with household
 contention on, which the view scenario leaves off. A view with contention on may differ by an ulp in wasm.
 
