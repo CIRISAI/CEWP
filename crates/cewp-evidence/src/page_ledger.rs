@@ -94,6 +94,8 @@ pub struct PageClaim {
 const LAYERS_COMMIT: &str = "twin/globe 07865ef";
 /// Sources of the Phase 2 layers (package view functions, merged on twin/globe).
 const VIEWS_COMMIT: &str = "twin/globe 8b70422";
+/// The media layer: package at twin/media, wiring at twin/globe.
+const MEDIA_LAYER_COMMIT: &str = "twin/media 716379e; twin/globe da31099";
 /// The calibration layer: package source at twin/calibration, wiring at twin/globe.
 const CAL_LAYER_COMMIT: &str = "twin/calibration c13cee5; twin/globe a824940";
 
@@ -915,6 +917,23 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
             "Refused cells are shown as refusals and sent back to the finer tier, not hidden.",
             "The patch position (centred 47.3769, 8.5417) is layout only.",
         ],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-media",
+        class: Model,
+        live: true,
+        shows: "Globe layer: one generated room call (four homes, six phones joining and leaving, two hard-NAT phones relayed through a home that leaves at 30 s), one relay tree per publisher, the tree repairing, and per-second legs attached, wire rate, sessions stalled and median audio and video resume gaps.",
+        source: "docs/layers/layers.js: CEWP_LAYERS media; kernel-wasm views.rs view_media(1) (slots 20-25); crates/cewp-sim/src/media_view.rs media_view (scenario_view: the churn room, household traffic off, tail-drop); FSD/twin/media.md §9",
+        commit: MEDIA_LAYER_COMMIT,
+        param: "media.rs access profiles, Gilbert-Elliott loss, Markov cellular capacity, queue buffers, frame sizes and SETUP_RTTS (all MODEL, FSD/twin/media.md §2-§3); seed 1",
+        failure: &[
+            "One seeded run (seed 1): the whole-call figures (6 departures, median audio resume 21 ms, median video resume 10,884 ms, 3 never resumed, as twin-globe reads them at da31099) are over that run's sessions, not rates; another seed gives other numbers.",
+            "No real codec, no media congestion controller, no measured Wi-Fi, no core congestion (FSD/twin/media.md §6).",
+            "The tree is the twin's closed-loop controller with stated simplifications, not edge's code.",
+            "Members are a seeded scatter of about a degree around one metro anchor (45.5, -73.6 in this scenario), never an address; people and devices are generated.",
+        ],
+        reproduce: "cargo run -p cewp-cli -- media 5 (the package's 5-seed summary, on twin/media 716379e)",
         ..BASE
     },
     PageClaim {

@@ -84,6 +84,10 @@ ledger:
   `view_calibration_knee(0)` and `(4)` (`seat_hooks::calibration_view_knee`), lower and upper only;
   this tree still prints them as static text, and the integration keeps the globe package's table
   (resolution sent to the lead). `layer-calibration` (MODEL) is the band, bracket and residual view.
+- `layer-media` is MODEL: FSD/twin/media.md (8e6c972, lines 11-12) says every result of the
+  engine is MODEL output, and the page legend classes simulation output under stated inputs as
+  MODEL. The globe registered it DERIVED at da31099; the scan reports that mismatch until the
+  registration says MODEL.
   It was first ledgered PROJECTED; at twin/calibration c13cee5 both packages reclassed it MODEL,
   since FSD §8.2 reserves PROJECTED for extrapolation from certified lower tiers and none is
   certified. No number changed.
