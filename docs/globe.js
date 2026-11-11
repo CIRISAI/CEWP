@@ -388,7 +388,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=21"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=22"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -602,10 +602,10 @@ function tickJs(acts){
 const cv=document.getElementById("c"); const gl=cv.getContext("webgl",{antialias:true,alpha:false,stencil:true});
 function sh(t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.isContextLost()?"WebGL context lost while compiling a shader":"shader: "+gl.getShaderInfoLog(s)); return s; }
 function prog(v,f){ const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,v)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f)); gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.isContextLost()?"WebGL context lost while linking a program":"program: "+gl.getProgramInfoLog(p)); return p; }
-const PV=`attribute vec3 p;attribute float a;attribute float k;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float dpr;uniform float uTime;uniform float uStory;uniform float uStoryCos;uniform float uStoryDensity;uniform vec3 uSeedDir;uniform vec2 uPeakDir;uniform vec3 uSunWorld;varying float va;varying float vk;varying float vz;varying float vSun;
-void main(){float ph=fract(sin(dot(p,vec3(12.9898,78.233,45.164)))*43758.5453);float ph2=fract(sin(dot(p,vec3(63.7264,10.873,29.412))+floor(uTime*2.5)*0.17)*43758.5453);float shimmer=1.0;float eqLen=max(0.15,length(vec2(p.x,p.z)));float cosH=(p.x*uPeakDir.x+p.z*uPeakDir.y)/eqLen;float cos2H=2.0*cosH*cosH-1.0;float diurnal=clamp((1.0+1.05*cosH+0.25*cos2H)/2.30,0.05,1.0);float sunDotW=dot(p,uSunWorld);float isDay=smoothstep(-0.08,0.12,sunDotW);float wakeProb=mix(0.05,1.0,max(diurnal*0.85,isDay*0.75));float effA=0.0;if(uStory>0.5){if(uStoryCos>1.5){if(a<0.004){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}effA=a;}else{float c=dot(p,uSeedDir);if(c<uStoryCos||ph>uStoryDensity){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}effA=a>0.48?a:0.0;if(effA<0.38&&k<0.5&&ph>0.09*uStoryDensity){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}}}else{effA=a>0.48?a:0.0;if(effA<0.38&&k<0.5&&ph>0.09){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}}vec3 q=R*p;vz=q.z;vSun=sunDotW;va=effA*shimmer;vk=k;float zBias=(va>=0.38)?(va*0.25):0.0;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.40-zBias,1.0);float base=(k>0.5)?3.4:(S>2.0?2.1:1.5);float storyBoost=(uStory>0.5&&uStoryCos>1.5)?2.2:0.0;float actBoost=(va>=0.38)?(0.5+(va-0.38)*1.2):0.0;gl_PointSize=(base+storyBoost+actBoost)*dpr;}`;
-const PF=`precision mediump float;varying float va;varying float vk;varying float vz;varying float vSun;
-void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;vec2 pc=gl_PointCoord-vec2(0.5);float d2=dot(pc,pc);if(d2>0.24)discard;float circle=smoothstep(0.24,0.07,d2);float day=smoothstep(-0.10,0.10,vSun);vec3 dayBase=(vk>0.5)?vec3(0.56,0.88,1.0):vec3(0.36,0.66,0.94);vec3 nightBase=(vk>0.5)?vec3(0.24,0.44,0.68):vec3(0.12,0.20,0.34);vec3 base=mix(nightBase,dayBase,day);float depth=0.62+0.38*max(0.0,vz);if(va>=0.38){float t=smoothstep(0.38,0.92,va);vec3 daySpark=mix(vec3(0.95,0.38,0.24),vec3(1.0,0.64,0.24),t);vec3 nightSpark=mix(vec3(0.96,0.48,0.26),vec3(1.0,0.80,0.40),t);vec3 spark=mix(nightSpark,daySpark,day);vec3 col=mix(base*depth,spark,smoothstep(0.38,0.58,va));float al=mix(0.68,0.92,t)*edge*circle;gl_FragColor=vec4(col,al);}else{float idleAl=mix(vk>0.5?0.5:0.13,vk>0.5?0.8:0.28,day)*edge*circle;gl_FragColor=vec4(base*depth,idleAl);}}`;
+const PV=`attribute vec3 p;attribute float a;attribute float k;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float dpr;uniform float uTime;uniform float uStory;uniform float uStoryCos;uniform float uStoryDensity;uniform vec3 uSeedDir;uniform vec2 uPeakDir;uniform vec3 uSunWorld;varying float va;varying float vk;varying float vz;varying float vSun;varying float vVis;
+void main(){vVis=1.0;float ph=fract(sin(dot(p,vec3(12.9898,78.233,45.164)))*43758.5453);float shimmer=1.0;float eqLen=max(0.15,length(vec2(p.x,p.z)));float cosH=(p.x*uPeakDir.x+p.z*uPeakDir.y)/eqLen;float cos2H=2.0*cosH*cosH-1.0;float diurnal=clamp((1.0+1.05*cosH+0.25*cos2H)/2.30,0.05,1.0);float sunDotW=dot(p,uSunWorld);float isDay=smoothstep(-0.08,0.12,sunDotW);float wakeProb=mix(0.05,1.0,max(diurnal*0.85,isDay*0.75));float effA=0.0;if(uStory>0.5){if(uStoryCos>1.5){if(a<0.004){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}effA=a;}else{float c=dot(p,uSeedDir);if(c<uStoryCos||ph>uStoryDensity){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}effA=a;if(k<0.5&&ph>0.09*uStoryDensity){vVis=smoothstep(0.05,0.45,a);}}}else{effA=a;if(k<0.5&&ph>0.09){vVis=smoothstep(0.05,0.45,a);}}if(vVis<0.004){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;return;}vec3 q=R*p;vz=q.z;vSun=sunDotW;va=effA*shimmer;vk=k;float zBias=va*0.25*smoothstep(0.2,0.5,va);gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.40-zBias,1.0);float base=(k>0.5)?3.4:(S>2.0?2.1:1.5);float storyBoost=(uStory>0.5&&uStoryCos>1.5)?2.2:0.0;float actBoost=smoothstep(0.05,0.9,va)*1.1;gl_PointSize=(base+storyBoost+actBoost)*dpr;}`;
+const PF=`precision mediump float;varying float va;varying float vk;varying float vz;varying float vSun;varying float vVis;
+void main(){float edge=smoothstep(-0.02,0.12,vz);if(edge<0.01)discard;vec2 pc=gl_PointCoord-vec2(0.5);float d2=dot(pc,pc);if(d2>0.24)discard;float circle=smoothstep(0.24,0.07,d2);float day=smoothstep(-0.10,0.10,vSun);vec3 dayBase=(vk>0.5)?vec3(0.56,0.88,1.0):vec3(0.36,0.66,0.94);vec3 nightBase=(vk>0.5)?vec3(0.24,0.44,0.68):vec3(0.12,0.20,0.34);vec3 base=mix(nightBase,dayBase,day);float depth=0.62+0.38*max(0.0,vz);float t=smoothstep(0.38,0.92,va);float sp=smoothstep(0.05,0.6,va);vec3 daySpark=mix(vec3(0.95,0.38,0.24),vec3(1.0,0.64,0.24),t);vec3 nightSpark=mix(vec3(0.96,0.48,0.26),vec3(1.0,0.80,0.40),t);vec3 spark=mix(nightSpark,daySpark,day);vec3 col=mix(base*depth,spark*0.92,sp);float idleAl=mix(vk>0.5?0.5:0.13,vk>0.5?0.8:0.28,day);float al=mix(idleAl,mix(0.62,0.82,t),sp)*edge*circle*vVis;gl_FragColor=vec4(col,al);}`;
 const LV=`attribute vec3 p;attribute vec4 param;uniform mat3 R;uniform float S;uniform vec2 asp;uniform float uTime;varying float vt;varying float vAge;varying float vz;varying float vTier;
 void main(){vec3 q=R*p;vz=q.z;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,-q.z*0.5,1.0);vt=param.x;vAge=(uTime-param.y)/param.z;vTier=param.w;}`;
 const LF=`precision mediump float;varying float vt;varying float vAge;varying float vz;varying float vTier;
@@ -818,8 +818,11 @@ let activeArcs=[], arcCount=0, arcsNeedUpload=false, meshFilter=-1;
 gl.bindBuffer(gl.ARRAY_BUFFER,linePosBuf); gl.bufferData(gl.ARRAY_BUFFER,posBuffer,gl.DYNAMIC_DRAW);
 gl.bindBuffer(gl.ARRAY_BUFFER,lineParamBuf); gl.bufferData(gl.ARRAY_BUFFER,paramBuffer,gl.DYNAMIC_DRAW);
 const startTime=performance.now(); const getTime=()=>(performance.now()-startTime)*0.001;
-let yaw=8.54*Math.PI/180, pitch=47.37*Math.PI/180, zoom=2.35, targetZoom=2.35, velYaw=0, velPitch=0, drag=null, lastTouchTime=performance.now(), npts=0;
-let storyCamDist=1.35, storyTargetCamDist=1.35, storyTargetYaw=8.54*Math.PI/180, storyTargetPitch=47.37*Math.PI/180, storyTargetZoom=2.35;
+// the first view faces the visitor's own longitude, read from their time zone (15° an hour east of UTC);
+// no location is asked for or stored
+const HOME_LON = (() => { try { const v = -new Date().getTimezoneOffset() / 60 * 15; return isFinite(v) ? ((v + 540) % 360) - 180 : 8.54; } catch (e) { return 8.54; } })();
+let yaw=HOME_LON*Math.PI/180, pitch=30*Math.PI/180, zoom=2.35, targetZoom=2.35, velYaw=0, velPitch=0, drag=null, lastTouchTime=performance.now(), npts=0;
+let storyCamDist=1.35, storyTargetCamDist=1.35, storyTargetYaw=HOME_LON*Math.PI/180, storyTargetPitch=47.37*Math.PI/180, storyTargetZoom=2.35;
 let storyActive=true, storyPaused=false, storyCurrentAct=0, storyActElapsed=0, storyMinimized=false;
 // a pinch or wheel during the story hands the camera to the reader and pauses; play, next or previous hands it back
 let storyUserCam=false;
@@ -884,6 +887,7 @@ function pruneAndPackArcs(nowSec){
 }
 function getSimUtcHours(nowSec){
   if (storyActive) {
+    if (storyCurrentAct === 0 && typeof SIM_T0 !== "undefined") return SIM_T0 / 3600; // the opening: lit as it is now
     const oa = Math.max(0, storyCurrentAct - 1 - STORY_LEAD);
     const d = Math.max(1, STORY_ACTS[storyCurrentAct].duration);
     if (oa < 3) return 7.2 + oa * 0.7 + Math.min(1, storyActElapsed / d) * 0.7;
@@ -899,9 +903,12 @@ function diurnalAtLon(lonDeg, nowSec){
   const a2 = (localHour - 15.0) * (Math.PI / 6);
   return Math.max(0.06, Math.min(1.0, (1.0 + 1.05 * Math.cos(a1) + 0.25 * Math.cos(a2)) / 2.30));
 }
+const ARC_ADD_ORBIT = 2;
 function setArcs(arcs){
   const k=arcs.length/2, nowSec=getTime();
-  const maxAdd=playing?10:24; const step=Math.max(1,Math.floor(k/maxAdd));
+  // at orbit zoom at most ARC_ADD_ORBIT new arcs a tick (about 17 a second at 120 ms ticks): a sample,
+  // so arcs fade in one by one instead of strobing the continents (the arcs card states the count)
+  const maxAdd=playing?(zoom<4?ARC_ADD_ORBIT:10):24; const step=Math.max(1,Math.floor(k/maxAdd));
   const z0=seedOriginXyz;
   for (let i=0;i<k;i+=step){
     const s=arcs[i*2], packed=arcs[i*2+1], t=packed&0x0FFFFFFF;
@@ -1365,7 +1372,8 @@ function updateWorkloadLimits(ms,actsCount){
 }
 function recordActiveBlocks(){
   if (!lastActivity) return; const a=lastActivity; const u32=new Uint32Array(a.buffer,a.byteOffset,a.byteLength>>>2);
-  activeBlocks.length=0; for (let i=0;i<u32.length;i++) if (u32[i]!==0) activeBlocks.push(i);
+  const d=actDisp && actDisp.length===a.length ? new Uint32Array(actDisp.buffer,0,actDisp.byteLength>>>2) : null;
+  activeBlocks.length=0; for (let i=0;i<u32.length;i++) if (u32[i]!==0 || (d && d[i]!==0)) activeBlocks.push(i);
 }
 function tick(){
   const acts=currentActs; const t0=performance.now(); const res=(useWasm&&wasm)?tickWasm(acts):tickJs(acts); const ms=performance.now()-t0;
@@ -1422,20 +1430,31 @@ function tick(){
 
   lastActivity=res.activity; recordActiveBlocks();
   if (!storyActive || storyLive()) {
-    gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,lastActivity); setArcs(res.arcs);
+    setArcs(res.arcs); // the dots follow through decay()'s ramped display envelope, uploaded every frame
   }
 }
+// What the dots show is a display envelope, not the tick's raw pulse: the tick sets a node's pulse
+// when it signs (a step every 120 ms), and the drawn value follows it at a bounded slew, at least
+// ACT_RAMP_MS up and down, so no dot changes luminance in a step (WCAG 2.3.1: nothing flashes).
+const ACT_RAMP_MS = 450, ACT_HOLD_MS = 900; // display ramp, and how long a pulse holds before it fades (MODEL display choices)
+let actDisp = null, actLast = 0;
 function decay(){
   // a street-world build between ticks can grow wasm memory, which detaches the last tick's view
   if (lastActivity && lastActivity.length === 0 && wasm && bufs && W && W.n > 0) lastActivity = new Uint8Array(mem.buffer, bufs.activity, W.n);
-  if (!lastActivity||activeBlocks.length===0) return; const a=lastActivity; const u32=new Uint32Array(a.buffer,a.byteOffset,a.byteLength>>>2);
+  if (!lastActivity) return; const a=lastActivity;
+  if (!actDisp || actDisp.length !== a.length){ actDisp = new Uint8Array((a.length + 3) & ~3); }
+  const now = performance.now(), dt = Math.min(100, actLast ? now - actLast : 16.7); actLast = now;
+  if (activeBlocks.length===0) return;
+  const up = Math.max(1, 255 * dt / ACT_RAMP_MS), fall = Math.max(1, 255 * dt / ACT_HOLD_MS), D = actDisp;
   let w=0; for (let idx=0;idx<activeBlocks.length;idx++){
-    const i=activeBlocks[idx]; if (u32[i]===0) continue;
-    const base=i<<2; let remaining=false;
-    for (let j=0;j<4;j++){ const v=a[base+j]; if (v>0){ const nv=v>3?(v*0.92|0):0; a[base+j]=nv; if (nv>0) remaining=true; } }
+    const i=activeBlocks[idx], base=i<<2; let remaining=false;
+    for (let j=0;j<4;j++){ const k=base+j; if (k>=a.length) break; let v=a[k], d=D[k]; if (!v && !d) continue;
+      if (v>0){ v=Math.max(0, v-fall)|0; a[k]=v; }               // the pulse fades linearly
+      d = d < v ? Math.min(v, d+up) : Math.max(v, d-up);       // the drawn value follows it, never faster than the ramp
+      D[k]=d|0; if (v>0 || D[k]>0) remaining=true; }
     if (remaining) activeBlocks[w++]=i;
   }
-  activeBlocks.length=w; gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,a);
+  activeBlocks.length=w; gl.bindBuffer(gl.ARRAY_BUFFER,actBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,D.subarray(0,a.length));
 }
 
 // ------------------------------------------------------------------ Animated Multi-Scale CIRISHolon Story Engine
@@ -1477,7 +1496,7 @@ const STORY_ACTS = [
     live: true,
     camDist: 2.65,
     targetZoom: 1.08,
-    yaw: 8.54 * Math.PI / 180,
+    yaw: HOME_LON * Math.PI / 180, // the opening faces the visitor's own side of the world
     pitch: 34.0 * Math.PI / 180,
     duration: 20
   },
@@ -2762,6 +2781,13 @@ function storyPunchOutcome(ap, bp){
 }
 function storyMicroEnd(){ microStory = false; microStoryDim = null; if (M) M.key = null; microTimeScale = 20; if (M && MSTORY.actors) MSTORY.actors.forEach(i => wasm.micro_cmd(2, i, 0)); if (wasm && wasm.micro_quiet) wasm.micro_quiet(0); }
 
+// The idle turn of the globe: one turn in six minutes (ROT_DEG_PER_S), time-based, after ROT_IDLE_MS
+// with no input, stopped for the rest of the visit by any input (pointer, wheel, touch, key), off
+// under prefers-reduced-motion. The Story's own slow turn (last act) keeps STORY_ROT_RAD_PER_S.
+const ROT_DEG_PER_S = 1, ROT_IDLE_MS = 8000, STORY_ROT_RAD_PER_S = 0.096;
+let rotStopped = false;
+for (const ev of ["pointerdown", "wheel", "touchstart"]) cv.addEventListener(ev, () => { rotStopped = true; }, { passive: true });
+window.addEventListener("keydown", () => { rotStopped = true; });
 let frame=0, lastTickTime=0, lastLoopNow=performance.now();
 function loop(){
   const now=performance.now();
@@ -2775,7 +2801,7 @@ function loop(){
       yaw += dyaw * 0.05;
       pitch += (storyTargetPitch - pitch) * 0.05;
       if (storyCurrentAct === STORY_ACTS.length - 1 && !storyPaused) {
-        storyTargetYaw += 0.0016;
+        storyTargetYaw += STORY_ROT_RAD_PER_S * storyDt; // time-based: the same speed on a 60 Hz and a 120 Hz screen
       }
     }
     storyCamDist += (storyTargetCamDist - storyCamDist) * 0.05;
@@ -2812,7 +2838,8 @@ function loop(){
       if (Math.abs(velPitch)>0.00002) pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch));
       const idle=now-lastTouchTime;
       // the slow turn when nobody touches the globe: only while the sim runs, never under reduced motion
-      if (idle>3000 && zoom<3 && playing && !(typeof GFX!=="undefined" && GFX.reduced)){ const blend=Math.min(1.0,(idle-3000)/2000); yaw+=0.0016*blend; }
+      // after ROT_IDLE_MS with no input, never again once the visitor has touched the globe, never under reduced motion; time-based
+      if (!rotStopped && idle>ROT_IDLE_MS && zoom<3 && playing && !(typeof GFX!=="undefined" && GFX.reduced)){ const blend=Math.min(1.0,(idle-ROT_IDLE_MS)/2000); yaw+=ROT_DEG_PER_S*Math.PI/180*storyDt*blend; }
     }
     if (playing && now-lastTickTime>=120){ lastTickTime=now; tick(); if (typeof GFX!=="undefined") GFX.tickFrame=true; }
     decay();
@@ -2832,7 +2859,7 @@ async function build(){
   const wasPlaying=playing;
   playing=false; $("play").textContent="▶ run"; $("play").classList.remove("active");
   const n=currentSize; $("status").textContent="placing "+fmt(currentPop)+" people ("+fmt(currentPop*DEVICES_PER_PERSON)+" devices) on land density grid…"; await new Promise(r=>setTimeout(r,30));
-  const t0=performance.now(); W=buildWorld(n); seedStoryNodes(); const t1=performance.now(); uploadWorld(); uploadPoints(); cum=0; lastActivity=null; activeBlocks=[]; activeArcs=[]; arcCount=0; arcsNeedUpload=true; pruneAndPackArcs(getTime()); computeSustainability();
+  const t0=performance.now(); W=buildWorld(n); seedStoryNodes(); const t1=performance.now(); uploadWorld(); uploadPoints(); cum=0; lastActivity=null; activeBlocks=[]; actDisp=null; activeArcs=[]; arcCount=0; arcsNeedUpload=true; pruneAndPackArcs(getTime()); computeSustainability();
   updateStatusLine((t1-t0)/1000);
   if (wasPlaying){ playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); }
 }

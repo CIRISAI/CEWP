@@ -1124,7 +1124,7 @@
       "reproduce": "node --test docs/kernel/kernel.test.js",
       "correction": "",
       "interval": null,
-      "failure": ["A sample: the tick keeps up to 420 pairs (1 in 3 to 1 in 48 of its deliveries) and the page draws at most 10 a tick, so arc density is not traffic volume.", "Computed from the kernel's MODEL world (kernel-traffic, kernel-locality); no real traffic."]
+      "failure": ["A sample: the tick keeps up to 420 pairs (1 in 3 to 1 in 48 of its deliveries) and the page adds at most 2 a tick at orbit zoom (10 closer in), so arc density is not traffic volume.", "Computed from the kernel's MODEL world (kernel-traffic, kernel-locality); no real traffic."]
     },
     {
       "id": "layer-flows",

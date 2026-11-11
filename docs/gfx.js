@@ -42,7 +42,10 @@ document.addEventListener("visibilitychange", () => gfxDirty(600));
 // ---- the simulation's clock. Sim seconds since the epoch (00:00 UTC on day SIM_DOY). It runs only
 // while the sim plays; the story sets its own hour per step. The kernel turns it into the sun.
 const SIM_DOY = 314; // MODEL scenario parameter: 10 November (the day the page's numbers were taken)
-const SIM = { t: 8.5 * 3600, rate: 0.85 * 3600, tTick: 8.5 * 3600, lastNow: performance.now() };
+// the sim's clock opens at the visitor's real UTC time of day, so the first view (their own longitude,
+// globe.js HOME_LON) shows their side of the world at their local hour, lit as it is now
+const SIM_T0 = (() => { try { return (Date.now() / 1000) % 86400; } catch (e) { return 8.5 * 3600; } })();
+const SIM = { t: SIM_T0, rate: 0.85 * 3600, tTick: SIM_T0, lastNow: performance.now(), diurnal: 1 }; // diurnal: who signs and who lights follow local time (workload.rs); 0 only for comparison runs
 function simClockAdvance(now){
   const dt = Math.min(0.25, Math.max(0, (now - SIM.lastNow) / 1000)); SIM.lastNow = now;
   if (typeof playing !== "undefined" && playing && !(typeof storyActive !== "undefined" && storyActive)) SIM.t += dt * SIM.rate;
@@ -52,7 +55,7 @@ function simClockForTick(){
   if (!wasm || !wasm.clock_set) return;
   const t = (typeof storyActive !== "undefined" && storyActive) ? getSimUtcHours(getTime()) * 3600 : SIM.t;
   const span = Math.max(0, t - SIM.tTick); SIM.tTick = t;
-  wasm.clock_set(t, span > 0 && span < 86400 ? span : 0.12 * SIM.rate, SIM_DOY, 1);
+  wasm.clock_set(t, span > 0 && span < 86400 ? span : 0.12 * SIM.rate, SIM_DOY, SIM.diurnal);
 }
 // the sun for this frame, from the kernel; world frame as xyz() in globe.js
 function gfxSun(simHours){
@@ -247,15 +250,15 @@ float hw=im.w*0.5*uDpr+1.0;vec2 P=c+vec2(-d.y,d.x)*corner.y*hw;vHW=im.w*0.5*uDpr
 vHid=(q.z<0.0)?(1.0-smoothstep(1.0,1.012,length(q.xy))):0.0;gl_Position=vec4(P/h,0.0,1.0);}`;
 const RF2 = `${FP}uniform float uTime;uniform float uReduced;varying float vT;varying float vEdge;varying float vHW;varying float vAge;varying float vTier;varying float vHid;varying float vKind;varying float vLen;
 void main(){bool still=vAge<0.0;if(!still&&(vAge<=0.0||vAge>=1.0))discard;float cov=clamp(vHW+0.5-abs(vEdge),0.0,1.0);if(cov<0.004)discard;float vis=1.0-vHid;if(vis<0.01)discard;
-float env=still?1.0:smoothstep(0.0,0.12,vAge)*(1.0-smoothstep(0.7,1.0,vAge));
+float env=still?1.0:smoothstep(0.0,0.16,vAge)*(1.0-smoothstep(0.62,1.0,vAge));
 vec3 col=vec3(1.0,0.62,0.30);if(vTier>3.5)col=vec3(1.0,0.84,0.52);else if(vTier>2.5)col=vec3(0.78,0.56,1.0);else if(vTier>1.5)col=vec3(0.36,0.90,0.62);else if(vTier>0.5)col=vec3(0.42,0.74,1.0);
 float pat=1.0;float k=vT*max(6.0,vLen*60.0);
 if(vTier>3.5){pat=1.0;}else if(vTier>2.5){pat=0.55+0.45*step(0.35,abs(vEdge)/max(1.0,vHW+1.0));}
 else if(vTier>1.5){pat=0.30+0.70*smoothstep(0.42,0.18,abs(fract(k)-0.5));}
 else if(vTier>0.5){pat=0.25+0.75*step(0.28,fract(k*0.5));}
-float head=0.0;if(uReduced<0.5){float hp=still?fract(uTime*0.22+vLen*0.37):fract(vAge*1.35);float dd=vT-hp;head=exp(-dd*dd*900.0)+0.45*smoothstep(-0.25,0.0,dd)*step(dd,0.0);}else{head=0.35;}
+float head=0.0;if(uReduced<0.5){float hp=still?fract(uTime*0.22+vLen*0.37):fract(vAge*1.35);float dd=vT-hp;head=0.55*exp(-dd*dd*500.0)+0.25*smoothstep(-0.25,0.0,dd)*step(dd,0.0);}else{head=0.0;}
 float base=(vKind>0.5)?0.26:0.20;float a=min(1.0,env*(base*pat+head*(vKind>0.5?0.9:0.6)))*cov*vis;if(a<0.004)discard;
-vec3 c=mix(col,vec3(1.0,0.97,0.9),clamp(head*0.7,0.0,1.0));gl_FragColor=vec4(c,a);}`;
+vec3 c=mix(col,vec3(1.0,0.97,0.9),clamp(head*0.35,0.0,0.3));gl_FragColor=vec4(c,min(a,0.72));}`;
 const ARCS = { cap: 24000, data: null, n: 0, buf: null, geo: null, dirty: true };
 function gfxArcGeo(){ if (!ARCS.geo){ const v = []; for (let i = 0; i <= ARC_SEG; i++){ const t = i / ARC_SEG; v.push(t, -1, t, 1); } ARCS.geo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, ARCS.geo); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.STATIC_DRAW); } return ARCS.geo; }
 // Arc sets: the tick's sample arcs (globe.js activeArcs) and any layer's arcs, packed into one
@@ -276,7 +279,8 @@ function gfxArcsDraw(R, S, asp, nowSec, sets){
   gl.bindBuffer(gl.ARRAY_BUFFER, gfxArcGeo()); gl.enableVertexAttribArray(L.a.corner); gl.vertexAttribPointer(L.a.corner, 2, gl.FLOAT, false, 0, 0);
   gl.bindBuffer(gl.ARRAY_BUFFER, ARCS.buf); const B = ARC_STRIDE * 4;
   for (const [nm, sz, off] of [["ia", 3, 0], ["ib", 3, 12], ["im", 4, 24], ["ik", 2, 40]]){ gl.enableVertexAttribArray(L.a[nm]); gl.vertexAttribPointer(L.a[nm], sz, gl.FLOAT, false, B, off); I.vertexAttribDivisorANGLE(L.a[nm], 1); }
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+  // ordinary alpha blending (not additive): where many arcs cross they do not sum to white
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   I.drawArraysInstancedANGLE(gl.TRIANGLE_STRIP, 0, (ARC_SEG + 1) * 2, w);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   for (const nm of ["ia", "ib", "im", "ik"]){ I.vertexAttribDivisorANGLE(L.a[nm], 0); gl.disableVertexAttribArray(L.a[nm]); }

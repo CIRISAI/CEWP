@@ -19,11 +19,22 @@ carries category.
 * **Sun and night side:** `clock_sun(t)` from the kernel on the simulation's clock. The clock runs
   only while the sim plays; the story sets its own hours. Sun: circular orbit, 23.44° tilt, no
   equation of time. Day of year `SIM_DOY = 314` (MODEL scenario parameter).
-* **Who signs when:** with the clock's diurnal switch on (the page turns it on), `tick` keeps a
-  drawn signer with probability `diurnal_multiplier(local solar time) / 2.30` and redraws otherwise
-  (at most 16 times). `acts` is unchanged; where the acts land follows the hour (workload.rs, FSD
-  §4.1, MODEL). With the switch off (the default for any caller that never calls `clock_set`), no
-  extra draw is made and every out slot matches the earlier build. Cost: tick p50 18.4 → 18.6 ms
+* **Who signs when, and who lights:** the clock's diurnal switch is ON by default (changed in
+  twin/globe after f9cc739; Eric: "looks identical in day and night"). `tick` keeps a drawn signer
+  with probability `diurnal_multiplier(local solar time) / 2.30` and redraws otherwise (at most 16
+  times); `acts` is unchanged and where the acts land follows the hour (workload.rs, FSD §4.1, MODEL).
+  New: a receiving node's mark in the activity buffer is scaled by the same multiplier (`rx_mark`),
+  so a device in its pre-dawn trough barely lights (MODEL: it takes the rows later, from its mailbox
+  or its next round); display only, no out slot depends on it. The page always passed diurnal = 1, so
+  what changed on the page is the receivers' marks; the kernel default matters to callers that never
+  call `clock_set`. `clock_set(.., 0)` restores the f73b918 tick exactly. No test pinned the old
+  slots; `diurnal_is_on_by_default_and_night_receivers_mark_less` pins the new default.
+  Note the model's rhythm: workload.rs peaks at 20:30 local and is lowest before dawn, so the busy
+  side is the evening side, not the sunlit side. One measured tick (MODEL, the page at 21.98 h UTC):
+  acts signed in localities whose local hour is 17-24 h / 0-7 h / 7-17 h = 977 / 816 / 207 with the
+  switch on, 386 / 1,277 / 337 with it off (ten ticks: 9,552 / 8,718 / 1,730 against 3,191 / 11,715 /
+  5,094); sunlit / dark side 300 / 1,700 (on) against 620 / 1,380 (off). The dark side holds most of
+  the world's people at that hour (Asia before dawn), which is why it still signs most. Cost: tick p50 18.4 → 18.6 ms
   (1 M nodes, 10 k acts, Intel UHD, wasm). This replaced two JavaScript stand-ins: a
   `Math.random()` diurnal filter on arcs, and a hash-driven flicker in the point shader.
 * **Night glow:** the population grid the sim places people on (MODEL input), as a 1024 × 512
@@ -51,6 +62,26 @@ carries category.
   asks for frames again.
 * **Reduced motion:** with `prefers-reduced-motion` there is no auto-rotate and arcs are drawn still
   (no flowing heads). Auto-rotate also stops while the sim is paused.
+* **Nothing flashes (WCAG 2.3.1; Eric: "seizure flashy").** A dot's drawn activity is a display
+  envelope following the tick's pulse at a bounded slew (`ACT_RAMP_MS` 450 up and down; the pulse
+  fades linearly over `ACT_HOLD_MS` 900), and the point shader maps it continuously (colour, size,
+  the visibility of idle dots: no thresholds, no hash flicker; the `floor(uTime*2.5)` term is gone).
+  At orbit zoom at most `ARC_ADD_ORBIT` = 2 arcs are added a tick (a sample; the arcs card says so),
+  each fading in over at least 0.6 s and out over at least 1.4 s; heads are capped and arcs blend
+  with ordinary alpha, so crossings never sum to white. Measured headless at first load, 10 s, every
+  animation frame, 160 × 160 over the disc (`flicker.py`; 36-59 fps on the test box, so per frame,
+  not per 1/60 s): globe.html at 1440 × 900, largest frame-to-frame mean-luminance change over the
+  disc 5.23 → 0.54 (of 255), luminance reversals per second in the busiest 10 % of 8 × 8 blocks
+  10.85 → 2.33, largest single-block frame change 76.8 → 11.6; at 390 × 844, 4.08 → 0.50,
+  10.40 → 3.26, 67.1 → 10.8. index.html includes the Story's dive from orbit to a street around
+  6 s, which moves whole blocks by camera motion (79.5 at 390), not by flashing; its reversal rate
+  went 6.35 → 1.96 (390) and 7.43 → 2.95 (1440).
+* **The idle turn:** one turn in six minutes (`ROT_DEG_PER_S` = 1), time-based (the same on a 120 Hz
+  screen), after 8 s with no input (`ROT_IDLE_MS`), stopped for the rest of the visit by any pointer,
+  wheel, touch or key input, off under reduced motion; the Story's last act keeps its own slow turn
+  (`STORY_ROT_RAD_PER_S`, now time-based). The first view faces the visitor's own longitude, read
+  from their time zone (15° an hour; no location is asked for), and the sim clock opens at the real
+  UTC time of day, so that side is lit as it is now.
 
 ## Export contract (kernel-wasm/src/globe.rs; buffers via `globe_buf_ptr(which)` / `globe_buf_len(which)`)
 

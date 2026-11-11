@@ -823,7 +823,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         commit: LAYERS_COMMIT,
         param: "MODEL: simulation output over MODEL inputs reads MODEL (the lead's ruling, 2026-11-11); inputs: the kernel's generated world and traffic mix (kernel-traffic, kernel-locality), the 1-in-3 to 1-in-48 arc sample, at most 10 drawn a tick",
         failure: &[
-            "A sample: the tick keeps up to 420 pairs (1 in 3 to 1 in 48 of its deliveries) and the page draws at most 10 a tick, so arc density is not traffic volume.",
+            "A sample: the tick keeps up to 420 pairs (1 in 3 to 1 in 48 of its deliveries) and the page adds at most 2 a tick at orbit zoom (10 closer in), so arc density is not traffic volume.",
             "Computed from the kernel's MODEL world (kernel-traffic, kernel-locality); no real traffic.",
         ],
         reproduce: "node --test docs/kernel/kernel.test.js",

@@ -34,8 +34,8 @@ window.CEWP_LAYERS["glow"] = layer({ id: "glow", title: "Night side lit by where
 // ------------------------------------------------------------------ the tick's sample arcs
 window.CEWP_LAYERS["arcs"] = layer({ id: "arcs", title: "Deliveries crossing localities (a sample)", cls: "MODEL", inputs: "MODEL (generated world and traffic mix)",
   source: "tick → arcs buffer (u32 × 2: signer, target | tier << 28)",
-  contract: "tick() writes up to 420 (signer, target, tier) pairs, itself a 1-in-3 to 1-in-48 sample of the deliveries it ran; the page draws at most 10 a tick. Tier: 0 shaped hop, 1 seat replication, 2 relay tree / unshaped, 3 onion. Read every tick (120 ms). The exact counts are on the flows layer.",
-  available: () => true, status(){ this.last = { arcs_on_screen: GFX.arcsDrawn || 0 }; return this.last.arcs_on_screen + " arcs on screen"; } });
+  contract: "tick() writes up to 420 (signer, target, tier) pairs, itself a 1-in-3 to 1-in-48 sample of the deliveries it ran; the page adds at most 2 a tick at orbit zoom (globe.js ARC_ADD_ORBIT, about 17 a second at 120 ms ticks; 10 a tick closer in), each fading in over at least 0.6 s and out over at least 1.4 s, drawn with ordinary alpha blending and a capped head so crossings never sum to white; with prefers-reduced-motion they are drawn still, with no travelling head. Tier: 0 shaped hop, 1 seat replication, 2 relay tree / unshaped, 3 onion. Read every tick (120 ms). The exact counts are on the flows layer.",
+  available: () => true, status(){ this.last = { arcs_on_screen: GFX.arcsDrawn || 0, new_per_tick_at_orbit: 2 }; return this.last.arcs_on_screen + " arcs on screen · a sample: at most 2 new a tick at orbit zoom"; } });
 
 // ------------------------------------------------------------------ flows between localities (exact counts)
 const FLOW = { cent: null, W: null, win: [], sum: null, arcs: [], top: [], checked: "", N: 0 };

@@ -118,8 +118,9 @@ pub extern "C" fn tick(
             let mut signer = below(&mut s, n) as usize;
             // with the clock's diurnal switch on, who signs follows workload.rs: a signer is kept with
             // probability diurnal_multiplier(local time) / peak and redrawn otherwise (at most 16
-            // times), so `acts` is unchanged and its spread over the planet follows the hour. Off (the
-            // default) draws nothing extra, so every slot matches the earlier build.
+            // times), so `acts` is unchanged and its spread over the planet follows the hour. On by
+            // default since twin/globe (Eric: day and night looked alike); clock_set(.., 0) turns it off,
+            // and then nothing extra is drawn and every slot matches the f73b918 build.
             if gs.diurnal {
                 let mut tries = 0;
                 while tries < 16 && !globe::diurnal_accept(t_act, lon[signer] as f64, below(&mut s, 1000)) {
@@ -251,7 +252,7 @@ pub extern "C" fn tick(
                                 push_arc(arcs, &mut arcs_n, arc_cap, prev_member as u32, target_member as u32, tier);
                             }
                             let a_mem = activity.get_unchecked_mut(target_member);
-                            *a_mem = a_mem.saturating_add(70);
+                            *a_mem = a_mem.saturating_add(globe::rx_mark(gs, t_act, lon[target_member] as f64, 70));
                             if (touched_n & 3) == 0 {
                                 prev_member = target_member;
                             }
@@ -259,7 +260,7 @@ pub extern "C" fn tick(
                     }
                     if ((i + act_i as usize) & 31) == 0 {
                         let a = activity.get_unchecked_mut(m);
-                        *a = a.saturating_add(36);
+                        *a = a.saturating_add(globe::rx_mark(gs, t_act, lon[m] as f64, 36));
                     }
                 }
                 // Wire cost: CC 6.1.6 `deterministic-alm` member relay tree branches (simulation fan-out model assumption) + local intra-cell fan-out
@@ -331,7 +332,7 @@ pub extern "C" fn tick(
                         }
                     }
                     let a = activity.get_unchecked_mut(m);
-                    *a = a.saturating_add(55);
+                    *a = a.saturating_add(globe::rx_mark(gs, t_act, lon[m] as f64, 55));
                 }
 
                 if kind == 2 {

@@ -36,7 +36,8 @@ pub struct GlobeState {
     pub span: f64,
     /// Day of year for the sun's declination (MODEL scenario parameter).
     pub doy: f64,
-    /// 1 = signers are drawn in proportion to their local diurnal multiplier.
+    /// 1 = signers are drawn in proportion to their local diurnal multiplier, and receivers are marked
+    /// in proportion to it (rx_mark). On by default; clock_set(.., 0) turns it off.
     pub diurnal: bool,
     /// Cross-locality deliveries of the last tick, NLOC × NLOC row-major (from, to).
     pub flows: Vec<u32>,
@@ -57,17 +58,15 @@ pub struct GlobeState {
     cost: Option<CostParams>,
 }
 
-static mut GLOBE: Option<GlobeState> = None;
-
-pub fn globe() -> &'static mut GlobeState {
-    // SAFETY: wasm32-unknown-unknown runs this module on one thread; the page calls in turn.
-    unsafe {
-        let g = &mut *std::ptr::addr_of_mut!(GLOBE);
-        g.get_or_insert_with(|| GlobeState {
+impl GlobeState {
+    /// The state a page starts with (diurnal on).
+    #[must_use]
+    pub fn fresh() -> Self {
+        Self {
             t0: 43200.0,
             span: 0.0,
             doy: 314.0,
-            diurnal: false,
+            diurnal: true,
             flows: vec![0; NLOC * NLOC],
             loc_acts: vec![0; NLOC],
             redraws: 0,
@@ -82,7 +81,17 @@ pub fn globe() -> &'static mut GlobeState {
             cap_curve: Vec::new(),
             diurnal_bins: Vec::new(),
             cost: None,
-        })
+        }
+    }
+}
+
+static mut GLOBE: Option<GlobeState> = None;
+
+pub fn globe() -> &'static mut GlobeState {
+    // SAFETY: wasm32-unknown-unknown runs this module on one thread; the page calls in turn.
+    unsafe {
+        let g = &mut *std::ptr::addr_of_mut!(GLOBE);
+        g.get_or_insert_with(GlobeState::fresh)
     }
 }
 
@@ -166,6 +175,19 @@ pub fn flow(g: &mut GlobeState, from: usize, to: usize) {
 pub fn diurnal_accept(t: f64, lon: f64, u: u32) -> bool {
     let p = diurnal_multiplier(local_sec(t, lon)) / DIURNAL_PEAK;
     (u as f64) < p * 1000.0
+}
+
+/// How brightly a receiving node is marked in the activity buffer: `base` scaled by its local
+/// diurnal multiplier over the peak (workload.rs, MODEL) while the diurnal switch is on, so a device
+/// in its night shows little live delivery (asleep: it takes the rows later, from its mailbox or its
+/// next round); `base` with the switch off. Display only: no out slot and no draw depends on it.
+#[inline]
+pub fn rx_mark(g: &GlobeState, t: f64, lon: f64, base: u8) -> u8 {
+    if !g.diurnal {
+        return base;
+    }
+    let w = diurnal_multiplier(local_sec(t, lon)) / DIURNAL_PEAK;
+    (f64::from(base) * w.clamp(0.0, 1.0)).round() as u8
 }
 
 /// Mean position of each locality's nodes (unit-vector mean, so it is right across the
@@ -438,6 +460,24 @@ mod tests {
         g.span = 600.0;
         assert_eq!(act_time(g, 50, 100), 43200.0 + 300.0);
         g.span = 0.0;
+    }
+
+    #[test]
+    fn diurnal_is_on_by_default_and_night_receivers_mark_less() {
+        let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+        let g = globe();
+        let was = g.diurnal;
+        g.diurnal = true;
+        // workload.rs peaks at 20:30 local and is lowest before dawn: at 00:00 UTC, longitude -52.5 is at
+        // 20:30 local and longitude 75 at 05:00 local
+        let evening = rx_mark(g, 0.0, -52.5, 70);
+        let predawn = rx_mark(g, 0.0, 75.0, 70);
+        assert!(predawn < evening / 4 && evening == 70, "evening {evening} pre-dawn {predawn}");
+        g.diurnal = false;
+        assert_eq!(rx_mark(g, 43_200.0, 180.0, 70), 70);
+        g.diurnal = was;
+        let fresh = GlobeState::fresh();
+        assert!(fresh.diurnal, "the switch is on unless a caller turns it off");
     }
 
     #[test]
