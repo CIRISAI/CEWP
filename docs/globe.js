@@ -2033,7 +2033,7 @@ function seatFleet(devices, sc){
 }
 const ivN = (a, f) => f(a[0]) === f(a[1]) ? f(a[0]) : f(a[0]) + " to " + f(a[1]);
 const ivRho = (a) => ivN(a, (x) => x >= 10 ? x.toFixed(0) : x.toFixed(2));
-const seatCell = (r) => r ? `${ivN(r.cores, fmtN)} cores · ρ ${ivRho(r.rho)}${r.rho[0] >= 1 ? " · <b>saturated</b>" : r.rho[1] >= 1 ? " · may saturate" : ""}` : "–";
+const seatCell = (r) => r ? `<span class="nw">${ivN(r.cores, fmtN)} cores</span><br><span class="nw">ρ ${ivRho(r.rho)}</span>${r.rho[0] >= 1 ? "<br><b>saturated</b>" : r.rho[1] >= 1 ? "<br>may saturate" : ""}` : "–";
 // the seat knee as an interval (twin-calibration, cewp_sim::seat_hooks::calibration_view_knee via
 // kernel-wasm view_calibration_knee, slot 18): [lower, central, upper, kind, binds lower, binds upper,
 // class], -1 = no claim. Scenario 0..4 is key_publish_set growth g = 0, 0.25, 0.5, 0.75, 1 (FRONTIER).
@@ -2122,7 +2122,9 @@ function nodeScreen(F, A, i){
   if (nodeFlags(i) & NF.offPatch){ const p = projLL(F, M.nf[i * 4 + 2], M.nf[i * 4 + 3]); return p; }
   const x = M.nf[i * 4], y = M.nf[i * 4 + 1]; return [A.a * x + A.c * y + A.e, A.b * x + A.d * y + A.f, A.front];
 }
-function microVisible(){ return M && (zoom >= FOCAL_ZOOM * 0.6 || microStory); }
+// screen-independent: the R5 patch shows from the same metres a pixel on a phone as on a 900 px-high desktop
+// (zoom alone is per screen size, so a phone at region scale used to report the street tier)
+function microVisible(){ const m = Math.min(cv.clientWidth || 900, cv.clientHeight || 900); return M && (zoom * Math.min(1, m / 900) >= FOCAL_ZOOM * 0.6 || microStory); }
 function microStep(now){
   const dtReal = Math.min(0.1, (now - microLastReal) / 1000); microLastReal = now;
   if (!M || !microOk()) return;
@@ -2458,7 +2460,7 @@ const pad2 = (n) => String(n).padStart(2, "0"); // the street clock's two-digit 
 // evidence:scan
 function updateFocalChip(F){
   const chip = $("focal-chip"); if (!chip) return;
-  const show = zoom >= FOCAL_ZOOM * 0.6;
+  const show = zoom * Math.min(1, Math.min(cv.clientWidth || 900, cv.clientHeight || 900) / 900) >= FOCAL_ZOOM * 0.6; // same scale rule as microVisible
   chip.classList.toggle("panel-hidden", !show); if (!show) return;
   if (!microOk()){ chip.innerHTML = "<b>R5 focal tier</b> needs WebAssembly: not available in this browser"; return; }
   if (!M){ chip.innerHTML = microNoLand ? "<b>R5 focal tier</b> · this tile is not wholly settled land (sea, coast or empty): streets are built only on whole land tiles" : "<b>R5 focal tier</b> · zoom in to build this tile's neighbourhood"; return; }

@@ -357,12 +357,15 @@ window.CEWP_LAYERS["holon"] = layer({ id: "holon", title: "Where a coarse tier i
     const ex = proj(F, C[0], C[1] + C[2] / Math.max(0.2, Math.cos(C[0] * DEG))), ey = proj(F, C[0] + C[2], C[1]);
     const realPx = 2 * Math.max(Math.hypot(ex[0] - c0[0], ex[1] - c0[1]), Math.hypot(ey[0] - c0[0], ey[1] - c0[1]));
     const k = realPx < want ? want / Math.max(1e-6, realPx) : 1, enlarged = k > 1.01;
-    const ox = enlarged ? (small ? F.w / 2 - c0[0] : want / 2 + 70) : 0, oy = enlarged ? (small ? Math.max(want / 2 + 150, Math.min(F.h * 0.5, c0[1] - 40)) - c0[1] : 0) : 0; // the callout: right of the spot (desktop), mid-screen (phone)
+    // the callout: right of the spot (desktop); on a phone above or below it, on the side with more room, never over it
+    const below = c0[1] < F.h / 2, boxH = want + 104;
+    const ox = enlarged ? (small ? F.w / 2 - c0[0] : want / 2 + 70) : 0;
+    const oy = enlarged ? (small ? (below ? 40 + want / 2 + 30 : -(40 + want / 2 + 74)) : 0) : 0;
     const at = (la, lo) => { const p = proj(F, la, lo); return [c0[0] + ox + (p[0] - c0[0]) * k, c0[1] + oy + (p[1] - c0[1]) * k]; };
     const cx = c0[0] + ox, cy = c0[1] + oy;
     if (enlarged){ // the spot and a leader to the callout
       g.strokeStyle = "rgba(255,255,255,0.75)"; g.lineWidth = 1.2; g.beginPath(); g.arc(c0[0], c0[1], 5, 0, 6.2832); g.stroke();
-      g.setLineDash([3, 3]); g.beginPath(); g.moveTo(c0[0], c0[1]); g.lineTo(cx, cy + want * 0.5 + 4); g.stroke(); g.setLineDash([]);
+      g.setLineDash([3, 3]); g.beginPath(); g.moveTo(c0[0], c0[1]); g.lineTo(small ? cx : cx - want / 2 - 14, small ? (below ? cy - want / 2 - 30 : cy + want / 2 + 74) : cy); g.stroke(); g.setLineDash([]);
       g.fillStyle = "rgba(8,12,18,0.82)"; g.strokeStyle = "rgba(200,215,235,0.35)"; g.lineWidth = 1; g.beginPath(); g.roundRect ? g.roundRect(small ? cx - 150 : cx - want / 2 - 14, cy - want / 2 - 30, small ? 300 : Math.max(want + 28, 400), want + (small ? 104 : 78), 10) : g.rect(small ? cx - 150 : cx - want / 2 - 14, cy - want / 2 - 30, small ? 300 : Math.max(want + 28, 400), want + (small ? 104 : 78)); g.fill(); g.stroke(); }
     const STC = [["124,240,176", "#7cf0b0"], ["255,122,106", "#ff7a6a"], ["200,210,225", "#c8d2e1"]];
     for (let pass = 0; pass < 2; pass++) for (let i = 0; i < C.length; i += 8){ const la = C[i], lo = C[i + 1], h = C[i + 2], lv = C[i + 3], st = C[i + 4]; const hl = h / Math.max(0.2, Math.cos(la * DEG));
@@ -434,10 +437,14 @@ window.CEWP_LAYERS["failures"] = layer({ id: "failures", title: "An outage going
       g.strokeStyle = ok ? (L.dom ? "rgba(105,210,255,0.35)" : "rgba(140,220,255,0.55)") : "rgba(255,90,78,0.8)"; g.lineWidth = L.dom ? 1 : 1.6; g.setLineDash(ok ? [] : [5, 4]);
       g.beginPath(); strokeLL(g, F, L.ll); g.stroke(); }
     g.setLineDash([]);
+    // a dark well under every generated metro, so its nodes stand off the cohort mosaic beneath
+    { const M2 = D.metros, rr = Math.max(10, zoomPx * 0.09 * Math.sqrt(80) * 1.25 + 8);
+      for (let k = 0; k < M2.length; k += 4){ if (!M2[k + 3]) continue; const p = proj(F, M2[k], M2[k + 1]); if (p[2] < 0.03) continue;
+        const gr = g.createRadialGradient(p[0], p[1], rr * 0.35, p[0], p[1], rr); gr.addColorStop(0, "rgba(4,7,12,0.72)"); gr.addColorStop(1, "rgba(4,7,12,0)"); g.fillStyle = gr; g.beginPath(); g.arc(p[0], p[1], rr, 0, 6.2832); g.fill(); } }
     g.save(); g.globalCompositeOperation = "lighter";
-    for (let i = 0; i < D.n; i++){ const c = St[o + i]; if (c !== 0 && c !== 2) continue; const p = proj(F, N[i * 4], N[i * 4 + 1]); if (p[2] < 0.03) continue;
-      const R = r0 * 4.2, gr = g.createRadialGradient(p[0], p[1], 0, p[0], p[1], R); const col = c === 0 ? "255,80,70" : "255,180,80";
-      gr.addColorStop(0, `rgba(${col},0.16)`); gr.addColorStop(1, `rgba(${col},0)`); g.fillStyle = gr; g.fillRect(p[0] - R, p[1] - R, 2 * R, 2 * R); }
+    for (let i = 0; i < D.n; i++){ const c = St[o + i]; if (c !== 0 && c !== 2 && c !== 1) continue; const p = proj(F, N[i * 4], N[i * 4 + 1]); if (p[2] < 0.03) continue;
+      const R = r0 * (c === 1 ? 2.6 : 4.2), gr = g.createRadialGradient(p[0], p[1], 0, p[0], p[1], R); const col = c === 0 ? "255,80,70" : c === 2 ? "255,180,80" : "80,190,255";
+      gr.addColorStop(0, `rgba(${col},${c === 1 ? 0.12 : 0.16})`); gr.addColorStop(1, `rgba(${col},0)`); g.fillStyle = gr; g.fillRect(p[0] - R, p[1] - R, 2 * R, 2 * R); }
     g.restore();
     const n = [0, 0, 0, 0, 0];
     for (let i = 0; i < D.n; i++){ const c = St[o + i]; n[c]++; const p = proj(F, N[i * 4], N[i * 4 + 1]); if (p[2] < 0.03) continue; const x = p[0], y = p[1];
@@ -450,8 +457,10 @@ window.CEWP_LAYERS["failures"] = layer({ id: "failures", title: "An outage going
     // one label at the event's focus while anything is affected
     const q = D.steps.subarray(s * 7, s * 7 + 7), p = proj(F, D.focus[0], D.focus[1]);
     if (p[2] > 0.05){ const t1 = `${FAIL_SC[FAIL.sc]} · ${q[0] < 0 ? "before onset" : q[0].toFixed(1) + " h after onset"}`, t2 = q[5] + q[3] > 0 ? `${q[5]} down · ${q[3]} cut off from the mainland` : q[0] < 0 ? "nothing failed yet" : "recovered";
-      g.font = "600 12px " + MFONT; g.lineWidth = 3.5; g.strokeStyle = "rgba(6,9,14,0.92)"; const x = p[0] + 18, y = p[1] - 26;
+      g.font = "600 12px " + MFONT; g.lineWidth = 3.5; g.strokeStyle = "rgba(6,9,14,0.92)"; const x = Math.max(6, Math.min(p[0] + 18, F.w - 310)), y = p[1] - 26;
       g.strokeText(t1, x, y); g.fillStyle = "#fff2d8"; g.fillText(t1, x, y); g.font = "11px " + MFONT; g.strokeText(t2, x, y + 15); g.fillStyle = q[5] + q[3] > 0 ? "#ffb4a8" : "#bfe9ff"; g.fillText(t2, x, y + 15);
+      const t3 = ["generated country, not a real one", "generated access network, not a real one", "generated power region, not a real one"][FAIL.sc] + " · MODEL";
+      g.font = "italic 11px " + MFONT; g.lineWidth = 3.5; g.strokeStyle = "rgba(6,9,14,0.92)"; g.strokeText(t3, x, y + 30); g.fillStyle = "#d6dde8"; g.fillText(t3, x, y + 30);
       g.strokeStyle = "rgba(255,242,216,0.6)"; g.lineWidth = 1; g.beginPath(); g.moveTo(p[0] + 4, p[1] - 4); g.lineTo(x - 4, y + 4); g.stroke(); }
     this.last.drawn_down = n[0]; this.last.drawn_mainland = n[1]; this.last.drawn_cut_off = n[2];
   },

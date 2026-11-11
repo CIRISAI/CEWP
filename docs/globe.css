@@ -376,3 +376,6 @@ body.card-open #story-line,body.card-open .story-line{display:none}
 }
 @media(min-width:801px){body:not(.story-first) #foot{bottom:92px;max-height:calc(100vh - 240px)}}
 body.story-first #tier-now{left:var(--sf-side);top:var(--sf-top);bottom:auto;min-height:44px;max-width:calc(100vw - 230px)}
+
+table.cap .nw{white-space:nowrap}
+
