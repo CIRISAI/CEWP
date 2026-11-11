@@ -602,6 +602,22 @@ pub extern "C" fn holon_split(id: f64, budget: f64) -> u32 {
     n as u32
 }
 
+/// A parent's households over its children by the caller's weights alone (`tiling::apportion`, no
+/// `child_noise`): the page's population-conditioned tree (docs/geo/popcond.js) passes GHS-POP
+/// people as weights, so a child's households are its share of the people, within the
+/// largest-remainder rounding. Weights from `holon_ext_ptr`, output in buffer 0 as for `holon_split`.
+#[no_mangle]
+pub extern "C" fn holon_split_exact(id: f64, budget: f64) -> u32 {
+    let h = holon();
+    h.out.clear();
+    let Some(c) = HolonId::unpack(id as u64) else { return 0 };
+    let n = c.children().len();
+    if n == 0 { return 0; }
+    let w: Vec<u64> = h.ext[..n].iter().map(|&e| u64::from(e)).collect();
+    for b in tiling::apportion(budget.max(0.0) as u64, &w) { h.out.push(b as f64); }
+    n as u32
+}
+
 /// Where the page writes a leaf's context (32 f64, `LeafContext::to_f64`) before `holon_layout`.
 #[no_mangle]
 pub extern "C" fn holon_ctx_ptr() -> *mut f64 { holon().ctx.as_mut_ptr() }
@@ -919,4 +935,24 @@ pub extern "C" fn cap_seat(devices: f64, shape: u32, read: u32, seats: u32, sele
         binds,
     ];
     m.cap.len() as u32
+}
+
+#[cfg(test)]
+mod holon_split_tests {
+    use super::*;
+
+    // the exact split is tiling::apportion over the caller's weights: sums to the budget, follows the weights
+    #[test]
+    fn holon_split_exact_is_the_apportionment_of_the_weights() {
+        let id = HolonId::at(0, 47.3769, 8.5417);
+        let n = id.children().len();
+        let w: Vec<u32> = (0..n as u32).map(|k| if k % 3 == 0 { 0 } else { 100 + 37 * k }).collect();
+        holon().ext[..n].copy_from_slice(&w);
+        assert_eq!(holon_split_exact(id.pack() as f64, 1_000.0) as usize, n);
+        let got: Vec<u64> = holon().out.iter().map(|&x| x as u64).collect();
+        let want = tiling::apportion(1_000, &w.iter().map(|&x| u64::from(x)).collect::<Vec<_>>());
+        assert_eq!(got, want);
+        assert_eq!(got.iter().sum::<u64>(), 1_000);
+        assert!(got.iter().zip(&w).all(|(&g, &x)| x > 0 || g == 0), "a zero-weight child gets no household");
+    }
 }

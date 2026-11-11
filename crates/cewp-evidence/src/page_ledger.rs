@@ -454,6 +454,20 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ..BASE
     },
     PageClaim {
+        id: "street-floor",
+        class: Model,
+        shows: "Streets, homes and devices are generated only where GHS-POP holds people: a street tile's households are its rectangle's people divided by 2.5 persons a household, and a 1/8-degree cell under one person per km2 counts zero, so empty land gets no streets and the chip says what GHS-POP reads there.",
+        source: "docs/geo/popcond.js pcPeople, pcHouseholds, pcWeight (POPCOND.FLOOR_KM2, POPCOND.PPH); docs/tiling.js tlRoot, tlExt (root and weights of the holon tree); kernel-wasm holon_split_exact (tiling::apportion, largest remainder, no child noise); docs/globe.js microFreeRoam (no world where the leaf's budget is 0)",
+        param: "floor 1 person per km2 of 1/8-degree cell area; 2.5 persons per household (micro.rs PersonsPerHousehold); people spread evenly by area inside a 1/8-degree cell; density class thresholds of micro.rs (apartment blocks from 6,000, terraced from 1,500, suburban from 250 people per km2, village below)",
+        failure: &[
+            "Inside a 1/8-degree cell people are spread evenly by area: a town and the fields around it within one cell get the same density.",
+            "The floor is per cell: a cell just over one person per km2 gets a few village households even if they really live in one hamlet.",
+            "GHS-POP is a published estimate (pop-grid-source), not a census of each street.",
+        ],
+        reproduce: "node --test docs/geo/popcond.test.js",
+        ..BASE
+    },
+    PageClaim {
         id: "pop-grid-cells",
         class: Derived,
         shows: "4,559 populated land cells in 181 localities and 9 regions.",
@@ -654,9 +668,9 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
     PageClaim {
         id: "map-rules",
         class: Model,
-        shows: "Display rules of this twin: lakes added where ETOPO holds a flat water surface Natural Earth has as land; the street view's roof tint from latitude and ETOPO elevation in five bands (and the ground too where there is no land-cover data); a city's Natural Earth population standing in where the grid has no cell near it.",
-        source: "docs/tiling.js: tlTerrain, tlRoot; tools/geo/build_dem.py (lake detection); docs/kernel/README.md \"Places\"",
-        param: "lake rule, five ground bands, rock above 2,200 m, 1.6 degree place fallback",
+        shows: "Display rules of this twin: lakes added where ETOPO holds a flat water surface Natural Earth has as land; the street view's roof tint from latitude and ETOPO elevation in five bands (and the ground too where there is no land-cover data).",
+        source: "docs/tiling.js: tlTerrain; tools/geo/build_dem.py (lake detection)",
+        param: "lake rule, five ground bands, rock above 2,200 m",
         failure: &[
             "The roof tint and the no-data ground are a rule, not data; no climate data is loaded.",
             "A few lakes are missing or in pieces.",

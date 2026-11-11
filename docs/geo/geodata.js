@@ -4,7 +4,7 @@
 //               doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE);
 //   land cover: Copernicus Global Land Service Land Cover 100 m, collection 3, epoch 2019, V3.0.1
 //               (Buchhorn et al. 2020, doi:10.5281/zenodo.3939050). Contains modified Copernicus
-//               Service information 2020.
+//               Service information 2019.
 // Grid: equal-angle, cell-centred, row 0 at the north; cell (r, c) covers latitudes 90-(r+1)s ..
 // 90-r*s and longitudes -180+c*s .. -180+(c+1)*s. Level 0: s = 1/2 degree (720 x 360); level 1:
 // s = 1/8 degree (2880 x 1440, about 14 km at the equator). Files under geo/gd/, gzip, row-major:

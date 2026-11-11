@@ -22,7 +22,7 @@
     "step_deg": 0.125
    }
   ],
-  "licence": "CC BY 4.0; Contains modified Copernicus Service information 2020",
+  "licence": "CC BY 4.0; Contains modified Copernicus Service information 2019",
   "source": "Copernicus Global Land Service Land Cover 100 m, collection 3, epoch 2019, V3.0.1, discrete classification (PROBAV_LC100_global_v3.0.1_2019-nrt_Discrete-Classification-map_EPSG-4326.tif)",
   "stats": {
    "land_pixel_share_by_code": {

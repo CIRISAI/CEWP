@@ -436,7 +436,7 @@ def build_lc(src, docs):
     write_index(gd, "landcover", {
         "source": "Copernicus Global Land Service Land Cover 100 m, collection 3, epoch 2019, V3.0.1, discrete classification (PROBAV_LC100_global_v3.0.1_2019-nrt_Discrete-Classification-map_EPSG-4326.tif)",
         "citation": "Buchhorn, M.; Smets, B.; Bertels, L.; De Roo, B.; Lesiv, M.; Tsendbazar, N.-E.; Herold, M.; Fritz, S. (2020). Copernicus Global Land Service: Land Cover 100m: collection 3: epoch 2019: Globe (Version V3.0.1) [Data set]. Zenodo. doi:10.5281/zenodo.3939050",
-        "licence": "CC BY 4.0; Contains modified Copernicus Service information 2020",
+        "licence": "CC BY 4.0; Contains modified Copernicus Service information 2019",
         "levels": [
             {"file": "lc0.bin.gz", "nx": NX0, "ny": NY0, "step_deg": 1 / S0, "encoding": "uint8 LC100 code of the majority land class (200 = no land pixel, sea; 0 = no input data; 255 = outside the product)", "bytes_gz": sz0[0], "bytes_raw": sz0[1]},
             {"file": "lc1.bin.gz", "nx": NX1, "ny": NY1, "step_deg": 1 / S1, "encoding": "as level 0", "bytes_gz": sz1[0], "bytes_raw": sz1[1]},

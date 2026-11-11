@@ -18,66 +18,27 @@ const TL = {
 // so every budget is computed from the same inputs whenever it is computed.
 let TL_LAND = null;
 const tlLand = () => TL_LAND || (GEO.l50 ? (TL_LAND = landTest(GEO.l50.rings)) : null);
-const tlReady = () => !!(wasm && wasm.holon_split && wasm.holon_arterials && wasm.micro_build_leaf && GEO.places && tlLand());
+// the tree also waits for GHS-POP at 1/8 degree: every budget is conditioned on it (popcond.js)
+const tlPop = () => (typeof GEODATA !== "undefined" && GEODATA.pop[1]) || null;
+const tlReady = () => !!(wasm && wasm.holon_split && wasm.holon_arterials && wasm.micro_build_leaf && GEO.places && tlLand() && tlPop());
 
 // ---- inputs: households per L0 cell, a weight per child
 function tlCentre(c){ const b = HOLON.boundsDeg(c); return [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]; }
-function tlLandK(c, n, kern){ // land samples on an n×n lattice inside the cell; with kern, the
-  // place kernel summed over the land samples instead of a count
-  const b = HOLON.boundsDeg(c); let k = 0;
-  for (let a = 0; a < n; a++) for (let q = 0; q < n; q++){ const la = b[0] + (a + 0.5) / n * (b[2] - b[0]), lo = b[1] + (q + 0.5) / n * (b[3] - b[1]);
-    if (TL_LAND.inside(la, lo)) k += kern ? 40 + tlKernel(la, lo) : 1; }
-  return k;
-}
-// the grid cell holding a point, or else the nearest within 1.6° (the grid stops short of many coasts)
-function tlCellNear(la, lo){
-  const c = cellAt(la, lo); if (c >= 0) return c;
-  const G = initPopGrid(), cl = Math.cos(la * Math.PI / 180); let best = -1, bd = 1.6 * 1.6;
-  for (let k = 0; k < G.nCells; k++){ const dy = G.cellLat[k] - la, dx = (((G.cellLon[k] - lo + 540) % 360) - 180) * cl, d = dx * dx + dy * dy; if (d < bd){ bd = d; best = k; } }
-  return best;
-}
-function tlRoot(c){ // households in an L0 cell: the population grid's density at each land sample × its share of the area
+function tlRoot(c){ // households in an L0 cell: GHS-POP 2020 people in it (1/8-degree cells under the floor count zero) / persons per household
   const key = HOLON.pack(c); let v = TL.l0.get(key); if (v !== undefined) return v;
-  const b = HOLON.boundsDeg(c), n = 6, [la] = tlCentre(c), km = 1.5 * 111.32, cellKm2 = km * km * Math.cos(la * Math.PI / 180) / (n * n);
-  let people = 0;
-  for (let a = 0; a < n; a++) for (let q = 0; q < n; q++){
-    const y = b[0] + (a + 0.5) / n * (b[2] - b[0]), x = b[1] + (q + 0.5) / n * (b[3] - b[1]);
-    if (!TL_LAND.inside(y, x)) continue; const g = tlCellNear(y, x); if (g >= 0) people += cellDensity(g) * cellKm2;
-  }
-  // MODEL rule: the grid holds no cell near some real cities (Reykjavik, Manaus). A populated
-  // place in this cell with no grid cell within reach brings its own Natural Earth population;
-  // the place kernel (tlExt) then gathers those households around it.
-  const bins = tlPlaceBins();
-  for (let a = Math.floor(b[0]); a <= Math.floor(b[2]); a++) for (let o = Math.floor(b[1]); o <= Math.floor(b[3]); o++){
-    const L = bins.get((a + 90) * 360 + ((o % 360) + 360) % 360); if (!L) continue;
-    for (const pl of L){ if (pl.la < b[0] || pl.la >= b[2] || pl.lo < b[1] || pl.lo >= b[3]) continue;
-      if (tlCellNear(pl.la, pl.lo) < 0) people += pl.pop; }
-  }
-  v = Math.round(people / TL_PPH); TL.l0.set(key, v); return v;
+  const b = HOLON.boundsDeg(c);
+  // The f73b918 place fallback (a city's Natural Earth population where the old grid had no cell
+  // near it) is gone: GHS-POP holds people wherever a place has them, and nothing is added where it
+  // reads none.
+  v = pcHouseholds(pcPeople(tlPop(), b[0], b[1], b[2], b[3]) || 0); TL.l0.set(key, v); return v;
 }
-function tlPlaceBins(){
-  if (TL.placeBins) return TL.placeBins;
-  const m = new Map();
-  for (const p of GEO.places){ const k = (Math.floor(p.la) + 90) * 360 + ((Math.floor(p.lo) + 360) % 360); if (!m.has(k)) m.set(k, []); m.get(k).push(p); }
-  return (TL.placeBins = m);
-}
-// populated-place kernel: each place a Gaussian of its population, σ = 1.5 km + 4 km·√(pop / 1M)
-function tlKernel(la, lo){
-  const bins = tlPlaceBins(), cl = Math.cos(la * Math.PI / 180), dl = Math.ceil(1 / Math.max(0.1, cl)); let s = 0;
-  for (let a = Math.floor(la) - 1; a <= Math.floor(la) + 1; a++) for (let o = Math.floor(lo) - dl; o <= Math.floor(lo) + dl; o++){
-    const L = bins.get((a + 90) * 360 + ((o % 360) + 360) % 360); if (!L) continue;
-    for (const p of L){ const dy = (p.la - la) * 111.32, dx = ((((p.lo - lo) % 360) + 540) % 360 - 180) * 111.32 * cl, sg = 1.5 + 4 * Math.sqrt(p.pop / 1e6);
-      const d2 = dx * dx + dy * dy; if (d2 < 25 * sg * sg) s += p.pop / 1000 * Math.exp(-d2 / (2 * sg * sg)); }
-  }
-  return s;
-}
-function tlExt(c){ // Σ over land samples of (40 + place kernel), per sample; an integer (the kernel then multiplies by its noise)
-  const n = c.level <= 2 ? 3 : c.level === 3 ? 2 : 1;
-  return Math.min(4e9, Math.round(tlLandK(c, n, true) * 9 / (n * n)));
+function tlExt(c){ // a child's weight in its parent's split: its GHS-POP people (x 16, an integer), so households follow people
+  const b = HOLON.boundsDeg(c);
+  return pcWeight(pcPeople(tlPop(), b[0], b[1], b[2], b[3]) || 0);
 }
 function tlSplit(p, pb, ext){
   const ep = wasm.holon_ext_ptr(); new Uint32Array(mem.buffer, ep, 25).set(ext);
-  const n = wasm.holon_split(HOLON.pack(p), pb); const op = wasm.holon_buf_ptr(0);
+  const n = (wasm.holon_split_exact || wasm.holon_split)(HOLON.pack(p), pb); const op = wasm.holon_buf_ptr(0); // exact: the weights are GHS-POP people (popcond.js)
   return Array.from(new Float64Array(mem.buffer, op, n));
 }
 function tlTree(){ if (!TL.T) TL.T = HOLON.tree(tlRoot, tlExt, tlSplit, TL_TARGET); return TL.T; }
@@ -371,4 +332,4 @@ function tlMetrics(){
   const s = TL.stats(); el.textContent = s.on ? `ring ${s.ring}/${s.ringMax} px · ${s.fps} fps · ${s.leaves} leaves drawn, ${s.aggregate} aggregate, ${s.pending} queued · ${s.cached} cached (${s.mb} MB)` : "off (zoom to region scale)";
 }
 // the 1/2-degree land cover at load (18 kB); the street ground reads it through tlTerrain
-if (typeof geoLoad === "function") geoLoad("lc", 0);
+if (typeof geoLoad === "function"){ geoLoad("lc", 0); setTimeout(() => { geoLoad("pop", 0); geoLoad("pop", 1); }, 1500); } // people at 1/8 degree (about 0.8 MB) condition the street tier

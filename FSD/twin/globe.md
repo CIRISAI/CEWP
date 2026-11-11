@@ -168,3 +168,52 @@ contention on, which the view scenario leaves off. A view with contention on may
   seed; they show what the model does, not what a mesh measured.
 * Between 30 and 26 m a pixel neither real data nor generated streets show, only the holon
   mosaic. This follows the page's rule that real and generated layers never share a scale.
+
+## Where streets are built (population-conditioned street tier)
+
+Eric, on the live page: neighbourhoods in the middle of the Urals. Cause: the tiling's root budget came
+from the nearest 1.5° grid cell within 1.6° (`tlCellNear`), and each child's weight was its land
+samples × (40 + a populated-place kernel), so every land holon got a share of its 1.5° cell's people
+however empty it was. A place fallback added a city's Natural Earth population where the old grid had
+no cell near it.
+
+Now (docs/geo/popcond.js, docs/tiling.js tlRoot / tlExt, all MODEL rules over GHS-POP 2020):
+* A holon's households are the GHS-POP people inside its rectangle (each 1/8° cell's people times the
+  overlapped share, uniform within a cell) divided by 2.5 persons a household. Child weights are the
+  same people (× 16, an integer) and the split is `holon_split_exact` (kernel-wasm; `tiling::apportion`
+  with no `child_noise`), so a tile holds its own people, within the largest-remainder rounding.
+* A 1/8° cell under 1 person per km² of cell area counts zero (`POPCOND.FLOOR_KM2`, MODEL). Empty land
+  (forest, bare ground, snow and ice, wetland, water: wherever GHS-POP reads under the floor) gets no
+  households, so no streets and no devices; the focal chip says "No one lives here in the model" with
+  the people GHS-POP reads in that 1/8° cell, its land-cover class and the floor.
+* Density class follows the tile's people per km² through micro.rs's existing thresholds (MODEL):
+  apartment blocks from 6,000, terraced from 1,500, suburban from 250, village below. There is no
+  separate "scattered farms" class; the village layout covers it.
+* The place fallback is gone, and no street is generated before GHS-POP at 1/8° (about 0.8 MB, fetched
+  1.5 s after load) and the tiling are in.
+* Inside a 1/8° cell people are spread evenly by area: real data stops at that cell.
+
+Check (`node --test docs/geo/popcond.test.js`, the first instance of CIRISHolon#3's conditional
+consistency): from the 1.5° root down to the street tile, every holon's households are within
+level + 1 of its rectangle's people / 2.5 (one household of rounding per apportionment step), at
+Zurich, Cairo, Lagos, a Maryland suburb, a rural village in the Cher and five empty places; the
+empty places' street tiles hold none.
+
+Probe (headless, both widths, street and block zoom; devices = the focal patch's devices including
+its off-patch seat and servers):
+
+| place | GHS-POP 1/8° cell | street tile households | devices | class |
+|---|---|---|---|---|
+| mid-Urals 60.0 N 59.5 E | 1.2 people, 0.013/km² | 0 | 0 | none: "no one lives here" |
+| central Sahara 23.5 N 12.0 E | 0 | 0 | 0 | none |
+| Greenland interior 72 N 40 W | 0 | 0 | 0 | none |
+| Amazon interior 3.5 S 67.5 W | 0 | 0 | 0 | none |
+| open Atlantic 0 N 30 W | 0 | 0 | 0 | none |
+| Zurich | 2,484/km² | 52 | 166-167 | terraced streets |
+| Cairo | 37,082/km² | 16 | 43-44 | apartment blocks |
+| Lagos | 5,318/km² | 40 | 133-134 | terraced streets |
+| Maryland suburb 39.2 N 77.25 W | 1,114/km² | 27 | 75-76 | suburban streets |
+| rural Cher village 46.3 N 2.3 E | 13/km² | 18 | 45 | village |
+
+The cohort tier and the night glow draw the 1.5° grid at its own grain (cohorts scattered inside
+their cell), which is the coarse tier, not generated streets.

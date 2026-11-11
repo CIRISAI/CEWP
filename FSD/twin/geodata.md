@@ -157,7 +157,7 @@ Page footer (`GEO_ATTRIBUTION` in `docs/geo/geodata.js`):
 > et al. 2023, doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE), aggregated to 1/2° and 1/8°
 > cells. Land cover: Copernicus Global Land Service Land Cover 100 m, epoch 2019 (Buchhorn et al.
 > 2020, doi:10.5281/zenodo.3939050), CC BY 4.0; contains modified Copernicus Service information
-> 2020, reduced to the majority land class per 1/2° and 1/8° cell.
+> 2019, reduced to the majority land class per 1/2° and 1/8° cell.
 
 The README carries the same two credits under "Data credits". Neither publisher endorses this
 twin; the GHSL "how to cite" page asks that the dataset and the concept paper be cited, not the
@@ -243,4 +243,4 @@ text (globe.js) becomes 4,559.
 
 ## As wired on twin/globe (fd2de88 and after)
 
-On the lead's ruling of 2026-11-11, `pop-grid-source` and `land-cover-source` are MODEL, not MEASURED: on this page MEASURED means measured on the mesh, and both products are published estimates (GHS-POP spreads census counts over built-up volume; LC100 classifies satellite imagery). Each entry names its product in the ledger's new `dataset` field, which the validator forbids on a MEASURED entry. The Copernicus statement reads "Contains modified Copernicus Service information 2019" (the data's epoch), on the page and in the README.
+On the lead's ruling of 2026-11-11, `pop-grid-source` and `land-cover-source` are MODEL, not MEASURED: on this page MEASURED means measured on the mesh, and both products are published estimates (GHS-POP spreads census counts over built-up volume; LC100 classifies satellite imagery). Each entry names its product in the ledger's new `dataset` field, which the validator forbids on a MEASURED entry. The Copernicus statement reads "Contains modified Copernicus Service information 2019" everywhere (page, README, GEO_ATTRIBUTION, gd/index.json, build_geodata.py). The Product User Manual (CGLOPS1_PUM_LC100-V3 I3.4, §4) prescribes "Contains modified Copernicus Service information [Year]" without defining [Year]; this twin fills it with the data's epoch, 2019, the year the product describes. The 2020 that geodata first wrote was the publication year of the collection (Buchhorn et al. 2020), which the citation already carries. If the Copernicus help desk reads [Year] differently, only this string changes.
