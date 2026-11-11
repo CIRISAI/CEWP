@@ -28,7 +28,7 @@ window.CEWP_LAYERS["illustration"] = layer({ id: "illustration", title: "Ocean c
   available: () => true, status(){ this.last = {}; return "decoration, no data"; } });
 window.CEWP_LAYERS["glow"] = layer({ id: "glow", title: "Night side lit by where people are", cls: "MODEL", decorative: false,
   source: "population grid (globe.js POP_GRID) · clock_sun",
-  contract: "The population grid the sim places people on (MODEL input, 1.5° cells, scattered ±cellRad), blurred 3 px into a 1024×512 image; lit where the sun from clock_sun(t) is below the horizon. Not satellite night lights. Read once at load; the sun every frame.",
+  contract: "The population grid the sim places people on (GHS-POP 2020, a MEASURED input, 1.5° cells, scattered ±cellRad), blurred 3 px into a 1024×512 image; lit where the sun from clock_sun(t) is below the horizon. Not satellite night lights. Read once at load; the sun every frame.",
   available: () => true, status(){ this.last = { sun_lat_deg: +GFX.sunLL[0].toFixed(2), sun_lon_deg: +GFX.sunLL[1].toFixed(2), utc_hour: +GFX.utc.toFixed(3) }; return "sun over " + GFX.sunLL.map((v) => v.toFixed(1) + "°").join(", ") + " · " + String(Math.floor(GFX.utc)).padStart(2, "0") + ":" + String(Math.floor((GFX.utc % 1) * 60)).padStart(2, "0") + " UTC"; } });
 
 // ------------------------------------------------------------------ the tick's sample arcs

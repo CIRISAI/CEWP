@@ -505,6 +505,23 @@ window.CEWP_LEDGER = {
       "failure": ["GHS-POP is itself a model of census counts between censuses: residential people only, placed where buildings are, coarse where census units are coarse.", "The 181 localities and 9 regions the cells are grouped into are inherited from the old grid (nearest old cell): a MODEL partition, not data.", "Real data stops at the 1.5-degree cell: every street, building and device inside it is generated."]
     },
     {
+      "id": "land-cover-source",
+      "class": "MEASURED",
+      "code": "ME",
+      "status": "stated",
+      "live": false,
+      "shows": "The ground's colour follows real land cover: the majority land class of each 1/8-degree cell (Copernicus Global Land Service Land Cover 100 m, 2019).",
+      "source": "docs/geo/gd/lc0.bin.gz, lc1.bin.gz and docs/geo/geodata.js geoLandcoverAt (twin/geodata 4fe1245), read by docs/tiling.js tlTerrain, built by tools/geodata/build_geodata.py from PROBAV_LC100_global_v3.0.1_2019-nrt_Discrete-Classification-map_EPSG-4326.tif (Buchhorn et al. 2020, doi:10.5281/zenodo.3939050, CC BY 4.0; contains modified Copernicus Service information 2020)",
+      "commit": "f73b918",
+      "window": "Epoch 2019 (PROBA-V, 100 m), about 80 N to 60 S. Overall accuracy 80.6 +/- 0.4 % at level 1 of the legend (Product User Manual I3.4).",
+      "param": "",
+      "blocker": "",
+      "reproduce": "python3 -E -P tools/geodata/build_geodata.py lc \u003cPROBAV_LC100_..._EPSG-4326.tif> docs; node --test tools/geodata/geodata.test.js",
+      "correction": "",
+      "interval": null,
+      "failure": ["A majority vote at 1/8 degree erases minority classes: a town smaller than half a cell disappears into the cropland or forest around it.", "Shrubs and herbaceous wetland are the classes the producers map least accurately.", "The ground colour per class is a display choice of this twin (MODEL), not part of the data.", "No data over Antarctica: the page's own ground rule holds there."]
+    },
+    {
       "id": "pop-grid-cells",
       "class": "DERIVED",
       "code": "DE",
@@ -782,7 +799,7 @@ window.CEWP_LEDGER = {
       "code": "MO",
       "status": "stated",
       "live": false,
-      "shows": "Display rules of this twin: lakes added where ETOPO holds a flat water surface Natural Earth has as land; the street view's ground tint from latitude and ETOPO elevation in five bands; a city's Natural Earth population standing in where the grid has no cell near it.",
+      "shows": "Display rules of this twin: lakes added where ETOPO holds a flat water surface Natural Earth has as land; the street view's roof tint from latitude and ETOPO elevation in five bands (and the ground too where there is no land-cover data); a city's Natural Earth population standing in where the grid has no cell near it.",
       "source": "docs/tiling.js: tlTerrain, tlRoot; tools/geo/build_dem.py (lake detection); docs/kernel/README.md \"Places\"",
       "commit": "f73b918",
       "window": "",
@@ -791,7 +808,7 @@ window.CEWP_LEDGER = {
       "reproduce": "",
       "correction": "",
       "interval": null,
-      "failure": ["No land-cover or climate data: a desert city and a wet one at the same latitude and height are tinted alike.", "A few lakes are missing or in pieces."]
+      "failure": ["The roof tint and the no-data ground are a rule, not data; no climate data is loaded.", "A few lakes are missing or in pieces."]
     },
     {
       "id": "seat-count-rule",

@@ -3,7 +3,7 @@
 // street and home here is generated: the only real inputs are the coarse population grid, the 50m
 // land mask and the populated-place weights, and real map layers have faded out before streets
 // fade in (below 26 m a pixel). The ground under them is tinted by tlTerrain (MODEL: ETOPO elevation,
-// latitude and shaded relief; no land-cover data).
+// latitude and shaded relief, and Copernicus LC100 2019 land cover where it answers).
 "use strict";
 const TL_TARGET = 60, TL_PPH = 2.5;           // P::TargetHouseholds, P::PersonsPerHousehold defaults
 const TL_MF = (EARTH_M * Math.PI / 180) / 111320; // layout metres (111,320 m a degree) to globe metres
@@ -92,8 +92,10 @@ const TL_ROAD = [[0.47, 0.49, 0.53], [0.47, 0.49, 0.52], [0.45, 0.47, 0.44], [0.
 // 27 at the equator, 0.42 less per degree of latitude beyond 12, 6.5 less per km of height.
 // It picks the ground's two tones (sparse and dense) from five bands, turns high ground to bare
 // rock from 2,200 m, and the shaded relief lights or darkens the slope. Homes take a paler roof in
-// the cold and the heat. No land-cover or climate data is loaded, so a desert and a forest at one
+// the cold and the heat. Without land cover (below), a desert and a forest at one
 // latitude and height look alike; the streets themselves are laid out the same way everywhere.
+// Where Copernicus LC100 land cover answers (docs/geo/geodata.js), its class's ground colour replaces
+// the band's two ground tones; the band rule stays for the roofs and where there is no land-cover data.
 const TL_BANDS = [ // [warmth, sparse ground, dense ground, roof multiplier]
   [-4, [0.2, 0.225, 0.27], [0.44, 0.47, 0.52], [1.2, 1.22, 1.3]],     // snow and ice
   [5, [0.105, 0.14, 0.145], [0.255, 0.3, 0.27], [1.04, 1.05, 1.08]],  // cold: moss and grey
@@ -112,8 +114,13 @@ function tlTerrain(la, lo){
   let g0 = tlMix3(A[1], B[1], t), g1 = tlMix3(A[2], B[2], t); const roof = tlMix3(A[3], B[3], t);
   const rock = 0.65 * sstep(2200, 4200, m) * sstep(-4, 2, warm); // bare high ground, below the snow
   g0 = tlMix3(g0, TL_ROCK[0], rock); g1 = tlMix3(g1, TL_ROCK[1], rock);
+  // real land cover where it answers (Copernicus LC100 2019, majority class per 1/8 or 1/2 degree, MEASURED):
+  // the class's ground colour (a display choice, MODEL) replaces the latitude / elevation rule, which still
+  // holds where there is no land-cover data (Antarctica, no input) and still gives the roofs
+  const L = typeof geoLandcoverAt === "function" ? geoLandcoverAt(la, lo) : null;
+  if (L && L.ground){ const b = L.ground.map((v) => v / 255); g0 = b.map((v) => v * 0.42); g1 = b.map((v) => v * 0.8); }
   const lit = Math.max(0.62, Math.min(1.32, 1 + (sh - 1) * 1.5));
-  return { g0: g0.map(v => v * lit), g1: g1.map(v => v * lit), roof, warm, m, lit, z: r ? r[2] : -1 };
+  return { g0: g0.map(v => v * lit), g1: g1.map(v => v * lit), roof, warm, m, lit, z: r ? r[2] : -1, lc: L ? L.code : -1 };
 }
 const tlGround = (T, t) => tlMix3(T.g0, T.g1, t);
 // A leaf's geometry, in the metres of its L3 tile's frame (one affine per tile, one draw per tile).
@@ -272,6 +279,7 @@ function tlJitter(v){ let x = Math.imul((v % 4294967296) >>> 0, 0x9e3779b1) ^ Ma
 function tlDraw(w, h, mpp, sun){
   sun = sun || [0, 0, 1];
   TL.on = !TL.disabled && tlReady() && !(microStory && !(M && M.leaf !== undefined)) && mpp < 400 && zoom >= 8; // the story's street is a leaf, tiled like any other
+  if (TL.on && !TL.lc1 && typeof geoLoad === "function"){ TL.lc1 = true; geoLoad("lc", 1); } // the 1/8-degree land cover, once streets are near
   if (!TL.on){ TL.drawn = TL.agg = TL.pending = 0; return; }
   tlGL(); const F = camFrame(), T = tlTree();
   if (T.B.size > TL_BUDGET_CAP) T.evict(4);
@@ -362,3 +370,5 @@ function tlMetrics(){
   const el = document.getElementById("s_tiling"); if (!el || frame % 15) return;
   const s = TL.stats(); el.textContent = s.on ? `ring ${s.ring}/${s.ringMax} px · ${s.fps} fps · ${s.leaves} leaves drawn, ${s.aggregate} aggregate, ${s.pending} queued · ${s.cached} cached (${s.mb} MB)` : "off (zoom to region scale)";
 }
+// the 1/2-degree land cover at load (18 kB); the street ground reads it through tlTerrain
+if (typeof geoLoad === "function") geoLoad("lc", 0);
