@@ -334,7 +334,7 @@ const HOL = { seed: 43, cells: null, names: null, cu: null, cf: null };
 const HOL_STATE = ["certified", "refused", "not evaluated"];
 window.CEWP_LAYERS["holon"] = layer({ id: "holon", title: "Where a coarse tier is trusted (certificates)", cls: "DERIVED", inputs: "MODEL",
   source: "view_holon(43) → view slots 11 cells, 12 bound index, 16 bound names, 13/14 certificate table (cewp_sim::holon_view cells_of, certificates_of over holon_demo::demonstration_seeded)",
-  contract: "twin-holon's R5 demonstration, run once per page (two 2-day runs, normal and outage): cells f32 × 8 (lat, lon, half-size°, level 0 the tier / 1 a cell, state 0 certified 1 refused 2 not evaluated, bound index, signed margin in online share, worst normalised defect on record 0). The cells are cells of a tier (host kind × access network), laid out as a patch centred 47.3769, 8.5417; the position is layout only, not a place. Glyph by state: certified solid square, refused crossed square, not evaluated dashed outline. Bound names come from the kernel (BOUND_NAMES). Certificate table: u32 × 9 and f32 × 20 per (tier, observable). DERIVED; the micro world under it is MODEL. A refusal is shown as a refusal: that cell goes back to the finer tier.",
+  contract: "twin-holon's R5 demonstration, run once per page (two 2-day runs, normal and outage): cells f32 × 8 (lat, lon, half-size°, level 0 the tier / 1 a cell, state 0 certified 1 refused 2 not evaluated, bound index, signed margin in online share, worst normalised defect on record 0). The cells are cells of a tier (host kind × access network), laid out as a patch centred 47.3769, 8.5417; the position is layout only, not a place. Glyph by state: certified solid square, refused crossed square, not evaluated dashed outline. Bound names come from the kernel (BOUND_NAMES). Certificate table: u32 × 9 and f32 × 20 per (tier, observable). DERIVED; the micro world under it is MODEL. A refusal is shown as a refusal: that cell goes back to the finer tier. Certified means the coarse tier held within budget over the twin's MODEL world, not the real mesh.",
   available: has("view_holon", "view_ptr"),
   compute(){
     if (HOL.cells) return; wasm.view_holon(HOL.seed); HOL.cells = VW(11); const B = VW(12), bytes = VW(16); const s = String.fromCharCode(...bytes);
@@ -343,7 +343,7 @@ window.CEWP_LAYERS["holon"] = layer({ id: "holon", title: "Where a coarse tier i
     let dist = 0; for (let r = 0; r < HOL.cu.length / 9; r++) dist += HOL.cu[r * 9 + 2];
     this.last = { cells: C.length / 8 - 1, certified: st[0], refused: st[1], not_evaluated: st[2], tier_state: C[4], tier_worst_defect: +C[7].toFixed(3), certificate_rows: HOL.cu.length / 9, distributional_certified_rows: dist };
     if (isFinite(C[6])) this.last.tier_min_margin = +C[6].toFixed(4); // NaN: a whole-tier bound has no distance
-    this.info = { tier_state: HOL_STATE[C[4]], tier_bound: C[5] >= 0 ? HOL.names[C[5]] : "none", binding_bounds: Object.entries(binds).map(([k, v]) => k + " " + v).join(", "), states: "0 certified, 1 refused, 2 not evaluated", label: "cells of a tier, not places" };
+    this.info = { tier_state: HOL_STATE[C[4]], tier_bound: C[5] >= 0 ? HOL.names[C[5]] : "none", binding_bounds: Object.entries(binds).map(([k, v]) => k + " " + v).join(", "), states: "0 certified, 1 refused, 2 not evaluated", label: "cells of a tier, not places", certified_means: "certified means the coarse tier held within budget over the twin's MODEL world, not the real mesh" };
   },
   onShow(){ later(this); },
   draw2D(g, F){
@@ -362,7 +362,7 @@ window.CEWP_LAYERS["holon"] = layer({ id: "holon", title: "Where a coarse tier i
       else { g.setLineDash([2, 3]); g.strokeStyle = "rgba(200,210,225,0.8)"; g.lineWidth = 1.2; g.stroke(); g.setLineDash([]); } }
     g.font = "600 11px " + MFONT; g.lineWidth = 3; g.strokeStyle = "rgba(6,9,14,0.9)"; g.strokeText("cells of a tier, not places", c1[0] - 80, c1[1] - 8); g.fillStyle = "#e8eef6"; g.fillText("cells of a tier, not places", c1[0] - 80, c1[1] - 8);
   },
-  status(){ const l = this.last; if (this.busy) return "running the tier demonstration once (two 2-day runs)…"; return l.cells !== undefined ? `■ ${l.certified} certified · ⊠ ${l.refused} refused · ⬚ ${l.not_evaluated} not evaluated of ${l.cells} cells · tier ${this.info.tier_state}${this.info.tier_bound !== "none" ? " (" + this.info.tier_bound + ")" : ""} · cells of a tier, not places` : "–"; } });
+  status(){ const l = this.last; if (this.busy) return "running the tier demonstration once (two 2-day runs)…"; return l.cells !== undefined ? `■ ${l.certified} certified · ⊠ ${l.refused} refused · ⬚ ${l.not_evaluated} not evaluated of ${l.cells} cells · tier ${this.info.tier_state}${this.info.tier_bound !== "none" ? " (" + this.info.tier_bound + ")" : ""} · cells of a tier, not places · certified means the coarse tier held within budget over the twin's MODEL world, not the real mesh` : "–"; } });
 
 // ------------------------------------------------------------------ Phase 2 contracts (not shown until the export exists)
 const CONTRACT = (id, title, cls, exp, contract) => layer({ id, title, cls, source: exp.join(", "), contract, available: has(...exp), pending: true });
