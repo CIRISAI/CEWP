@@ -254,14 +254,20 @@ failure regime (an outage moves phones to cellular, which is exactly the correla
 mean-field tier misses here); and per-class cells, so the trigger can send back the class that
 left, not the whole tier.
 
-**Globe view** (`holon_view.rs`, flat buffers, layouts in the doc comments):
-`fill_cells(report, header, u32, f32)` gives per coarse cell (host kind × access network) its
-certificate state against the Expected certificate for a live state with network 0 down: inside,
-refused by its own cell bound (sent back to the finer tier), or refused by a whole-tier bound;
-a bound bitmask (`bound_code`); device count; live occupancy and the certified occupancy range.
-`fill_certificates(report, u32, f32)` gives per (tier, observable) the distributional and
-mean-only verdicts, W1 and budget, and per level fine/coarse/defect/budget with a state (within,
-breach, unresolved). `view_scenario()` is the deterministic case (2 days per regime, the
-shortest horizon at which p99 clears the resolution floor). Coordinates: only the patch centre,
-a public city centre at coarse grain; cells are not places, and no device or household position
-leaves the module. Layout is pending `twin-globe`'s request and will follow it.
+**Globe view** (`holon_view.rs`, in the layout `twin-globe` asked for; strides, fields and a
+class per field in the doc comments). `holon_view_cells(seed) -> Vec<f32>`, stride 8:
+`[lat, lon, half, level, state, bound, margin, defect]`. Record 0 is the coarse tier as a whole
+(the patch square); records 1.. are the coarse cells. `state` is 0 certified inside the
+envelope, 1 refused (sent back to the finer tier), 2 not evaluated. `bound` indexes
+`BOUND_NAMES` (`holon_view_bounds()` gives the same table as numbers). `margin` is signed, in
+online share of the cell, 0 at the bound. `defect` on record 0 is the tier's measured worst
+normalised defect in the outage regime. `holon_view_certificates(seed)` gives the per (tier,
+observable) table with a state per level (within, breach, unresolved). The scenario is 2 days
+per regime; seed 43 is the reported one.
+
+Cells are (host kind × access network), not places: their devices are spread over the whole
+generated patch, at most 1.3 km across (`MicroWorld::half` is clamped to 70..650 m). They cannot align with the page's 1.5° grid
+or `tiling.rs` `HolonId` cells. The view lays them out as a grid of sub-squares inside the patch
+square (row = kind, column = network), class MODEL (a drawing choice). Coordinates: only the
+patch centre (a public city centre at coarse grain) and that layout; no device or household
+position leaves the module.

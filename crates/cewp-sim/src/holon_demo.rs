@@ -147,6 +147,8 @@ pub struct FineRun {
     pub horizon_s: i64,
     /// Workload parameter, rows per device-hour (3600 / `msg_mean_interval_s`).
     pub workload_fp: i64,
+    /// Half the patch side, metres (`MicroWorld::half`).
+    pub patch_half_m: f64,
     /// Per-cell online counts at the first cadence network 0 had been down for `SNAPSHOT_DOWN`
     /// cadences (outage runs only).
     pub down_snapshot: Option<Vec<u32>>,
@@ -173,9 +175,15 @@ fn homed(w: &MicroWorld, i: usize) -> bool {
 /// cadence. `outage` = true injects the correlated loss of access network 0.
 #[must_use]
 pub fn run_fine(horizon_s: f64, outage: bool) -> FineRun {
+    run_fine_seeded(horizon_s, outage, DEMO_SEED)
+}
+
+/// `run_fine` on another generated patch (`seed` builds the world and drives the outage chain).
+#[must_use]
+pub fn run_fine_seeded(horizon_s: f64, outage: bool, seed: u64) -> FineRun {
     let params = MicroParams::production_shape();
     let workload_fp = fp(3_600.0 / params.get(P::MsgMeanIntervalS));
-    let mut w = MicroWorld::build_at_density(DEMO_LAT, DEMO_LON, DEMO_DENSITY, DEMO_SEED, params);
+    let mut w = MicroWorld::build_at_density(DEMO_LAT, DEMO_LON, DEMO_DENSITY, seed, params);
     let topology = TopologyClass { density: w.class, serve_seats: w.seat_ids().len() as u32, homing_k: w.params.get(P::HomingK) as u32 };
     let elig: Vec<usize> = (0..w.nodes.len())
         .filter(|&i| !matches!(w.nodes[i].kind, HostKind::ServeSeat | HostKind::CiRunner) && w.rounds_with_seat(i))
@@ -195,7 +203,7 @@ pub fn run_fine(horizon_s: f64, outage: bool) -> FineRun {
     let hit: Vec<usize> = (0..w.nodes.len())
         .filter(|&i| matches!(w.nodes[i].kind, HostKind::HomeNode | HostKind::Laptop) && cell_of(&w, i).1 == Some(0))
         .collect();
-    let mut chain = Rng::new(DEMO_SEED ^ 0x07A6E);
+    let mut chain = Rng::new(seed ^ 0x07A6E);
     let mut down = false;
     let mut was_awake = vec![false; w.nodes.len()];
     w.step(WARMUP_S);
@@ -265,6 +273,7 @@ pub fn run_fine(horizon_s: f64, outage: bool) -> FineRun {
         regime,
         horizon_s: (cadences as f64 * ROUND_CADENCE_S) as i64,
         workload_fp,
+        patch_half_m: w.half,
         down_snapshot,
     }
 }
@@ -359,24 +368,36 @@ pub struct DemoReport {
     pub outage_gated: DistributionalCertificate,
     /// Using the Expected certificate in the outage regime.
     pub fence: Result<String, TransportRefusal>,
-    /// The trigger on a live outage-cadence coarse state against the Expected envelope.
-    pub trigger: RefinementVerdict,
+    /// The trigger on a live outage-cadence coarse state against the Expected envelope (`None`
+    /// if the outage run never stayed down `SNAPSHOT_DOWN` cadences, so there was no live state).
+    pub trigger: Option<RefinementVerdict>,
     /// Cadences with network 0 down / sampled.
     pub down: (u64, u64),
     /// The outage run's coarse cells (kind, network, devices, occupancy record).
     pub cells: Vec<CellObs>,
     /// The live coarse state the trigger judged.
-    pub live: LiveCoarseState,
+    pub live: Option<LiveCoarseState>,
+    /// Half the patch side, metres.
+    pub patch_half_m: f64,
 }
 
 /// Run the demonstration over `horizon_s` of sampled time per regime.
 #[must_use]
 pub fn demonstration(horizon_s: f64) -> DemoReport {
-    let normal = run_fine(horizon_s, false);
-    let broken = run_fine(horizon_s, true);
-    let expected = certify(&normal, &cohort_reduction(&normal), "R4c", 101);
-    let outage_mean_field = certify(&broken, &cohort_reduction(&broken), "R4c", 102);
-    let outage_gated = certify(&broken, &gated_reduction(&broken), "R4c+gate", 103);
+    demonstration_seeded(horizon_s, DEMO_SEED)
+}
+
+/// The demonstration on another generated patch. The regression numbers are `DEMO_SEED`'s; other
+/// seeds are not asserted on.
+#[must_use]
+pub fn demonstration_seeded(horizon_s: f64, seed: u64) -> DemoReport {
+    let normal = run_fine_seeded(horizon_s, false, seed);
+    let broken = run_fine_seeded(horizon_s, true, seed);
+    // coarse-draw seeds: 101..103 at DEMO_SEED, so the regression numbers are unchanged
+    let k = seed ^ DEMO_SEED;
+    let expected = certify(&normal, &cohort_reduction(&normal), "R4c", 101 ^ k);
+    let outage_mean_field = certify(&broken, &cohort_reduction(&broken), "R4c", 102 ^ k);
+    let outage_gated = certify(&broken, &gated_reduction(&broken), "R4c+gate", 103 ^ k);
     let at = OperatingPoint {
         population: broken.eligible as i64,
         workload_fp: broken.workload_fp,
@@ -388,13 +409,22 @@ pub fn demonstration(horizon_s: f64) -> DemoReport {
     // a live coarse state: one real cadence of the outage run, network 0 down for
     // SNAPSHOT_DOWN cadences, under the regime the operator still declares as Expected (the
     // trigger must find the outage from the cells alone)
-    let snap = broken.down_snapshot.clone().expect("the outage run saw a long enough outage");
-    let live = LiveCoarseState {
+    let live = broken.down_snapshot.as_ref().map(|snap| LiveCoarseState {
         at: OperatingPoint { regime: normal.regime, horizon_s: 3_600, ..at },
-        cells: broken.cells.iter().zip(&snap).map(|(c, &x)| (c.id(), x as i64 * FP_ONE / i64::from(c.n.max(1)))).collect(),
-    };
-    let trigger = refinement_trigger(&expected.envelope, &live);
-    DemoReport { expected, outage_mean_field, outage_gated, fence, trigger, down: (broken.down_cadences, broken.cadences), cells: broken.cells, live }
+        cells: broken.cells.iter().zip(snap).map(|(c, &x)| (c.id(), x as i64 * FP_ONE / i64::from(c.n.max(1)))).collect(),
+    });
+    let trigger = live.as_ref().map(|l| refinement_trigger(&expected.envelope, l));
+    DemoReport {
+        expected,
+        outage_mean_field,
+        outage_gated,
+        fence,
+        trigger,
+        down: (broken.down_cadences, broken.cadences),
+        patch_half_m: broken.patch_half_m,
+        cells: broken.cells,
+        live,
+    }
 }
 
 /// A fine state for the witness: online flag per eligible device, with its (kind, network).
@@ -549,7 +579,7 @@ mod tests {
         }
         // a live state with network 0 down leaves the Expected envelope in exactly network 0's
         // cells, even when the operator still calls the regime Expected
-        match &r.trigger {
+        match r.trigger.as_ref().expect("the 4-day outage run has a live state") {
             RefinementVerdict::Refine { broken, refine_cells } => {
                 assert!(broken.iter().all(|b| !b.is_global()), "{broken:?}");
                 assert!(refine_cells.iter().all(|c| c.0.ends_with("/net0")), "{refine_cells:?}");
