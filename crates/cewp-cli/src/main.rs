@@ -959,6 +959,7 @@ fn print_help() {
     println!("Options / Subcommands:");
     println!("  all, --all            Run all 6 pipeline phases and emit docs/kernel/tables/evidence_bundle.json");
     println!("  --emit-bundle <PATH>  Serialize complete evidence_bundle.json to file");
+    println!("  netgraph [SEED]       Print the MODEL stand-in AS topology report (not real data)");
     println!("  --help, -h            Print this help text");
 }
 
@@ -971,6 +972,13 @@ fn main() {
         match args[i].as_str() {
             "--help" | "-h" => {
                 print_help();
+                return;
+            }
+            "netgraph" => {
+                // MODEL stand-in AS topology report (FSD/twin/topology.md); optional seed
+                let seed = args.get(i + 1).and_then(|s| s.parse().ok()).unwrap_or(7);
+                let g = cewp_sim::netgraph::generate(seed, &cewp_sim::netgraph::NetParams::default());
+                print!("{}", cewp_sim::netgraph::report(&g));
                 return;
             }
             "all" | "--all" => {
