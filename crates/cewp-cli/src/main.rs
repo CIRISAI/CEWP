@@ -964,6 +964,7 @@ fn print_help() {
     println!("  netgraph [SEED]       Print the MODEL stand-in AS topology report (not real data)");
     println!("  people [--persons N] [--days D] [--sweep-days D] [--seed S] [--geo PATH|stand-in]");
     println!("                        Social graph, bursty workload and emergent locality report (FSD/twin/people.md)");
+    println!("  holon-demo [SECONDS]  Distributional holon certificate on the R5 micro tier (FSD/twin/holon.md)");
     println!("  --help, -h            Print this help text");
 }
 
@@ -1009,6 +1010,13 @@ fn main() {
                 if emit_path.is_none() {
                     emit_path = Some("docs/kernel/tables/evidence_bundle.json".to_string());
                 }
+            }
+            "holon-demo" => {
+                // FSD/twin/holon.md §5: distributional certificate on the R5 tier (optional
+                // horizon in seconds per regime; default 4 days, as the regression test)
+                let h = args.get(i + 1).and_then(|x| x.parse::<f64>().ok()).unwrap_or(4.0 * 86_400.0);
+                print!("{}", cewp_sim::holon_demo::report(h));
+                return;
             }
             "--emit-bundle" => {
                 if i + 1 < args.len() {
