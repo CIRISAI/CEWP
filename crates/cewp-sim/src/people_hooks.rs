@@ -14,6 +14,7 @@
 //!    address), all persons generated.
 
 use crate::activity::{Act, ActivityParams, Generator, Process, Reach, SyncEvent};
+pub use crate::activity::rhythm;
 use crate::micro::HostKind;
 use crate::social::{Geography, Placement, Scope, SocialParams, SocialWorld, TieGraph, NO_ROOM};
 
@@ -370,6 +371,131 @@ pub fn view_flash(w: &SocialWorld, p: &ActivityParams, seed: u64, event: SyncEve
     c.into_iter().map(|x| x as f32).collect()
 }
 
+// ------------------------------------------------------------------ the layout `twin-globe` asked for
+
+/// Persons in the globe's scenario world (MODEL size, chosen so a week's run stays small:
+/// about persons × 180 acts/day × 7 acts).
+pub const GLOBE_PERSONS: usize = 6000;
+
+/// Field classes, as `twin-globe` numbers them.
+pub const CLASS_MEASURED: f32 = 0.0;
+/// DERIVED.
+pub const CLASS_DERIVED: f32 = 1.0;
+/// MODEL.
+pub const CLASS_MODEL: f32 = 2.0;
+/// FRONTIER.
+pub const CLASS_FRONTIER: f32 = 4.0;
+
+fn globe_world(grid: &[u8], seed: u64) -> Option<(Geography, SocialWorld)> {
+    let geo = Geography::from_pop_grid(grid).ok()?;
+    let w = globe_scenario(&geo, GLOBE_PERSONS, seed);
+    Some((geo, w))
+}
+
+/// Locality points. `grid` is the decoded `POP_GRID_B64` bytes of `docs/globe.js`; empty on a
+/// bad grid. Stride 3 per locality `k`: `lat_deg` (DERIVED: population-weighted centroid of the
+/// grid cells), `lon_deg` (DERIVED), `population_weight` (DERIVED: share of grid weight, sums
+/// to 1). Needs no seed; `seed` is accepted for a uniform signature.
+#[must_use]
+pub fn people_view_localities(grid: &[u8], _seed: u64) -> Vec<f32> {
+    Geography::from_pop_grid(grid).map(|g| view_localities(&g)).unwrap_or_default()
+}
+
+/// Activity across the week, row-major `[k * 168 + h]`, locality `k`, UTC hour of week `h`
+/// (hour 0 = Monday 00:00 UTC). Value: a MULTIPLIER, acts signed by the locality's persons in
+/// that hour per person over the mean hourly rate (1.0 = an average hour); class MODEL (output
+/// of a one-week bursty run of `GLOBE_PERSONS` generated persons). The clock is UTC: a
+/// locality's own evening peak sits at its longitude's offset. Small localities are noisy.
+#[must_use]
+pub fn people_view_week(grid: &[u8], seed: u64) -> Vec<f32> {
+    let Some((_, w)) = globe_world(grid, seed) else { return Vec::new() };
+    let l = w.localities();
+    let hk = view_week_intensity(&w, &ActivityParams::default(), seed);
+    let mut out = vec![0.0f32; l * WEEK_HOURS];
+    for h in 0..WEEK_HOURS {
+        for k in 0..l {
+            out[k * WEEK_HOURS + h] = hk[h * l + k];
+        }
+    }
+    out
+}
+
+/// Cross-locality ties. Stride 3: `locality_a`, `locality_b` (`a < b`), `ties` (count of
+/// person-to-person relationships between them in the generated graph; class MODEL). Sorted by
+/// ties descending then `(a, b)`. Indices match `people_view_localities`.
+#[must_use]
+pub fn people_view_ties(grid: &[u8], seed: u64) -> Vec<u32> {
+    let Some((_, w)) = globe_world(grid, seed) else { return Vec::new() };
+    let g = w.ties(&SocialParams::default(), seed);
+    let mut pairs: Vec<u64> = Vec::new();
+    for i in 0..w.persons.len() {
+        let li = w.persons[i].locality;
+        for &j in g.nb(i) {
+            let lj = w.persons[j as usize].locality;
+            if (j as usize) > i && li != lj {
+                let (a, b) = if li < lj { (li, lj) } else { (lj, li) };
+                pairs.push((u64::from(a) << 16) | u64::from(b));
+            }
+        }
+    }
+    pairs.sort_unstable();
+    let mut agg: Vec<(u32, u64)> = Vec::new();
+    for x in pairs {
+        match agg.last_mut() {
+            Some(last) if last.1 == x => last.0 += 1,
+            _ => agg.push((1, x)),
+        }
+    }
+    agg.sort_by(|p, q| q.0.cmp(&p.0).then(p.1.cmp(&q.1)));
+    agg.into_iter().flat_map(|(n, key)| [(key >> 16) as u32, (key & 0xFFFF) as u32, n]).collect()
+}
+
+/// Synchronized events of one week. Stride 6 per event: `lat_deg`, `lon_deg` (centroid of the
+/// reached locality or region, population-weighted; NaN for a world-wide event), `start_hour`,
+/// `peak_hour`, `end_hour` (fractional UTC hours of week; peak = onset, end = onset + 5 decay
+/// times, past which under 1% of its acts remain), `peak_multiplier` (DERIVED from FRONTIER
+/// event inputs: 1 + the event's expected acts in its first hour per reached person, cascade
+/// replies included, over the mean hourly rate). Holds the staged flash crowd
+/// (`flash_scenario` at Wednesday 20:30 UTC) first, then the background schedule's region-
+/// and world-wide events in onset order (locality events are too many to draw; omitted).
+#[must_use]
+pub fn people_view_flash(grid: &[u8], seed: u64) -> Vec<f32> {
+    let Some((geo, w)) = globe_world(grid, seed) else { return Vec::new() };
+    let p = ActivityParams::default();
+    let pts = view_localities(&geo);
+    let l = w.localities();
+    let mut reg = vec![[0.0f64; 4]; w.region_of_locality.iter().map(|&g| g as usize + 1).max().unwrap_or(1)];
+    for k in 0..l {
+        let (la, lo, wt) = (f64::from(pts[3 * k]).to_radians(), f64::from(pts[3 * k + 1]).to_radians(), f64::from(pts[3 * k + 2]));
+        let a = &mut reg[w.region_of_locality[k] as usize];
+        a[0] += wt * la.cos() * lo.cos();
+        a[1] += wt * la.cos() * lo.sin();
+        a[2] += wt * la.sin();
+        a[3] += wt;
+    }
+    let at = |a: [f64; 4]| -> (f32, f32) { (a[2].atan2((a[0] * a[0] + a[1] * a[1]).sqrt()).to_degrees() as f32, a[1].atan2(a[0]).to_degrees() as f32) };
+    let week = WEEK_HOURS as f64 * 3600.0;
+    let mut evs = vec![flash_scenario(&w, 2.0 * 86_400.0 + 20.5 * 3600.0)];
+    let mut bg: Vec<SyncEvent> = Generator::new(&w, &p, seed).events(week, seed).into_iter().filter(|e| !matches!(e.reach, Reach::Locality(_))).collect();
+    bg.sort_by(|a, b| a.t0.partial_cmp(&b.t0).unwrap());
+    evs.extend(bg);
+    let hourly = p.acts_per_person_day / 24.0;
+    let cascade = 1.0 / (1.0 - p.branching.clamp(0.0, 0.99));
+    let mut out = Vec::with_capacity(6 * evs.len());
+    for e in evs {
+        let (lat, lon) = match e.reach {
+            Reach::Locality(k) => (pts[3 * k as usize], pts[3 * k as usize + 1]),
+            Reach::Region(g) => at(reg[g as usize]),
+            Reach::World => (f32::NAN, f32::NAN),
+        };
+        let first_hour = 1.0 - (-3600.0 / e.decay_s.max(1e-9)).exp();
+        let mult = 1.0 + e.participation * e.acts_per_participant * first_hour * cascade / hourly.max(1e-12);
+        let h0 = e.t0 / 3600.0;
+        out.extend_from_slice(&[lat, lon, h0 as f32, h0 as f32, (h0 + 5.0 * e.decay_s / 3600.0) as f32, mult as f32]);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -453,5 +579,24 @@ mod tests {
         let before: f32 = (0..10).map(|f| signed(f, true)).sum::<f32>() / 10.0;
         let after: f32 = (10..15).map(|f| signed(f, true)).sum::<f32>() / 5.0;
         assert!(after > 3.0 * before.max(1.0), "before {before} after {after}");
+    }
+
+    #[test]
+    fn globe_layout_strides_on_the_page_grid() {
+        let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/globe.js")).unwrap();
+        let key = "POP_GRID_B64=\"";
+        let a = src.find(key).unwrap() + key.len();
+        let b = a + src[a..].find('"').unwrap();
+        let grid = crate::social::base64_decode(&src[a..b]).unwrap();
+        let pts = people_view_localities(&grid, 1);
+        assert_eq!(pts.len(), 3 * 181);
+        let ties = people_view_ties(&grid, 1);
+        assert_eq!(ties.len() % 3, 0);
+        assert!(ties.chunks(3).all(|t| t[0] < t[1] && t[1] < 181 && t[2] > 0));
+        let fl = people_view_flash(&grid, 1);
+        assert_eq!(fl.len() % 6, 0);
+        assert!(fl.len() >= 6 && fl[2] > 0.0 && fl[5] > 1.0, "{:?}", &fl[..6.min(fl.len())]);
+        assert_eq!(fl, people_view_flash(&grid, 1));
+        assert!(people_view_week(&[], 1).is_empty());
     }
 }

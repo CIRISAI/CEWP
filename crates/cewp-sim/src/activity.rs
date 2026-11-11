@@ -229,6 +229,29 @@ pub struct SyncEvent {
     pub decay_s: f64,
 }
 
+fn weekday(p: &ActivityParams, t_local: f64) -> usize {
+    ((t_local / 86_400.0).floor() as i64 + i64::from(p.start_weekday)).rem_euclid(7) as usize
+}
+
+/// Rate multiplier at local solar seconds `t_local` (0 = the run's first local midnight):
+/// diurnal × weekly, mean 1 over a week. Under `Process::Poisson` this is today's law
+/// (`workload::compute_arrival_rate`, one act per event, so `diurnal_multiplier`); under
+/// `Process::Bursty` the weekday weight multiplies it and weekends shift it later.
+#[must_use]
+pub fn rhythm(p: &ActivityParams, t_local: f64) -> f64 {
+    if p.flat_rhythm {
+        return 1.0;
+    }
+    match p.process {
+        Process::Poisson => compute_arrival_rate(86_400.0, 1.0, t_local),
+        Process::Bursty => {
+            let dow = weekday(p, t_local);
+            let shift = if dow >= 5 { p.weekend_shift_h * 3600.0 } else { 0.0 };
+            p.weekly[dow] * compute_arrival_rate(86_400.0, 1.0, t_local - shift)
+        }
+    }
+}
+
 /// Generator state over one world.
 #[derive(Debug, Clone)]
 pub struct Generator<'a> {
@@ -308,24 +331,13 @@ impl<'a> Generator<'a> {
     }
 
     fn weekday(&self, t_local: f64) -> usize {
-        ((t_local / 86_400.0).floor() as i64 + i64::from(self.p.start_weekday)).rem_euclid(7) as usize
+        weekday(&self.p, t_local)
     }
 
-    /// Rate multiplier at local time (diurnal × weekly, mean 1 over a week).
+    /// Rate multiplier at local time (diurnal × weekly, mean 1 over a week): `rhythm(p, t_local)`.
     #[must_use]
     pub fn rhythm(&self, t_local: f64) -> f64 {
-        if self.p.flat_rhythm {
-            return 1.0;
-        }
-        match self.p.process {
-            // today's law: `workload::compute_arrival_rate` with one act per event
-            Process::Poisson => compute_arrival_rate(86_400.0, 1.0, t_local),
-            Process::Bursty => {
-                let dow = self.weekday(t_local);
-                let shift = if dow >= 5 { self.p.weekend_shift_h * 3600.0 } else { 0.0 };
-                self.p.weekly[dow] * compute_arrival_rate(86_400.0, 1.0, t_local - shift)
-            }
-        }
+        rhythm(&self.p, t_local)
     }
 
     fn work_affinity(&self, t_local: f64) -> f64 {
