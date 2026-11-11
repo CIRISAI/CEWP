@@ -41,6 +41,13 @@ under correction reads "under correction" after the figure.
    outside a figure fails unless its token is a citation (CC/FSD section, issue, version, commit,
    tier name) or a name in `NON_FIGURES`; a `${…}` interpolation outside `fig()` fails unless it
    reads only identifiers in `LABEL_IDENTS`.
+4. Every globe layer a file in `docs/layers/` registers as
+   `window.CEWP_LAYERS["<id>"] = { id: "<id>", cls: "<CLASS>", source, contract, last }` (the
+   contract agreed with the `globe` package) has a ledger entry `layer-<id>` of the same class, and
+   every `layer-*` entry names a registered layer. On the page, a layer chip's class tag
+   (`<button data-layer-claim="<id>">`) opens that entry with the layer's own source, contract and
+   the values it drew in the current frame (`last`, refreshed every 0.5 s while the card is open).
+   A registered class that disagrees with the ledger is shown on the card as a mismatch.
 
 The scan cannot see: numbers spelled out in words; numbers joined with `+` into a string outside a
 `fig()` (the scanned regions use templates so that this does not happen); `title=` tooltips; canvas

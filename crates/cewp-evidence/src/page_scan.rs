@@ -13,6 +13,9 @@
 //! 1. a `data-claim` / `fig()` id with no ledger entry, and a ledger entry the page never shows;
 //! 2. an element written with `.textContent` / `.innerHTML` that carries no claim (unless it is a
 //!    control listed in [`UI_IDS`] with its reason);
+//! 4. a globe layer (`docs/layers/*.js`, registered as `window.CEWP_LAYERS["<id>"] = { id: "<id>", cls: "<CLASS>", … }`)
+//!    without a ledger entry `layer-<id>`, or whose declared class differs from that entry's class,
+//!    and a `layer-*` entry no layer registers;
 //! 3. inside the regions marked `// evidence:scan` … `// evidence:end` in `globe.js` and
 //!    `evidence.js`: a digit in
 //!    visible text outside a figure, unless its token is a name listed in [`NON_FIGURES`] or a
@@ -119,6 +122,91 @@ pub fn claim_refs(src: &str) -> Vec<(String, usize)> {
                 from = s + e;
             } else {
                 break;
+            }
+        }
+    }
+    out
+}
+
+/// The globe layers a script registers: `CEWP_LAYERS["<id>"] = { id: "<id>", cls: "<CLASS>", … }`.
+/// Returns (key, id field, cls field, offset); a field that is not a string literal comes back empty.
+#[must_use]
+pub fn layer_regs(src: &str) -> Vec<(String, String, String, usize)> {
+    let mut out = Vec::new();
+    let mut from = 0;
+    while let Some(p) = src[from..].find("CEWP_LAYERS[") {
+        let at = from + p;
+        let k = at + "CEWP_LAYERS[".len();
+        from = k;
+        let key = lit_at(src, k).unwrap_or_default();
+        // only an assignment registers: `] = {`
+        let Some(close) = src[k..].find(']') else { break };
+        let rest = src[k + close + 1..].trim_start();
+        if !rest.starts_with('=') || rest.starts_with("==") {
+            continue;
+        }
+        let Some(open) = src[k + close..].find('{').map(|o| k + close + o) else { break };
+        let end = balanced_end(src, open, src.len(), b'{', b'}');
+        let body = &src[open..end];
+        let field = |name: &str| -> String {
+            for sep in [": ", ":"] {
+                let pat = format!("{name}{sep}");
+                let mut f = 0;
+                while let Some(q) = body[f..].find(&pat) {
+                    let i = f + q;
+                    let before = body[..i].chars().next_back().unwrap_or(' ');
+                    if !(before.is_ascii_alphanumeric() || before == '_') {
+                        return lit_at(body, i + pat.len()).unwrap_or_default();
+                    }
+                    f = i + pat.len();
+                }
+            }
+            String::new()
+        };
+        out.push((key, field("id"), field("cls"), at));
+        from = end.max(k);
+    }
+    out
+}
+
+/// The string literal starting at `i` (`"…"` or `'…'`), if there is one.
+fn lit_at(src: &str, i: usize) -> Option<String> {
+    let q = *src.as_bytes().get(i)?;
+    if q != b'"' && q != b'\'' {
+        return None;
+    }
+    let e = src[i + 1..].find(q as char)?;
+    Some(src[i + 1..i + 1 + e].to_string())
+}
+
+/// Findings for the globe layers in `layers` (file name, source).
+#[must_use]
+pub fn check_layers(layers: &[(String, String)]) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for (f, s) in layers {
+        for (key, id, cls, at) in layer_regs(s) {
+            let line = line_of(s, at);
+            let mut bad = |what: String| out.push(Finding { file: f.clone(), line, what });
+            if key.is_empty() || id.is_empty() || cls.is_empty() {
+                bad("layer registration needs string literals for its key, `id:` and `cls:`".into());
+                continue;
+            }
+            if key != id {
+                bad(format!("layer registered as '{}' declares id '{}'", key, id));
+            }
+            seen.insert(id.clone());
+            match crate::page_ledger::lookup(&format!("layer-{}", id)) {
+                None => bad(format!("layer '{}' has no ledger entry 'layer-{}'", id, id)),
+                Some(c) if c.class.as_str() != cls => bad(format!("layer '{}' declares {} but its ledger entry says {}", id, cls, c.class.as_str())),
+                Some(_) => {}
+            }
+        }
+    }
+    for c in PAGE_CLAIMS {
+        if let Some(id) = c.id.strip_prefix("layer-") {
+            if !seen.contains(id) {
+                out.push(Finding { file: "layers/".into(), line: 0, what: format!("ledger entry '{}' names a layer no file in docs/layers registers", c.id) });
             }
         }
     }
@@ -546,7 +634,7 @@ pub fn check_page(docs: &std::path::Path) -> Vec<Finding> {
         }
     }
     for c in PAGE_CLAIMS {
-        if !seen.contains(c.id) {
+        if !seen.contains(c.id) && !c.id.starts_with("layer-") {
             out.push(Finding { file: "globe.js".into(), line: 0, what: format!("ledger entry '{}' is not shown anywhere on the page", c.id) });
         }
     }
@@ -569,6 +657,17 @@ pub fn check_page(docs: &std::path::Path) -> Vec<Finding> {
     }
     out.extend(scan_figures(globe, "globe.js"));
     out.extend(scan_figures(&files[2].1, "evidence/evidence.js"));
+    // 4. globe layers
+    let mut layers = Vec::new();
+    if let Ok(rd) = std::fs::read_dir(docs.join("layers")) {
+        let mut names: Vec<_> = rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.ends_with(".js")).collect();
+        names.sort();
+        for n in names {
+            let f = format!("layers/{}", n);
+            layers.push((f.clone(), read(&f)));
+        }
+    }
+    out.extend(check_layers(&layers));
     out
 }
 
@@ -621,6 +720,18 @@ mod tests {
         assert_eq!(w.iter().map(|(i, _)| i.as_str()).collect::<Vec<_>>(), ["a", "b"]);
         assert!(opening_tag(src, "a").unwrap().contains("data-claim"));
         assert!(!opening_tag(src, "b").unwrap().contains("data-claim"));
+    }
+
+    #[test]
+    fn page_scan_layers_need_an_entry_of_their_class() {
+        let src = "window.CEWP_LAYERS[\"cohort-load\"] = { id: \"cohort-load\", title: \"Load\", cls: \"MODEL\", last: {} };\nif (CEWP_LAYERS[\"x\"] === 1) {}\nwindow.CEWP_LAYERS[k] = { id: k, cls: \"MODEL\" };";
+        let r = layer_regs(src);
+        assert_eq!(r.len(), 2, "{:?}", r);
+        assert_eq!((r[0].0.as_str(), r[0].1.as_str(), r[0].2.as_str()), ("cohort-load", "cohort-load", "MODEL"));
+        assert!(r[1].0.is_empty() && r[1].1.is_empty());
+        let found: Vec<String> = check_layers(&[("layers/t.js".into(), src.into())]).into_iter().map(|f| f.what).collect();
+        assert!(found.iter().any(|w| w.contains("no ledger entry 'layer-cohort-load'")), "{:?}", found);
+        assert!(found.iter().any(|w| w.contains("string literals")), "{:?}", found);
     }
 
     #[test]

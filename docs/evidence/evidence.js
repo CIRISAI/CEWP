@@ -27,10 +27,10 @@ function evDecorate(root){
   }
 }
 function evField(label, value, code){ return value ? `<div class="ev-f"><span>${label}</span>${code ? `<code>${evEsc(value)}</code>` : `<p>${evEsc(value)}</p>`}</div>` : ""; }
-function evOpen(id, opener){
+function evOpen(id, opener, extra){
   const c = EV.by.get(id), card = document.getElementById("claim-card"); if (!card) return;
-  EV.opener = opener || null;
-  if (!c){ card.innerHTML = `<div class="panel-head"><b id="claim-title">No ledger entry: ${evEsc(id)}</b><button class="panel-close" id="claim-x" type="button" aria-label="Close">✕</button></div>`; }
+  EV.opener = opener || null; EV.layer = null;
+  if (!c){ card.innerHTML = `<div class="panel-head"><b id="claim-title">No ledger entry: ${evEsc(id)}</b><button class="panel-close" id="claim-x" type="button" aria-label="Close">✕</button></div>${extra || ""}`; }
   else {
     const k = EV.cls.get(c.class) || { means: "" };
     const iv = c.interval ? `[${c.interval.lo}, ${c.interval.hi}] ${c.interval.what}` : "";
@@ -46,11 +46,34 @@ function evOpen(id, opener){
       ${evField("What is missing", c.blocker)}
       <div class="ev-f"><span>Known failure conditions</span><ul>${c.failure.map(f => `<li>${evEsc(f)}</li>`).join("")}</ul></div>
       ${evField("Reproduce", c.reproduce, true)}
+      ${extra || ""}
       <div class="ev-foot"><code>${evEsc(c.id)}</code> · <button type="button" class="ev-link" data-ev-open>legend, tier and full ledger</button></div>`;
   }
   card.classList.remove("panel-hidden");
   document.getElementById("claim-x").onclick = evClose;
   card.focus({ preventScroll: true });
+}
+// a globe layer (docs/layers/*.js registers window.CEWP_LAYERS[id] = { id, title, cls, source, contract, last }):
+// its ledger entry is layer-<id>; the card adds what the layer itself declares and the values it drew this frame
+function evLayerLive(id){
+  const r = (window.CEWP_LAYERS || {})[id];
+  if (!r) return `<div class="ev-f"><span>Layer</span><p>Not registered on this page.</p></div>`;
+  const c = EV.by.get("layer-" + id), last = r.last && typeof r.last === "object" ? Object.entries(r.last) : [];
+  const vals = last.length ? `<ul>${last.map(([k, v]) => `<li><code>${evEsc(k)}</code> ${evEsc(typeof v === "number" ? +v.toPrecision(4) : v)}</li>`).join("")}</ul>` : "<p>Nothing drawn yet.</p>";
+  return `${c && r.cls !== c.class ? `<p class="ev-corr"><b>Class mismatch.</b> The layer declares ${evEsc(r.cls)}; its ledger entry says ${evEsc(c.class)}.</p>` : ""}
+    ${evField("Layer", r.title || id)}${evField("Draws from", r.source, true)}${evField("Data contract", r.contract)}
+    <div class="ev-f" data-ev-live><span>Values drawn this frame</span>${vals}</div>`;
+}
+function evOpenLayer(id, opener){
+  evOpen("layer-" + id, opener, evLayerLive(id)); EV.layer = id;
+}
+function evLayerTick(){
+  const card = document.getElementById("claim-card");
+  if (!EV.layer || !card || card.classList.contains("panel-hidden")) return;
+  const r = (window.CEWP_LAYERS || {})[EV.layer], box = card.querySelector("[data-ev-live]");
+  if (!r || !box || box.contains(document.activeElement)) return;
+  const n = document.createElement("div"); n.innerHTML = evLayerLive(EV.layer);
+  const fresh = n.querySelector("[data-ev-live]"); if (fresh && fresh.innerHTML !== box.innerHTML) box.innerHTML = fresh.innerHTML;
 }
 function evClose(){
   const card = document.getElementById("claim-card"); if (!card || card.classList.contains("panel-hidden")) return;
@@ -132,7 +155,8 @@ function evInit(){
   addEventListener("click", e => { if (EV.swallow && performance.now() - EV.swallow < 600){ EV.swallow = 0; e.preventDefault(); e.stopPropagation(); } }, true);
   addEventListener("click", e => {
     const o = e.target.closest && e.target.closest("[data-ev-open]"); if (o){ e.preventDefault(); evClose(); evPanel(true); return; }
-    const it = e.target.closest && e.target.closest("[data-ev-claim]"); if (it) evOpen(it.getAttribute("data-ev-claim"), it);
+    const it = e.target.closest && e.target.closest("[data-ev-claim]"); if (it){ evOpen(it.getAttribute("data-ev-claim"), it); return; }
+    const ly = e.target.closest && e.target.closest("[data-layer-claim]"); if (ly){ e.preventDefault(); e.stopPropagation(); evOpenLayer(ly.getAttribute("data-layer-claim"), ly); }
   });
   addEventListener("keydown", e => {
     if (e.key === "Escape"){ const c = document.getElementById("claim-card"); if (c && !c.classList.contains("panel-hidden")) evClose(); else evPanel(false); return; }
@@ -140,6 +164,6 @@ function evInit(){
     const f = e.target.closest && e.target.closest("[data-claim]:not(.fig-inert)");
     if (f && f === e.target){ e.preventDefault(); evOpen(f.getAttribute("data-claim"), f); }
   });
-  evTier(); setInterval(() => evTier(false), 500);
+  evTier(); setInterval(() => { evTier(false); evLayerTick(); }, 500);
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", evInit); else setTimeout(evInit, 0);
