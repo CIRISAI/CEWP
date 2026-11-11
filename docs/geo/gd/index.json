@@ -1,5 +1,95 @@
 {
  "grid": "equal-angle, cell-centred, row 0 at the north; cell (r, c) covers lat 90-(r+1)s..90-r*s, lon -180+c*s..-180+(c+1)*s; level 0 s = 1/2 degree (720 x 360), level 1 s = 1/8 degree (2880 x 1440); row-major, gzip",
+ "landcover": {
+  "citation": "Buchhorn, M.; Smets, B.; Bertels, L.; De Roo, B.; Lesiv, M.; Tsendbazar, N.-E.; Herold, M.; Fritz, S. (2020). Copernicus Global Land Service: Land Cover 100m: collection 3: epoch 2019: Globe (Version V3.0.1) [Data set]. Zenodo. doi:10.5281/zenodo.3939050",
+  "levels": [
+   {
+    "bytes_gz": 18245,
+    "bytes_raw": 259200,
+    "encoding": "uint8 LC100 code of the majority land class (200 = no land pixel, sea; 0 = no input data; 255 = outside the product)",
+    "file": "lc0.bin.gz",
+    "nx": 720,
+    "ny": 360,
+    "step_deg": 0.5
+   },
+   {
+    "bytes_gz": 199878,
+    "bytes_raw": 4147200,
+    "encoding": "as level 0",
+    "file": "lc1.bin.gz",
+    "nx": 2880,
+    "ny": 1440,
+    "step_deg": 0.125
+   }
+  ],
+  "licence": "CC BY 4.0; Contains modified Copernicus Service information 2020",
+  "source": "Copernicus Global Land Service Land Cover 100 m, collection 3, epoch 2019, V3.0.1, discrete classification (PROBAV_LC100_global_v3.0.1_2019-nrt_Discrete-Classification-map_EPSG-4326.tif)",
+  "stats": {
+   "land_pixel_share_by_code": {
+    "100": 0.02107,
+    "111": 0.06225,
+    "112": 0.08017,
+    "113": 0.03071,
+    "114": 0.04285,
+    "115": 0.01554,
+    "116": 0.03935,
+    "121": 0.00487,
+    "122": 0.00371,
+    "123": 0.00033,
+    "124": 0.01464,
+    "125": 0.00126,
+    "126": 0.06552,
+    "20": 0.07332,
+    "30": 0.22569,
+    "40": 0.10004,
+    "50": 0.00795,
+    "60": 0.12703,
+    "70": 0.03233,
+    "80": 0.02859,
+    "90": 0.02279
+   },
+   "level1_cells_by_code": {
+    "0": 7063,
+    "100": 25224,
+    "111": 81858,
+    "112": 94634,
+    "113": 37094,
+    "114": 48695,
+    "115": 13296,
+    "116": 21551,
+    "121": 489,
+    "122": 351,
+    "123": 4,
+    "124": 11333,
+    "125": 19,
+    "126": 36896,
+    "20": 64444,
+    "200": 2209996,
+    "255": 921600,
+    "30": 246960,
+    "40": 115532,
+    "50": 4458,
+    "60": 124626,
+    "70": 32615,
+    "80": 25294,
+    "90": 23168
+   },
+   "origin": [
+    -180.0,
+    80.0
+   ],
+   "pixel_deg": [
+    0.0009920634920634888,
+    0.0009920634920634888
+   ],
+   "pixels_counted": 51209625600,
+   "pixels_unknown_code": 13088,
+   "product_rows_lat": [
+    80.0,
+    -59.999999999999545
+   ]
+  }
+ },
  "population": {
   "citation": "Schiavina, Marcello; Freire, Sergio; Carioli, Alessandra; MacManus, Kytt (2023): GHS-POP R2023A - GHS population grid multitemporal (1975-2030). European Commission, Joint Research Centre (JRC). doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE",
   "levels": [

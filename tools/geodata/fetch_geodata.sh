@@ -15,13 +15,28 @@
 set -euo pipefail
 ROOT=${1:?usage: fetch_geodata.sh <raw_root>}
 
+# get: one transfer that resumes (-C -) after a stall; a transfer under 10 kB/s for 120 s is a stall
+# (the Zenodo transfer stalled once, for an hour, at 1.30 GB of 1.71 GB, on 2026-11-11).
+get() { # dir url file maxbytes
+  local d=$1 u=$2 f=$3 max=$4 n
+  for n in 1 2 3 4 5 6; do
+    curl --fail --location --silent --show-error --proto '=https' --max-filesize "$max" \
+      --speed-limit 10000 --speed-time 120 -C - -o "$d/$f" "$u" && return 0
+    echo "transfer $n of $f stopped at $(stat -c %s "$d/$f" 2>/dev/null) bytes; resuming"
+  done
+  return 1
+}
+manifest() { # dir url file
+  local d=$1 u=$2 f=$3
+  printf 'url\tbytes\tsha256\n%s\t%s\t%s\n' "$u" "$(stat -c %s "$d/$f")" "$(sha256sum "$d/$f" | cut -d' ' -f1)" > "$d/manifest.tsv"
+  cat "$d/manifest.tsv"
+}
 fetch() { # dir url file maxbytes
   local d=$1 u=$2 f=$3 max=$4
   [ -e "$d" ] && { echo "refusing: $d exists (must start empty)"; exit 1; }
   mkdir -p "$d"
-  curl --fail --location --silent --show-error --proto '=https' --max-filesize "$max" -o "$d/$f" "$u"
-  printf 'url\tbytes\tsha256\n%s\t%s\t%s\n' "$u" "$(stat -c %s "$d/$f")" "$(sha256sum "$d/$f" | cut -d' ' -f1)" > "$d/manifest.tsv"
-  cat "$d/manifest.tsv"
+  get "$d" "$u" "$f" "$max"
+  manifest "$d" "$u" "$f"
 }
 
 GHS=https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_POP_GLOBE_R2023A/GHS_POP_E2020_GLOBE_R2023A_4326_30ss/V1-0/GHS_POP_E2020_GLOBE_R2023A_4326_30ss_V1_0.zip
