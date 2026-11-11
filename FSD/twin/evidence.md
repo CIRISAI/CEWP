@@ -69,6 +69,26 @@ the page. No tier on the page is CIRISHolon-certified, so nothing qualifies as a
 planetary extrapolation; the planetary-population figures of the Controls panel are closed-form
 formulas, ledgered as FRONTIER where their constants are unsourced.
 
+## Calibration corrections applied
+
+twin-calibration's list (twin/calibration 1b1d8a2, its FSD §4 and §10) is applied through the
+ledger:
+- `seat-knee` is no longer the kernel's single count. It is PROJECTED, the interval for v45.0.0
+  on one 4-core seat at 70%: 4,882 to 13,723 devices if the server's publish set grows with the
+  fleet, 14,253 to 75,879 if it stays at today's size. Which holds is `publish-set-growth`
+  (FRONTIER). The page shows these as static text from that FSD until the globe package wires
+  `seat_hooks::calibration_view_knee`; then the entry becomes live with the same class.
+- `edge-source-read`: edge release/45.0.0 at 8e46165 (untagged when read), replacing c580298
+  and "in release"; listing cache and read budget are built and on by default, timings MODEL.
+- `key-plane-refill`: the 10-minute TTL revalidates at most 256 reads a listing.
+- `global-subjects-at-seat` (new, DERIVED): the Global planes walk every key held, 8,698 at
+  seat-1 (8,211 to 8,698), not "tens".
+- `seat-load-model`, `seat-lock-model`, `layer-seat` stay under correction: their live values
+  are still computed by the f73b918 kernel's seat model until it is rebuilt on the calibrated one.
+- `pull-permit-provisional` is stated (its text already says PROVISIONAL).
+- The permit residuals (678.5 / 4,697 / 4,401 a minute, UNEXPLAINED) are not on the page; they
+  are a failure condition of `seat-knee`.
+
 ## Tier honesty
 
 - The former "Multiscale Holon Resolution (R4 → R0)" buttons are removed: they only set the
