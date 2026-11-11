@@ -32,8 +32,8 @@ The review's four numbers are right. Two things it does not say:
 
 ### 2.1 Structure (correlation is structural)
 
-1. **Access network** (`AccessNet { id, tech, region }`, stand-in for the `topology` package's
-   access-AS label). `NetBehaviour` is drawn once from the network id: CGN or not, and the CGN's
+1. **Access network** (`AccessNet { id, tech, region }`, the resolved form of the `topology`
+   package's `NetLabel`; adapter in `reach/topo.rs`, section 9.1). `NetBehaviour` is drawn once from the network id: CGN or not, and the CGN's
    RFC 4787 mapping, filtering and hairpinning; the router the ISP ships (mapping, filtering,
    hairpinning, UPnP); IPv6 deployed or not and its firewall policy. Every home on the ISP and
    every phone on the carrier inherits it.
@@ -213,7 +213,7 @@ peer-reflexive punch (0.05: 0.575 -> 0.527). If those are right, the micro tier 
 **Calibration tension (inference).** Hitting 28 % punchable homes with this structure needs only
 38 % of home routers to map endpoint-independently (`router_eim_share` 0.376). NAT-type surveys
 of consumer routers generally report a majority as cone (EIM) NATs; if that holds for CIRIS
-homes, today's `reach_home_share` 0.40 is pessimistic. Only C1 of section 5 can settle it.
+homes, today's `reach_home_share` 0.40 is pessimistic. Only B1 with F1 of section 5 can settle it.
 
 ## 5. Fleet-measurement request (for the lead to put to the server session)
 
@@ -235,26 +235,47 @@ Coarse buckets a node can compute about itself:
 - `mapping`: `eim` / `non_eim` / `unknown` - knowable only if the probe reaches TWO facilitator
   addresses and compares the reflexive ports (RFC 5780 style). Edge probes one facilitator today
   (`DirectLinksConfig::facilitator`), so this needs a second facilitator address on the seat:
-  a feature request, not a counter.
+  a feature request, not a counter (F1 below).
 
-Counters requested:
+The request comes in two lists. List A is what edge ALREADY counts at 8e46165 (every symbol
+read with `git show 8e46165:src/observability.rs`); it can be summed over the fleet today with
+no edge change, only no bucket key. List B is new edge work, to file as an edge issue after the
+v45 tag. Two items of B are features rather than counters and are marked **FEATURE**.
+
+### List A: counters edge already exports at 8e46165 (fleet sums, no bucket key)
+
+| # | what | symbol (`src/observability.rs` at 8e46165) | replaces / checks |
+|---|---|---|---|
+| A1 | direct-link proposals made | `EdgeMetrics::direct_link` label `DIRECT_LINK_PROPOSED` | denominator of every rate below |
+| A2 | proposals that ended with a direct path | `DIRECT_LINK_ESTABLISHED` (same map) | fleet direct share of room-peer pairs: this model's output (`1 - relay share` over proposing pairs) |
+| A3 | punches that never got through (symmetric NAT, firewall, no route) | `DIRECT_LINK_FAILED_PUNCH` | with A2, the fleet punch failure rate; checks `punch_success_share` x the share of non-EIM x non-EIM pairs |
+| A4 | the facilitator did not answer this node's probe | `DIRECT_LINK_FAILED_PROBE` | UDP-blocked networks (not modelled, section 7) |
+| A5 | other endings | `DIRECT_LINK_FAILED_TIMEOUT`, `_FAILED_REJECTED`, `_FAILED_GLARE`, `_FAILED_HELD`, `_FAILED_INTERFACE_LOST`, `_FAILED_PEER_FELL_BACK`, `DIRECT_LINK_LOST` | separates NAT failures (A3) from timing and mobility ones the model does not have |
+| A6 | proposals not made for want of a facilitator | `DIRECT_LINK_OFF_NO_FACILITATOR` (same map) | `PairCtx::may_punch` false share |
+| A7 | peers with a direct path now | `EdgeMetrics::direct_links_active` (gauge, read as `direct_links_active()`) | held mappings (energy hook) at the fleet level |
+| A8 | links left unshaped because a forwarder carries them | `EdgeMetrics::link_shaping` label `LINK_SHAPING_FORWARDED` (`link_shaping_unshaped:forwarded`) | a lower bound on forwarded identity links (shaped tier only; not A/V legs) |
+| A9 | dead punched links moved back to the relayed path | `EdgeMetrics::link_stall` label `LINK_STALL_RETIRED_DIRECT` | punched paths that do not survive (NAT mapping timeout; not modelled) |
+
+A1 to A6 are labels of one map, `EdgeMetrics::direct_link`; A1 to A3 alone give a fleet-level
+check of this model's direct share for proposing pairs. They cannot split it by access class,
+NAT behaviour or mechanism: that needs List B.
+
+### List B: new edge work
+
+Each is a daily fleet sum, keyed by the self-computed buckets above, under the k-threshold.
 
 | # | counter | key | replaces |
 |---|---|---|---|
-| C1 | nodes seen | access x v6 x nat_public x cgn_hint x mapping | `cell_cgnat_share`, `fixed_cgnat_*` (as a hint), `fixed_v6_*` / `cell_v6_*` (by access only), the class marginals (`reach_home_share`, `cellular_punchable_share`) once `mapping` exists |
-| C2 | nodes with any unsolicited inbound dial in the day | access x v6 | `public_listener_share` (and so `port_forward_share`) |
-| C3 | direct-link proposals made, and their outcome | own access x own v6 x peer v6 x outcome (`established`, `failed_punch`, `failed_probe`, `failed_timeout`, `rejected`, `glare`, `held`, `lost`) | edge already counts proposals and outcomes (`direct_link_proposed`, `direct_link_established`, `direct_link_failed_*` in `src/observability.rs`); only the bucket key is new |
-| C4 | established direct links by winning candidate | own access x candidate (`v4_advertised`, `v4_peer_reflexive`, `v6`, `same_nat_host`) | the mechanism mix: tells IPv6 punch, hole punch and peer-reflexive punch apart (leviculum `Punched.peer` vs the target list says which won) |
-| C5 | proposals between two ends reporting the same public IPv4 | own access x outcome | `cgn_hairpin_share`, `cell_hairpin_share`, `router_hairpin_share` |
-| C6 | proposals where both ends had global IPv6, by whether the v6 candidate was acked | own access x acked | `fixed_v6_fw_blocked`, `cell_v6_fw_blocked` |
-| C7 | room-peer sends by link kind | own access x (`one_hop`, `forwarded`) via `link_is_forwarded` | the relay share itself (the output of this model) |
-| C8 | facilitator probe outcomes | own access x (`answered`, `no_answer`) | UDP-blocked networks (not modelled; see 6) |
-
-With C1 to C4 bucketed by **own and peer** access class the table becomes the access-pair matrix
-of section 4. The peer's `access` is not on the wire today; carrying 2 bits of it in the
-direct-link REQUEST/ACCEPT is a wire change (and the rns-rs DirectLink protocol is shared) - if
-that is refused, C3/C4 keyed on own class only still identify the marginals, and the pair matrix
-stays MODEL.
+| B1 | nodes seen | access x v6 x nat_public x cgn_hint (x mapping once F1 exists) | `cell_cgnat_share`, `fixed_cgnat_*` (as a hint), `fixed_v6_*` / `cell_v6_*` (by access only), the class marginals (`reach_home_share`, `cellular_punchable_share`) once `mapping` exists |
+| B2 | nodes with any unsolicited inbound dial in the day | access x v6 | `public_listener_share` (and so `port_forward_share`); no inbound-dial counter exists at 8e46165 |
+| B3 | the List A `direct_link` labels A1 to A5, bucketed | own access x own v6 x peer v6 x label | the access-pair matrix of section 4 (own side only without F2) |
+| B4 | established direct links by winning candidate | own access x candidate (`v4_advertised`, `v4_peer_reflexive`, `v6`, `same_nat_host`) | the mechanism mix: IPv6 punch, hole punch and peer-reflexive punch apart (leviculum `Punched.peer` vs the target list) |
+| B5 | proposals between two ends reporting the same public IPv4 | own access x outcome | `cgn_hairpin_share`, `cell_hairpin_share`, `router_hairpin_share` |
+| B6 | proposals where both ends had global IPv6, by whether the v6 candidate was acked | own access x acked | `fixed_v6_fw_blocked`, `cell_v6_fw_blocked` |
+| B7 | room-peer sends by link kind | own access x (`one_hop`, `forwarded`) via `link_is_forwarded` (`src/transport/reticulum.rs:534`) | the relay share itself, for A/V legs too (A8 covers shaped identity links only) |
+| B8 | facilitator probes answered / not, per node rather than per proposal | own access | UDP-blocked share by access (A4 counts per proposal, unbucketed) |
+| F1 | **FEATURE**: a second facilitator address on the seat, so a node compares its reflexive port across two destinations (RFC 5780 style) | gives the `mapping` bucket | `router_eim_share`, `cgn_eim_share`, `cell_cgn_eim_share`: the calibrated core of this model |
+| F2 | **FEATURE**: 2 bits of the peer's access class in the direct-link REQUEST/ACCEPT (a wire change; the rns-rs DirectLink protocol is shared) | peer access on B3/B4 | the access-pair matrix itself; if refused, B3/B4 on own class still identify the marginals and the pair matrix stays MODEL |
 
 ## 6. What a real dataset would replace
 
@@ -291,8 +312,8 @@ filtering, IPv6 share) would replace that one draw; nothing downstream changes.
 
 `reach.rs` does not touch `micro.rs`. The seam, smallest hunks:
 1. `MicroWorld::build`, household router draw (the `u_reach` / `u_public` block): give each
-   household an `AccessNet` (from `topology` once it lands), store
-   `ReachModel::home(seed, &model.network(seed, net), hi)` on the household, and set `router`
+   household its endpoint from topology's label, `ReachModel::endpoint_of(seed, &node_net[i],
+   hi, phone, unmetered)` (section 9.1), store it on the household, and set `router`
    from `Endpoint::class()`. Monotone in the targets: the calibrated shares are thresholds on
    fixed per-network / per-home uniforms, so raising reach still adds routers without
    reshuffling.
@@ -304,3 +325,68 @@ filtering, IPv6 share) would replace that one draw; nothing downstream changes.
 4. `unpunched_direct`'s listener rule is unchanged (it is the same rule).
 The page's `reach_home_share` slider keeps working: it is the calibration target.
 
+
+## 9. Hooks (HOOKS.md) and the topology adapter
+
+### 9.1 Topology adapter (`crates/cewp-sim/src/reach/topo.rs`)
+`topology` (branch `twin/topology`, `crate::netgraph`) labels each micro node with
+`NodeNet { home: NetLabel, cellular: Option<NetLabel> }`, `NetLabel { asn, role, metro, region }`.
+It carries no access technology and no NAT attribute, by design. `ReachModel::resolve(seed,
+&NetLabel)` turns a label into this model's `AccessNet`:
+
+| label | resolves to | class |
+|---|---|---|
+| `asn` | `AccessNet::id`: one ASN is one network, so every household on it shares its CGN, ISP router, IPv6 and firewall draw | DERIVED |
+| `AccessFixed` | Cable / Fibre / Dsl, drawn per ASN by the fixed-technology mix | MODEL |
+| `AccessMobile` | Cell4g / Cell5g, drawn per ASN by `cell_5g_share` | MODEL |
+| `Content` | `Resolved::Hosted`: a public listener, outside this model | DERIVED (micro's rule) |
+| `Tier1`, `RegionalTransit`, `asn == 0` | `Resolved::Unknown`: the caller keeps micro's rule | - |
+| `region` (9 page regions) | `RegionClass` V4Rich / V4Scarce, drawn once per region | MODEL |
+
+`ReachModel::endpoint_of(seed, &NodeNet, household, phone, unmetered)` gives a node's endpoint
+(home router; phone on Wi-Fi behind it; phone on its carrier off Wi-Fi). The netgraph types are
+MIRRORED in `topo.rs` until `twin/topology` merges; on merge, the mirror block becomes one
+`pub use crate::netgraph::{AsRole, Asn, MetroId, NetLabel, NodeNet};`. `World::generate` keeps its
+own generated ISPs (ids 1..) for the metro experiments of section 4; those results are not yet
+re-run on topology's graph. topology's `market_share_ppm` / `market_rank` are not used: CGN
+likelihood does not follow carrier size in this model (an open question, not a finding).
+
+### 9.2 Energy counters (`reach::hooks`, DERIVED counts, no time, no watts)
+`realise` draws each pair's outcome once (seeded); `count` / `energy_counters` give per node
+and per class (micro `HostKind::HomeNode`/`Laptop` = fixed endpoint, `HostKind::Phone` split by
+Wi-Fi / carrier): pair-ends, direct, relayed (no direct path formed), punch attempts and
+failures (a room-peer pair with no LAN and no listener attempts a punch whatever its NATs, as
+edge proposes without knowing the NAT type), and held mappings (direct paths for which the node
+keeps a NAT mapping or IPv6 pinhole open: both ends of a punched path, the NATed dialler of a
+listener path). The model has no time: it counts held paths, not keepalives; attempts, not
+probes (leviculum: at most `PUNCH_WINDOW` / `PUNCH_INTERVAL` = 10 s / 100 ms = 100 probes per
+attempt; edge backs a failed pair off `DIRECT_PUNCH_FAILED_BACKOFF` 1 h). It does not choose the
+forwarder of a relayed pair (micro's routing does), so relay work per forwarder is micro's to
+count. No bytes, radio wake, signatures, storage or AS-hop events exist in this model.
+
+One realised Expected metro (`cewp-cli nat 1`, seed 1, default shape, 400 community pairs; MODEL
+world, DERIVED counts):
+
+| class | nodes | pair-ends | direct | relayed | punch attempts (failed) | held mappings |
+|---|---|---|---|---|---|---|
+| fixed | 480 | 1671 | 1089 | 582 | 617 (392) | 239 |
+| phone on Wi-Fi | 771 | 3036 | 2073 | 963 | 886 (587) | 314 |
+| phone on carrier | 439 | 1717 | 754 | 963 | 1467 (763) | 754 |
+
+Pairs by outcome: direct IPv6 584, direct listener 79, punched 30, relayed without attempt 383,
+punch failed 871, LAN 1265. A phone on a carrier is an end of a relayed pair 56% of the time
+(963 / 1717) and holds a mapping for every direct path it has (it never listens): that is the
+radio-awake cost the energy package will price.
+
+### 9.3 Globe view (`reach::hooks`, layout agreed with `twin-globe`)
+Scenario: 3 streets x 12 households (about 130 devices), 4 ISPs (at most 2 per street), 3
+carriers, correlated; every family pair, 120 community pairs, 30 others. All MODEL.
+- `nat_view_nodes(seed) -> Vec<u32>`, stride 4: access class (0 fixed, 1 phone on Wi-Fi, 2 phone
+  on carrier); NAT behaviour (0 public, 1/2/3 EIM / address-dependent / symmetric mapping, 4/5/6
+  the same behind a CGN; to micro `RouterNat`: 0 = Public, 1 and 4 = Punchable, the rest Hard);
+  IPv6 (0 none, 1 open, 2 stateful, 3 blocked); household index.
+- `nat_view_node_pos(seed) -> Vec<f32>`, stride 2: x, y metres in a generated street frame.
+- `nat_view_pairs(seed) -> Vec<u32>`, stride 3: a, b, outcome (0 direct IPv6, 1 direct listener,
+  2 hole-punched, 3 relayed without attempt, 4 punch failed then relayed, 5 same LAN).
+- `nat_view_joint(seed) -> Vec<f32>`: `[3, 7, 21 shares]`, access class x NAT behaviour over 16
+  default-shape metros, summing to 1.

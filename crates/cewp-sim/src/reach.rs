@@ -55,6 +55,10 @@
 //! 2026-10-31 incident); the two-sided commit now turns it into a failed attempt, which sits
 //! inside [`R::PunchSuccessShare`]. It is not a mechanism here.
 
+
+pub mod hooks;
+pub mod topo;
+
 use crate::micro::Rng;
 
 // ---------------------------------------------------------------- classes and parameters
@@ -1367,11 +1371,10 @@ pub fn report(seed: u64) -> String {
     }
     let cm = class_matrix(&m, seed, 40_000);
     let _ = writeln!(s, "\nBy micro class pair (joint model vs the micro rule):");
-    for x in 0..3 {
-        for y in x..3 {
-            let (pd, n) = cm[x][y];
-            let l = legacy_direct(ReachClass::ALL[x], ReachClass::ALL[y], &m.params);
-            let _ = writeln!(s, "  {:>9} x {:<9} joint {pd:.3}  micro {l:.3}  (n {n})", ReachClass::ALL[x].as_str(), ReachClass::ALL[y].as_str());
+    for (x, (row, cx)) in cm.iter().zip(ReachClass::ALL).enumerate() {
+        for (&(pd, n), cy) in row.iter().zip(ReachClass::ALL).skip(x) {
+            let l = legacy_direct(cx, cy, &m.params);
+            let _ = writeln!(s, "  {:>9} x {:<9} joint {pd:.3}  micro {l:.3}  (n {n})", cx.as_str(), cy.as_str());
         }
     }
     let _ = writeln!(s, "\nRelay share (pairs needing a forwarder, weighted family {:.2} / community {:.2} / other {:.2}), {} metros, mean (se) [p10,p90]:", PAIR_MIX[0], PAIR_MIX[1], PAIR_MIX[2], METROS);
@@ -1410,6 +1413,18 @@ pub fn report(seed: u64) -> String {
     let _ = writeln!(s, "Per-street community relay share (256 streets, every cross-household pair):");
     let _ = writeln!(s, "  correlated  mean {:.3} ({:.3}) p10 {:.3} p50 {:.3} p90 {:.3}", nc.mean, nc.se, nc.p10, nc.p50, nc.p90);
     let _ = writeln!(s, "  independent mean {:.3} ({:.3}) p10 {:.3} p50 {:.3} p90 {:.3}", ni.mean, ni.se, ni.p10, ni.p50, ni.p90);
+    let e = hooks::energy_counters(&m, seed, Correlation::Correlated, 400);
+    let _ = writeln!(s, "\nEnergy counters, one realised Expected metro (DERIVED counts; HOOKS.md section 1; no time, no watts):");
+    let _ = write!(s, "  pairs by outcome:");
+    for o in hooks::Outcome::ALL {
+        let _ = write!(s, " {} {}", o.as_str(), e.per_outcome[o as usize]);
+    }
+    let _ = writeln!(s);
+    for k in hooks::NodeClass::ALL {
+        let c = e.per_class[k as usize];
+        let nodes = e.class.iter().filter(|&&x| x == k).count();
+        let _ = writeln!(s, "  {:<15} nodes {nodes:>5}  pair-ends {:>6}  direct {:>6}  relayed {:>6}  punch attempts {:>6} (failed {:>5})  held mappings {:>6}", k.as_str(), c.pairs, c.direct, c.relayed, c.punch_attempts, c.punch_failures, c.held_mappings);
+    }
     let _ = writeln!(s, "\nEvery input is MODEL or FRONTIER except the DERIVED switches and calibration; no output is MEASURED.");
     s
 }
