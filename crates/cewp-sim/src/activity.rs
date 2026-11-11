@@ -441,16 +441,22 @@ impl<'a> Generator<'a> {
         let mut stack = vec![act];
         while let Some(a) = stack.pop() {
             sink(&a);
-            if self.p.process != Process::Bursty || a.room == NO_ROOM || a.depth >= 1000 {
+            if self.p.process != Process::Bursty || a.depth >= 1000 {
                 continue;
             }
-            let m = self.w.members(a.room);
-            if m.len() < 2 {
-                continue;
-            }
+            // every act has `branching` children on average, or the mean rate would fall short
+            // by the share of acts with nobody to answer them (consent-free rows, a household of
+            // one): a reply in the act's room by another member, or, where the act has no room
+            // with another member, a follow-up by the same signer whose scope is drawn afresh
+            let m: &[u32] = if a.room == NO_ROOM { &[] } else { self.w.members(a.room) };
             for _ in 0..poisson(r, self.p.branching) {
                 let t = a.t + self.reply_delay(r);
                 if t >= horizon {
+                    continue;
+                }
+                if m.len() < 2 {
+                    let (scope, room) = self.choose(r, a.signer, t, a.from_event);
+                    stack.push(Act { t, signer: a.signer, scope, room, depth: a.depth + 1, from_event: a.from_event });
                     continue;
                 }
                 let mut s = m[r.below(m.len())];

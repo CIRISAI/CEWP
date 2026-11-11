@@ -539,7 +539,9 @@ impl SocialWorld {
         }
         for list in &mut by_work {
             shuffle(&mut r, list);
-            list.sort_by_key(|&i| persons[i as usize].cell);
+            if !placeless {
+                list.sort_by_key(|&i| persons[i as usize].cell);
+            }
             let mut rs = Rng::new(r.next_u64());
             let mut out = Vec::new();
             chunk_rooms(list, || (p.work_team_median * (p.work_team_sigma * rs.gauss()).exp()).round().clamp(2.0, p.work_team_max) as usize, &mut out);
@@ -639,9 +641,11 @@ impl SocialWorld {
             m.dedup();
             let mut locs: Vec<u16> = m.iter().map(|&i| persons[i as usize].locality).collect();
             locs.sort_unstable();
+            let start = *room_loc_off.last().unwrap() as usize;
             for l in locs {
+                let fresh = room_loc.len() == start;
                 match room_loc.last_mut() {
-                    Some(last) if last.0 == l && room_loc.len() > *room_loc_off.last().unwrap() as usize => last.1 += 1,
+                    Some(last) if !fresh && last.0 == l => last.1 += 1,
                     _ => room_loc.push((l, 1)),
                 }
             }

@@ -596,7 +596,9 @@ mod tests {
         let fl = people_view_flash(&grid, 1);
         assert_eq!(fl.len() % 6, 0);
         assert!(fl.len() >= 6 && fl[2] > 0.0 && fl[5] > 1.0, "{:?}", &fl[..6.min(fl.len())]);
-        assert_eq!(fl, people_view_flash(&grid, 1));
+        // world-wide events carry NaN coordinates, so compare bit patterns
+        let bits = |v: &[f32]| v.iter().map(|x| x.to_bits()).collect::<Vec<u32>>();
+        assert_eq!(bits(&fl), bits(&people_view_flash(&grid, 1)));
         assert!(people_view_week(&[], 1).is_empty());
     }
 }

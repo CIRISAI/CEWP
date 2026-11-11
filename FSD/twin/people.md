@@ -136,7 +136,22 @@ RESULTS_PLACEHOLDER
 
 ## 5. What a real dataset would replace (approval requests, nothing downloaded)
 
-DATASETS_PLACEHOLDER
+Nothing below was downloaded. Each row is an approval request for Eric; URLs are the
+publishers' landing pages; licence and size are as I recall them and must be checked on the
+page before approval (marked "check").
+
+| dataset | URL | licence | size | would replace |
+|---|---|---|---|---|
+| UN DESA International Migrant Stock | https://www.un.org/development/desa/pd/content/international-migrant-stock | UN terms of use, free with attribution (check) | a few MB of spreadsheets (check) | `diaspora_share`, `diaspora_abroad_share`; with a country layer, where kin abroad live |
+| Meta Social Connectedness Index | https://data.humdata.org/dataset/social-connectedness-index | CC BY 4.0 via HDX (check) | country pairs a few MB; sub-national pairs ~GB (check) | the tie-crossing placement of kin, interest groups and public follows (`interest_local_share`, `public_local_share` and their regional shares, all FRONTIER today); also a check on `cross_locality_tie_share` |
+| Multinational Time Use Study (MTUS) / national time-use surveys (e.g. US ATUS) | https://www.timeuse.org/mtus ; https://www.bls.gov/tus/ | MTUS: registered research use (check); ATUS: US public domain | tens to hundreds of MB (check) | the diurnal curve (`workload::diurnal_multiplier`), `weekly`, `weekend_shift_h`, `work_hours` |
+| Aggregate traffic rhythm (e.g. Cloudflare Radar, IXP public traffic graphs) | https://radar.cloudflare.com/ | Cloudflare Radar data CC BY-NC 4.0 (check) | small time series | a check on diurnal/weekly peak-to-mean of the bursty process |
+| UN household size and composition | https://www.un.org/development/desa/pd/data/household-size-and-composition | UN terms, free with attribution (check) | a few MB | `persons_per_household`, `household_size_sd` per region |
+| UN World Population Prospects (age structure) + ILOSTAT employment-to-population ratio | https://population.un.org/wpp/ ; https://ilostat.ilo.org/ | CC BY 3.0 IGO (WPP), ILO terms (check) | tens of MB | `student_share`, `worker_share` per region |
+| Census commuting flows (e.g. US LODES / ACS commuting) | https://lehd.ces.census.gov/data/ | US public domain | GB-scale (check) | `work_cross_locality_share`, `work_cross_region_share` |
+
+Each lands behind an existing seam: `SocialParams` fields (per-region values would add a
+per-region table), and `Geography` for any finer place grid. None changes the code path.
 
 ## 6. Validity envelope: what this model cannot say
 
