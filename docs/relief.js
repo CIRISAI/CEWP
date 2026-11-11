@@ -7,7 +7,7 @@
 // facing it. On the night side the land is darker, so the shading is stretched (2.6x against 1.5x
 // by day) to stay as legible. It fades out with the other real layers (by 30 m a pixel), before any generated
 // street fades in: real geography stops at region scale.
-const RELIEF = { idx: null, pIdx: false, tiles: new Map(), cap: { 1: 10, 2: 16 }, used: "-",
+const RELIEF = { idx: null, pIdx: false, tiles: new Map(), cpu: new Map(), cpuGen: 0, cap: { 1: 10, 2: 16 }, used: "-",
   stats(){ let n = 0; for (const t of this.tiles.values()) if (t.tex) n++; return { used: this.used, textures: n }; } };
 const RV = `attribute vec3 p;attribute vec2 uv;uniform mat3 R;uniform float S;uniform vec2 asp;uniform vec3 uSunWorld;varying vec2 vUv;varying float vz;varying float vSun;void main(){vec3 q=R*p;vz=q.z;vSun=dot(p,uSunWorld);vUv=uv;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
 const RF = `precision mediump float;uniform sampler2D T;uniform float uA;varying vec2 vUv;varying float vz;varying float vSun;
@@ -23,6 +23,34 @@ function reliefMesh(la1, lo0, deg){
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++){ const a = at(i, j), b = at(i, j + 1), c = at(i + 1, j + 1), d = at(i + 1, j); for (const q of [a, b, c, a, c, d]) V.push(...q); }
   const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(V), gl.STATIC_DRAW);
   return { buf, n: V.length / 5 };
+}
+// ---- the same tiles read on the CPU: elevation and shade at a point, for the ground under the
+// generated streets (tiling.js). The globe image (about 20 km a pixel) answers everywhere; the
+// 1/60-degree tile under the point (about 1.9 km) answers once it has loaded.
+function reliefKeepCpu(k, z, img, la1, lo0, deg){
+  try {
+    const cvs = document.createElement("canvas"); cvs.width = img.width; cvs.height = img.height;
+    const cx = cvs.getContext("2d", { willReadFrequently: true }); cx.drawImage(img, 0, 0);
+    const d = cx.getImageData(0, 0, img.width, img.height).data, n = img.width * img.height, sh = new Uint8Array(n), el = new Uint8Array(n);
+    for (let i = 0; i < n; i++){ sh[i] = d[i * 4]; el[i] = d[i * 4 + 1]; }
+    RELIEF.cpu.set(k, { z, w: img.width, h: img.height, sh, el, la1, lo0, dLon: z === 0 ? 360 : deg, dLat: z === 0 ? 180 : deg }); RELIEF.cpuGen++;
+  } catch (err){ console.warn("relief cpu copy " + k + ": " + err.message); }
+}
+function reliefBoot(){
+  if (RELIEF.pIdx) return; RELIEF.pIdx = true; reliefLoad(0, 0, 0);
+  fetch("geo/relief/index.json?v=1").then(r => r.json()).then(j => { RELIEF.idx = { 1: new Set(j["1"].map(t => t[0] + "_" + t[1])), 2: new Set(j["2"].map(t => t[0] + "_" + t[1])) }; }).catch(e => console.warn(e.message));
+}
+// [metres above the sea, shade (1 = flat ground, below 1 = a slope away from the light), level read], or null before the globe image is in
+function reliefAt(la, lo){
+  if (typeof gl === "undefined" || !gl) return null; reliefBoot();
+  let t = null; lo = ((lo + 180) % 360 + 360) % 360 - 180; la = Math.max(-89.999, Math.min(89.999, la));
+  if (RELIEF.idx){ const r = Math.floor((90 - la) / 15), c = Math.floor((lo + 180) / 15), k = reliefKey(2, r, c);
+    if (RELIEF.idx[2].has(r + "_" + c)){ reliefLoad(2, r, c); const e = RELIEF.tiles.get(k); if (e) e.used = performance.now(); t = RELIEF.cpu.get(k); } }
+  if (!t) t = RELIEF.cpu.get("0/0_0"); if (!t) return null;
+  const fx = Math.max(0, Math.min(t.w - 1.001, (lo - t.lo0) / t.dLon * t.w - 0.5)), fy = Math.max(0, Math.min(t.h - 1.001, (t.la1 - la) / t.dLat * t.h - 0.5));
+  const x = Math.floor(fx), y = Math.floor(fy), ax = fx - x, ay = fy - y, i = y * t.w + x;
+  const bil = (a) => (a[i] * (1 - ax) + a[i + 1] * ax) * (1 - ay) + (a[i + t.w] * (1 - ax) + a[i + t.w + 1] * ax) * ay;
+  const code = bil(t.el) / 255; return [code * code * 6500, bil(t.sh) / 206, t.z];
 }
 function reliefLoad(z, r, c){
   const k = reliefKey(z, r, c); if (RELIEF.tiles.has(k)) return;
@@ -40,6 +68,7 @@ function reliefLoad(z, r, c){
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     e.tex = t; e.mesh = z === 0 ? reliefGlobe() : reliefMesh(la1, lo0, deg); e.pending = false;
+    if (z !== 1) reliefKeepCpu(k, z, img, la1, lo0, deg);
   };
   img.onerror = () => { console.warn("relief tile " + k + " failed"); };
   img.src = "geo/relief/" + k + ".jpg?v=1";
@@ -63,14 +92,13 @@ function reliefVisible(z, w, h, mpp){
 function reliefEvict(z, keep){
   const n = [...RELIEF.tiles.values()].filter(t => t.z === z).length; if (n <= RELIEF.cap[z]) return;
   const old = [...RELIEF.tiles.entries()].filter(([k, t]) => t.z === z && !keep.has(k) && !t.pending).sort((a, b) => a[1].used - b[1].used);
-  for (let i = 0; i < n - RELIEF.cap[z] && i < old.length; i++){ const [k, t] = old[i]; gl.deleteTexture(t.tex); gl.deleteBuffer(t.mesh.buf); RELIEF.tiles.delete(k); }
+  for (let i = 0; i < n - RELIEF.cap[z] && i < old.length; i++){ const [k, t] = old[i]; gl.deleteTexture(t.tex); gl.deleteBuffer(t.mesh.buf); RELIEF.tiles.delete(k); RELIEF.cpu.delete(k); }
 }
 // Called inside the land stencil (bit 1). Finest first; each pass marks bit 2, so a pixel is shaded once.
 function reliefDraw(R, S, asp, w, h, mpp, a, sun){
   if (a <= 0.01) return;
   if (!pRelief){ pRelief = prog(RV, RF); }
-  if (!RELIEF.pIdx){ RELIEF.pIdx = true; reliefLoad(0, 0, 0);
-    fetch("geo/relief/index.json?v=1").then(r => r.json()).then(j => { RELIEF.idx = { 1: new Set(j["1"].map(t => t[0] + "_" + t[1])), 2: new Set(j["2"].map(t => t[0] + "_" + t[1])) }; }).catch(e => console.warn(e.message)); }
+  reliefBoot();
   const passes = [];
   if (RELIEF.idx){
     for (const z of [2, 1]){

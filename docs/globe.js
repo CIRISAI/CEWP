@@ -290,7 +290,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
   <div id="foot-measured" style="margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px">
     <b style="color:#fff">Measured from a live mesh.</b> The serve seat's cost model (open a serve seat's card at street zoom) is calibrated from the live production CIRIS mesh on 2026-11-10: four 60-second windows of the serve node's own counters, one of them with CPU, plus its store composition and announced-node count. Device behaviour is derived from edge source: v45.0.0 (in release), read at commit <code>c580298</code> and its read-fix series. The idle Pull's cost was measured on an edge debug build; a release rerun is pending. Everything beyond today's fleet size is a model projection.
     <br><b style="color:#fff">Measured today (seat-1, aggregates only):</b> 0.65 of a core in a quiet 60 s window · ~329 attestation queries/s · ~10–12 replication rounds per minute per plane (quiet window) · store of ~42.5k attestations, ~18.3k transport destinations, ~8.7k keys · 1,349 announced nodes under 1,338 owners · 0 key-revocation rows. On screen, only the seat card's <i>seat-1 measured</i> line shows these directly.
-    <br><b style="color:#fff">Map data:</b> coastlines, land, lakes, rivers, country borders and place names are from <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain), at 110m, 50m and 10m scale by zoom. The terrain shading is Natural Earth's 1:10m shaded relief (public domain), and the elevation tint and some extra lakes come from <a href="https://www.ncei.noaa.gov/products/etopo-global-relief-model" target="_blank" rel="noopener">NOAA NCEI ETOPO 2022</a> (public domain): a lake is added where ETOPO holds a flat water surface that Natural Earth has as land, by a detection rule of this twin (MODEL), so a few lakes are missing or in pieces. Real geography is drawn only down to region scale; it fades out before the street view fades in, and every street, home and device there is generated, never placed on a real road or building.
+    <br><b style="color:#fff">Map data:</b> coastlines, land, lakes, rivers, country borders and place names are from <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain), at 110m, 50m and 10m scale by zoom. The terrain shading is Natural Earth's 1:10m shaded relief (public domain), and the elevation tint and some extra lakes come from <a href="https://www.ncei.noaa.gov/products/etopo-global-relief-model" target="_blank" rel="noopener">NOAA NCEI ETOPO 2022</a> (public domain): a lake is added where ETOPO holds a flat water surface that Natural Earth has as land, by a detection rule of this twin (MODEL), so a few lakes are missing or in pieces. Real geography is drawn only down to region scale; it fades out before the street view fades in, and every street, home and device there is generated, never placed on a real road or building. The street view's ground colour is a rule of this twin (MODEL): warmth from latitude and ETOPO elevation picks one of five ground bands, high ground turns to rock, and the shaded relief lights it. No land-cover or climate data is loaded, so a desert city and a wet one at the same latitude and height are tinted alike. Where the population grid holds no cell near a real city, that city's Natural Earth population stands in for it (MODEL).
     <br><b style="color:#fff">Labels:</b> MEASURED is read from the serve node; DERIVED is computed by stated arithmetic from measured counts and the edge source; MODEL is a projection; PROVISIONAL is a MODEL figure that rests on an open calibration question. DERIVED and PROVISIONAL are both MODEL in the README scoreboard's sense. Seat capacity figures include today's measured peer load at seat-1 as a fixed baseline (MEASURED round mix; how it scales is MODEL). The population, links and story elsewhere on the globe are simulated.
   </div>
   Every person and device sits on populated land (2,961 density cells stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Per <b>CC 5.4.3</b> ("A shaped link is one hop"), shaped budget classes (<code>server</code> 7,000 B/s, <code>home</code> 2,800 B/s, <code>phone-wifi</code> 1,400 B/s, <code>phone-cellular</code> 350 B/s, <code>seat</code> 33,000 B/s at ρ=0.5) are 1 direct hop and never forwarded; peers without a direct path carry on ordinary links. Large rooms fan out via the <b>CC 6.1.6 <code>deterministic-alm</code> member relay tree</b> over sealed chunks (distinct from CC 5.3.3.2's no-SFU-relay-role; no seat decodes or selects). 15,296 B X-Wing onion packets replace cover frames on shaped links at <b>0 extra wire bytes</b> (CC 5.4.6). <a href="how-it-works.html#solves">How it works</a> · <a href="how-it-works.html#peers">vs. other meshes</a> · <a href="mesh.html">6-peer kernel</a> · <a href="toy/">scaling toy</a>
@@ -983,29 +983,102 @@ function draw(){
 }
 // rotation per pixel: the old feel near the planet; at depth, exactly one pixel of ground per pixel dragged
 const dragK=()=>zoom>3?2/(0.86*zoom*Math.min(cv.clientWidth,cv.clientHeight)):0.0035/Math.max(1,zoom*0.6);
-cv.addEventListener("mousedown",e=>{drag=[e.clientX,e.clientY];velYaw=0;velPitch=0;cv.style.cursor="grabbing";lastTouchTime=performance.now();}); window.addEventListener("mouseup",()=>{drag=null;cv.style.cursor="grab";});
-window.addEventListener("mousemove",e=>{ if(!drag) return; const dx=e.clientX-drag[0], dy=e.clientY-drag[1]; velYaw=-dx*dragK()/Math.max(0.2,Math.cos(pitch)); velPitch=dy*dragK(); yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[e.clientX,e.clientY]; lastTouchTime=performance.now(); });
-cv.addEventListener("wheel",e=>{ e.preventDefault(); storyHold(); targetZoom=Math.max(0.6,Math.min(zoomMax(),targetZoom*Math.exp(-Math.max(-120,Math.min(120,e.deltaY))*0.0016))); lastTouchTime=performance.now(); },{passive:false});
-let pinchDist=0;
+// ---- camera input. Every zoom gesture goes through zoomBy and every pan through panBy: mouse wheel,
+// trackpad pinch (Chrome and Firefox send it as wheel with ctrlKey; Safari as gesture events), a
+// two-finger touch pinch and pan, double click or double tap, the on-screen buttons and the keys.
+const ZOOM_MIN=0.6, ZOOM_HOME=1.0;
+let zoomAnchor=null; // [x, y, when]: the canvas point the ground stays under while the zoom eases
+const cvXY=(x,y)=>{ const r=cv.getBoundingClientRect(); return [x-r.left,y-r.top]; };
+function zoomBy(f,x,y){ if(!(f>0)||!isFinite(f)) return; storyHold(); targetZoom=Math.max(ZOOM_MIN,Math.min(zoomMax(),targetZoom*f)); zoomAnchor=x==null?null:[x,y,performance.now()]; lastTouchTime=performance.now(); }
+function panBy(dx,dy,coast){ const k=dragK(), vy=-dx*k/Math.max(0.2,Math.cos(pitch)), vp=dy*k; yaw+=vy; pitch=Math.max(-1.4,Math.min(1.4,pitch+vp)); if(coast){ velYaw=vy; velPitch=vp; } lastTouchTime=performance.now(); }
+function resetView(){ storyHold(); targetZoom=ZOOM_HOME; zoomAnchor=null; velYaw=0; velPitch=0; lastTouchTime=performance.now(); }
+// called once a frame with the zoom before this frame's ease: turn the globe so the anchored point stays put
+function zoomAnchorStep(z0,now){
+  if(!zoomAnchor) return; if(drag||now-zoomAnchor[2]>1400){ zoomAnchor=null; return; }
+  const f=zoom/z0; if(f===1) return; const F=camFrame(), ox=zoomAnchor[0]-F.w/2, oy=zoomAnchor[1]-F.h/2;
+  if(Math.hypot(ox,oy)>0.92*F.k) return; // the pointer is off the planet: zoom about the centre
+  yaw-=ox*(1-f)/F.k/Math.max(0.2,Math.cos(pitch)); pitch=Math.max(-1.4,Math.min(1.4,pitch+oy*(1-f)/F.k));
+}
+cv.addEventListener("mousedown",e=>{ if(e.button!==0) return; drag=[e.clientX,e.clientY];velYaw=0;velPitch=0;cv.style.cursor="grabbing";lastTouchTime=performance.now();}); window.addEventListener("mouseup",()=>{drag=null;cv.style.cursor="grab";});
+window.addEventListener("mousemove",e=>{ if(!drag) return; panBy(e.clientX-drag[0],e.clientY-drag[1],true); drag=[e.clientX,e.clientY]; });
+cv.addEventListener("wheel",e=>{ e.preventDefault();
+  let d=e.deltaY*(e.deltaMode===1?33:e.deltaMode===2?400:1); d=Math.max(-240,Math.min(240,d));
+  // a trackpad pinch: Chrome's own scale is exp(-deltaY/100); a wheel notch (about 100 to 120) is 1.5x
+  const [x,y]=cvXY(e.clientX,e.clientY); zoomBy(Math.exp(-d*(e.ctrlKey?0.01:0.0035)),x,y); },{passive:false});
+cv.addEventListener("dblclick",e=>{ e.preventDefault(); if(performance.now()-lastTouchEnd<800) return; /* a double tap already zoomed */ const [x,y]=cvXY(e.clientX,e.clientY); zoomBy(e.shiftKey?0.4:2.5,x,y); });
+// Safari sends a trackpad pinch as gesture events (and on iOS beside the touches, which then win)
+let gestScale=1;
+cv.addEventListener("gesturestart",e=>{ e.preventDefault(); gestScale=1; });
+cv.addEventListener("gesturechange",e=>{ e.preventDefault(); if(pinch||!(e.scale>0)) return; const [x,y]=cvXY(e.clientX,e.clientY); zoomBy(e.scale/gestScale,x,y); gestScale=e.scale; });
+cv.addEventListener("gestureend",e=>{ e.preventDefault(); });
+let pinch=null, lastTap=null, lastTouchEnd=-1e9; // pinch: the pair's spread and midpoint now, and where they started
+const touchPair=(e)=>{ const a=e.touches[0], b=e.touches[1], [x,y]=cvXY((a.clientX+b.clientX)/2,(a.clientY+b.clientY)/2); return [Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),x,y]; };
 cv.addEventListener("touchstart",e=>{
-  if(e.touches.length===2){
-    drag=null;
-    pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-  }else if(e.touches.length===1){
-    const t=e.touches[0]; drag=[t.clientX,t.clientY]; velYaw=0; velPitch=0;
-  }
+  if(e.touches.length===2){ drag=null; velYaw=0; velPitch=0; const [d,x,y]=touchPair(e); pinch={d,x,y,d0:d,x0:x,y0:y,t0:performance.now(),moved:false}; }
+  else if(e.touches.length===1){ const t=e.touches[0]; drag=[t.clientX,t.clientY,t.clientX,t.clientY,performance.now()]; velYaw=0; velPitch=0; }
+  else { pinch=null; drag=null; }
   lastTouchTime=performance.now();
 },{passive:true});
 cv.addEventListener("touchmove",e=>{
-  if(e.touches.length===2&&pinchDist>0){
-    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-    if(d>4){ storyHold(); targetZoom=Math.max(0.6,Math.min(zoomMax(),targetZoom*(d/pinchDist))); pinchDist=d; }
-    lastTouchTime=performance.now(); return;
+  if(e.cancelable) e.preventDefault(); // the canvas owns its gestures: no page scroll, no page zoom
+  if(e.touches.length===2&&pinch){
+    const [d,x,y]=touchPair(e);
+    if(Math.abs(d-pinch.d)>0.5||Math.hypot(x-pinch.x,y-pinch.y)>0.5){
+      if(Math.abs(d-pinch.d0)>8||Math.hypot(x-pinch.x0,y-pinch.y0)>8) pinch.moved=true;
+      if(d>8&&pinch.d>8) zoomBy(d/pinch.d,x,y);
+      panBy(x-pinch.x,y-pinch.y,false); pinch.d=d; pinch.x=x; pinch.y=y;
+    }
+    return;
   }
   if(!drag||e.touches.length!==1) return;
-  const t=e.touches[0]; const dx=t.clientX-drag[0], dy=t.clientY-drag[1]; velYaw=-dx*dragK()/Math.max(0.2,Math.cos(pitch)); velPitch=dy*dragK(); yaw+=velYaw; pitch=Math.max(-1.4,Math.min(1.4,pitch+velPitch)); drag=[t.clientX,t.clientY]; lastTouchTime=performance.now();
-},{passive:true});
-cv.addEventListener("touchend",e=>{ if(e.touches.length<2) pinchDist=0; if(e.touches.length===0) drag=null; });
+  const t=e.touches[0]; panBy(t.clientX-drag[0],t.clientY-drag[1],true); drag[0]=t.clientX; drag[1]=t.clientY;
+},{passive:false});
+cv.addEventListener("touchend",e=>{
+  const now=performance.now();
+  lastTouchEnd=now;
+  if(pinch&&e.touches.length<2){
+    // two fingers down and up without moving: zoom out (the map convention)
+    if(!pinch.moved&&now-pinch.t0<320) zoomBy(0.5,pinch.x,pinch.y);
+    pinch=null; lastTap=null;
+    if(e.touches.length===1){ const t=e.touches[0]; drag=[t.clientX,t.clientY,t.clientX,t.clientY,now-1000]; } // the finger left carries on as a pan
+    return;
+  }
+  if(e.touches.length===0){
+    if(drag&&drag.length>4&&now-drag[4]<300&&Math.hypot(drag[0]-drag[2],drag[1]-drag[3])<10){
+      // a tap; a second one close by and soon after zooms in
+      if(lastTap&&now-lastTap[2]<340&&Math.hypot(drag[0]-lastTap[0],drag[1]-lastTap[1])<32){ const [x,y]=cvXY(drag[0],drag[1]); zoomBy(2.5,x,y); lastTap=null; }
+      else lastTap=[drag[0],drag[1],now];
+    }
+    drag=null;
+  }
+});
+cv.addEventListener("touchcancel",()=>{ pinch=null; drag=null; });
+// keys: + and - zoom, the arrows pan, 0 shows the whole planet; never while typing in a field
+addEventListener("keydown",e=>{
+  if(e.defaultPrevented||e.metaKey||e.ctrlKey||e.altKey) return; const t=e.target;
+  if(t&&(/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)||t.isContentEditable)) return;
+  if(e.key.startsWith("Arrow")&&t&&t.closest&&t.closest("#hud,#stats,#foot,#sf-menu,#node-card,#story-hud")) return; // a focused panel scrolls
+  const step=Math.min(cv.clientWidth,cv.clientHeight)*0.12;
+  if(e.key==="+"||e.key==="=") zoomBy(1.6); else if(e.key==="-"||e.key==="_") zoomBy(1/1.6); else if(e.key==="0") resetView();
+  else if(e.key==="ArrowLeft"){ storyHold(); panBy(step,0,false); } else if(e.key==="ArrowRight"){ storyHold(); panBy(-step,0,false); }
+  else if(e.key==="ArrowUp"){ storyHold(); panBy(0,step,false); } else if(e.key==="ArrowDown"){ storyHold(); panBy(0,-step,false); }
+  else return;
+  e.preventDefault();
+});
+// the on-screen cluster: a press steps once, a held press repeats
+(function zoomButtons(){
+  const el=document.createElement("div"); el.id="zoomctl"; el.setAttribute("role","group"); el.setAttribute("aria-label","Map zoom");
+  el.innerHTML='<button type="button" id="zc-in" aria-label="Zoom in" title="Zoom in (+)">+</button><button type="button" id="zc-out" aria-label="Zoom out" title="Zoom out (-)">&minus;</button><button type="button" id="zc-home" aria-label="Show the whole planet" title="Whole planet (0)"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.8 12h16.4M12 3.8c-3.4 3.2-3.4 13.2 0 16.4M12 3.8c3.4 3.2 3.4 13.2 0 16.4" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>';
+  document.body.appendChild(el);
+  let rep=0; const stop=()=>{ if(rep){ clearInterval(rep); rep=0; } };
+  const hold=(id,f)=>{ const b=el.querySelector(id);
+    b.addEventListener("pointerdown",e=>{ if(e.button) return; e.preventDefault(); stop(); zoomBy(f); rep=setInterval(()=>zoomBy(f),190); });
+    b.addEventListener("click",e=>{ if(e.detail===0) zoomBy(f); }); // the keyboard's Enter or Space
+    for(const ev of ["pointerup","pointerleave","pointercancel","blur"]) b.addEventListener(ev,stop); };
+  hold("#zc-in",1.7); hold("#zc-out",1/1.7);
+  el.querySelector("#zc-home").addEventListener("click",resetView);
+  addEventListener("pointerup",stop);
+})();
 // ------------------------------------------------------------------ the loop
 const isMobileViewport = window.innerWidth <= 800;
 const DEVICES_PER_PERSON = 2.25; // CC 3.3.6.3 self roster: ~1 phone + ~1 home/laptop/tablet + ~0.25 shared/personal server
@@ -2675,7 +2748,7 @@ function loop(){
     if (playing && now-lastTickTime>=120){ lastTickTime=now; tick(); }
     decay();
   }
-  zoom*=Math.pow(targetZoom/zoom,0.12); // multiplicative: the same feel from orbit to a doorstep
+  { const z0=zoom; zoom*=Math.pow(targetZoom/zoom,0.12); zoomAnchorStep(z0,now); } // multiplicative: the same feel from orbit to a doorstep
   if (frame%4===0) pruneAndPackArcs(getTime());
   if (typeof tlFrame==="function") tlFrame(now);
   microFreeRoam(); microStep(now);

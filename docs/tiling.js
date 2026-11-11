@@ -2,7 +2,8 @@
 // acuity ring. The page keeps the tree; the kernel splits households and lays out each leaf. Every
 // street and home here is generated: the only real inputs are the coarse population grid, the 50m
 // land mask and the populated-place weights, and real map layers have faded out before streets
-// fade in (below 26 m a pixel).
+// fade in (below 26 m a pixel). The ground under them is tinted by tlTerrain (MODEL: ETOPO elevation,
+// latitude and shaded relief; no land-cover data).
 "use strict";
 const TL_TARGET = 60, TL_PPH = 2.5;           // P::TargetHouseholds, P::PersonsPerHousehold defaults
 const TL_MF = (EARTH_M * Math.PI / 180) / 111320; // layout metres (111,320 m a degree) to globe metres
@@ -43,6 +44,15 @@ function tlRoot(c){ // households in an L0 cell: the population grid's density a
     const y = b[0] + (a + 0.5) / n * (b[2] - b[0]), x = b[1] + (q + 0.5) / n * (b[3] - b[1]);
     if (!TL_LAND.inside(y, x)) continue; const g = tlCellNear(y, x); if (g >= 0) people += cellDensity(g) * cellKm2;
   }
+  // MODEL rule: the grid holds no cell near some real cities (Reykjavik, Manaus). A populated
+  // place in this cell with no grid cell within reach brings its own Natural Earth population;
+  // the place kernel (tlExt) then gathers those households around it.
+  const bins = tlPlaceBins();
+  for (let a = Math.floor(b[0]); a <= Math.floor(b[2]); a++) for (let o = Math.floor(b[1]); o <= Math.floor(b[3]); o++){
+    const L = bins.get((a + 90) * 360 + ((o % 360) + 360) % 360); if (!L) continue;
+    for (const pl of L){ if (pl.la < b[0] || pl.la >= b[2] || pl.lo < b[1] || pl.lo >= b[3]) continue;
+      if (tlCellNear(pl.la, pl.lo) < 0) people += pl.pop; }
+  }
   v = Math.round(people / TL_PPH); TL.l0.set(key, v); return v;
 }
 function tlPlaceBins(){
@@ -72,10 +82,40 @@ function tlSplit(p, pb, ext){
 }
 function tlTree(){ if (!TL.T) TL.T = HOLON.tree(tlRoot, tlExt, tlSplit, TL_TARGET); return TL.T; }
 
-// one tone ramp for the mosaic and the leaves' ground: households per km², 10 → 0, ~3,000 → 1
+// one density tone for the mosaic and the leaves' ground: households per km², 10 → 0, ~3,000 → 1.
+// tlGround turns it into a colour between the terrain band's sparse and dense ground.
 const tlTone = (d) => Math.max(0, Math.min(1, (Math.log10(Math.max(1, d)) - 1) / 2.5));
-const tlRamp = (t) => [0.11 + 0.2 * t, 0.135 + 0.165 * t, 0.13 + 0.1 * t];
 const TL_ROAD = [[0.47, 0.49, 0.53], [0.47, 0.49, 0.52], [0.45, 0.47, 0.44], [0.5, 0.48, 0.41]];
+// ---- the ground under the generated streets follows the real terrain. MODEL, a visual rule.
+// Real inputs, read at the holon: NOAA ETOPO 2022 elevation and Natural Earth shaded relief
+// (relief.js), and the latitude. From them a stand-in for annual warmth, in degrees:
+// 27 at the equator, 0.42 less per degree of latitude beyond 12, 6.5 less per km of height.
+// It picks the ground's two tones (sparse and dense) from five bands, turns high ground to bare
+// rock from 2,200 m, and the shaded relief lights or darkens the slope. Homes take a paler roof in
+// the cold and the heat. No land-cover or climate data is loaded, so a desert and a forest at one
+// latitude and height look alike; the streets themselves are laid out the same way everywhere.
+const TL_BANDS = [ // [warmth, sparse ground, dense ground, roof multiplier]
+  [-4, [0.2, 0.225, 0.27], [0.44, 0.47, 0.52], [1.2, 1.22, 1.3]],     // snow and ice
+  [5, [0.105, 0.14, 0.145], [0.255, 0.3, 0.27], [1.04, 1.05, 1.08]],  // cold: moss and grey
+  [13, [0.095, 0.145, 0.11], [0.25, 0.315, 0.2], [1, 1, 1]],          // temperate: green
+  [20, [0.12, 0.135, 0.105], [0.325, 0.305, 0.205], [1.06, 1.03, 0.97]], // warm: khaki
+  [26.5, [0.135, 0.125, 0.095], [0.385, 0.315, 0.2], [1.2, 1.12, 0.98]], // hot: ochre
+];
+const TL_ROCK = [[0.13, 0.13, 0.137], [0.31, 0.3, 0.29]];
+const tlMix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+// { g0, g1: the ground at density tone 0 and 1; roof: a multiplier on the homes; warm, m: what it read }
+function tlTerrain(la, lo){
+  const r = typeof reliefAt === "function" ? reliefAt(la, lo) : null, m = r ? r[0] : 0, sh = r ? r[1] : 1;
+  const warm = 27 - 0.42 * Math.max(0, Math.abs(la) - 12) - 0.0065 * m;
+  let k = 0; while (k < TL_BANDS.length - 2 && warm > TL_BANDS[k + 1][0]) k++;
+  const A = TL_BANDS[k], B = TL_BANDS[k + 1], t = Math.max(0, Math.min(1, (warm - A[0]) / (B[0] - A[0])));
+  let g0 = tlMix3(A[1], B[1], t), g1 = tlMix3(A[2], B[2], t); const roof = tlMix3(A[3], B[3], t);
+  const rock = 0.65 * sstep(2200, 4200, m) * sstep(-4, 2, warm); // bare high ground, below the snow
+  g0 = tlMix3(g0, TL_ROCK[0], rock); g1 = tlMix3(g1, TL_ROCK[1], rock);
+  const lit = Math.max(0.62, Math.min(1.32, 1 + (sh - 1) * 1.5));
+  return { g0: g0.map(v => v * lit), g1: g1.map(v => v * lit), roof, warm, m, lit, z: r ? r[2] : -1 };
+}
+const tlGround = (T, t) => tlMix3(T.g0, T.g1, t);
 // A leaf's geometry, in the metres of its L3 tile's frame (one affine per tile, one draw per tile).
 // Each vertex: position, normal, half width, colour, kind (0 ground, 1 casing, 2 road, 3 building).
 function tlBuildLeaf(leaf){
@@ -88,7 +128,8 @@ function tlBuildLeaf(leaf){
   const cT = Math.cos(laT * Math.PI / 180), sx = cT / Math.cos(laL * Math.PI / 180), ox = (loL - loT) * 111320 * cT, oy = (laL - laT) * 111320;
   const V = []; const vert = (x, y, nx, ny, wd, c, a, k) => V.push(ox + x * sx, oy + y, nx, ny, wd, c[0], c[1], c[2], a, k);
   const quad = (p, c, a, k) => { for (const q of [0, 1, 2, 0, 2, 3]) vert(p[q][0], p[q][1], 0, 0, 0, c, a, k); };
-  quad([[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]], tlRamp(tlTone(meta[2] / Math.max(1e-6, w * h / 1e6))), 0.9, 0);
+  // the ground carries its density tone in red; the tile's terrain turns it into a colour when drawn
+  quad([[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]], [tlTone(meta[2] / Math.max(1e-6, w * h / 1e6)), 0, 0], 0.9, 0);
   const onSide = (x, y) => Math.abs(Math.abs(x) - w / 2) < 1e-6 || Math.abs(Math.abs(y) - h / 2) < 1e-6;
   const road = (r, extra, c, a, k) => {
     let [x0, y0, x1, y1, wd] = [R[r], R[r + 1], R[r + 2], R[r + 3], R[r + 4] / 2 + extra];
@@ -113,16 +154,16 @@ function tlFrameOf(la, lo){ const a = la * Math.PI / 180, o = lo * Math.PI / 180
 
 // ---- the GL program: metres in, an affine per tile to CSS px, streets kept at least a pixel wide,
 // alpha per kind, and a radial fade at the acuity ring's edge
-const TLV = `attribute vec2 p;attribute vec2 n;attribute float wd;attribute vec4 c;attribute float k;uniform vec3 uX;uniform vec3 uY;uniform vec2 uView;uniform float uPpm;uniform vec4 uMinHalf;uniform vec4 uKindA;uniform vec3 uRing;varying vec4 vc;
+const TLV = `attribute vec2 p;attribute vec2 n;attribute float wd;attribute vec4 c;attribute float k;uniform vec3 uX;uniform vec3 uY;uniform vec2 uView;uniform float uPpm;uniform vec4 uMinHalf;uniform vec4 uKindA;uniform vec3 uRing;uniform vec3 uG0;uniform vec3 uG1;uniform vec3 uRoof;uniform float uTerr;varying vec4 vc;
 void main(){vec4 sel=vec4(equal(vec4(k),vec4(0.0,1.0,2.0,3.0)));vec2 q=p+n*max(wd,dot(uMinHalf,sel)/uPpm);float px=uX.x*q.x+uX.y*q.y+uX.z;float py=uY.x*q.x+uY.y*q.y+uY.z;
 float f=uRing.z>0.0?1.0-smoothstep(0.85*uRing.z,uRing.z,length(vec2(px,py)-uRing.xy)):1.0;
-gl_Position=vec4(px/uView.x*2.0-1.0,1.0-py/uView.y*2.0,0.0,1.0);vc=vec4(c.rgb,c.a*dot(uKindA,sel)*f);}`;
+gl_Position=vec4(px/uView.x*2.0-1.0,1.0-py/uView.y*2.0,0.0,1.0);vec3 col=mix(c.rgb,sel.x*mix(uG0,uG1,c.r)+(sel.y+sel.z)*c.rgb+sel.w*c.rgb*uRoof,uTerr);vc=vec4(col,c.a*dot(uKindA,sel)*f);}`;
 const TLF = `precision mediump float;uniform float uDim;varying vec4 vc;void main(){if(vc.a<0.004)discard;gl_FragColor=vec4(vc.rgb*uDim,vc.a);}`;
 let tlProg = null, tlLoc = null, tlAggBuf = null;
 function tlGL(){
   if (tlProg) return; tlProg = prog(TLV, TLF); tlAggBuf = gl.createBuffer();
   const u = (n) => gl.getUniformLocation(tlProg, n), a = (n) => gl.getAttribLocation(tlProg, n);
-  tlLoc = { p: a("p"), n: a("n"), wd: a("wd"), c: a("c"), k: a("k"), X: u("uX"), Y: u("uY"), view: u("uView"), ppm: u("uPpm"), minHalf: u("uMinHalf"), kindA: u("uKindA"), ring: u("uRing"), dim: u("uDim") };
+  tlLoc = { p: a("p"), n: a("n"), wd: a("wd"), c: a("c"), k: a("k"), X: u("uX"), Y: u("uY"), view: u("uView"), ppm: u("uPpm"), minHalf: u("uMinHalf"), kindA: u("uKindA"), ring: u("uRing"), dim: u("uDim"), g0: u("uG0"), g1: u("uG1"), roof: u("uRoof"), terr: u("uTerr") };
 }
 function tlAttribs(){ const L = tlLoc, s = 40;
   gl.enableVertexAttribArray(L.p); gl.vertexAttribPointer(L.p, 2, gl.FLOAT, false, s, 0);
@@ -140,7 +181,7 @@ function tlScreen(arr, alpha){
   if (!arr.length || alpha <= 0.01) return;
   gl.bindBuffer(gl.ARRAY_BUFFER, tlAggBuf); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STREAM_DRAW); tlAttribs();
   gl.uniform3f(tlLoc.X, 1, 0, 0); gl.uniform3f(tlLoc.Y, 0, 1, 0); gl.uniform1f(tlLoc.ppm, 1); gl.uniform4f(tlLoc.minHalf, 0, 0, 0, 0);
-  gl.uniform4f(tlLoc.kindA, alpha, 0, 0, 0); gl.uniform3f(tlLoc.ring, 0, 0, 0); gl.uniform1f(tlLoc.dim, 1); // night is in the colours
+  gl.uniform4f(tlLoc.kindA, alpha, 0, 0, 0); gl.uniform3f(tlLoc.ring, 0, 0, 0); gl.uniform1f(tlLoc.dim, 1); gl.uniform1f(tlLoc.terr, 0); // night and terrain are in the colours
   gl.drawArrays(gl.TRIANGLES, 0, arr.length / 10);
 }
 
@@ -161,7 +202,7 @@ function tlVisit(F, mpp, capDetail){
   // ring (the acuity ring) when the leaf cap or the governor's radius is reached
   const heap = [], push = (e) => { heap.push(e); let k = heap.length - 1; while (k){ const p = (k - 1) >> 1; if (heap[p].bx.dist <= e.bx.dist) break; heap[k] = heap[p]; k = p; } heap[k] = e; };
   const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length){ let k = 0; for (;;){ let m = 2 * k + 1; if (m >= heap.length) break; if (m + 1 < heap.length && heap[m + 1].bx.dist < heap[m].bx.dist) m++; if (heap[m].bx.dist >= last.bx.dist) break; heap[k] = heap[m]; k = m; } heap[k] = last; } return top; };
-  const offer = (c) => { const b = T.budget(c); if (!b) return; const bx = box(c); if (!bx || bx.x + bx.hw < 0 || bx.x - bx.hw > F.w || bx.y + bx.hh < 0 || bx.y - bx.hh > F.h) return; push({ c, bx, b }); };
+  const offer = (c) => { const b = T.budget(c); const bx = box(c); if (!bx || bx.x + bx.hw < 0 || bx.x - bx.hw > F.w || bx.y + bx.hh < 0 || bx.y - bx.hh > F.h) return; if (!b){ agg.push({ c, bx, b: 0 }); return; } push({ c, bx, b }); }; // empty land keeps its ground, undivided
   const cols = 360 * HOLON.UPD / HOLON.STEP[lvl];
   let span = a1.j - a0.j; if (span < 0) span += cols; span = Math.min(span, cols - 1);
   for (let i = a0.i; i <= a1.i; i++) for (let q = 0; q <= span; q++){ const c = HOLON.make(lvl, i, a0.j + q); if (c) offer(c); }
@@ -213,7 +254,7 @@ function tlDraw(w, h, mpp, sun){
   // fading in (or out at the ring's edge) the same tone shows through, so the two cross-fade.
   const quads = agg.concat(detail), Q = new Float32Array(quads.length * 60); let o = 0;
   for (const { c, bx, b } of quads){
-    const km2 = (bx.hw * 2 / (F.k / EARTH_M) / 1000) * (bx.hh * 2 / (F.k / EARTH_M) / 1000), col0 = tlRamp(tlTone(b / Math.max(1e-6, km2)));
+    const km2 = (bx.hw * 2 / (F.k / EARTH_M) / 1000) * (bx.hh * 2 / (F.k / EARTH_M) / 1000), col0 = tlGround(tlTerrain(bx.la, bx.lo), tlTone(b / Math.max(1e-6, km2)));
     const f = tlJitter(HOLON.pack(c)) * tlNight(sun, bx.la, bx.lo), col = [col0[0] * f, col0[1] * f, col0[2] * f];
     const ins = bx.hw >= 20 ? 0.3 : 0; // the tiling reads by tone; a fine seam only once a holon is 40 px wide
     const P = [[bx.x - bx.hw + ins, bx.y - bx.hh + ins], [bx.x + bx.hw - ins, bx.y - bx.hh + ins], [bx.x + bx.hw - ins, bx.y + bx.hh - ins], [bx.x - bx.hw + ins, bx.y + bx.hh - ins]];
@@ -266,8 +307,9 @@ function tlDraw(w, h, mpp, sun){
       }
       bt.used = frame;
       const A = tlAffine(F, bt.fr); if (A.front <= 0.02) continue;
-      if (bt.night === undefined || frame % 30 === 0){ const [la, lo] = tlCentre(list[0].t); bt.night = tlNight(sun, la, lo); }
-      gl.uniform1f(tlLoc.dim, bt.night);
+      if (bt.night === undefined || frame % 30 === 0){ const [la, lo] = tlCentre(list[0].t); bt.night = tlNight(sun, la, lo); bt.terr = tlTerrain(la, lo); }
+      gl.uniform1f(tlLoc.dim, bt.night); gl.uniform1f(tlLoc.terr, 1);
+      gl.uniform3fv(tlLoc.g0, bt.terr.g0); gl.uniform3fv(tlLoc.g1, bt.terr.g1); gl.uniform3fv(tlLoc.roof, bt.terr.roof);
       gl.bindBuffer(gl.ARRAY_BUFFER, bt.vbo); tlAttribs();
       gl.uniform3f(tlLoc.X, A.a, A.c, A.e); gl.uniform3f(tlLoc.Y, A.b, A.d, A.f); gl.uniform1f(tlLoc.ppm, A.ppm);
       gl.drawArrays(gl.TRIANGLES, 0, bt.n);

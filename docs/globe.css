@@ -313,3 +313,11 @@ body.story-first .story-progress-track{left:0;right:0;top:0;bottom:auto;border-r
 /* an open node or seat card sits above the story, and the story sheet folds to its header while the card is open */
 #node-card{z-index:31}
 body.card-open #story-line,body.card-open .story-line{display:none}
+/* the zoom cluster: +, -, whole planet. Bottom right; on a phone it rides above the story sheet */
+#zoomctl{position:fixed;right:12px;bottom:48px;z-index:22;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:color-mix(in srgb,var(--panel) 88%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,.35);touch-action:manipulation;-webkit-user-select:none;user-select:none}
+#zoomctl button{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border:0;border-radius:0;background:transparent;color:var(--ink);font:600 19px/1 var(--mono);cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent}
+#zoomctl button+button{border-top:1px solid var(--line)}
+@media(hover:hover){#zoomctl button:hover{background:rgba(108,182,255,.12)}}
+#zoomctl button:active{background:rgba(108,182,255,.24)}
+#zoomctl button:focus-visible{outline:2px solid var(--cool);outline-offset:-2px}
+@media(max-width:800px){#zoomctl{right:8px;bottom:calc(var(--sheet-h,0px) + 12px + env(safe-area-inset-bottom,0px))}#zoomctl button{width:44px;height:44px}}
