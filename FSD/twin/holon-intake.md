@@ -196,3 +196,13 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   | legacy rule (no generator) | all | 60 % |
 
   9.2 % of households have nothing to host on (no computer and no fixed line), certified in the country.
+- **Data maps** (the strip None / People / Awake / Verdict / Households; incell.js shader modes, region and
+  city zoom). Households: each ~0.9 km pixel is tinted by the mean of the HOUSEGEN-1 row the generator
+  draws from at that pixel's density class (the pixel standing for its ~1 km tile; kernel
+  `pop_household_means`, `popchain::households::row_mean`): US 2024 rows in the United States, German
+  2022 rows elsewhere, hatched more outside Germany. That is the expectation, not one tile's draw: tiles
+  give it pooled (400 tiles per row within 0.01, popchain test), one tile's mean wanders by about
+  1.2 / sqrt(its households), and the chip gives the focal tile's own generated mean beside its row's.
+  housegen.test.js checks the wasm's means against the rows at the pinned rev. The US rows run only
+  2.27 to 2.51 across classes, so US cities and suburbs read nearly alike; the German rows run 1.71 to
+  2.27.

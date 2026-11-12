@@ -404,5 +404,6 @@ table.cap .nw{white-space:nowrap}
 #dm-legend{position:fixed;left:12px;top:86px;z-index:15;max-width:min(330px,calc(100vw - 24px));background:rgba(10,14,22,.78);border:1px solid rgba(108,182,255,.2);border-radius:8px;padding:4px 9px;font:10.5px/1.4 var(--mono);color:#aeb7c4}
 .dm-ramp{display:inline-block;width:70px;height:8px;border-radius:2px;vertical-align:middle}
 .dm-awake{background:linear-gradient(90deg,rgb(43,56,133),rgb(255,204,102))}
+.dm-hh{background:linear-gradient(90deg,rgb(92,115,230),rgb(255,189,82))}
 .dm-noref{padding:0 3px;background:repeating-linear-gradient(135deg,rgba(80,82,92,.7) 0 3px,transparent 3px 6px)}
-@media(max-width:800px){#data-map{top:auto;bottom:52px;left:10px;max-width:calc(100vw - 80px)}#dm-legend{top:205px;left:10px;right:10px;max-width:none;font-size:10px}}
+@media(max-width:800px){#data-map{top:auto;bottom:52px;left:10px;max-width:calc(100vw - 80px)}#data-map .dm-b{padding:3px 7px}#dm-legend{top:205px;left:10px;right:10px;max-width:none;font-size:10px}}

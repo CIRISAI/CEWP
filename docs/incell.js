@@ -11,9 +11,10 @@
 const INCELL = { blocks: new Map(), cap: 48, budgetMs: 6, built: 0, buildMs: 0, bytes: 0, frameMs: 0, gen: 0 };
 const ICV = `attribute vec3 p;attribute vec2 uv;uniform mat3 R;uniform float S;uniform vec2 asp;varying vec2 vUv;varying float vz;void main(){vec3 q=R*p;vz=q.z;vUv=uv;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
 // modes (the data-map strip, globe.js): 1 People (UNEVEN-0 through the seam), 2 Awake now (PRESENCE-0, US only, uAwake per block at
-// its local hour), 3 Verdict (HOUSEGEN-1 by country and class). C is the block's 12 x 12 cell texture: r country (100/255 United
+// its local hour), 3 Verdict (HOUSEGEN-1 by country and class), 4 Households (HOUSEGEN-1's row mean at the pixel's class: uT the
+// classes' lower bounds 2..5 in the texture's log scale, uDE0/uUS0 the class-1 means and uDEd/uUSd the steps between classes). C is the block's 12 x 12 cell texture: r country (100/255 United
 // States, 200/255 Germany, 0 elsewhere), g cell class x 50 / 255, b peopled. No reference: a dark hatch, never an invented value.
-const ICF = `precision mediump float;uniform sampler2D T;uniform sampler2D C;uniform float uA;uniform float uMode;uniform float uAwake;varying vec2 vUv;varying float vz;
+const ICF = `precision mediump float;uniform sampler2D T;uniform sampler2D C;uniform float uA;uniform float uMode;uniform float uAwake;uniform vec4 uT;uniform float uDE0;uniform vec4 uDEd;uniform float uUS0;uniform vec4 uUSd;varying vec2 vUv;varying float vz;
 void main(){if(vz<0.0)discard;float v=texture2D(T,vUv).r;vec4 a=texture2D(C,vUv);
 float hatch=step(0.5,fract((gl_FragCoord.x+gl_FragCoord.y)/6.0));
 bool us=a.r>0.2&&a.r<0.6;bool de=a.r>0.6;float cls=floor(a.g*255.0/50.0+0.5);
@@ -23,6 +24,10 @@ if(uMode<2.5){
  if(us){vec3 c=mix(vec3(0.17,0.22,0.52),vec3(1.0,0.80,0.40),uAwake);gl_FragColor=vec4(c,uA*(0.30+0.45*max(v,0.2))*(1.0-hatch*0.15));}
  else{gl_FragColor=vec4(0.42,0.44,0.50,uA*0.40*hatch);}
  return;}
+if(uMode>3.5){if(v<0.02)discard;
+ float m=us?uUS0+dot(step(uT,vec4(v)),uUSd):uDE0+dot(step(uT,vec4(v)),uDEd);
+ vec3 c=mix(vec3(0.36,0.45,0.90),vec3(1.0,0.74,0.32),clamp((m-1.6)/1.0,0.0,1.0));
+ gl_FragColor=(us||de)?vec4(c,uA*0.60*(1.0-hatch*0.22)):vec4(c,uA*0.45*(0.30+0.70*hatch));return;}
 if(us){gl_FragColor=vec4(0.70,0.74,0.86,uA*0.50*(0.35+0.65*hatch));}
 else if(de&&cls<1.5){gl_FragColor=vec4(0.20,0.72,0.86,uA*0.62);}
 else if(de){gl_FragColor=vec4(0.70,0.74,0.86,uA*0.50*(0.35+0.65*hatch));}
@@ -122,7 +127,11 @@ function incellDraw(R, S, asp, w, h, mpp, a){
   // the active map and, for 400 ms after a switch, the one fading out
   const k = Math.min(1, (performance.now() - DATAMAP.t0) / 400), passes = [[DATAMAP.active, k]];
   if (k < 1 && DATAMAP.prev) passes.unshift([DATAMAP.prev, 1 - k]);
-  for (const [mode, f] of passes){ if (!mode || f <= 0.01) continue;
+  const hm = typeof hhMeans === "function" ? hhMeans() : null;
+  if (hm){ const lv = (x) => (Math.log10(x) - 2) / 2.5, d = (a) => [a[1] - a[0], a[2] - a[1], a[3] - a[2], a[4] - a[3]];
+    gl.uniform4fv(gl.getUniformLocation(pIncell, "uT"), hm.km2.slice(1).map(lv)); gl.uniform1f(gl.getUniformLocation(pIncell, "uDE0"), hm.de[0]); gl.uniform4fv(gl.getUniformLocation(pIncell, "uDEd"), d(hm.de));
+    gl.uniform1f(gl.getUniformLocation(pIncell, "uUS0"), hm.us[0]); gl.uniform4fv(gl.getUniformLocation(pIncell, "uUSd"), d(hm.us)); }
+  for (const [mode, f] of passes){ if (!mode || f <= 0.01 || (mode === 4 && !hm)) continue;
     gl.uniform1f(uA, a * f); gl.uniform1f(uM, mode);
     for (const v of vis){ const b = INCELL.blocks.get(v.k); if (!b || !b.tex) continue;
       let aux = null; if (mode > 1){ aux = incellAux(b); if (!aux) continue; }

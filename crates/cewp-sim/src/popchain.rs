@@ -457,6 +457,24 @@ pub mod households {
         }
     }
 
+    /// The people per household HOUSEGEN-1's row for `class` (1..=5) and `reference` holds: the shares'
+    /// weighted mean of the generated sizes (top bands as generated, 7 German, 8 US). Tiles give this
+    /// pooled; one tile's mean wanders by about 1.2 / sqrt(its households) (each household is drawn
+    /// independently). The page's Households map draws it per pixel (the pixel's density standing for
+    /// the tile's); the chip gives the focal tile's own generated mean.
+    #[must_use]
+    pub fn row_mean(class: u8, reference: Reference) -> f64 {
+        use holon_scene::household::{DE_PPM, DE_SIZES, US_PPM, US_SIZES};
+        let c = usize::from(class.clamp(1, 5) - 1);
+        let (w, z): (&[u64], &[u8]) = match reference {
+            Reference::Germany2022 => (&DE_PPM[c], &DE_SIZES),
+            Reference::UnitedStates2024 => (&US_PPM[c], &US_SIZES),
+        };
+        let total: u64 = w.iter().sum();
+        let num: u64 = w.iter().zip(z).map(|(&a, &b)| a * u64::from(b)).sum();
+        num as f64 / total as f64
+    }
+
     /// The tile holding a leaf.
     #[must_use]
     pub fn tile_of(leaf: HolonId) -> HolonId {
@@ -710,6 +728,28 @@ mod tests {
         // docs/geo/holon/housegen.test.js checks the shipped wasm gives the same number
         let want = include_str!("../../../docs/geo/holon/housegen_digest.txt").trim().parse::<u64>().unwrap();
         assert_eq!(households::generator_digest(), want);
+    }
+
+    #[test]
+    fn a_rows_mean_is_what_tiles_give_pooled() {
+        use households::*;
+        for reference in [Reference::Germany2022, Reference::UnitedStates2024] {
+            for class in 1..=5u8 {
+                let m = row_mean(class, reference);
+                assert!((1.6..2.6).contains(&m), "{reference:?} {class}: {m}");
+                // each draw is independent (a tile's mean wanders by about 1.2 / sqrt(households)), so the row's
+                // mean is what tiles give pooled: 400 tiles of 2,000 people, about 360,000 households, standard
+                // error about 0.002; the bound is five of them
+                let (mut people, mut households) = (0u64, 0u64);
+                for seed in 0..400u64 {
+                    let h = holon_scene::household::generate(seed, 2_000, class, reference, true);
+                    people += h.sizes.iter().map(|&x| u64::from(x)).sum::<u64>();
+                    households += h.sizes.len() as u64;
+                }
+                let got = people as f64 / households as f64;
+                assert!((got - m).abs() < 0.01, "{reference:?} {class}: pooled {got} vs row {m}");
+            }
+        }
     }
 
     #[test]

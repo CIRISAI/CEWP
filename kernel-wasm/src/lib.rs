@@ -723,6 +723,21 @@ pub extern "C" fn pop_generator_digest() -> u32 {
     2
 }
 
+/// HOUSEGEN-1's rows as people per household (`popchain::households::row_mean`), for the Households data map: holon
+/// buffer 0 gets the German 2022 rows' means for classes 1..5, the US 2024 rows' means for classes 1..5, then the
+/// classes' lower bounds in people per km2 (`CLASS_KM2`). Returns 15.
+#[no_mangle]
+pub extern "C" fn pop_household_means() -> u32 {
+    use cewp_sim::popchain::households::{row_mean, Reference, CLASS_KM2};
+    let mut out: Vec<f64> = Vec::with_capacity(15);
+    for r in [Reference::Germany2022, Reference::UnitedStates2024] {
+        out.extend((1..=5u8).map(|c| row_mean(c, r)));
+    }
+    out.extend(CLASS_KM2);
+    holon().out = out;
+    15
+}
+
 /// `cewp_sim::holon_scene::devices::digest()` (DEVICEGEN-1's own digest over 1,000 fixed calls) as two u32 halves in
 /// holon buffer 0 (low, high): the same number natively proves the page runs the generator as certified.
 #[no_mangle]

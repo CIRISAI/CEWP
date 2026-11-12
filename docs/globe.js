@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=40"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=41"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2613,17 +2613,30 @@ const DM_MAPS = [
   { id: 1, icon: "◉", name: "People", ref: "holon-uneven0" },
   { id: 2, icon: "☾", name: "Awake", ref: "holon-presence0-us" },
   { id: 3, icon: "✓", name: "Verdict", ref: "holon-housegen1" },
+  { id: 4, icon: "⌂", name: "Households", ref: "holon-housegen1" },
 ];
+// HOUSEGEN-1's rows as people per household (kernel pop_household_means): German 2022 classes 1..5, US 2024 classes 1..5,
+// then the classes' lower bounds in people per km2; read once, for the Households map and its chip line
+let HH_MEANS = null;
+function hhMeans(){
+  if (HH_MEANS || typeof wasm === "undefined" || !wasm || !wasm.pop_household_means) return HH_MEANS;
+  const n = wasm.pop_household_means(), o = Array.from(new Float64Array(wasm.memory.buffer, wasm.holon_buf_ptr(0) >>> 0, n));
+  HH_MEANS = { de: o.slice(0, 5), us: o.slice(5, 10), km2: o.slice(10, 15) }; return HH_MEANS;
+}
 function dmLegend(){
   const id = DATAMAP.active;
   if (id === 1) return `<b>People</b> · persons per km² in each ~0.9 km pixel, 100 → 30,000 (log) · ${fig("holon-uneven0", "MODEL via CIRISHolon UNEVEN-0 v1 (unresolved): a cell's people over its pixels; which pixel is the town is the twin's rule")}`;
   if (id === 2) return `<b>Awake now</b> · <span class="dm-ramp dm-awake"></span> share of persons awake at the local hour, asleep → awake · ${fig("holon-presence0-us", "MODEL via CIRISHolon PRESENCE-0 v1 (US time diaries 2022-2024, 15+): United States only; elsewhere hatched, no reference")}`;
+  if (id === 4){ const h = hhMeans(), r = (a) => a ? Math.min(...a).toFixed(2) + " (dense) to " + Math.max(...a).toFixed(2) : "…";
+    return `<b>Households</b> · <span class="dm-ramp dm-hh"></span> persons per household, few → many · ${fig("holon-housegen1", "MODEL via CIRISHolon HOUSEGEN-1: the mean of the row the generator draws from at each ~0.9 km pixel's density class (the pixel standing for its ~1 km tile): US 2024 rows " + r(h && h.us) + " in the United States, German 2022 rows " + r(h && h.de) + " in Germany and everywhere else (there outside the country read, hatched more); hatched, as every row's per-unit verdict is unresolved")}`; }
   if (id === 3) return `<b>Verdict</b> · <span class="vd vd-cert">certified</span> <span class="vd vd-unres">read, not certified</span> <span class="dm-noref">no reference</span> · ${fig("holon-housegen1", "CIRISHolon's household generator per ~1 km tile: German village tiles certified (composition), other German and all US tiles unresolved, elsewhere outside every reference")} · ${fig("countries-source", "country from Natural Earth's mask, for envelopes only")}`;
   return "";
 }
 function dmRender(){
   const el = $("data-map"); if (!el) return;
   el.innerHTML = DM_MAPS.map((m) => `<button type="button" role="radio" aria-checked="${DATAMAP.active === m.id}" class="dm-b${DATAMAP.active === m.id ? " on" : ""}" data-dm="${m.id}"><span aria-hidden="true">${m.icon}</span> ${m.name}</button>`).join("");
+  // on a phone the strip scrolls sideways: keep the active map's button in view
+  const on = el.querySelector(".dm-b.on"); if (on && (on.offsetLeft < el.scrollLeft || on.offsetLeft + on.offsetWidth > el.scrollLeft + el.clientWidth)) el.scrollLeft = Math.max(0, on.offsetLeft - 8);
   const lg = $("dm-legend"); if (lg){ const h = dmLegend(); lg.innerHTML = h; lg.classList.toggle("panel-hidden", !h); }
 }
 function dmSet(id){ if (id === DATAMAP.active) return; DATAMAP.prev = DATAMAP.active; DATAMAP.active = id; DATAMAP.t0 = performance.now(); holLoad(); dmRender(); if (typeof gfxDirty === "function") gfxDirty(800); const c = $("focal-chip"); if (c) c._t = 0; }
@@ -2637,6 +2650,9 @@ function dmValue(){
     return `people here: in ${/^[aeiou]/.test(cls) ? "an" : "a"} ${cls} cell ${Math.round(v.slice(k + 2).reduce((a, b) => a + b, 0) / 1e4)}% live in denser ~1 km tiles (${e && e.people ? "regional, " + u.data.regions[r] : "world row"}; ${holVd("unresolved", "unresolved")})`; }
   const s = holSeam(), c = s ? s.country : -1;
   if (id === 2) return c === 840 ? `awake now here: ${Math.round(incellAwake(M.lon0) * 100)}% of persons (US time diaries at this local hour)` : `awake now: ${holVd("unresolved", "no reference here (" + holCountryName(c) + ")")}; the twin's stand-in drives activity`;
+  if (id === 4){ const h = hhMeans(); if (!s || !s.on || !s.found || !h) return `households here: ${holVd("legacy", "the twin's legacy rule, 2.5 persons per household")}`;
+    const row = (s.ref === 0 ? h.de : h.us)[s.cls - 1];
+    return `households here: this ~1 km tile's ${s.hhTile.toLocaleString()} generated households hold ${(s.people / s.hhTile).toFixed(2)} persons each (the ${s.ref === 0 ? "German 2022" : "US 2024"} ${HOL_C5[s.cls - 1]} row: ${row.toFixed(2)}; ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])})`; }
   return s && s.found ? `verdict here: per unit ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])}, composition ${holVd(HOL_V3[s.comp], HOL_V3[s.comp])} (${holCountryName(c)})` : `verdict here: ${holVd("legacy", "no certificate")}`;
 }
 function holGenShort(){ const s = holSeam(); if (!s || !s.on || !s.found) return `households: legacy ${holVd("legacy", "no certificate")}`; return `households: CIRISHolon HOUSEGEN-1, ${s.hhLeaf} here · ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])} / ${holVd(HOL_V3[s.comp], HOL_V3[s.comp])}`; }
