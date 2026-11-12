@@ -72,3 +72,43 @@ the apportionment here only corrects each leaf's draw sum back to 150. A leaf wh
 household differ from 2.5 (real leaves inherit people and households down the popchain, both
 rounded) rescales the draws further: more sizes above 6 when people per household is higher, and
 the possibility of size 0 when it is lower. This file does not cover those leaves.
+
+## The real leaves (`docs/geo/household_hist_real.json`)
+
+`node docs/geo/household_hist_real.js --write` walks the page's own path at twelve probe places
+(Zurich, Cairo, Lagos, the Maryland suburb, the Cher village, Dhaka, Mumbai, Karachi, Kowloon,
+Manhattan, Tokyo, Paris; coordinates as in `docs/geo/popcond.test.js`): the shipped GHS-POP assets
+through `geodata.js` `geoPopFine` into the shipped kernel (`docs/kernel/kernel_scale.wasm`,
+`pop_load`), the page's tree (`HOLON.tree` with `tiling.js`'s `tlRoot` / `tlSplit` callbacks),
+every leaf under the place's L3 street tile, the leaf's context with its people in slot 32
+(`tlContext`), then `holon_layout` (buildings) and `micro_build_leaf` + `micro_population`
+(persons). Per place, per density class (`docs/geo/classes.json`, from the layout's own density
+and class) and per units-per-building band (1, 2-4, 5+), it gives leaves, households, persons,
+counts by size, the mean as an exact rational, people per household over the leaves (min, lower
+median, max) and the households at 0 or above 6. The file records the sha256 of every input.
+`docs/geo/household_hist_real.test.js` regenerates it and compares byte for byte (`--check` does
+the same from the command line).
+
+Cross-check against the library source: `--sample F` writes every leaf's id, context, persons and
+building units; `cargo run --release -p cewp-sim --example household_hist -- --crosscheck F`
+rebuilds each leaf natively with `LeafLayout::build` and `MicroWorld::from_leaf`. On 16,041 leaves
+(356,507 households) every household's persons agree. The building split (how a leaf's dwellings
+fall into buildings) differs on 18 leaves (17 in the Manhattan tile, 1 in Karachi's), with the same
+household count; the cause is not established (a shipped wasm older than the source, or the
+layout's transcendental functions rounding differently in wasm and native). The json follows the
+shipped kernel, which is what the page runs.
+
+## Where building type is available to the size rule
+
+The sizes are drawn over the flat list of the leaf's dwellings (`micro.rs:1330-1337`) and
+apportioned (`micro.rs:1338`) before the building loop (`micro.rs:1344-1351`), which is the first
+place a household meets its building (`b = self.buildings[bi]`, `b.units`, `b.floors`; the
+household keeps `Household::building`, `micro.rs:408-410`). The draw reads no building today. A
+rule conditioned on building type needs the dwelling's building beside its index at the draw: the
+units per dwelling are `buildings.flat_map(|b| repeat(b.units).take(b.units))` in the same order
+as the dwellings, available from `self.buildings` before the draw (the leaf's layout is fixed by
+then: `from_leaf` copies it, `micro.rs:965-966`). Two cautions for such a rule: in dense fabric
+(`tiling.rs:1161-1172`) a building's units are the leaf's households shared evenly over its plots,
+`floor` or `ceil(households / plots)`, a by-product of the plot count and not a building type; and
+apportionment afterwards rescales every size by the leaf's people over its draw sum, whatever the
+draw was conditioned on.

@@ -11,9 +11,16 @@
 //! streams. The leaf layout is synthetic (one building holding every dwelling, no streets): a
 //! household's size depends on the leaf's seed, the dwelling's index, the leaf's people and its
 //! dwelling count, never on the layout, the density class or the place (see FSD/twin/hhsize.md).
+//!
+//! `--crosscheck F` rebuilds, natively from this crate's source, every real leaf the page's kernel
+//! built in `node docs/geo/household_hist_real.js --sample F` (one line per leaf: packed id, the
+//! 33-slot context, the household count and each household's persons, the building count and each
+//! dwelling building's units) with `LeafLayout::build` and `MicroWorld::from_leaf`, and compares:
+//! every household's persons must agree leaf by leaf (exit 1 otherwise); leaves whose building
+//! split differs are listed and counted beside it.
 #![allow(dead_code)]
 use cewp_sim::micro::{Building, DensityClass, MicroParams, MicroWorld, NO_STREET};
-use cewp_sim::tiling::{HolonId, LeafLayout};
+use cewp_sim::tiling::{HolonId, LeafContext, LeafLayout};
 
 /// Leaves generated.
 pub const LEAVES: i32 = 16_667;
@@ -128,7 +135,45 @@ pub fn render() -> String {
     )
 }
 
+/// Native rebuild of the page's leaves (see the module doc). Returns (leaves, households, leaves
+/// whose persons differ, leaves whose building split differs). Only the first fails the check: a
+/// household's size never reads the layout; the building split is reported beside it.
+fn crosscheck(file: &str) -> (u64, u64, u64, u64) {
+    let text = std::fs::read_to_string(file).expect("read the sample");
+    let (mut leaves, mut households, mut bad, mut layout) = (0u64, 0u64, 0u64, 0u64);
+    for line in text.lines().filter(|l| !l.trim().is_empty()) {
+        let v: Vec<f64> = line.split_whitespace().map(|x| x.parse().expect("a number")).collect();
+        let id = HolonId::unpack(v[0] as u64).expect("a packed id");
+        let ctx = &v[1..34];
+        let n = v[34] as usize;
+        let per: Vec<u64> = v[35..35 + n].iter().map(|&x| x as u64).collect();
+        let m = v[35 + n] as usize;
+        let units: Vec<u64> = v[36 + n..36 + n + m].iter().map(|&x| x as u64).collect();
+        let l = LeafLayout::build(id, &LeafContext::from_f64(ctx), &MicroParams::default());
+        let w = MicroWorld::from_leaf(&l, MicroParams::default());
+        let mine: Vec<u64> = w.households.iter().map(|h| u64::from(h.persons)).collect();
+        let my_units: Vec<u64> = l.buildings.iter().filter(|b| b.units > 0).map(|b| u64::from(b.units)).collect();
+        if mine != per {
+            bad += 1;
+            eprintln!("leaf {} (L{}): persons differ: native {mine:?}, kernel {per:?}", v[0], id.level);
+        }
+        if my_units != units {
+            layout += 1;
+            eprintln!("leaf {} (L{}): building split differs: native {my_units:?}, kernel {units:?}", v[0], id.level);
+        }
+        leaves += 1;
+        households += n as u64;
+    }
+    (leaves, households, bad, layout)
+}
+
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(k) = args.iter().position(|a| a == "--crosscheck") {
+        let (leaves, households, bad, layout) = crosscheck(args.get(k + 1).expect("--crosscheck FILE"));
+        println!("crosscheck: {leaves} leaves, {households} households; persons differ on {bad} leaves, the building split on {layout}");
+        std::process::exit(i32::from(bad > 0 || leaves == 0));
+    }
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/geo/household_hist.json");
     let json = render();
     if std::env::args().any(|a| a == "--write") {
