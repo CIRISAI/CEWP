@@ -104,19 +104,21 @@ function tlBuildLeaf(leaf){
   const cp = wasm.holon_ctx_ptr(); new Float64Array(mem.buffer, cp, 33).set(ctx);
   const id = HOLON.pack(leaf); wasm.holon_layout(id);
   const buf = (i) => { const p = wasm.holon_buf_ptr(i), n = wasm.holon_buf_len(i); return new Float64Array(mem.buffer, p, n).slice(); };
-  const R = buf(1), B = buf(2), meta = buf(4), w = meta[0], h = meta[1], cls = meta[3] | 0;
+  const R = buf(1), B = buf(2), meta = buf(4), S = buf(6), w = meta[0], h = meta[1], cls = meta[3] | 0;
   const t = HOLON.ancestor(leaf, 3), [laL, loL] = tlCentre(leaf), [laT, loT] = tlCentre(t);
   const cT = Math.cos(laT * Math.PI / 180), sx = cT / Math.cos(laL * Math.PI / 180), ox = (loL - loT) * 111320 * cT, oy = (laL - laT) * 111320;
   const V = []; const vert = (x, y, nx, ny, wd, c, a, k) => V.push(ox + x * sx, oy + y, nx, ny, wd, c[0], c[1], c[2], a, k);
   const quad = (p, c, a, k) => { for (const q of [0, 1, 2, 0, 2, 3]) vert(p[q][0], p[q][1], 0, 0, 0, c, a, k); };
   // the ground carries its density tone in red; the tile's terrain turns it into a colour when drawn
   quad([[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]], [tlTone(meta[2] / Math.max(1e-6, w * h / 1e6)), 0, 0], 0.9, 0);
-  const onSide = (x, y) => Math.abs(Math.abs(x) - w / 2) < 1e-6 || Math.abs(Math.abs(y) - h / 2) < 1e-6;
+  // street ends from the leaf's street graph (tiling::StreetGraph, holon buffer 6: arterial, start kind, end kind;
+  // kinds 0 exit, 1 dead end, 2 tee, 3 cross, 4 corner)
   const road = (r, extra, c, a, k) => {
     let [x0, y0, x1, y1, wd] = [R[r], R[r + 1], R[r + 2], R[r + 3], R[r + 4] / 2 + extra];
     const L = Math.hypot(x1 - x0, y1 - y0); if (L < 1e-6) return; const ux = (x1 - x0) / L, uy = (y1 - y0) / L;
-    // a street end inside the leaf gets a square cap; an end on a side meets the neighbour's street flush
-    if (!onSide(x0, y0)){ x0 -= ux * wd; y0 -= uy * wd; } if (!onSide(x1, y1)){ x1 += ux * wd; y1 += uy * wd; }
+    // an exit meets the neighbour's street flush; every other end (a dead end, or a tee or corner on another street) gets a square cap
+    const st = (r / 5) * 3;
+    if (S[st + 1] !== 0){ x0 -= ux * wd; y0 -= uy * wd; } if (S[st + 2] !== 0){ x1 += ux * wd; y1 += uy * wd; }
     const nx = -uy, ny = ux;
     for (const [px, py, s] of [[x0, y0, -1], [x1, y1, -1], [x1, y1, 1], [x0, y0, -1], [x1, y1, 1], [x0, y0, 1]]) vert(px, py, nx * s, ny * s, wd, c, a, k);
   };

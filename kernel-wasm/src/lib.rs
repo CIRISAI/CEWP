@@ -574,6 +574,8 @@ struct HolonDoor {
     ports: Vec<f64>,
     meta: Vec<f64>,
     mains: Vec<f64>,
+    streets: Vec<f64>,
+    junctions: Vec<f64>,
 }
 
 static mut HOLON: Option<HolonDoor> = None;
@@ -582,7 +584,7 @@ fn holon() -> &'static mut HolonDoor {
     // SAFETY: one thread, the page calls in turn (as `micro`).
     unsafe {
         let h = &mut *std::ptr::addr_of_mut!(HOLON);
-        h.get_or_insert_with(|| HolonDoor { ext: vec![0; 25], out: Vec::new(), ctx: [0.0; 33], roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), meta: Vec::new(), mains: Vec::new() })
+        h.get_or_insert_with(|| HolonDoor { ext: vec![0; 25], out: Vec::new(), ctx: [0.0; 33], roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), meta: Vec::new(), mains: Vec::new(), streets: Vec::new(), junctions: Vec::new() })
     }
 }
 
@@ -639,7 +641,12 @@ pub extern "C" fn holon_layout(id: f64) -> i32 {
     let Some(l) = holon_layout_of(id) else { return -1 };
     let h = holon();
     h.roads = l.roads.iter().flat_map(|r| [r.x0, r.y0, r.x1, r.y1, r.width]).collect();
-    h.buildings = l.buildings.iter().flat_map(|b| [b.cx, b.cy, b.w, b.d, b.angle, b.floors as f64, b.units as f64, 0.0]).collect();
+    h.buildings = l.buildings.iter().flat_map(|b| [b.cx, b.cy, b.w, b.d, b.angle, b.floors as f64, b.units as f64, street_f64(b.street)]).collect();
+    // the street graph (tiling::StreetGraph): per street [arterial, start kind, end kind]; per
+    // junction [x, y, kind, street a, street b (-1 for an exit or a dead end)]
+    let g = l.street_graph();
+    h.streets = g.streets.iter().flat_map(|s| [f64::from(u8::from(s.main)), s.ends[0] as u8 as f64, s.ends[1] as u8 as f64]).collect();
+    h.junctions = g.junctions.iter().flat_map(|j| [j.x, j.y, j.kind as u8 as f64, street_f64(j.a), street_f64(j.b)]).collect();
     h.ports = l.ports.iter().flat_map(|p| [p.dir as u8 as f64, p.pos, p.main as u8 as f64]).collect();
     let d = l.digest();
     h.meta = vec![l.w, l.h, l.households as f64, l.class as u8 as f64, l.density_km2, (d & 0xFFFF_FFFF) as f64, (d >> 32) as f64];
@@ -661,18 +668,19 @@ pub extern "C" fn holon_arterials(id: f64, bud: f64) -> u32 {
     (h.mains.len() / 2) as u32
 }
 
-/// Holon buffers: 0 child budgets, 1 roads, 2 buildings, 3 ports, 4 meta, 5 arterials.
+/// Holon buffers: 0 child budgets, 1 roads, 2 buildings (slot 7: the building's street, -1 for
+/// none), 3 ports, 4 meta, 5 arterials, 6 streets, 7 junctions (see `holon_layout`).
 #[no_mangle]
 pub extern "C" fn holon_buf_ptr(which: u32) -> u32 {
     let h = holon();
-    (match which { 0 => h.out.as_ptr(), 1 => h.roads.as_ptr(), 2 => h.buildings.as_ptr(), 3 => h.ports.as_ptr(), 5 => h.mains.as_ptr(), _ => h.meta.as_ptr() }) as usize as u32
+    (match which { 0 => h.out.as_ptr(), 1 => h.roads.as_ptr(), 2 => h.buildings.as_ptr(), 3 => h.ports.as_ptr(), 5 => h.mains.as_ptr(), 6 => h.streets.as_ptr(), 7 => h.junctions.as_ptr(), _ => h.meta.as_ptr() }) as usize as u32
 }
 
 /// Length in f64 of a holon buffer.
 #[no_mangle]
 pub extern "C" fn holon_buf_len(which: u32) -> u32 {
     let h = holon();
-    (match which { 0 => h.out.len(), 1 => h.roads.len(), 2 => h.buildings.len(), 3 => h.ports.len(), 5 => h.mains.len(), _ => h.meta.len() }) as u32
+    (match which { 0 => h.out.len(), 1 => h.roads.len(), 2 => h.buildings.len(), 3 => h.ports.len(), 5 => h.mains.len(), 6 => h.streets.len(), 7 => h.junctions.len(), _ => h.meta.len() }) as u32
 }
 
 // ------------------------------------------------------------------ the population chain (cewp_sim::popchain)
@@ -794,6 +802,21 @@ fn access_graph() -> &'static cewp_sim::netgraph::NetGraph {
         let g = &mut *std::ptr::addr_of_mut!(ACCESS_GRAPH);
         g.get_or_insert_with(|| cewp_sim::netgraph::generate(7, &cewp_sim::netgraph::NetParams::default()))
     }
+}
+
+/// A street index as the page reads it: -1 for none.
+fn street_f64(s: u32) -> f64 {
+    if s == cewp_sim::micro::NO_STREET { -1.0 } else { f64::from(s) }
+}
+
+/// The focal world's households by street (their building's frontage street; -1 for none): holon
+/// buffer 0 gets (street, households) pairs in street order. Returns the pair count.
+#[no_mangle]
+pub extern "C" fn micro_streets() -> u32 {
+    let Some(w) = micro().world.as_ref() else { return 0 };
+    let by = w.households_by_street();
+    holon().out = by.iter().flat_map(|(&s, &k)| [street_f64(s), k as f64]).collect();
+    by.len() as u32
 }
 
 /// The focal world's households by access network, their second parent: holon buffer 0 gets

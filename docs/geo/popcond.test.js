@@ -84,7 +84,7 @@ test("the street tier's world is the cohort tier's GHS total, apportioned", asyn
 });
 
 test("every split from the root to the street tile sums exactly; the leaf's persons and devices sum to it", async () => {
-  const { w, tot } = await kernel(); const lines = [], rows = [], seen = new Set(); let nets = 0, ncross = 0;
+  const { w, tot } = await kernel(); const lines = [], rows = [], seen = new Set(); let nets = 0, ncross = 0, streets = 0; const streetless = [];
   const scale = tot[0] / tot[2]; // cohort total over the floored cell total
   const line = (o) => lines.push(JSON.stringify(o));
   for (const [name, la, lo] of PLACES){
@@ -135,6 +135,14 @@ test("every split from the root to the street tile sums exactly; the leaf's pers
       assert.ok(na >= 1 && acc.every((v, k) => k % 2 === 1 || v > 0), `${name}: every household has an access network`);
       assert.strictEqual(sum(byNet), pop.h, `${name}: households by access network`);
       nets += na;
+      // and summed by street (the household's building's frontage street, tiling::StreetGraph)
+      const ns = w.micro_streets(), st = out(w, 2 * ns);
+      assert.strictEqual(sum(st.filter((_, k) => k % 2 === 1)), pop.h, `${name}: households by street`);
+      // every household is on a street where the leaf has one (a small leaf whose lines all pass outside it has none)
+      const roads = w.micro_buf_len(4) / 5;
+      assert.ok(roads === 0 || st.every((v, k) => k % 2 === 1 || v >= 0), `${name}: every household is on a street`);
+      if (!roads) streetless.push(name);
+      streets += ns;
       const id = HOLON.pack(leaf);
       line({ id, level: leaf.level, seed: 0, kind: "people", parent: pop.p, children: per });
       line({ id, level: leaf.level, seed: 0, kind: "households", parent: pop.h, children: per.map(() => 1) });
@@ -145,5 +153,5 @@ test("every split from the root to the street tile sums exactly; the leaf's pers
     rows.push(`${name}: leaf L${leaf.level}, ${pop.p} people, ${pop.h} households, ${persons} persons, ${dev} devices (${nodes} nodes drawn)`);
   }
   fs.writeFileSync(OUT, lines.join("\n") + "\n");
-  console.log(rows.join("\n")); console.log(`${lines.length} lines -> ${OUT}; ${nets} (leaf, access network) pairs, households summed both ways; ${seen.size} crossing sides carrying ${ncross} arterial crossings`);
+  console.log(rows.join("\n")); console.log(`${lines.length} lines -> ${OUT}; ${nets} (leaf, access network) pairs, households summed both ways; ${streets} (leaf, street) pairs (leaves with no street: ${streetless.join(", ") || "none"}); ${seen.size} crossing sides carrying ${ncross} arterial crossings`);
 });

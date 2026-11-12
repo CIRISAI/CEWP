@@ -262,7 +262,12 @@ empty places hold nobody; the leaf's households summed by access network (their 
 arterials crossing the children along the side sum to those crossing the parent's side, while the
 holon across the side, answering from its own split, counts the same (`tiling::arterial_crossings`:
 the L2 lattice's arterials in the side's half-open interval, drawn or not; across an L2 boundary
-the side with fewer arterials, the rule the drawing uses). The test writes CIRISHolon's sums format (one line per holon and kind,
+the side with fewer arterials, the rule the drawing uses). Each leaf's streets form a graph
+(`LeafLayout::street_graph`: a street is the leaf's id plus its road index; junctions are cross,
+tee, corner, exit through a side, or dead end; every building records its frontage street and so
+does every household), the tiled drawing takes its street-end caps from it, and the leaf's
+households summed by street are its households. Two probe leaves (Cairo, Paris) have no street:
+their ancestors' lines all pass outside them, so their households are on none (owed: a lane). The test writes CIRISHolon's sums format (one line per holon and kind,
 seed 0: the twin's tree takes no seed; crossings lines carry `side` and `peer`) to
 /tmp/cewp-popchain-sums.jsonl, which `cargo run -p holon-scene --example check_sums` accepts (1,458
 lines; 513 crossing pairs checked from both sides); a sample is docs/geo/sums.sample.jsonl.

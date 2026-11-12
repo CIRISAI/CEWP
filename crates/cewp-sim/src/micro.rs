@@ -358,7 +358,13 @@ pub struct Building {
     pub floors: u8,
     /// Dwellings (0 = barn / shop / garage).
     pub units: u16,
+    /// The street its frontage faces: an index into the leaf's roads, which are its streets
+    /// (`tiling::StreetGraph`); [`NO_STREET`] where it has none.
+    pub street: u32,
 }
+
+/// A building on no street (the focal world built without a leaf, or a leaf with no road).
+pub const NO_STREET: u32 = u32::MAX;
 
 /// A data-centre site off the street.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -901,7 +907,7 @@ pub fn road_rect(r: &Road) -> Building {
     let (dx, dy) = (r.x1 - r.x0, r.y1 - r.y0);
     let len = (dx * dx + dy * dy).sqrt();
     let angle = if len > 0.0 { dy.atan2(dx) } else { 0.0 };
-    Building { cx: (r.x0 + r.x1) / 2.0, cy: (r.y0 + r.y1) / 2.0, w: len + r.width, d: r.width, angle, floors: 0, units: 0 }
+    Building { cx: (r.x0 + r.x1) / 2.0, cy: (r.y0 + r.y1) / 2.0, w: len + r.width, d: r.width, angle, floors: 0, units: 0, street: NO_STREET }
 }
 
 /// True when a footprint and a road's paved area come within `gap` metres of each other (exact:
@@ -1113,7 +1119,7 @@ impl MicroWorld {
         if cx.abs() > lim || cy.abs() > lim {
             return false;
         }
-        let me = Building { cx, cy, w, d, angle, floors: 1, units: 0 };
+        let me = Building { cx, cy, w, d, angle, floors: 1, units: 0, street: NO_STREET };
         if self.roads.iter().any(|r2| footprint_meets_road(&me, r2, 1.0)) {
             return false;
         }
@@ -1165,7 +1171,7 @@ impl MicroWorld {
                     let (px, py) = (r.x0 + ux * mid, r.y0 + uy * mid);
                     let (cx, cy) = (px - uy * off * side, py + ux * off * side);
                     if self.building_fits(cx, cy, w, d, angle) {
-                        self.buildings.push(Building { cx, cy, w, d, angle, floors, units });
+                        self.buildings.push(Building { cx, cy, w, d, angle, floors, units, street: NO_STREET });
                     }
                     s += w + gap;
                 }
@@ -1495,6 +1501,23 @@ impl MicroWorld {
         let mut m = BTreeMap::new();
         for h in &self.households {
             *m.entry(h.access).or_insert(0) += 1;
+        }
+        m
+    }
+
+    /// The street a household lives on (its building's frontage street; [`NO_STREET`] for none).
+    #[must_use]
+    pub fn household_street(&self, h: usize) -> u32 {
+        self.buildings.get(self.households[h].building).map_or(NO_STREET, |b| b.street)
+    }
+
+    /// Households per street (index into `roads`; [`NO_STREET`] for none): they sum to the tile's
+    /// households.
+    #[must_use]
+    pub fn households_by_street(&self) -> BTreeMap<u32, u64> {
+        let mut m = BTreeMap::new();
+        for h in 0..self.households.len() {
+            *m.entry(self.household_street(h)).or_insert(0) += 1;
         }
         m
     }

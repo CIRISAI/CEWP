@@ -24,7 +24,7 @@
 //! of the two cells at the SHALLOWER side's level; a deeper holon's own streets stay inside it.
 //! Everything here is procedural: no real road or building appears below region scale.
 
-use crate::micro::{footprint_meets_road, rects_overlap, Building, DensityClass, MicroParams, Rng, Road, P};
+use crate::micro::{footprint_meets_road, rects_overlap, Building, DensityClass, MicroParams, Rng, Road, NO_STREET, P};
 use std::collections::BTreeMap;
 
 /// Lattice units per degree: one unit is 0.02° / 512, the L12 cell (about 4.3 m north-south).
@@ -707,6 +707,60 @@ pub fn split_crossings(parent: HolonId, l2_budget: &mut impl FnMut(HolonId) -> u
 
 // ------------------------------------------------------------------ leaf layout
 
+/// What meets a street's end, or where two streets meet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum JunctionKind {
+    /// The street leaves the leaf through a side (it runs on in the neighbour).
+    Exit = 0,
+    /// The street ends inside the leaf with nothing across it.
+    DeadEnd = 1,
+    /// One street ends on another.
+    Tee = 2,
+    /// Two streets cross.
+    Cross = 3,
+    /// Both streets end where they meet.
+    Corner = 4,
+}
+
+/// A point of the street graph: two streets meeting, or one street's open end.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Junction {
+    /// East, leaf-local metres.
+    pub x: f64,
+    /// North, leaf-local metres.
+    pub y: f64,
+    /// Its kind.
+    pub kind: JunctionKind,
+    /// The street (index into the leaf's roads); for a meeting, the north-south one.
+    pub a: u32,
+    /// The other street of a meeting; [`NO_STREET`] for an exit or a dead end.
+    pub b: u32,
+}
+
+/// A street: one of the leaf's roads, named by the leaf and its index.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Street {
+    /// The leaf holding it (the street's id is `(leaf, index)`).
+    pub leaf: HolonId,
+    /// Its index in the leaf's roads.
+    pub index: u32,
+    /// An arterial (main road width).
+    pub main: bool,
+    /// What its start and its end meet.
+    pub ends: [JunctionKind; 2],
+}
+
+/// The leaf's streets as a graph: streets, the junctions where they meet or end, and (on the
+/// buildings, `Building::street`) which street each building and so each household is on.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StreetGraph {
+    /// Streets, in road order.
+    pub streets: Vec<Street>,
+    /// Meetings first (in street order), then open ends.
+    pub junctions: Vec<Junction>,
+}
+
 /// Main road width, metres (an arterial, every class).
 pub const MAIN_ROAD_M: f64 = 12.0;
 
@@ -763,6 +817,83 @@ impl LeafLayout {
         ((x - xc) * k * lat.to_radians().cos().max(0.01), (y - yc) * k)
     }
 
+    /// The street graph of the leaf: every pair of a north-south and an east-west road that meet
+    /// is a junction (cross, tee or corner, by which of the two ends there); every road end that
+    /// meets nothing is an exit on a side or a dead end inside.
+    #[must_use]
+    pub fn street_graph(&self) -> StreetGraph {
+        const EPS: f64 = 1e-6;
+        let within = |v: f64, a: f64, b: f64| v >= a.min(b) - EPS && v <= a.max(b) + EPS;
+        let mut ends: Vec<[Option<JunctionKind>; 2]> = vec![[None, None]; self.roads.len()];
+        let mut junctions = Vec::new();
+        let vertical = |r: &Road| (r.x0 - r.x1).abs() < EPS;
+        for (i, v) in self.roads.iter().enumerate() {
+            if !vertical(v) {
+                continue;
+            }
+            for (j, h) in self.roads.iter().enumerate() {
+                if vertical(h) || (h.y0 - h.y1).abs() >= EPS {
+                    continue;
+                }
+                let (px, py) = (v.x0, h.y0);
+                if !within(py, v.y0, v.y1) || !within(px, h.x0, h.x1) {
+                    continue;
+                }
+                let ev = [(py - v.y0).abs() < EPS, (py - v.y1).abs() < EPS];
+                let eh = [(px - h.x0).abs() < EPS, (px - h.x1).abs() < EPS];
+                let (v_end, h_end) = (ev[0] || ev[1], eh[0] || eh[1]);
+                let kind = match (v_end, h_end) {
+                    (false, false) => JunctionKind::Cross,
+                    (true, true) => JunctionKind::Corner,
+                    _ => JunctionKind::Tee,
+                };
+                for k in 0..2 {
+                    if ev[k] {
+                        ends[i][k] = Some(kind);
+                    }
+                    if eh[k] {
+                        ends[j][k] = Some(kind);
+                    }
+                }
+                junctions.push(Junction { x: px, y: py, kind, a: i as u32, b: j as u32 });
+            }
+        }
+        let on_side = |x: f64, y: f64| (x.abs() - self.w / 2.0).abs() < EPS || (y.abs() - self.h / 2.0).abs() < EPS;
+        let mut streets = Vec::with_capacity(self.roads.len());
+        for (i, r) in self.roads.iter().enumerate() {
+            let mut kinds = [JunctionKind::DeadEnd; 2];
+            for (k, (x, y)) in [(r.x0, r.y0), (r.x1, r.y1)].into_iter().enumerate() {
+                kinds[k] = ends[i][k].unwrap_or_else(|| {
+                    let kind = if on_side(x, y) { JunctionKind::Exit } else { JunctionKind::DeadEnd };
+                    junctions.push(Junction { x, y, kind, a: i as u32, b: NO_STREET });
+                    kind
+                });
+            }
+            streets.push(Street { leaf: self.id, index: i as u32, main: r.width >= MAIN_ROAD_M, ends: kinds });
+        }
+        StreetGraph { streets, junctions }
+    }
+
+    /// Give every building placed off a frontage (dense fabric, a block on a free spot) the street
+    /// nearest its centre (ties to the lower index); a leaf with no road leaves them on none.
+    fn link_streets(&mut self) {
+        let roads = &self.roads;
+        for b in self.buildings.iter_mut().filter(|b| b.street == NO_STREET) {
+            let mut best = (f64::INFINITY, NO_STREET);
+            for (i, r) in roads.iter().enumerate() {
+                let (dx, dy) = (r.x1 - r.x0, r.y1 - r.y0);
+                let l2 = dx * dx + dy * dy;
+                let t = if l2 > 0.0 { (((b.cx - r.x0) * dx + (b.cy - r.y0) * dy) / l2).clamp(0.0, 1.0) } else { 0.0 };
+                let (qx, qy) = (r.x0 + t * dx - b.cx, r.y0 + t * dy - b.cy);
+                let d = qx * qx + qy * qy;
+                if d < best.0 {
+                    best = (d, i as u32);
+                }
+            }
+            b.street = best.1;
+        }
+    }
+
     /// FNV-1a over every number in the layout: equal hashes mean byte-identical layouts.
     #[must_use]
     pub fn digest(&self) -> u64 {
@@ -784,7 +915,7 @@ impl LeafLayout {
             for v in [b.cx, b.cy, b.w, b.d, b.angle] {
                 eat(v.to_bits());
             }
-            eat(u64::from(b.floors) << 16 | u64::from(b.units));
+            eat(u64::from(b.floors) << 16 | u64::from(b.units) | u64::from(b.street) << 32);
         }
         for p in &self.ports {
             eat(p.dir as u64 | (p.main as u64) << 8);
@@ -875,6 +1006,7 @@ impl LeafLayout {
             out.place_buildings(&mut rng);
         }
         out.fit_households(&mut rng);
+        out.link_streets();
         out
     }
 
@@ -901,7 +1033,7 @@ impl LeafLayout {
             let mut x = x0;
             while x < x1 {
                 let w = rng.range(8.0, 13.0);
-                let b = Building { cx: x + w / 2.0, cy: y + d / 2.0, w, d, angle: 0.0, floors: DENSE_MIN_FLOORS, units: 1 };
+                let b = Building { cx: x + w / 2.0, cy: y + d / 2.0, w, d, angle: 0.0, floors: DENSE_MIN_FLOORS, units: 1, street: NO_STREET };
                 if fits(self, &b) {
                     self.buildings.push(b);
                 }
@@ -950,7 +1082,7 @@ impl LeafLayout {
             return;
         }
         let roads = self.roads.clone();
-        for r in &roads {
+        for (ri, r) in roads.iter().enumerate() {
             let (dx, dy) = (r.x1 - r.x0, r.y1 - r.y0);
             let len = (dx * dx + dy * dy).sqrt();
             if len < 1.0 {
@@ -987,7 +1119,7 @@ impl LeafLayout {
                     }
                     let off = r.width / 2.0 + setback + d / 2.0;
                     let (px, py) = (r.x0 + ux * mid, r.y0 + uy * mid);
-                    let b = Building { cx: px - uy * off * side, cy: py + ux * off * side, w, d, angle, floors, units };
+                    let b = Building { cx: px - uy * off * side, cy: py + ux * off * side, w, d, angle, floors, units, street: ri as u32 };
                     if self.fits(&b) {
                         self.buildings.push(b);
                     }
@@ -1014,7 +1146,7 @@ impl LeafLayout {
             cands.sort_by(|a, b| (a.0 * a.0 + a.1 * a.1).total_cmp(&(b.0 * b.0 + b.1 * b.1)).then(a.0.total_cmp(&b.0)).then(a.1.total_cmp(&b.1)));
             for (cx, cy) in cands {
                 for angle in [0.0, std::f64::consts::FRAC_PI_2] {
-                    let b = Building { cx, cy, w, d, angle, floors: 1, units: 0 };
+                    let b = Building { cx, cy, w, d, angle, floors: 1, units: 0, street: NO_STREET };
                     if self.fits(&b) {
                         return Some(b);
                     }
@@ -1054,7 +1186,7 @@ impl LeafLayout {
                 let full = ((want as f64).sqrt() * 6.0).clamp(10.0, (self.w.min(self.h) - 4.0).max(4.0));
                 let spot = self.free_spot(full);
                 self.unplaced = spot.is_none();
-                self.buildings.push(spot.unwrap_or(Building { cx: 0.0, cy: 0.0, w: 6.0, d: 5.0, angle: 0.0, floors: 1, units: 0 }));
+                self.buildings.push(spot.unwrap_or(Building { cx: 0.0, cy: 0.0, w: 6.0, d: 5.0, angle: 0.0, floors: 1, units: 0, street: NO_STREET }));
                 let last = self.buildings.len() - 1;
                 self.buildings[last].units = 1;
                 have += 1;
@@ -1080,6 +1212,40 @@ impl LeafLayout {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_leaf_holds_a_street_graph_and_every_household_a_street() {
+        let p = MicroParams::default();
+        let mut kinds = [0usize; 5];
+        for &(la, lo, dens) in &[(47.3769, 8.5417, 2_500.0), (39.2, -77.25, 1_100.0), (46.3, 2.3, 60.0), (30.0444, 31.2357, 37_000.0), (23.7104, 90.4074, 30_000.0)] {
+            for level in [5_u8, 6, 7] {
+                let id = HolonId::at(level, la, lo);
+                let (w, h) = id.size_m();
+                let ctx = LeafContext { budget: ((dens * w * h / 1e6) / 2.5).round().clamp(1.0, 400.0) as u64, chain: [3_000; 11], ..LeafContext::default() };
+                let l = LeafLayout::build(id, &ctx, &p);
+                let g = l.street_graph();
+                assert_eq!(g.streets.len(), l.roads.len());
+                // every street end is exactly one junction's: a meeting names it, else an exit or a dead end
+                for s in &g.streets {
+                    assert_eq!(s.leaf, id);
+                    let named = g.junctions.iter().filter(|j| j.a == s.index || j.b == s.index).count();
+                    let open = s.ends.iter().filter(|k| matches!(k, JunctionKind::Exit | JunctionKind::DeadEnd)).count();
+                    assert!(named >= open, "{id:?} street {}", s.index);
+                }
+                for j in &g.junctions {
+                    kinds[j.kind as usize] += 1;
+                    assert_eq!(j.b == NO_STREET, matches!(j.kind, JunctionKind::Exit | JunctionKind::DeadEnd));
+                }
+                // buildings with dwellings all sit on a street when the leaf has one; summed by street, the households
+                if !l.roads.is_empty() {
+                    assert!(l.buildings.iter().all(|b| (b.street as usize) < l.roads.len()), "{id:?}");
+                }
+                let by_street: u64 = l.buildings.iter().map(|b| u64::from(b.units)).sum();
+                assert_eq!(by_street, l.households, "{id:?}");
+            }
+        }
+        assert!(kinds[JunctionKind::Cross as usize] + kinds[JunctionKind::Tee as usize] > 0, "{kinds:?}");
+    }
 
     #[test]
     fn arterial_crossings_sum_along_a_side_and_agree_across_it() {
