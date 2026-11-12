@@ -134,6 +134,9 @@ pub struct EnergySpec {
 /// CIRISHolon POWER-0 (`conformance/scene/tables/power0/power_table.json`, version 3, read at
 /// CIRISHolon `origin/main` c6677a1, sha256 d103390a...). Every row's verdict is "unresolved"
 /// (priors from documents); `EnergySpec::source` names the row and carries its basis.
+/// CIRISHolon UPSTREAM-0 (`conformance/scene/tables/upstream0/upstream_table.json`, 45 rows, each
+/// tagged average allocation, marginal or capacity), read at 1beb5f5; verdict unresolved.
+pub const UPSTREAM0_PIN: &str = "CIRISHolon 1beb5f5084600fae1de5d65d2d5303abb1ca1870 conformance/scene/tables/upstream0/upstream_table.json v1 sha256 3eeea60a7ce8d036adb39a22ccc6ca5ad56910eda93d3e60dcc0009825188d1a";
 pub const POWER0_PIN: &str = "CIRISHolon c6677a147076bdd8472e4b0761585e9f3d0961cc conformance/scene/tables/power0/power_table.json v3 sha256 d103390ab4f7ae9c8bf45f2a071cc3b87159f5cf84796f1e65f3facd7fa58b5f";
 /// CIRISHolon DEVICES-0 (US 2020): `conformance/scene/tables/devices0_us/device_table.json` v1.
 pub const DEVICES0_PIN: &str = "CIRISHolon c6677a147076bdd8472e4b0761585e9f3d0961cc conformance/scene/tables/devices0_us/device_table.json v1 sha256 e4869380d2133be1ed532a0e15cb13d497f7050102924eb72bbc845eed5a6620";
@@ -249,43 +252,43 @@ energy_rows! {
     VillageUplinkJPerMb = "network.thin_uplink.j_per_mb", "network", "a village's one thin uplink (satellite or long microwave)", "J/MB", [5.0, 50.0, 500.0], Frontier, None, 2026, "", "",
         "a satellite terminal's 50 to 100 W over a few Mbit/s of use; capacity-bound, so the same in both runs";
     // ---- data centre ----------------------------------------------------------------------------
-    DcMsgWhPerPersonHour = "datacentre.messaging.wh_per_person_hour", "data centre", "C1 delivery: message relay and fan-out one person drives, per hour of the day", "Wh", [0.02, 0.1, 0.5], Frontier, None, 2026, "",
-        "POWER-0 not_available: no published figure for messaging alone; row 43 (415 TWh, every workload) is not this",
-        "a stated bound: a few Wh per user-day for a whole platform, of which messaging is an unknown share";
+    DcMsgWhPerPersonHour = "c1.delivery_kwh_per_person_year", "data centre", "C1 delivery: message relay, fan-out and serving per daily person", "kWh", [0.02, 0.2, 1.0], Frontier, None, 2023, "",
+        "UPSTREAM-0 rows 26 and 8 (a serving-only messenger: servers 2.9 M USD a year for its whole user base; messages queued only until delivered): a small share of the 5.5 kWh ceiling",
+        "kept under its old identifier; now kWh per person-year";
     // ---- C2-C5: what the status quo spends beyond delivery (Eric 2026-11-11: "most of the data
     // centre energy we are saving is not from the pure processing, it is the storing and
     // harvesting for personal information and ads"); every row FRONTIER, for CIRISHolon to source
-    SubstitutionShare = "c.substitution_share", "lever", "share of use that MOVES from an ad-funded platform to the mesh (not kept alongside it)", "share", [0.5, 0.5, 0.5], Frontier, None, 2026, "", "",
-        "0 = the mesh is purely additive, the honest floor ('people use phones regardless' applies to platforms too); the report shows 0, 0.25, 0.5 and 1 side by side; it multiplies every status-quo line of C";
-    ShortRunShareC2C4 = "c.short_run_share_c2_c4", "data centre", "share of retention, harvesting and ad-system energy that moves with one user's use while capacity is fixed", "share", [0.0, 0.1, 0.3], Frontier, None, 2026, "", "",
-        "storage and training capacity are provisioned per user and per product, so C2-C4 live in the long run; in the short run only marginal inference and request handling move";
+    SubstitutionShare = "c.substitution_share", "lever", "share of use that MOVES from an ad-funded platform to the mesh (not kept alongside it)", "share", [0.05, 0.05, 0.05], Frontier, None, 2021, "",
+        "UPSTREAM-0 rows 39-44 (survey 2021: 26% wanted to leave a messenger, about a quarter of them managed, 0.5% uninstalled; median five messaging apps; 79% overlap): PRIOR 0.005 to 0.16",
+        "0 = the mesh is purely additive, the honest floor; the axis runs 0 to 1, the prior is 0.005 to 0.16; it multiplies every status-quo line of C";
+    CeilingKwhPerPersonYear = "c.ceiling_kwh_per_person_year", "data centre", "everything one large social operator spends per daily active person (the ceiling of the avoided term)", "kWh", [5.5, 5.5, 5.5], Model, None, 2024, "",
+        "UPSTREAM-0 row 0 (AVG, operator-reported 2024: 5.5 kWh per daily active person, 0.63 W; 3.3, 3.9, 3.6, 5.5 for 2021-2024, includes generative AI)",
+        "no component sum may exceed it: C1 + C2 + C3 + C4 are clipped to it and reported as a fraction of it";
     UseHoursPerPersonDay = "c.platform_use_hours_per_person_day", "workload", "hours a day a person spends in the ad-funded apps the mesh would replace", "h", [1.0, 2.5, 5.0], Frontier, None, 2026, "", "",
         "of the order of two to three hours a day of social and messaging use";
-    RetainedGbPerUserYear = "c2.retained_gb_per_user_year", "data centre", "messages, media, contacts and metadata a platform keeps per user per year", "GB", [0.5, 3.0, 20.0], Frontier, None, 2026, "", "",
-        "media-heavy users far above text-only ones";
-    YearsKept = "c2.years_kept", "data centre", "years a platform keeps it", "years", [2.0, 8.0, 20.0], Frontier, None, 2026, "", "",
-        "indefinite retention in practice; the stock per user is GB a year times years kept";
-    ReplicationFactor = "c2.replication_factor", "data centre", "copies across regions and backups", "copies", [2.0, 3.0, 6.0], Frontier, None, 2026, "", "",
-        "three-way replication plus backups and caches";
-    StorageWPerTb = "c2.storage_w_per_tb", "data centre", "storage power per TB held, servers and PUE included", "W/TB", [0.5, 2.0, 8.0], Frontier, None, 2026, "", "",
-        "dense disk at a fraction of a W per TB raw, several W per TB with servers, network and overhead";
+    RetainedGbPerUser = "c2.retained_gb_per_user", "data centre", "logical bytes a platform keeps per user (retention AT REST)", "GB", [1.0, 3.0, 10.0], Frontier, None, 2025, "",
+        "UPSTREAM-0 row 7 (AUTHOR'S ESTIMATE 1 to 10 GB; floor 0.6 GB from 'exabytes' over 3.5 bn)", "";
+    KwhPerLogicalTbYear = "c2.kwh_per_logical_tb_year", "data centre", "storage energy per logical TB-year, replication and cooling included", "kWh", [11.5, 15.4, 28.2], Model, None, 2026, "",
+        "UPSTREAM-0 row 10 (AVG/CAP: 5.09 kWh per raw TB-year x PUE 1.08-1.54 x replication 2.1-3.6)",
+        "so 1-10 GB per user is 0.015-0.15 kWh a year (row 14): under 3% of the ceiling. Retention at rest is SMALL";
     MeshRetainedGbPerUser = "c2.mesh_retained_gb_per_user", "home node", "content the mesh keeps per member on members' own devices (bounded retention)", "GB", [0.5, 5.0, 30.0], Frontier, Some(true), 2026, "", "",
         "the custody model holds members' content on their own devices with bounded retention; durability.rs gives bytes held per holder but no time axis";
     DeviceStorageWPerTb = "c2.device_storage_w_per_tb", "home node", "marginal storage power on a device already on", "W/TB", [0.0, 0.2, 1.0], Frontier, Some(true), 2026, "", "",
         "flash or a disk that spins anyway: near zero marginal";
-    DcHarvestWhPerUseHour = "c3.harvest_wh_per_use_hour", "data centre", "event logging, tracking pipelines, profiling, feature stores, ranking and ad-targeting training and inference, per user-hour of use", "Wh", [0.05, 0.5, 5.0], Frontier, None, 2026, "", "",
-        "the machinery behind the feed and the ads; no published per-user figure";
-    AdImpressionsPerUseHour = "c4.impressions_per_use_hour", "data centre", "ad impressions per user-hour of use", "impressions", [20.0, 60.0, 200.0], Frontier, None, 2026, "", "",
-        "an ad every few posts in a scrolling feed";
-    AdJPerImpression = "c4.j_per_impression", "data centre", "the ad-tech chain per impression: auction, exchanges, bidders, verification", "J", [0.5, 5.0, 50.0], Frontier, None, 2026, "", "",
-        "dozens of bid requests per impression across exchanges and bidders";
-    AdMbPerUseHour = "c5.ad_and_tracker_mb_per_use_hour", "phone", "ad creatives and tracker bytes downloaded per user-hour of use", "MB", [5.0, 20.0, 100.0], Frontier, Some(false), 2026, "", "",
-        "video ads dominate; trackers are small but many";
-    AdRenderJPerImpression = "c5.render_j_per_impression", "phone", "phone CPU and GPU to fetch scripts and render one ad", "J", [0.05, 0.2, 1.0], Frontier, Some(false), 2026,
-        "phone on a power monitor scrolling a feed with and without an ad blocker", "", "script execution and decoding per ad";
-    TrackerWakesPerPhoneHour = "c5.tracker_wakes_per_phone_hour", "phone", "telemetry and tracker requests that wake the radio, per unsuspended phone-hour", "wakes", [0.0, 6.0, 60.0], Frontier, Some(false), 2026,
-        "a phone's wake log with the platform app installed and idle", "",
-        "a platform app that phones home pays the same promotion and tail term A charges the mesh's idle round";
+    HarvestKwhPerPersonYear = "c3.harvest_rank_ads_compute_kwh_per_person_year", "data centre", "harvesting, ranking and advertising COMPUTE (logging, profiling, feature stores, training, inference, ad ranking) per daily person", "kWh", [0.5, 3.0, 5.5], Frontier, None, 2024, "",
+        "UPSTREAM-0 row 25 (AVG: 0.5 to 5.5 kWh per person-year; NOBODY PUBLISHES THE SPLIT; 3.0 is the middle of the SCOUT'S OWN central reading 2 to 4); rows 18-24 for shares",
+        "this is where the platform's energy is; long-run capacity only (row 13: -28% storage IO moved power by -0.04%)";
+    AdImpressionsPerUseHour = "c4.impressions_per_use_hour", "data centre", "ad impressions per user-hour of use", "impressions", [40.0, 60.0, 80.0], Frontier, None, 2026, "",
+        "UPSTREAM-0 row 32 (AUTHOR'S ESTIMATE from a measured ad load of 13% of feed items, row 29)", "";
+    AdJPerImpression = "c4.adtech_j_per_impression", "data centre", "the third-party ad-tech chain per impression: exchanges, bidders, verification", "J", [0.5, 5.0, 50.0], Frontier, None, 2026, "",
+        "UPSTREAM-0 rows 27, 31: no measured energy per impression; vendor models differ eightfold; a bracket",
+        "C4 is the chain beyond the platform's own ranking (which is in C3)";
+    AdMbPerUseHour = "c5.ad_and_tracker_mb_per_use_hour", "network", "ad creatives and tracker bytes per user-hour of use (network side)", "MB", [5.0, 20.0, 100.0], Frontier, None, 2026, "",
+        "UPSTREAM-0 row 28 (measured: 21.1% of web page bytes are tracking)", "priced on access by the network rows";
+    AdDeviceKwhPerPhoneYear = "c5.ad_device_kwh_per_phone_year", "phone", "the device side of ads and tracking: rendering, ad and tracker bytes, telemetry wake-ups", "kWh", [0.0, 0.25, 0.3], Model, Some(false), 2015,
+        "phone on a power monitor with the platform app with and without ads",
+        "UPSTREAM-0 row 38 (MARG: at most 0.2-0.3 kWh per phone-year; apps with ads used 16% more energy in a 2015 study, row 33; OS telemetry about every 4.5 min, row 37)",
+        "a true marginal and small: it does not offset term A's radio cost";
     DcCallWhPerParticipantHour = "datacentre.call.wh_per_participant_hour", "data centre", "SFU work per participant-hour of a video call", "Wh", [0.1, 1.0, 5.0], Frontier, None, 2026, "", "",
         "an SFU forwards without transcoding; the high end includes recording and transcoding";
     // ---- village ---------------------------------------------------------------------------------
@@ -425,6 +428,8 @@ pub trait Q: Copy + Add<Output = Self> + Sub<Output = Self> + Mul<Output = Self>
     fn mid(self) -> f64;
     /// `min(self, c)`.
     fn min_c(self, c: f64) -> Self;
+    /// `max(self, 0)`.
+    fn pos(self) -> Self;
 }
 impl Q for f64 {
     fn k(x: f64) -> Self {
@@ -439,6 +444,9 @@ impl Q for f64 {
     fn min_c(self, c: f64) -> Self {
         self.min(c)
     }
+    fn pos(self) -> Self {
+        self.max(0.0)
+    }
 }
 impl Q for Iv {
     fn k(x: f64) -> Self {
@@ -452,6 +460,9 @@ impl Q for Iv {
     }
     fn min_c(self, c: f64) -> Self {
         Self::new(self.lo.min(c), self.hi.min(c))
+    }
+    fn pos(self) -> Self {
+        Self::new(self.lo.max(0.0), self.hi.max(0.0))
     }
 }
 
@@ -905,6 +916,9 @@ impl<T: Q> Ledger<T> {
     }
 }
 
+/// kWh per person-year to J per person-hour.
+pub const KWH_PY_TO_J_PH: f64 = 3.6e6 / 8766.0;
+
 /// Wake-ups an hour a device makes at the lever cadence (rounds at the cadence plus Pull
 /// cycles), times the phone schedule share.
 fn wakes_per_hour<T: Q>(val: &dyn Fn(E) -> T, k: &Counters) -> f64 {
@@ -1010,7 +1024,9 @@ fn household<T: Q>(l: &mut Ledger<T>, val: &dyn Fn(E) -> T, k: &Counters, r: Par
     // ---- C: avoided upstream, by component; every status-quo line times the substitution share
     let sub = val(E::SubstitutionShare);
     l.part = Part::C1Delivery;
-    l.put(C, D::DataCentre, E::DcMsgWhPerPersonHour, "C1: person-hours of message delivery that move (Wh -> J x3600 x substitution)", h * T::k(3600.0) * sub, val(E::DcMsgWhPerPersonHour), 1.0);
+    // per person-year kWh -> J per person-hour
+    let py = T::k(KWH_PY_TO_J_PH);
+    l.put(C, D::DataCentre, E::DcMsgWhPerPersonHour, "C1: persons x (kWh/person-year -> J/hour) x substitution", h * py * sub, val(E::DcMsgWhPerPersonHour), 1.0);
     // bytes by the access they ride: in a cellular-only home everything at home rides the
     // carrier (with a box, the phones' Wi-Fi is the box's)
     let (fx, mo) = if cell_only { (if home == Home::None { w } else { zero }, if home == Home::None { c } else { one }) } else { (w, c) };
@@ -1028,30 +1044,30 @@ fn household<T: Q>(l: &mut Ledger<T>, val: &dyn Fn(E) -> T, k: &Counters, r: Par
         l.net(val, run, "mesh sync MB to the seat on access", sync_mb * fx, sync_mb * mo, -1.0);
     }
     let _ = loc;
-    // C2-C4 are provisioned per user: the whole of them in the long run, a marginal share in
-    // the short run
-    let runf = if run == Run::Long { one } else { val(E::ShortRunShareC2C4) };
+    // C2-C4 are long-run capacity not built: none of them moves while capacity is fixed
+    // (UPSTREAM-0 row 13: a 28% fall in storage traffic moved storage power by 0.04%)
+    let runf = if run == Run::Long { one } else { T::k(0.0) };
     let use_frac = val(E::UseHoursPerPersonDay) * T::k(1.0 / 24.0);
     let users = h * use_frac; // person-hours of platform use per household-hour
     l.part = Part::C2Retention;
-    let tb = h * val(E::RetainedGbPerUserYear) * val(E::YearsKept) * val(E::ReplicationFactor) * T::k(1e-3);
-    l.put(C, D::DataCentre, E::StorageWPerTb, "C2: status-quo TB held for the household (GB/user-year x years x replication) x seconds x substitution x run share", tb * T::k(3600.0) * sub * runf, val(E::StorageWPerTb), 1.0);
+    let c2 = h * val(E::RetainedGbPerUser) * T::k(1e-3) * py;
+    l.put(C, D::DataCentre, E::KwhPerLogicalTbYear, "C2: logical TB at rest for the household's persons x (kWh/TB-year -> J/hour) x substitution x long run", c2 * sub * runf, val(E::KwhPerLogicalTbYear), 1.0);
     // the mesh keeps members' content on their own devices: a marginal draw on devices on anyway
     l.put(A, D::HomeNode, E::DeviceStorageWPerTb, "C2 mesh side: TB members keep on their own devices x seconds", h * val(E::MeshRetainedGbPerUser) * T::k(1e-3 * 3600.0), val(E::DeviceStorageWPerTb), 1.0);
     l.part = Part::C3Harvest;
-    l.put(C, D::DataCentre, E::DcHarvestWhPerUseHour, "C3: user-hours of use x 3600 x substitution x run share", users * T::k(3600.0) * sub * runf, val(E::DcHarvestWhPerUseHour), 1.0);
+    l.put(C, D::DataCentre, E::HarvestKwhPerPersonYear, "C3: persons x (kWh/person-year -> J/hour) x substitution x long run", h * py * sub * runf, val(E::HarvestKwhPerPersonYear), 1.0);
     l.part = Part::C4Ads;
     let imps = users * val(E::AdImpressionsPerUseHour);
-    l.put(C, D::DataCentre, E::AdJPerImpression, "C4: ad impressions x substitution x run share", imps * sub * runf, val(E::AdJPerImpression), 1.0);
+    l.put(C, D::DataCentre, E::AdJPerImpression, "C4: ad impressions x substitution x long run", imps * sub * runf, val(E::AdJPerImpression), 1.0);
+    // the ceiling: C1 + C2 + C3 + C4 per person may not exceed the operator's whole spend; the
+    // excess is taken back on a line of its own, priced at the ceiling row
+    let dc = h * py * val(E::DcMsgWhPerPersonHour) + runf * (c2 * val(E::KwhPerLogicalTbYear) + h * py * val(E::HarvestKwhPerPersonYear) + imps * val(E::AdJPerImpression));
+    let cap = h * py * val(E::CeilingKwhPerPersonYear);
+    let excess = (dc - cap).pos();
+    l.put(C, D::DataCentre, E::CeilingKwhPerPersonYear, "clip: the part of C1-C4 above the operator's 5.5 kWh per person (as a share of the ceiling, negative)", -(excess * val(E::CeilingKwhPerPersonYear).recip()) * sub, val(E::CeilingKwhPerPersonYear), 1.0);
     l.part = Part::C5DeviceNetwork;
     let ad_mb = users * val(E::AdMbPerUseHour) * sub;
-    l.put(C, D::Phone, E::PhoneJPerMbWifi, "C5: ad and tracker MB on the phone's Wi-Fi", ad_mb * w, val(E::PhoneJPerMbWifi), 1.0);
-    l.put(C, D::Phone, E::PhoneJPerMbCell, "C5: ad and tracker MB on the phone's carrier", ad_mb * c, val(E::PhoneJPerMbCell), 1.0);
-    l.put(C, D::Phone, E::AdRenderJPerImpression, "C5: ads rendered on the phone", imps * sub, val(E::AdRenderJPerImpression), 1.0);
-    let tw = phones_on * val(E::TrackerWakesPerPhoneHour) * sub;
-    l.put(C, D::Phone, E::PhoneWakeJWifi, "C5: tracker and telemetry wake-ups on Wi-Fi", tw * w, val(E::PhoneWakeJWifi), 1.0);
-    l.put(C, D::Phone, E::PhoneCellPromoJ, "C5: tracker and telemetry wake-ups on a carrier", tw * c, val(E::PhoneCellPromoJ), 1.0);
-    l.put(C, D::Phone, E::PhoneCellTailW, "C5: tail seconds after those wake-ups", tw * c * val(E::PhoneCellTailS), val(E::PhoneCellTailW), 1.0);
+    l.put(C, D::Phone, E::AdDeviceKwhPerPhoneYear, "C5: phones x (kWh/phone-year -> J/hour) x substitution (a true marginal)", phones * py * sub, val(E::AdDeviceKwhPerPhoneYear), 1.0);
     if !village {
         l.net(val, run, "C5: ad and tracker MB on access", ad_mb * fx, ad_mb * mo, 1.0);
     } else {
@@ -1314,7 +1330,7 @@ pub fn input_component(name: &str) -> &'static str {
 }
 
 /// Substitution shares the report shows side by side.
-pub const SUBSTITUTIONS: [f64; 4] = [0.0, 0.25, 0.5, 1.0];
+pub const SUBSTITUTIONS: [f64; 7] = [0.0, 0.01, 0.05, 0.16, 0.25, 0.5, 1.0];
 
 /// The phone-radio rows, listed first in the break-even table.
 pub const PHONE_RADIO_ROWS: [E; 8] = [E::PhoneCellRoundShare, E::WifiShare, E::CellOnlyWifiShare, E::PhoneCellTailS, E::RoundCadenceS, E::PhoneCellTailW, E::PhoneCellPromoJ, E::PhoneScheduleShare];
@@ -1452,7 +1468,7 @@ pub fn report(seed: u64) -> String {
     let mut s = String::new();
     s.push_str(&format!("# Energy delta from the status quo (seed {seed})\n\n"));
     s.push_str("Joules per household-hour (calls: per participant-hour). delta = A + B - C; positive is a cost, negative a saving. Bounds per term and on the net: the lowest and highest values found over every row's interval ends (seat_calibration's corners refined by a vertex search; each is attained by a real combination of input ends); the interval-arithmetic enclosure, guaranteed but wider, has its own column. No row is MEASURED in this repo's sense; rows taken from CIRISHolon POWER-0 carry its basis and its verdict (unresolved). The network is priced as a traffic term (short run) plus a capacity share (long run), never at an average per GB.\n\n");
-    s.push_str(&format!("Tables: {POWER0_PIN}; {DEVICES0_PIN}.\n\n"));
+    s.push_str(&format!("Tables: {POWER0_PIN}; {DEVICES0_PIN}; {UPSTREAM0_PIN}.\n\n"));
     s.push_str("## Counters read (DERIVED from the packages' events)\n\n");
     s.push_str(&format!("- seat_hooks: {:.2} wake-ups / device-hour ({:.1} rounds, {:.2} Pull cycles), {:.0} bytes / device-hour each way, {:.1} seat reads / device-hour\n", k.sync_wakes_per_device_hour, k.sync_rounds_per_device_hour, k.sync_pulls_per_device_hour, k.sync_bytes_per_device_hour, k.seat_reads_per_device_hour));
     s.push_str(&format!("- people_hooks (Poisson, 2,000-person stand-in, 1 day): {:.3} acts sent and {:.2} copies received per person-hour, {:.2} content wake-ups per phone-hour\n", k.acts_sent_per_person_hour, k.acts_received_per_person_hour, k.content_wakes_per_phone_hour));
@@ -1510,22 +1526,55 @@ pub fn report(seed: u64) -> String {
         }
         s.push('\n');
     }
-    s.push_str("\n## Where the home node runs (US 2020 household mix, expected regime, substitution 0.5)\n\nThe host choice is applied only to households that can host it; the rest run phones only, and homes with no internet are at zero. Household types are a stated joint stand-in (DEVICES-0 marginals with DEVICEGEN-1's certified 8.7% that have nothing to host on), to be replaced by `holon_scene::world::devices::generate` (CIRISHolon 33dc99f) through the same seam. Envelope: United States, 2020 (set-top boxes +76% and streaming devices -22% by 2024: the always-on boxes move fastest).\n\n| host | households it reaches | delta short run | delta long run |\n|---|---|---|---|\n");
+    s.push_str("\n## Where the home node runs (US 2020 household mix, expected regime, substitution 0.05)\n\nThe host choice is applied only to households that can host it; the rest run phones only, and homes with no internet are at zero. Household types are a stated joint stand-in (DEVICES-0 marginals with DEVICEGEN-1's certified 8.7% that have nothing to host on), to be replaced by `holon_scene::world::devices::generate` (CIRISHolon 33dc99f) through the same seam. Envelope: United States, 2020 (set-top boxes +76% and streaming devices -22% by 2024: the always-on boxes move fastest).\n\n| host | households it reaches | delta short run | delta long run |\n|---|---|---|---|\n");
     for sc in [Scenario::MixGateway, Scenario::MixComputer, Scenario::MixBox, Scenario::MixNone] {
         let a = delta(&p, &k, sc, ParameterRegime::Expected, Run::Short);
         let b = delta(&p, &k, sc, ParameterRegime::Expected, Run::Long);
         s.push_str(&format!("| {} | {} | {} [{}, {}] {} | {} [{}, {}] {} |\n", sc.as_str(), format!("{:.1}%", 100.0 * host_reach(&p, sc)), j(a.net), j(a.net_bounds.lo), j(a.net_bounds.hi), sign_word(&a), j(b.net), j(b.net_bounds.lo), j(b.net_bounds.hi), sign_word(&b)));
     }
     // term C by component and the substitution share
-    s.push_str("\n## Term C by component (expected regime, stand-in presence, substitution 0.5, point J)\n\nC1 delivery, C2 retention, C3 harvesting and profiling, C4 the ad system, C5 the device and network side of ads and tracking; the mesh's own upstream is subtracted. C2-C4 are provisioned per user and per product: the long run counts them whole, the short run only `c.short_run_share_c2_c4` (0.1) of them. Every row is FRONTIER: no dataset.\n\n| scenario | run | C1 delivery | C2 retention | C3 harvesting | C4 ad system | C5 ad/tracker device+network | mesh upstream | C total | A + B |\n|---|---|---|---|---|---|---|---|---|---|\n");
+    // headline first: the sign inside the substitution prior, and its two levers
+    s.push_str("\n## Headline: the sign with substitution inside its prior (0.005 to 0.16), and the two levers\n\nExpected regime, stand-in presence. kWh per person-year (household scenarios at 2.5 persons; calls per participant-hour in J). The ceiling is UPSTREAM-0's 5.5 kWh per daily person (everything one large operator spends). Levers, others at the default (substitution 0.05): the zero of the substitution share, of the round cadence (s) and of the share of carrier rounds that touch the radio.\n\n| scenario | run | delta at 0.01 | delta at 0.05 | delta at 0.16 | sign inside the prior | substitution zero | cadence zero (s) | carrier round share zero |\n|---|---|---|---|---|---|---|---|---|\n");
+    for sc in Scenario::ALL {
+        let calls = sc.per() == "participant-hour";
+        for run in Run::ALL {
+            let conv = |x: f64| if calls { format!("{} J", j(x)) } else { format!("{:.2}", x * 8766.0 / 3.6e6 / 2.5) };
+            let ds: Vec<Delta> = [0.01, 0.05, 0.16].iter().map(|&x| delta(&p.with(E::SubstitutionShare, x), &k, sc, ParameterRegime::Expected, run)).collect();
+            let all_cost = ds.iter().all(|d| d.net_bounds.lo > 0.0);
+            let all_pos = ds.iter().all(|d| d.net > 0.0);
+            let sign = if all_cost { "COST across the prior and every input interval" } else if all_pos { "positive at the point across the prior; open over the inputs" } else { "point changes sign inside the prior" };
+            let be = break_even(&p, &k, sc, ParameterRegime::Expected, run);
+            let z = |e: E| be.iter().find(|b| b.row == e).and_then(|b| b.at).map_or("none".to_string(), |x| format!("{x:.3}"));
+            s.push_str(&format!("| {} | {} | {} {} | {} {} | {} {} | {} | {} | {} | {} |\n", sc.as_str(), run.as_str(), conv(ds[0].net), sign_word(&ds[0]).split(' ').next().unwrap_or(""), conv(ds[1].net), sign_word(&ds[1]).split(' ').next().unwrap_or(""), conv(ds[2].net), sign_word(&ds[2]).split(' ').next().unwrap_or(""), sign, z(E::SubstitutionShare), z(E::RoundCadenceS), z(E::PhoneCellRoundShare)));
+        }
+    }
+    s.push_str("\nThe two levers together (kWh per person-year, point, long run; the sign over every input interval in brackets). Edge today: rounds every 30 s that all touch the carrier radio. Fixed idle: carrier rounds off (push-woken or suspended on cellular, share 0) and the round cadence at 300 s.\n\n| scenario | today, 0.05 | today, 0.16 | fixed idle, 0.05 | fixed idle, 0.16 | fixed idle, 1.0 |\n|---|---|---|---|---|---|\n");
+    for sc in [Scenario::RouterNode, Scenario::PhonesOnly, Scenario::CellOnlyPhones, Scenario::Village, Scenario::MixGateway, Scenario::MixComputer, Scenario::MixNone, Scenario::MixBox] {
+        s.push_str(&format!("| {} |", sc.as_str()));
+        for (fixed, sub) in [(false, 0.05), (false, 0.16), (true, 0.05), (true, 0.16), (true, 1.0)] {
+            let mut q = p.with(E::SubstitutionShare, sub);
+            if fixed {
+                q = q.with(E::PhoneCellRoundShare, 0.0).with(E::RoundCadenceS, 300.0);
+            }
+            let d = delta(&q, &k, sc, ParameterRegime::Expected, Run::Long);
+            s.push_str(&format!(" {:.2} ({}) |", d.net * 8766.0 / 3.6e6 / 2.5, sign_word(&d).split(' ').next().unwrap_or("")));
+        }
+        s.push('\n');
+    }
+    let phone_kwh_y = phone_wh_per_day(&p, &k, 1.0, 30.0, p.get(E::PhoneCellTailS), p.get(E::WifiShare), 0.85) * 365.25 / 1000.0;
+    s.push_str(&format!("\nSide by side, per phone-year: the edge schedule's radio term {:.2} kWh (stand-in presence; {:.2} under PRESENCE-0 with edge as is) against the device side of ads and tracking, C5, at most {:.2} kWh (UPSTREAM-0 row 38, a true marginal) and only times the substitution share. OS telemetry fires about every 4.5 minutes ({:.1} wake-ups an hour) against edge's {:.2}. **C5 does not offset term A's radio cost.**\n", phone_kwh_y, phone_wh_per_day(&presence_params(&p, PresenceSetting::Presence0Edge), &k, 1.0, 30.0, p.get(E::PhoneCellTailS), presence_params(&p, PresenceSetting::Presence0Edge).get(E::WifiShare), 0.85) * 365.25 / 1000.0, spec(E::AdDeviceKwhPerPhoneYear).hi, 60.0 / 4.5, k.sync_wakes_per_device_hour));
+    s.push_str("\n## Term C by component (expected regime, stand-in presence, substitution 0.05, point J)\n\nC1 delivery; C2 retention AT REST (small: 15.4 kWh per logical TB-year); C3 harvesting, ranking and advertising COMPUTE (UPSTREAM-0's 0.5 to 5.5 kWh per person-year bracket); C4 the third-party ad-tech chain; C5 the device and network side of ads and tracking; the mesh's own upstream is subtracted. C2-C4 are long-run capacity not built: they are zero in the short run. C1-C4 are clipped to the 5.5 kWh ceiling per person; the last column is the status quo's data-centre lines (C1-C4 after the clip) per person as a fraction of it, before substitution; mix scenarios are per their own persons.\n\n| scenario | run | C1 delivery | C2 retention at rest | C3 harvest/rank/ads compute | C4 ad-tech chain | C5 ad/tracker device+network | mesh upstream | C total | A + B | C1-C4 / ceiling |\n|---|---|---|---|---|---|---|---|---|---|---|\n");
     for sc in Scenario::ALL {
         for run in Run::ALL {
             let b = by_part(&p, &k, sc, ParameterRegime::Expected, run);
             let ct: f64 = b[1..].iter().sum();
-            s.push_str(&format!("| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n", sc.as_str(), run.as_str(), j(b[1]), j(b[2]), j(b[3]), j(b[4]), j(b[5]), j(b[6]), j(ct), j(b[0])));
+            let sub = p.get(E::SubstitutionShare);
+            let dc: f64 = contributions(&|x| p.get(x), &k, sc, ParameterRegime::Expected, run).iter().filter(|c| c.term == Term::AvoidedUpstream && c.dev == Dev::DataCentre).map(|c| c.sign * c.joules).sum();
+            let frac = if sc.per() == "household-hour" && sub > 0.0 { dc / sub / (p.get(E::PersonsPerHousehold) * KWH_PY_TO_J_PH * p.get(E::CeilingKwhPerPersonYear)) } else { f64::NAN };
+            s.push_str(&format!("| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n", sc.as_str(), run.as_str(), j(b[1]), j(b[2]), j(b[3]), j(b[4]), j(b[5]), j(b[6]), j(ct), j(b[0]), if frac.is_nan() { "-".to_string() } else { format!("{:.0}%", 100.0 * frac) }));
         }
     }
-    s.push_str("\n## The substitution share side by side (expected regime): delta point [bounds] at 0, 0.25, 0.5 and 1\n\nAt 0 the mesh is purely additive: nothing moves off the platform, so nothing upstream is avoided. That is the honest floor.\n\n| scenario | run | 0 | 0.25 | 0.5 | 1 |\n|---|---|---|---|---|---|\n");
+    s.push_str("\n## The substitution share side by side (expected regime): delta point [bounds] at 0, the prior (0.01, 0.05, 0.16) and 0.25, 0.5, 1\n\nAt 0 the mesh is purely additive: nothing moves off the platform, so nothing upstream is avoided. That is the honest floor. The prior from the evidence there is (UPSTREAM-0 rows 39-44) is 0.005 to 0.16.\n\n| scenario | run | 0 | 0.01 | 0.05 | 0.16 | 0.25 | 0.5 | 1 |\n|---|---|---|---|---|---|---|---|---|\n");
     for sc in Scenario::ALL {
         for run in Run::ALL {
             s.push_str(&format!("| {} | {} |", sc.as_str(), run.as_str()));
@@ -1880,6 +1929,27 @@ mod tests {
         let s = by_part(&q, &k, Scenario::PhonesOnly, ParameterRegime::Expected, Run::Short);
         let l = by_part(&q, &k, Scenario::PhonesOnly, ParameterRegime::Expected, Run::Long);
         assert!(l[2] > s[2] && l[3] > s[3] && l[4] > s[4]);
+    }
+
+    #[test]
+    fn the_ceiling_holds_and_c2_c4_are_long_run_only() {
+        let k = counters();
+        let p = EnergyParams::default().with(E::SubstitutionShare, 1.0);
+        let r = ParameterRegime::Expected;
+        let lim = p.get(E::PersonsPerHousehold) * KWH_PY_TO_J_PH * p.get(E::CeilingKwhPerPersonYear);
+        for sc in [Scenario::RouterNode, Scenario::PhonesOnly, Scenario::Village] {
+            for &e in E::ALL {
+                for x in [spec(e).lo, spec(e).hi] {
+                    let q = p.with(e, x);
+                    // the status quo's data-centre lines (C1-C4 and the clip), not its network
+                    let dc: f64 = contributions(&|x| q.get(x), &k, sc, r, Run::Long).iter().filter(|c| c.term == Term::AvoidedUpstream && c.dev == Dev::DataCentre).map(|c| c.sign * c.joules).sum();
+                    let lim = lim * q.get(E::PersonsPerHousehold) / p.get(E::PersonsPerHousehold) * q.get(E::CeilingKwhPerPersonYear) / p.get(E::CeilingKwhPerPersonYear);
+                    assert!(dc <= lim * (1.0 + 1e-9), "{sc:?} {e:?}: C1-C4 above the ceiling");
+                }
+            }
+            let s = by_part(&p, &k, sc, r, Run::Short);
+            assert!(s[2].abs() < 1e-12 && s[3].abs() < 1e-12 && s[4].abs() < 1e-12, "C2-C4 are zero in the short run");
+        }
     }
 
     #[test]
