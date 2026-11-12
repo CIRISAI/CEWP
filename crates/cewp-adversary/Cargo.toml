@@ -3,7 +3,7 @@ name = "cewp-adversary"
 version = "0.2.0"
 edition = "2021"
 description = "Adversarial testing programme and constitutional formal-exclusion suite for CEWP (Layer 5)"
-license = "Apache-2.0"
+license = "AGPL-3.0-or-later"
 
 [dependencies]
 cewp-kernel = { path = "../cewp-kernel" }

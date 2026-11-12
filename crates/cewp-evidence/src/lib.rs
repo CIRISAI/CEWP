@@ -28,8 +28,9 @@ use std::str::FromStr;
 /// Canonical SHA-256 digest of topology_vocabulary.json (156 atoms).
 pub const CSD4_VOCABULARY_SHA256: &str = "c37f6f9651579932835ff700a2ec376a0c5c928545c3ed476362ec4bd4ac0769";
 
-/// Current Git commit hash of CEWP repository at HEAD.
-pub const CEWP_COMMIT: &str = "d6a0ee410d173057d32597eb2619e7186d5ee334";
+/// The CEWP commit this crate was built from, stamped by build.rs from `git rev-parse HEAD`
+/// ("unknown" outside a git checkout). It was a hand-written hash before, and went stale.
+pub const CEWP_COMMIT: &str = env!("CEWP_GIT_COMMIT");
 
 /// Commit hash of the normative CIRISConstitution repository.
 pub const CONSTITUTION_COMMIT: &str = "b363b6e54dcd2efc7a8df16a335cb84f42869366";

@@ -104,6 +104,7 @@ function evLegend(){
   <ul class="ev-legend">${rows}</ul>
   <h3>The full ledger</h3>
   ${groups}
+  <p class="ev-means">This page and its simulation kernel are free software under the GNU AGPL-3.0-or-later. Source for exactly what you are running: <a href="${typeof CEWP_SOURCE_COMMIT === "string" ? "https://github.com/CIRISAI/CEWP/tree/" + CEWP_SOURCE_COMMIT : "https://github.com/CIRISAI/CEWP"}" target="_blank" rel="noopener">github.com/CIRISAI/CEWP</a>.</p>
   <p class="ev-means">Generated from <code>crates/cewp-evidence/src/page_ledger.rs</code>; <code>cargo test -p cewp-evidence page_</code> fails when the page shows a figure with no entry.</p>`;
 }
 // what the visitor is looking at: the cohort tier above street zoom, the R5 patch at street zoom

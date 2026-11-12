@@ -46,6 +46,7 @@ pub const UI_IDS: &[(&str, &str)] = &[
 /// Tokens with digits that are names, not figures, with the reason.
 pub const NON_FIGURES: &[(&str, &str)] = &[
     ("1:1", "the R5 tier's name (one node per device)"),
+    ("AGPL-3.0-or-later", "the licence's SPDX identifier, not a figure"),
     ("1-hop", "the CC 5.4.3 term for a shaped link (one direct hop)"),
     ("6-Peer", "name of the six-peer kernel demo page"),
     ("CSD/4", "name of the topology catalogue"),

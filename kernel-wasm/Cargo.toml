@@ -3,7 +3,7 @@ name = "cewp-kernel-scale"
 version = "0.1.0"
 edition = "2021"
 description = "The door of the CEWP kernel at scale: one tick of random acts over millions of nodes, compiled to WebAssembly for docs/globe.html"
-license = "Apache-2.0"
+license = "AGPL-3.0-or-later"
 
 [lib]
 crate-type = ["cdylib"]

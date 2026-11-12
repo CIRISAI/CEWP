@@ -4,7 +4,7 @@ version = "0.2.0"
 edition = "2021"
 authors = ["CEWP Team"]
 description = "Unified CEWP verification and evidence simulation CLI runner"
-license = "Apache-2.0"
+license = "AGPL-3.0-or-later"
 
 [dependencies]
 cewp-kernel = { path = "../cewp-kernel" }
