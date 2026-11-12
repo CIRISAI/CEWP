@@ -78,7 +78,7 @@ formulas, ledgered as FRONTIER where their constants are unsourced.
 
 ## Calibration corrections applied
 
-twin-calibration's list (twin/calibration 1b1d8a2, its FSD §4 and §10) is applied through the
+the calibration package's list (twin/calibration 1b1d8a2, its FSD §4 and §10) is applied through the
 ledger:
 - `seat-knee` is no longer the kernel's single count. It is MODEL with its interval for v45.0.0
   on one 4-core seat at 70%: 4,882 to 13,723 devices if the server's publish set grows with the

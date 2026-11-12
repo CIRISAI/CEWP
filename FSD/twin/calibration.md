@@ -275,7 +275,7 @@ f73b918.
 - `README.md` :13: "CIRISEdge v45.0.0 (in release), read at commit c580298" → "release/45.0.0
   at 8e46165 (untagged)"; any knee figure → the interval against growth.
 
-`docs/` (owner `twin-evidence`): globe.js :291 (version/commit line), :1909, :1914
+`docs/` (owner the evidence package): globe.js :291 (version/commit line), :1909, :1914
 `BS_TITLE[1]`, :1915–1917, :2485 (single `k45.knee` → interval from
 `calibration_view_knee`), :2486 (cache and budget built), :2487 (Global planes walk every key;
 TTL revalidates ≤256 reads a listing). No figure in `docs/*.html`.

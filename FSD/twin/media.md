@@ -275,7 +275,7 @@ participant-hour (`energy_lines`).
 
 Not counted, because the engine has no such event: control traffic (SUBSCRIBE, C3 frames,
 bindings, RNS keepalives, link setup), storage (a call writes nothing), AS hops and long-haul
-kilometres (the media engine has two regions, not routes; `twin-topology`'s
+kilometres (the media engine has two regions, not routes; the topology package's
 `NetPath::counters` is the type to join on once members are placed on its graph). Bytes
 transmitted from a node's queue when it leaves are flushed, not counted as sent; the copy on
 the wire at that moment had its seal counted but not its transmission. The energy test

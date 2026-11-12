@@ -1282,7 +1282,7 @@
       "window": "",
       "param": "",
       "dataset": "",
-      "blocker": "Not a CIRISHolon certificate. The kernel computes a raw locality defect, then scales it by 0.12 x (1 + 0.6 x NAT share + 1.2 x unshaped share), caps it at 0.20 and compares it with beta = 0.030; K is the formula 1.012 + 0.045 x (...), not an estimate from data. None of these constants has a source. Real distributional certificates are the twin-holon package's work (REVIEW 1A).",
+      "blocker": "Not a CIRISHolon certificate. The kernel computes a raw locality defect, then scales it by 0.12 x (1 + 0.6 x NAT share + 1.2 x unshaped share), caps it at 0.20 and compares it with beta = 0.030; K is the formula 1.012 + 0.045 x (...), not an estimate from data. None of these constants has a source. Real distributional certificates are the the holon package package's work (REVIEW 1A).",
       "reproduce": "",
       "correction": "",
       "interval": null,

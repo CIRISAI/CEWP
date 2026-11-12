@@ -103,7 +103,7 @@ const VIEWS_COMMIT: &str = "twin/globe 8b70422";
 const MEDIA_LAYER_COMMIT: &str = "twin/media 716379e; twin/globe da31099";
 /// The calibration layer: package source at twin/calibration, wiring at twin/globe.
 const CAL_LAYER_COMMIT: &str = "twin/calibration c13cee5; twin/globe a824940";
-/// The failures layer: twin-failures' world and evaluate, merged into twin/globe at 17a9a87, read
+/// The failures layer: the failures package's world and evaluate, merged into twin/globe at 17a9a87, read
 /// through crates/cewp-sim/src/failure_view.rs.
 const FAILURES_LAYER_COMMIT: &str = "twin/failures 89b1e4c; twin/globe 17a9a87 (merge) with failure_view.rs";
 
@@ -127,10 +127,10 @@ const BASE: PageClaim = PageClaim {
 
 use EpistemicClass::{Derived, Frontier, Measured, Model};
 
-/// twin-calibration's correction list (twin/calibration 1b1d8a2, FSD/twin/calibration.md §4 and §10).
+/// the calibration package's correction list (twin/calibration 1b1d8a2, FSD/twin/calibration.md §4 and §10).
 const CALIBRATION_COMMIT: &str = "twin/calibration c13cee5 (CEWP); release/45.0.0 8e46165 (CIRISEdge, untagged when read)";
 /// The live seat figures: seat_view.rs and view_seat_fleet landed at twin/globe 6cc2996, on
-/// twin-calibration's model (c13cee5) as merged.
+/// the calibration package's model (c13cee5) as merged.
 const SEAT_LAYER_COMMIT: &str = "twin/globe 6cc2996 (seat_view.rs, view_seat_fleet) on twin/calibration c13cee5";
 
 /// Every figure or statement of fact the page shows, by id.
@@ -968,7 +968,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         live: true,
         shows: "Commuting-square defect, Lipschitz constant K, retention rent G and a within-budget flag, shown in the Holon pill and the Metrics panel.",
         source: "kernel-wasm/src/lib.rs tick (outputs 28 to 32)",
-        blocker: "Not a CIRISHolon certificate. The kernel computes a raw locality defect, then scales it by 0.12 x (1 + 0.6 x NAT share + 1.2 x unshaped share), caps it at 0.20 and compares it with beta = 0.030; K is the formula 1.012 + 0.045 x (...), not an estimate from data. None of these constants has a source. Real distributional certificates are the twin-holon package's work (REVIEW 1A).",
+        blocker: "Not a CIRISHolon certificate. The kernel computes a raw locality defect, then scales it by 0.12 x (1 + 0.6 x NAT share + 1.2 x unshaped share), caps it at 0.20 and compares it with beta = 0.030; K is the formula 1.012 + 0.045 x (...), not an estimate from data. None of these constants has a source. Real distributional certificates are the the holon package package's work (REVIEW 1A).",
         failure: &[
             "The flag can read 'within budget' for any world the constants allow; it tests nothing about the cohort tier's fidelity.",
             "The pill's earlier label 'CERT' and the panel's 'CERTIFIED (R3 to R0)' claimed a certificate that is not computed; the page no longer says so.",
@@ -1572,6 +1572,58 @@ mod tests {
         assert_eq!(j.matches("\"id\": ").count(), PAGE_CLAIMS.len());
     }
 
+    /// Public text names no agent, session, relay or the owner (FSD/, docs/ and README): process jargon fails the
+    /// gate instead of waiting for a reviewer to notice it. Imported CIRISHolon assets (docs/geo/holon/) are data,
+    /// sha-checked, and are left as published.
+    #[test]
+    fn public_text_carries_no_process_jargon() {
+        fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            let Ok(rd) = std::fs::read_dir(dir) else { return };
+            for e in rd.flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    walk(&p, out);
+                } else if matches!(p.extension().and_then(|x| x.to_str()), Some("md" | "html" | "js" | "css" | "json" | "txt")) {
+                    out.push(p);
+                }
+            }
+        }
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut files = vec![root.join("README.md")];
+        walk(&root.join("FSD"), &mut files);
+        walk(&root.join("docs"), &mut files);
+        let lower_terms = ["team-lead", "sub-agent", "subagent", "this session", "relayed via holon", "twin-globe", "twin-theory", "twin-calibration", "twin-evidence", "twin-failures",
+            "twin-holon", "twin-media", "twin-nat", "twin-people", "twin-topology", "twin-hhsize", "twin-integrate", "twin-geodata"];
+        let boundary = |s: &str, i: usize, n: usize| {
+            let before = s[..i].chars().next_back().is_none_or(|c| !c.is_alphanumeric());
+            let after = s[i + n..].chars().next().is_none_or(|c| !c.is_alphanumeric());
+            before && after
+        };
+        let mut hits = Vec::new();
+        for f in files {
+            let rel = f.strip_prefix(&root).unwrap_or(&f).to_string_lossy().replace('\\', "/");
+            if rel.contains("docs/geo/holon/") {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(&f) else { continue };
+            for (ln, line) in text.lines().enumerate() {
+                let low = line.to_lowercase();
+                let mut bad: Vec<&str> = lower_terms.iter().copied().filter(|t| low.match_indices(t).any(|(i, _)| boundary(&low, i, t.len()))).collect();
+                if low.match_indices("the lead").any(|(i, _)| boundary(&low, i, 8)) {
+                    bad.push("the lead");
+                }
+                // the Constitution's stewardship line ("stewarded by Eric Moore") is a published fact, not jargon
+                if line.match_indices("Eric").any(|(i, _)| boundary(line, i, 4) && !line[i..].starts_with("Eric Moore")) {
+                    bad.push("the owner's first name");
+                }
+                if !bad.is_empty() {
+                    hits.push(format!("{rel}:{}: {}", ln + 1, bad.join(", ")));
+                }
+            }
+        }
+        assert!(hits.is_empty(), "process jargon in public text (name no agent, session, relay or the owner):\n{}", hits.join("\n"));
+    }
+
     #[test]
     fn page_ledger_files_are_current() {
         let dir = docs_dir().join("evidence");
@@ -1601,7 +1653,7 @@ mod tests {
             assert!(c.source.contains("seat_view") || c.source.contains("seat_hooks"), "{id}: {}", c.source);
         }
         assert!(PAGE_CLAIMS.iter().all(|c| c.status == Status::Stated), "no entry is under correction");
-        // the knee is twin-calibration's interval, never one count
+        // the knee is the calibration package's interval, never one count
         let k = lookup("seat-knee").expect("seat-knee");
         assert_eq!((k.class, k.status, k.live), (EpistemicClass::Model, Status::Stated, true));
         let i = k.interval.expect("an interval");

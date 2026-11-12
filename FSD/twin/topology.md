@@ -1,6 +1,6 @@
 # Twin package: AS-aware network topology (`crates/cewp-sim/src/netgraph.rs`)
 
-Status: built on branch `twin/topology`. The default graph is a **MODEL stand-in**. It is generated, it is NOT real Internet data, and every printed report opens by saying so (`Provenance::banner`). Real data drops in behind one loader seam once Eric approves a dataset (§6).
+Status: built on branch `twin/topology`. The default graph is a **MODEL stand-in**. It is generated, it is NOT real Internet data, and every printed report opens by saying so (`Provenance::banner`). Real data drops in behind one loader seam once the owner approves a dataset (§6).
 
 ## 1. What changed and why
 
@@ -171,7 +171,7 @@ counts none.
 Globe hook (HOOKS.md §2): `netgraph::view` (`topology_view_points`, `topology_view_links`,
 `topology_view_path`, `view_classes`, `TopologyView`); layouts in that module's docs.
 
-## 6. Dataset approval brief (for Eric)
+## 6. Dataset approval brief (for the owner)
 
 Nothing has been fetched. URLs and terms come from each project's own licence or terms pages, read on 2026-11-10. Where a page could not be read, the brief says so.
 

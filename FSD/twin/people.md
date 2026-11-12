@@ -136,7 +136,7 @@ RESULTS_PLACEHOLDER
 
 ## 5. What a real dataset would replace (approval requests, nothing downloaded)
 
-Nothing below was downloaded. Each row is an approval request for Eric; URLs are the
+Nothing below was downloaded. Each row is an approval request for the owner; URLs are the
 publishers' landing pages; licence and size are as I recall them and must be checked on the
 page before approval (marked "check").
 

@@ -1,5 +1,5 @@
-// The Zurich path, ready before the zoom (Eric: "pre-cache all the Zurich tiles we need so the zoom
-// has no loading"). The Story and the default zoom go from orbit to a Zurich street. At idle after
+// The Zurich path, ready before the zoom (the requirement: pre-cache all the Zurich tiles the zoom needs, so the zoom
+// has no loading). The Story and the default zoom go from orbit to a Zurich street. At idle after
 // first paint this file asks, once, for exactly what that path draws, through the page's own
 // loaders (so the results are decoded and on the GPU when the camera arrives), then builds the
 // Zurich street tiling in the wasm in slices under ZP_SLICE_MS of idle time. Nothing else on the

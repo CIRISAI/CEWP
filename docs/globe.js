@@ -2081,7 +2081,7 @@ function seatFleet(devices, sc){
 const ivN = (a, f) => f(a[0]) === f(a[1]) ? f(a[0]) : f(a[0]) + " to " + f(a[1]);
 const ivRho = (a) => ivN(a, (x) => x >= 10 ? x.toFixed(0) : x.toFixed(2));
 const seatCell = (r) => r ? `<span class="nw">${ivN(r.cores, fmtN)} cores</span><br><span class="nw">ρ ${ivRho(r.rho)}</span>${r.rho[0] >= 1 ? "<br><b>saturated</b>" : r.rho[1] >= 1 ? "<br>may saturate" : ""}` : "–";
-// the seat knee as an interval (twin-calibration, cewp_sim::seat_hooks::calibration_view_knee via
+// the seat knee as an interval (the calibration package, cewp_sim::seat_hooks::calibration_view_knee via
 // kernel-wasm view_calibration_knee, slot 18): [lower, central, upper, kind, binds lower, binds upper,
 // class], -1 = no claim. Scenario 0..4 is key_publish_set growth g = 0, 0.25, 0.5, 0.75, 1 (FRONTIER).
 // Shown only as lower to upper with g named; the central value is never printed alone.
