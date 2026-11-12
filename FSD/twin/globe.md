@@ -29,8 +29,21 @@ carries category.
   what changed on the page is the receivers' marks; the kernel default matters to callers that never
   call `clock_set`. `clock_set(.., 0)` restores the f73b918 tick exactly. No test pinned the old
   slots; `diurnal_is_on_by_default_and_night_receivers_mark_less` pins the new default.
-  Note the model's rhythm: workload.rs peaks at 20:30 local and is lowest before dawn, so the busy
-  side is the evening side, not the sunlit side. One measured tick (MODEL, the page at 21.98 h UTC):
+  The daily curve (workload.rs `diurnal_multiplier`, a MODEL stand-in with no reference) is
+  `model.diurnal.v1` since twin/globe after 322b63c (Eric: "0.2 is too low and the current high is too
+  high"): trough `DIURNAL_TROUGH` 0.50x around 03:10, peak `DIURNAL_PEAK` 1.60x at
+  `DIURNAL_PEAK_HOUR` 19:30, 0.89x to 1.21x from 09:00 to 16:00, integrating to 1.0. Hourly values
+  00-23 h: 0.89 0.69 0.56 0.50 0.53 0.61 0.72 0.83 0.91 0.94 0.94 0.91 0.89 0.89 0.95 1.06 1.21 1.37
+  1.51 1.59 1.59 1.50 1.33 1.11. `model.diurnal.v0` was 1.57 1.23 0.90 0.62 0.42 0.30 0.23 0.21 0.20
+  0.20 0.21 0.23 0.30 0.42 0.62 0.90 1.23 1.57 1.90 2.15 2.28 2.28 2.15 1.90 (peak/trough 11.5, the low
+  at 08-09 local, not before dawn as the text below said). Reason: people's AI agents, scheduled
+  activity and other always-on use give the mesh a floor human-only traffic lacks, and messaging is a
+  waking-hours plateau. Two harmonics cannot hold a full 1.0 plateau while hitting the trough, peak and
+  hour exactly; the plateau's morning sits at 0.89x to 0.95x. One tick at 03.1 h UTC, acts by the
+  locality's local hour 17-24 / 0-7 / 7-17 h: v0 935 / 554 / 511, v1 376 / 452 / 1,172; sunlit / dark
+  side v0 514 / 1,486, v1 1,175 / 825 (MODEL). Under v0 below, the measured tick read as follows.
+  Note the v0 rhythm: it peaked at 20:30 local, so the busy
+  side was the evening side, not the sunlit side. One measured tick (MODEL, the page at 21.98 h UTC):
   acts signed in localities whose local hour is 17-24 h / 0-7 h / 7-17 h = 977 / 816 / 207 with the
   switch on, 386 / 1,277 / 337 with it off (ten ticks: 9,552 / 8,718 / 1,730 against 3,191 / 11,715 /
   5,094); sunlit / dark side 300 / 1,700 (on) against 620 / 1,380 (off). The dark side holds most of

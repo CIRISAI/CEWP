@@ -26,8 +26,8 @@ use crate::micro::{ParamSpec, Rng, Tag};
 use crate::social::{RoomKind, Scope, SocialWorld, NO_ROOM};
 use crate::workload::compute_arrival_rate;
 
-/// Upper bound of `diurnal_multiplier` (0.75 + 1.05 + 0.5 at cos = 1), with margin.
-const DIURNAL_MAX: f64 = 2.31;
+/// Upper bound of `diurnal_multiplier` (its stated high, `workload::DIURNAL_PEAK`), with margin.
+const DIURNAL_MAX: f64 = crate::workload::DIURNAL_PEAK + 0.01;
 
 /// Arrival law.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

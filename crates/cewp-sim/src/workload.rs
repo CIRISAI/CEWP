@@ -15,30 +15,37 @@
 /// Seconds in one standard astronomical day.
 pub const SECONDS_PER_DAY: f64 = 86_400.0;
 
-/// Normalized diurnal activity multiplier at time `t_local_secs` (0 .. 86,400).
-/// Integrates to exactly 1.0 over a full 24-hour cycle.
+/// Daily low of [`diurnal_multiplier`], times the daily mean (MODEL stand-in, no reference).
+pub const DIURNAL_TROUGH: f64 = 0.50;
+/// Daily high of [`diurnal_multiplier`], times the daily mean (MODEL stand-in, no reference).
+pub const DIURNAL_PEAK: f64 = 1.60;
+/// Local hour of the daily high (MODEL stand-in, no reference).
+pub const DIURNAL_PEAK_HOUR: f64 = 19.5;
+// The two harmonics fitted (once, offline, Nelder-Mead) so the curve's low, high and the high's hour
+// are the three constants above and the 09:00-17:00 stretch is as flat as two harmonics allow; the
+// test `diurnal_multiplier_hits_its_stated_trough_peak_and_hour` holds them to the constants.
+const DIURNAL_A1: f64 = 0.3929;
+const DIURNAL_H1: f64 = 18.0014;
+const DIURNAL_A2: f64 = 0.2488;
+const DIURNAL_H2: f64 = 8.0926;
+
+/// Normalized diurnal activity multiplier at local time `t_local_secs` (0 .. 86,400): a MODEL
+/// stand-in with no reference (registered on CIRISHolon's side as generator `model.diurnal.v1`; the
+/// previous curve, peak 2.3x at 20:30 and 0.2x before dawn, was `model.diurnal.v0`).
 ///
-/// Models a realistic human population diurnal cycle:
-/// - Low activity during early morning (04:00, ~0.2x)
-/// - Daytime activity plateau (12:00, ~1.0x)
-/// - Evening peak (20:00–21:00, ~2.2x - 2.5x)
-/// - Mean across 24h = 1.0
+/// Two harmonics, integrating to exactly 1.0 over 24 h: a low of [`DIURNAL_TROUGH`] (0.50x)
+/// around 03:10, a daytime stretch of 0.89x to 1.21x from 09:00 to 16:00 (rising to 1.37x by 17:00),
+/// and an evening high of
+/// [`DIURNAL_PEAK`] (1.60x) at [`DIURNAL_PEAK_HOUR`] (19:30). Peak over trough is 3.2, not the 11.5
+/// of v0: people's AI agents, scheduled activity and other always-on use give the mesh a floor that
+/// human-only traffic does not have, and messaging is a waking-hours plateau rather than an evening
+/// spike (Eric, 2026-11-11). Two harmonics cannot hold the plateau at a full 1.0 while also hitting
+/// the trough, the peak and its hour exactly; the morning of the plateau sits at 0.89x to 0.95x.
 #[must_use]
 pub fn diurnal_multiplier(t_local_secs: f64) -> f64 {
-    let t = t_local_secs.rem_euclid(SECONDS_PER_DAY);
-    let hour = t / 3600.0;
-
-    // A smooth 2-harmonic Fourier series that analytically integrates to exactly 1.0
-    // over 24 hours: peak at 20:30 (~2.3x), low in early morning (~0.2x).
-    let angle1 = (hour - 20.5) * (std::f64::consts::PI / 12.0); // 24-hour harmonic
-    let angle2 = (hour - 20.5) * (std::f64::consts::PI / 6.0);  // 12-hour harmonic
-
-    let val = 1.0 + 1.05 * angle1.cos() + 0.25 * angle2.cos();
-    if val < 0.05 {
-        0.05
-    } else {
-        val
-    }
+    let hour = t_local_secs.rem_euclid(SECONDS_PER_DAY) / 3600.0;
+    let w = std::f64::consts::PI / 12.0;
+    1.0 + DIURNAL_A1 * (w * (hour - DIURNAL_H1)).cos() + DIURNAL_A2 * (2.0 * w * (hour - DIURNAL_H2)).cos()
 }
 
 /// Compute dimensional event arrival rate:
@@ -342,16 +349,34 @@ mod tests {
         }
         let integral_mean = sum / SECONDS_PER_DAY;
         assert!(
-            (integral_mean - 1.0).abs() < 0.05,
+            (integral_mean - 1.0).abs() < 1e-9,
             "diurnal multiplier must integrate to approximately 1.0 over 24 hours (got {integral_mean})"
         );
 
-        // Peak is in evening (~20:30), lowest in early morning (~04:00)
-        let evening_val = diurnal_multiplier(20.5 * 3600.0);
-        let morning_val = diurnal_multiplier(4.0 * 3600.0);
-        assert!(evening_val > 1.8, "evening peak should be > 1.8");
-        assert!(morning_val < 0.5, "early morning should be < 0.5");
-        assert!(evening_val > morning_val * 3.0);
+        // the evening is the high, the small hours the low (model.diurnal.v1)
+        assert!(diurnal_multiplier(19.5 * 3600.0) > 1.55);
+        assert!(diurnal_multiplier(4.0 * 3600.0) < 0.55);
+    }
+
+    #[test]
+    fn diurnal_multiplier_hits_its_stated_trough_peak_and_hour() {
+        let (mut lo, mut hi, mut at) = (f64::MAX, f64::MIN, 0.0);
+        for m in 0..(24 * 60) {
+            let v = diurnal_multiplier(f64::from(m) * 60.0);
+            lo = lo.min(v);
+            if v > hi {
+                hi = v;
+                at = f64::from(m) / 60.0;
+            }
+        }
+        assert!((lo - DIURNAL_TROUGH).abs() < 2e-3, "trough {lo}");
+        assert!((hi - DIURNAL_PEAK).abs() < 2e-3, "peak {hi}");
+        assert!((at - DIURNAL_PEAK_HOUR).abs() <= 0.25, "peak hour {at}");
+        // the waking-hours stretch: no spike, no hole
+        for h in 9..=16 {
+            let v = diurnal_multiplier(f64::from(h) * 3600.0);
+            assert!((0.85..=1.25).contains(&v), "{h}:00 {v}");
+        }
     }
 
     #[test]

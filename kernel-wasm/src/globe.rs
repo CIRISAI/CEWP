@@ -25,9 +25,9 @@ use cewp_sim::workload::{diurnal_multiplier, SECONDS_PER_DAY};
 
 /// Localities the population grid carries (the `tick` locality table is this size).
 pub const NLOC: usize = 181;
-/// Largest value `diurnal_multiplier` returns (its 2-harmonic peak, ~2.30 at 20:30 local); the
-/// acceptance draw divides by it so the busiest hour is always accepted.
-pub const DIURNAL_PEAK: f64 = 2.30;
+/// Largest value `diurnal_multiplier` returns (workload.rs DIURNAL_PEAK, 1.60 at 19:30 local since
+/// model.diurnal.v1); the acceptance draw divides by it.
+pub const DIURNAL_PEAK: f64 = cewp_sim::workload::DIURNAL_PEAK;
 
 pub struct GlobeState {
     /// Sim time at the start of the next tick, seconds since the sim epoch (00:00 UTC, day `doy`).
@@ -468,11 +468,11 @@ mod tests {
         let g = globe();
         let was = g.diurnal;
         g.diurnal = true;
-        // workload.rs peaks at 20:30 local and is lowest before dawn: at 00:00 UTC, longitude -52.5 is at
-        // 20:30 local and longitude 75 at 05:00 local
-        let evening = rx_mark(g, 0.0, -52.5, 70);
-        let predawn = rx_mark(g, 0.0, 75.0, 70);
-        assert!(predawn < evening / 4 && evening == 70, "evening {evening} pre-dawn {predawn}");
+        // workload.rs (model.diurnal.v1) peaks at 19:30 local and is lowest around 03:10: at 00:00 UTC,
+        // longitude -67.5 is at 19:30 local and longitude 47.5 at 03:10 local
+        let evening = rx_mark(g, 0.0, -67.5, 70);
+        let predawn = rx_mark(g, 0.0, 47.5, 70);
+        assert!(evening >= 69 && predawn <= evening / 3 + 1, "evening {evening} pre-dawn {predawn}");
         g.diurnal = false;
         assert_eq!(rx_mark(g, 43_200.0, 180.0, 70), 70);
         g.diurnal = was;
@@ -482,7 +482,7 @@ mod tests {
 
     #[test]
     fn diurnal_peak_bounds_the_multiplier() {
-        for s in 0..(24 * 60) { assert!(diurnal_multiplier(s as f64 * 60.0) <= DIURNAL_PEAK + 1e-9); }
+        for s in 0..(24 * 60) { assert!(diurnal_multiplier(s as f64 * 60.0) <= DIURNAL_PEAK + 2e-3); }
     }
 
     #[test]

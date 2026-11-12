@@ -391,7 +391,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=24"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=25"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -913,12 +913,6 @@ function drawnUtcHours(nowSec){
   const dt = Math.min(0.25, Math.max(0, (now - drawnHourAt) / 1000)); drawnHourAt = now;
   let d = ((h - drawnHour) % 24 + 36) % 24 - 12, m = SUN_SLEW_H_PER_S * dt;
   drawnHour = (((drawnHour + Math.max(-m, Math.min(m, d))) % 24) + 24) % 24; return drawnHour;
-}
-function diurnalAtLon(lonDeg, nowSec){
-  const localHour = ((getSimUtcHours(nowSec) + lonDeg / 15.0) % 24.0 + 24.0) % 24.0;
-  const a1 = (localHour - 15.0) * (Math.PI / 12);
-  const a2 = (localHour - 15.0) * (Math.PI / 6);
-  return Math.max(0.06, Math.min(1.0, (1.0 + 1.05 * Math.cos(a1) + 0.25 * Math.cos(a2)) / 2.30));
 }
 const ARC_ADD_ORBIT = 2;
 function setArcs(arcs){
