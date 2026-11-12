@@ -2,7 +2,7 @@
  "what": "household sizes (persons per household) over every street leaf the page builds inside each probe place's L3 street tile, from the page's own path (GHS-POP assets -> geodata.js geoPopFine -> kernel pop_load / pop_root / pop_split / pop_of -> HOLON.tree -> holon_layout -> micro_build_leaf -> micro_population), MODEL",
  "command": "node docs/geo/household_hist_real.js --write",
  "inputs": {
-  "docs/kernel/kernel_scale.wasm": "770c7ddbc2d6de11bbb8eff17b573ea33c223683a1b08174f936e8ab368ee17d",
+  "docs/kernel/kernel_scale.wasm": "fe75a0543fab8d63280098dde8fd42a52077a16d40825afd795ca41d2e5299bf",
   "docs/geo/gd/pop0.bin.gz": "7711745ab49ecdd6ae0dac09f63c4bcf1d60aee91dd1ddc98426ce7223488dbb",
   "docs/geo/gd/pop1.bin.gz": "ce8ca1dc64950a8646cc04b7bf8ad621e6b1ad4e05b7dd56066aa08576dedf01",
   "docs/geo/geodata.js": "611401a1ee657243ff0427ad697680e36942edea30ed160ba2b5acf93b43234d",
@@ -19,133 +19,193 @@
    "lat": 47.3769,
    "lon": 8.5417,
    "l3_tile": 492620946080171,
-   "leaves_in_tile": 64,
+   "leaves_in_tile": 238,
    "leaves_without_households": 0,
-   "leaves": 64,
+   "leaves": 238,
    "counts_by_size": [
     0,
-    518,
-    930,
-    987,
-    285,
-    92,
-    22,
-    3
+    1701,
+    3059,
+    3434,
+    1018,
+    250,
+    54,
+    5
    ],
-   "households": 2837,
-   "persons": 7092,
+   "households": 9521,
+   "persons": 23802,
    "mean": {
-    "persons": 7092,
-    "households": 2837,
-    "reduced": "7092/2837",
-    "decimal": "2.499824"
+    "persons": 23802,
+    "households": 9521,
+    "reduced": "23802/9521",
+    "decimal": "2.499947"
    },
    "max_size": 7,
    "size_0_households": 0,
-   "over_6_households": 3,
+   "over_6_households": 5,
    "people_per_household": {
     "min": {
-     "reduced": "52/21",
-     "decimal": "2.476190"
+     "reduced": "12/5",
+     "decimal": "2.400000"
     },
     "median_lower": {
      "reduced": "5/2",
      "decimal": "2.500000"
     },
     "max": {
-     "reduced": "104/41",
-     "decimal": "2.536585"
+     "reduced": "8/3",
+     "decimal": "2.666667"
     }
    },
    "by_density_class": {
-    "terraced streets": {
-     "leaves": 64,
+    "apartment blocks": {
+     "leaves": 142,
      "counts_by_size": [
       0,
-      518,
-      930,
-      987,
-      285,
-      92,
-      22,
-      3
+      1304,
+      2310,
+      2706,
+      794,
+      167,
+      37,
+      5
      ],
-     "households": 2837,
-     "persons": 7092,
+     "households": 7323,
+     "persons": 18310,
      "mean": {
-      "persons": 7092,
-      "households": 2837,
-      "reduced": "7092/2837",
-      "decimal": "2.499824"
+      "persons": 18310,
+      "households": 7323,
+      "reduced": "18310/7323",
+      "decimal": "2.500341"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 3,
+     "over_6_households": 5,
      "people_per_household": {
       "min": {
-       "reduced": "52/21",
-       "decimal": "2.476190"
+       "reduced": "121/49",
+       "decimal": "2.469388"
       },
       "median_lower": {
        "reduced": "5/2",
        "decimal": "2.500000"
       },
       "max": {
-       "reduced": "104/41",
-       "decimal": "2.536585"
+       "reduced": "33/13",
+       "decimal": "2.538462"
+      }
+     }
+    },
+    "terraced streets": {
+     "leaves": 96,
+     "counts_by_size": [
+      0,
+      397,
+      749,
+      728,
+      224,
+      83,
+      17
+     ],
+     "households": 2198,
+     "persons": 5492,
+     "mean": {
+      "persons": 5492,
+      "households": 2198,
+      "reduced": "2746/1099",
+      "decimal": "2.498635"
+     },
+     "max_size": 6,
+     "size_0_households": 0,
+     "over_6_households": 0,
+     "people_per_household": {
+      "min": {
+       "reduced": "12/5",
+       "decimal": "2.400000"
+      },
+      "median_lower": {
+       "reduced": "5/2",
+       "decimal": "2.500000"
+      },
+      "max": {
+       "reduced": "8/3",
+       "decimal": "2.666667"
       }
      }
     }
    },
    "by_units_per_building": {
     "1": {
-     "leaves": 62,
+     "leaves": 110,
      "counts_by_size": [
       0,
-      216,
-      446,
-      428,
-      119,
-      41,
-      7,
-      2
+      132,
+      226,
+      232,
+      79,
+      25,
+      8
      ],
-     "households": 1259,
-     "persons": 3129,
+     "households": 702,
+     "persons": 1769,
      "mean": {
-      "persons": 3129,
-      "households": 1259,
-      "reduced": "3129/1259",
-      "decimal": "2.485306"
+      "persons": 1769,
+      "households": 702,
+      "reduced": "1769/702",
+      "decimal": "2.519943"
      },
-     "max_size": 7,
+     "max_size": 6,
      "size_0_households": 0,
-     "over_6_households": 2,
+     "over_6_households": 0,
      "people_per_household": null
     },
     "2-4": {
-     "leaves": 64,
+     "leaves": 161,
      "counts_by_size": [
       0,
-      302,
-      484,
-      559,
-      166,
-      51,
-      15,
-      1
+      317,
+      625,
+      634,
+      180,
+      57,
+      8
      ],
-     "households": 1578,
-     "persons": 3963,
+     "households": 1821,
+     "persons": 4522,
      "mean": {
-      "persons": 3963,
-      "households": 1578,
-      "reduced": "1321/526",
-      "decimal": "2.511407"
+      "persons": 4522,
+      "households": 1821,
+      "reduced": "4522/1821",
+      "decimal": "2.483251"
+     },
+     "max_size": 6,
+     "size_0_households": 0,
+     "over_6_households": 0,
+     "people_per_household": null
+    },
+    "5+": {
+     "leaves": 147,
+     "counts_by_size": [
+      0,
+      1252,
+      2208,
+      2568,
+      759,
+      168,
+      38,
+      5
+     ],
+     "households": 6998,
+     "persons": 17511,
+     "mean": {
+      "persons": 17511,
+      "households": 6998,
+      "reduced": "17511/6998",
+      "decimal": "2.502286"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 1,
+     "over_6_households": 5,
      "people_per_household": null
     }
    }
@@ -160,37 +220,37 @@
    "leaves": 4096,
    "counts_by_size": [
     0,
-    11471,
-    21317,
-    21218,
-    6840,
-    2196,
-    389,
-    32
+    21253,
+    38562,
+    40397,
+    11955,
+    3940,
+    816,
+    72
    ],
-   "households": 63463,
-   "persons": 158657,
+   "households": 116995,
+   "persons": 292488,
    "mean": {
-    "persons": 158657,
-    "households": 63463,
-    "reduced": "158657/63463",
-    "decimal": "2.499992"
+    "persons": 292488,
+    "households": 116995,
+    "reduced": "292488/116995",
+    "decimal": "2.500004"
    },
    "max_size": 7,
    "size_0_households": 0,
-   "over_6_households": 32,
+   "over_6_households": 72,
    "people_per_household": {
     "min": {
-     "reduced": "39/16",
-     "decimal": "2.437500"
+     "reduced": "41/17",
+     "decimal": "2.411765"
     },
     "median_lower": {
-     "reduced": "38/15",
-     "decimal": "2.533333"
+     "reduced": "5/2",
+     "decimal": "2.500000"
     },
     "max": {
-     "reduced": "13/5",
-     "decimal": "2.600000"
+     "reduced": "77/30",
+     "decimal": "2.566667"
     }
    },
    "by_density_class": {
@@ -198,90 +258,90 @@
      "leaves": 4096,
      "counts_by_size": [
       0,
-      11471,
-      21317,
-      21218,
-      6840,
-      2196,
-      389,
-      32
+      21253,
+      38562,
+      40397,
+      11955,
+      3940,
+      816,
+      72
      ],
-     "households": 63463,
-     "persons": 158657,
+     "households": 116995,
+     "persons": 292488,
      "mean": {
-      "persons": 158657,
-      "households": 63463,
-      "reduced": "158657/63463",
-      "decimal": "2.499992"
+      "persons": 292488,
+      "households": 116995,
+      "reduced": "292488/116995",
+      "decimal": "2.500004"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 32,
+     "over_6_households": 72,
      "people_per_household": {
       "min": {
-       "reduced": "39/16",
-       "decimal": "2.437500"
+       "reduced": "41/17",
+       "decimal": "2.411765"
       },
       "median_lower": {
-       "reduced": "38/15",
-       "decimal": "2.533333"
+       "reduced": "5/2",
+       "decimal": "2.500000"
       },
       "max": {
-       "reduced": "13/5",
-       "decimal": "2.600000"
+       "reduced": "77/30",
+       "decimal": "2.566667"
       }
      }
     }
    },
    "by_units_per_building": {
     "2-4": {
-     "leaves": 2269,
+     "leaves": 428,
      "counts_by_size": [
       0,
-      6358,
-      11979,
-      11866,
-      3703,
-      1176,
-      204,
-      16
+      1131,
+      2109,
+      2028,
+      672,
+      243,
+      41,
+      1
      ],
-     "households": 35302,
-     "persons": 87942,
+     "households": 6225,
+     "persons": 15589,
      "mean": {
-      "persons": 87942,
-      "households": 35302,
-      "reduced": "43971/17651",
-      "decimal": "2.491134"
+      "persons": 15589,
+      "households": 6225,
+      "reduced": "15589/6225",
+      "decimal": "2.504257"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 16,
+     "over_6_households": 1,
      "people_per_household": null
     },
     "5+": {
-     "leaves": 1827,
+     "leaves": 3850,
      "counts_by_size": [
       0,
-      5113,
-      9338,
-      9352,
-      3137,
-      1020,
-      185,
-      16
+      20122,
+      36453,
+      38369,
+      11283,
+      3697,
+      775,
+      71
      ],
-     "households": 28161,
-     "persons": 70715,
+     "households": 110770,
+     "persons": 276899,
      "mean": {
-      "persons": 70715,
-      "households": 28161,
-      "reduced": "70715/28161",
-      "decimal": "2.511097"
+      "persons": 276899,
+      "households": 110770,
+      "reduced": "276899/110770",
+      "decimal": "2.499765"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 16,
+     "over_6_households": 71,
      "people_per_household": null
     }
    }
@@ -291,194 +351,267 @@
    "lat": 6.5244,
    "lon": 3.3792,
    "l3_tile": 492586687004840,
-   "leaves_in_tile": 832,
+   "leaves_in_tile": 613,
    "leaves_without_households": 0,
-   "leaves": 832,
+   "leaves": 613,
    "counts_by_size": [
-    0,
-    5679,
-    10217,
-    11043,
-    3219,
-    984,
-    210,
-    18
+    1,
+    2951,
+    5515,
+    5761,
+    1773,
+    507,
+    98,
+    8
    ],
-   "households": 31370,
-   "persons": 78424,
+   "households": 16614,
+   "persons": 41535,
    "mean": {
-    "persons": 78424,
-    "households": 31370,
-    "reduced": "39212/15685",
-    "decimal": "2.499968"
+    "persons": 41535,
+    "households": 16614,
+    "reduced": "5/2",
+    "decimal": "2.500000"
    },
    "max_size": 7,
-   "size_0_households": 0,
-   "over_6_households": 18,
+   "size_0_households": 1,
+   "over_6_households": 8,
    "people_per_household": {
     "min": {
-     "reduced": "47/19",
-     "decimal": "2.473684"
+     "reduced": "7/3",
+     "decimal": "2.333333"
     },
     "median_lower": {
-     "reduced": "93/37",
-     "decimal": "2.513514"
+     "reduced": "5/2",
+     "decimal": "2.500000"
     },
     "max": {
-     "reduced": "51/20",
-     "decimal": "2.550000"
+     "reduced": "8/3",
+     "decimal": "2.666667"
     }
    },
    "by_density_class": {
     "dense fabric": {
-     "leaves": 768,
+     "leaves": 520,
      "counts_by_size": [
       0,
-      5220,
-      9384,
-      10058,
-      2977,
-      907,
-      195,
-      17
+      2521,
+      4745,
+      4998,
+      1540,
+      408,
+      82,
+      8
      ],
-     "households": 28758,
-     "persons": 71894,
+     "households": 14302,
+     "persons": 35753,
      "mean": {
-      "persons": 71894,
-      "households": 28758,
-      "reduced": "35947/14379",
-      "decimal": "2.499965"
+      "persons": 35753,
+      "households": 14302,
+      "reduced": "35753/14302",
+      "decimal": "2.499860"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 17,
+     "over_6_households": 8,
      "people_per_household": {
       "min": {
-       "reduced": "47/19",
-       "decimal": "2.473684"
+       "reduced": "56/23",
+       "decimal": "2.434783"
       },
       "median_lower": {
-       "reduced": "93/37",
-       "decimal": "2.513514"
+       "reduced": "5/2",
+       "decimal": "2.500000"
       },
       "max": {
-       "reduced": "94/37",
-       "decimal": "2.540541"
+       "reduced": "28/11",
+       "decimal": "2.545455"
+      }
+     }
+    },
+    "suburban streets": {
+     "leaves": 20,
+     "counts_by_size": [
+      1,
+      69,
+      130,
+      137,
+      43,
+      17
+     ],
+     "households": 397,
+     "persons": 997,
+     "mean": {
+      "persons": 997,
+      "households": 397,
+      "reduced": "997/397",
+      "decimal": "2.511335"
+     },
+     "max_size": 5,
+     "size_0_households": 1,
+     "over_6_households": 0,
+     "people_per_household": {
+      "min": {
+       "reduced": "19/8",
+       "decimal": "2.375000"
+      },
+      "median_lower": {
+       "reduced": "53/21",
+       "decimal": "2.523810"
+      },
+      "max": {
+       "reduced": "8/3",
+       "decimal": "2.666667"
       }
      }
     },
     "terraced streets": {
-     "leaves": 64,
+     "leaves": 65,
      "counts_by_size": [
       0,
-      459,
-      833,
-      985,
-      242,
-      77,
-      15,
-      1
+      348,
+      626,
+      601,
+      187,
+      78,
+      16
      ],
-     "households": 2612,
-     "persons": 6530,
+     "households": 1856,
+     "persons": 4637,
      "mean": {
-      "persons": 6530,
-      "households": 2612,
-      "reduced": "5/2",
-      "decimal": "2.500000"
+      "persons": 4637,
+      "households": 1856,
+      "reduced": "4637/1856",
+      "decimal": "2.498384"
      },
-     "max_size": 7,
+     "max_size": 6,
      "size_0_households": 0,
-     "over_6_households": 1,
+     "over_6_households": 0,
      "people_per_household": {
       "min": {
-       "reduced": "102/41",
-       "decimal": "2.487805"
+       "reduced": "17/7",
+       "decimal": "2.428571"
       },
       "median_lower": {
-       "reduced": "102/41",
-       "decimal": "2.487805"
+       "reduced": "83/33",
+       "decimal": "2.515152"
       },
       "max": {
-       "reduced": "51/20",
-       "decimal": "2.550000"
+       "reduced": "34/13",
+       "decimal": "2.615385"
+      }
+     }
+    },
+    "village": {
+     "leaves": 8,
+     "counts_by_size": [
+      0,
+      13,
+      14,
+      25,
+      3,
+      4
+     ],
+     "households": 59,
+     "persons": 148,
+     "mean": {
+      "persons": 148,
+      "households": 59,
+      "reduced": "148/59",
+      "decimal": "2.508475"
+     },
+     "max_size": 5,
+     "size_0_households": 0,
+     "over_6_households": 0,
+     "people_per_household": {
+      "min": {
+       "reduced": "7/3",
+       "decimal": "2.333333"
+      },
+      "median_lower": {
+       "reduced": "5/2",
+       "decimal": "2.500000"
+      },
+      "max": {
+       "reduced": "23/9",
+       "decimal": "2.555556"
       }
      }
     }
    },
    "by_units_per_building": {
     "1": {
-     "leaves": 655,
+     "leaves": 184,
      "counts_by_size": [
-      0,
-      1062,
-      1881,
-      1979,
-      445,
-      140,
-      33,
+      1,
+      295,
+      513,
+      522,
+      143,
+      46,
+      12,
       1
      ],
-     "households": 5541,
-     "persons": 13446,
+     "households": 1533,
+     "persons": 3768,
      "mean": {
-      "persons": 13446,
-      "households": 5541,
-      "reduced": "4482/1847",
-      "decimal": "2.426638"
+      "persons": 3768,
+      "households": 1533,
+      "reduced": "1256/511",
+      "decimal": "2.457926"
      },
      "max_size": 7,
-     "size_0_households": 0,
+     "size_0_households": 1,
      "over_6_households": 1,
      "people_per_household": null
     },
     "2-4": {
-     "leaves": 832,
+     "leaves": 288,
      "counts_by_size": [
       0,
-      4609,
-      8320,
-      9046,
-      2769,
-      843,
-      177,
-      17
+      1495,
+      2681,
+      2863,
+      907,
+      247,
+      59,
+      6
      ],
-     "households": 25781,
-     "persons": 64859,
+     "households": 8258,
+     "persons": 20705,
      "mean": {
-      "persons": 64859,
-      "households": 25781,
-      "reduced": "64859/25781",
-      "decimal": "2.515767"
+      "persons": 20705,
+      "households": 8258,
+      "reduced": "20705/8258",
+      "decimal": "2.507266"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 17,
+     "over_6_households": 6,
      "people_per_household": null
     },
     "5+": {
-     "leaves": 3,
+     "leaves": 320,
      "counts_by_size": [
       0,
-      8,
-      16,
-      18,
-      5,
+      1161,
+      2321,
+      2376,
+      723,
+      214,
+      27,
       1
      ],
-     "households": 48,
-     "persons": 119,
+     "households": 6823,
+     "persons": 17062,
      "mean": {
-      "persons": 119,
-      "households": 48,
-      "reduced": "119/48",
-      "decimal": "2.479167"
+      "persons": 17062,
+      "households": 6823,
+      "reduced": "17062/6823",
+      "decimal": "2.500660"
      },
-     "max_size": 5,
+     "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 0,
+     "over_6_households": 1,
      "people_per_household": null
     }
    }
@@ -488,129 +621,201 @@
    "lat": 39.2,
    "lon": -77.25,
    "l3_tile": 492614100971753,
-   "leaves_in_tile": 40,
+   "leaves_in_tile": 37,
    "leaves_without_households": 0,
-   "leaves": 40,
+   "leaves": 37,
    "counts_by_size": [
     0,
-    261,
-    424,
-    406,
-    134,
-    61,
-    10,
-    3
+    211,
+    375,
+    391,
+    109,
+    48,
+    7
    ],
-   "households": 1299,
-   "persons": 3249,
+   "households": 1141,
+   "persons": 2852,
    "mean": {
-    "persons": 3249,
-    "households": 1299,
-    "reduced": "1083/433",
-    "decimal": "2.501155"
+    "persons": 2852,
+    "households": 1141,
+    "reduced": "2852/1141",
+    "decimal": "2.499562"
    },
-   "max_size": 7,
+   "max_size": 6,
    "size_0_households": 0,
-   "over_6_households": 3,
+   "over_6_households": 0,
    "people_per_household": {
     "min": {
-     "reduced": "67/27",
-     "decimal": "2.481481"
+     "reduced": "41/17",
+     "decimal": "2.411765"
     },
     "median_lower": {
-     "reduced": "67/27",
-     "decimal": "2.481481"
+     "reduced": "5/2",
+     "decimal": "2.500000"
     },
     "max": {
-     "reduced": "67/26",
-     "decimal": "2.576923"
+     "reduced": "13/5",
+     "decimal": "2.600000"
     }
    },
    "by_density_class": {
     "suburban streets": {
-     "leaves": 40,
+     "leaves": 21,
      "counts_by_size": [
       0,
-      261,
-      424,
-      406,
-      134,
-      61,
-      10,
+      101,
+      160,
+      181,
+      45,
+      25,
       3
      ],
-     "households": 1299,
-     "persons": 3249,
+     "households": 515,
+     "persons": 1287,
      "mean": {
-      "persons": 3249,
-      "households": 1299,
-      "reduced": "1083/433",
-      "decimal": "2.501155"
+      "persons": 1287,
+      "households": 515,
+      "reduced": "1287/515",
+      "decimal": "2.499029"
      },
-     "max_size": 7,
+     "max_size": 6,
      "size_0_households": 0,
-     "over_6_households": 3,
+     "over_6_households": 0,
      "people_per_household": {
       "min": {
-       "reduced": "67/27",
-       "decimal": "2.481481"
+       "reduced": "41/17",
+       "decimal": "2.411765"
       },
       "median_lower": {
-       "reduced": "67/27",
-       "decimal": "2.481481"
+       "reduced": "5/2",
+       "decimal": "2.500000"
       },
       "max": {
-       "reduced": "67/26",
-       "decimal": "2.576923"
+       "reduced": "13/5",
+       "decimal": "2.600000"
+      }
+     }
+    },
+    "terraced streets": {
+     "leaves": 9,
+     "counts_by_size": [
+      0,
+      91,
+      173,
+      183,
+      53,
+      16,
+      3
+     ],
+     "households": 519,
+     "persons": 1296,
+     "mean": {
+      "persons": 1296,
+      "households": 519,
+      "reduced": "432/173",
+      "decimal": "2.497110"
+     },
+     "max_size": 6,
+     "size_0_households": 0,
+     "over_6_households": 0,
+     "people_per_household": {
+      "min": {
+       "reduced": "72/29",
+       "decimal": "2.482759"
+      },
+      "median_lower": {
+       "reduced": "72/29",
+       "decimal": "2.482759"
+      },
+      "max": {
+       "reduced": "48/19",
+       "decimal": "2.526316"
+      }
+     }
+    },
+    "village": {
+     "leaves": 7,
+     "counts_by_size": [
+      0,
+      19,
+      42,
+      27,
+      11,
+      7,
+      1
+     ],
+     "households": 107,
+     "persons": 269,
+     "mean": {
+      "persons": 269,
+      "households": 107,
+      "reduced": "269/107",
+      "decimal": "2.514019"
+     },
+     "max_size": 6,
+     "size_0_households": 0,
+     "over_6_households": 0,
+     "people_per_household": {
+      "min": {
+       "reduced": "42/17",
+       "decimal": "2.470588"
+      },
+      "median_lower": {
+       "reduced": "5/2",
+       "decimal": "2.500000"
+      },
+      "max": {
+       "reduced": "44/17",
+       "decimal": "2.588235"
       }
      }
     }
    },
    "by_units_per_building": {
     "1": {
-     "leaves": 39,
+     "leaves": 36,
      "counts_by_size": [
       0,
-      237,
-      369,
-      346,
-      118,
-      55,
-      10,
-      3
+      138,
+      240,
+      253,
+      66,
+      30,
+      4
      ],
-     "households": 1138,
-     "persons": 2841,
+     "households": 731,
+     "persons": 1815,
      "mean": {
-      "persons": 2841,
-      "households": 1138,
-      "reduced": "2841/1138",
-      "decimal": "2.496485"
+      "persons": 1815,
+      "households": 731,
+      "reduced": "1815/731",
+      "decimal": "2.482900"
      },
-     "max_size": 7,
+     "max_size": 6,
      "size_0_households": 0,
-     "over_6_households": 3,
+     "over_6_households": 0,
      "people_per_household": null
     },
     "2-4": {
-     "leaves": 10,
+     "leaves": 17,
      "counts_by_size": [
       0,
-      24,
-      55,
-      60,
-      16,
-      6
+      73,
+      135,
+      138,
+      43,
+      18,
+      3
      ],
-     "households": 161,
-     "persons": 408,
+     "households": 410,
+     "persons": 1037,
      "mean": {
-      "persons": 408,
-      "households": 161,
-      "reduced": "408/161",
-      "decimal": "2.534161"
+      "persons": 1037,
+      "households": 410,
+      "reduced": "1037/410",
+      "decimal": "2.529268"
      },
-     "max_size": 5,
+     "max_size": 6,
      "size_0_households": 0,
      "over_6_households": 0,
      "people_per_household": null
@@ -627,34 +832,33 @@
    "leaves": 1,
    "counts_by_size": [
     0,
+    1,
     3,
-    8,
-    2,
     5
    ],
-   "households": 18,
-   "persons": 45,
+   "households": 9,
+   "persons": 22,
    "mean": {
-    "persons": 45,
-    "households": 18,
-    "reduced": "5/2",
-    "decimal": "2.500000"
+    "persons": 22,
+    "households": 9,
+    "reduced": "22/9",
+    "decimal": "2.444444"
    },
-   "max_size": 4,
+   "max_size": 3,
    "size_0_households": 0,
    "over_6_households": 0,
    "people_per_household": {
     "min": {
-     "reduced": "5/2",
-     "decimal": "2.500000"
+     "reduced": "22/9",
+     "decimal": "2.444444"
     },
     "median_lower": {
-     "reduced": "5/2",
-     "decimal": "2.500000"
+     "reduced": "22/9",
+     "decimal": "2.444444"
     },
     "max": {
-     "reduced": "5/2",
-     "decimal": "2.500000"
+     "reduced": "22/9",
+     "decimal": "2.444444"
     }
    },
    "by_density_class": {
@@ -662,34 +866,33 @@
      "leaves": 1,
      "counts_by_size": [
       0,
+      1,
       3,
-      8,
-      2,
       5
      ],
-     "households": 18,
-     "persons": 45,
+     "households": 9,
+     "persons": 22,
      "mean": {
-      "persons": 45,
-      "households": 18,
-      "reduced": "5/2",
-      "decimal": "2.500000"
+      "persons": 22,
+      "households": 9,
+      "reduced": "22/9",
+      "decimal": "2.444444"
      },
-     "max_size": 4,
+     "max_size": 3,
      "size_0_households": 0,
      "over_6_households": 0,
      "people_per_household": {
       "min": {
-       "reduced": "5/2",
-       "decimal": "2.500000"
+       "reduced": "22/9",
+       "decimal": "2.444444"
       },
       "median_lower": {
-       "reduced": "5/2",
-       "decimal": "2.500000"
+       "reduced": "22/9",
+       "decimal": "2.444444"
       },
       "max": {
-       "reduced": "5/2",
-       "decimal": "2.500000"
+       "reduced": "22/9",
+       "decimal": "2.444444"
       }
      }
     }
@@ -699,20 +902,19 @@
      "leaves": 1,
      "counts_by_size": [
       0,
+      1,
       3,
-      8,
-      2,
       5
      ],
-     "households": 18,
-     "persons": 45,
+     "households": 9,
+     "persons": 22,
      "mean": {
-      "persons": 45,
-      "households": 18,
-      "reduced": "5/2",
-      "decimal": "2.500000"
+      "persons": 22,
+      "households": 9,
+      "reduced": "22/9",
+      "decimal": "2.444444"
      },
-     "max_size": 4,
+     "max_size": 3,
      "size_0_households": 0,
      "over_6_households": 0,
      "people_per_household": null
@@ -729,38 +931,37 @@
    "leaves": 4096,
    "counts_by_size": [
     0,
-    11440,
-    21193,
-    21038,
-    6778,
-    2263,
-    370,
-    24,
-    2
+    22570,
+    40563,
+    42884,
+    12903,
+    4002,
+    832,
+    94
    ],
-   "households": 63108,
-   "persons": 157771,
+   "households": 123848,
+   "persons": 309620,
    "mean": {
-    "persons": 157771,
-    "households": 63108,
-    "reduced": "157771/63108",
-    "decimal": "2.500016"
+    "persons": 309620,
+    "households": 123848,
+    "reduced": "5/2",
+    "decimal": "2.500000"
    },
-   "max_size": 8,
+   "max_size": 7,
    "size_0_households": 0,
-   "over_6_households": 26,
+   "over_6_households": 94,
    "people_per_household": {
     "min": {
-     "reduced": "39/16",
-     "decimal": "2.437500"
+     "reduced": "41/17",
+     "decimal": "2.411765"
     },
     "median_lower": {
-     "reduced": "38/15",
-     "decimal": "2.533333"
+     "reduced": "5/2",
+     "decimal": "2.500000"
     },
     "max": {
-     "reduced": "13/5",
-     "decimal": "2.600000"
+     "reduced": "44/17",
+     "decimal": "2.588235"
     }
    },
    "by_density_class": {
@@ -768,92 +969,90 @@
      "leaves": 4096,
      "counts_by_size": [
       0,
-      11440,
-      21193,
-      21038,
-      6778,
-      2263,
-      370,
-      24,
-      2
+      22570,
+      40563,
+      42884,
+      12903,
+      4002,
+      832,
+      94
      ],
-     "households": 63108,
-     "persons": 157771,
+     "households": 123848,
+     "persons": 309620,
      "mean": {
-      "persons": 157771,
-      "households": 63108,
-      "reduced": "157771/63108",
-      "decimal": "2.500016"
+      "persons": 309620,
+      "households": 123848,
+      "reduced": "5/2",
+      "decimal": "2.500000"
      },
-     "max_size": 8,
+     "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 26,
+     "over_6_households": 94,
      "people_per_household": {
       "min": {
-       "reduced": "39/16",
-       "decimal": "2.437500"
+       "reduced": "41/17",
+       "decimal": "2.411765"
       },
       "median_lower": {
-       "reduced": "38/15",
-       "decimal": "2.533333"
+       "reduced": "5/2",
+       "decimal": "2.500000"
       },
       "max": {
-       "reduced": "13/5",
-       "decimal": "2.600000"
+       "reduced": "44/17",
+       "decimal": "2.588235"
       }
      }
     }
    },
    "by_units_per_building": {
     "2-4": {
-     "leaves": 2692,
+     "leaves": 423,
      "counts_by_size": [
       0,
-      7588,
-      13836,
-      13729,
-      4490,
-      1498,
-      258,
-      18,
-      2
+      1057,
+      1903,
+      1844,
+      581,
+      173,
+      47,
+      3
      ],
-     "households": 41419,
-     "persons": 103587,
+     "households": 5608,
+     "persons": 13887,
      "mean": {
-      "persons": 103587,
-      "households": 41419,
-      "reduced": "103587/41419",
-      "decimal": "2.500954"
-     },
-     "max_size": 8,
-     "size_0_households": 0,
-     "over_6_households": 20,
-     "people_per_household": null
-    },
-    "5+": {
-     "leaves": 1404,
-     "counts_by_size": [
-      0,
-      3852,
-      7357,
-      7309,
-      2288,
-      765,
-      112,
-      6
-     ],
-     "households": 21689,
-     "persons": 54184,
-     "mean": {
-      "persons": 54184,
-      "households": 21689,
-      "reduced": "54184/21689",
-      "decimal": "2.498225"
+      "persons": 13887,
+      "households": 5608,
+      "reduced": "13887/5608",
+      "decimal": "2.476284"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 6,
+     "over_6_households": 3,
+     "people_per_household": null
+    },
+    "5+": {
+     "leaves": 3925,
+     "counts_by_size": [
+      0,
+      21513,
+      38660,
+      41040,
+      12322,
+      3829,
+      785,
+      91
+     ],
+     "households": 118240,
+     "persons": 295733,
+     "mean": {
+      "persons": 295733,
+      "households": 118240,
+      "reduced": "295733/118240",
+      "decimal": "2.501125"
+     },
+     "max_size": 7,
+     "size_0_households": 0,
+     "over_6_households": 91,
      "people_per_household": null
     }
    }
@@ -863,155 +1062,193 @@
    "lat": 19.043,
    "lon": 72.856,
    "l3_tile": 492597189545530,
-   "leaves_in_tile": 1024,
+   "leaves_in_tile": 1825,
    "leaves_without_households": 0,
-   "leaves": 1024,
+   "leaves": 1825,
    "counts_by_size": [
     0,
-    5907,
-    11257,
-    11795,
-    3395,
-    1073,
-    215,
-    14
+    9979,
+    18526,
+    19455,
+    5709,
+    1796,
+    372,
+    33
    ],
-   "households": 33656,
-   "persons": 84139,
+   "households": 55870,
+   "persons": 139675,
    "mean": {
-    "persons": 84139,
-    "households": 33656,
-    "reduced": "84139/33656",
-    "decimal": "2.499970"
+    "persons": 139675,
+    "households": 55870,
+    "reduced": "5/2",
+    "decimal": "2.500000"
    },
    "max_size": 7,
    "size_0_households": 0,
-   "over_6_households": 14,
+   "over_6_households": 33,
    "people_per_household": {
     "min": {
-     "reduced": "82/33",
-     "decimal": "2.484848"
+     "reduced": "19/8",
+     "decimal": "2.375000"
     },
     "median_lower": {
-     "reduced": "82/33",
-     "decimal": "2.484848"
+     "reduced": "108/43",
+     "decimal": "2.511628"
     },
     "max": {
-     "reduced": "41/16",
-     "decimal": "2.562500"
+     "reduced": "49/19",
+     "decimal": "2.578947"
     }
    },
    "by_density_class": {
-    "dense fabric": {
-     "leaves": 1024,
+    "apartment blocks": {
+     "leaves": 4,
      "counts_by_size": [
       0,
-      5907,
-      11257,
-      11795,
-      3395,
-      1073,
-      215,
-      14
+      10,
+      31,
+      25,
+      8,
+      2
      ],
-     "households": 33656,
-     "persons": 84139,
+     "households": 76,
+     "persons": 189,
      "mean": {
-      "persons": 84139,
-      "households": 33656,
-      "reduced": "84139/33656",
-      "decimal": "2.499970"
+      "persons": 189,
+      "households": 76,
+      "reduced": "189/76",
+      "decimal": "2.486842"
+     },
+     "max_size": 5,
+     "size_0_households": 0,
+     "over_6_households": 0,
+     "people_per_household": {
+      "min": {
+       "reduced": "47/19",
+       "decimal": "2.473684"
+      },
+      "median_lower": {
+       "reduced": "47/19",
+       "decimal": "2.473684"
+      },
+      "max": {
+       "reduced": "48/19",
+       "decimal": "2.526316"
+      }
+     }
+    },
+    "dense fabric": {
+     "leaves": 1821,
+     "counts_by_size": [
+      0,
+      9969,
+      18495,
+      19430,
+      5701,
+      1794,
+      372,
+      33
+     ],
+     "households": 55794,
+     "persons": 139486,
+     "mean": {
+      "persons": 139486,
+      "households": 55794,
+      "reduced": "69743/27897",
+      "decimal": "2.500018"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 14,
+     "over_6_households": 33,
      "people_per_household": {
       "min": {
-       "reduced": "82/33",
-       "decimal": "2.484848"
+       "reduced": "19/8",
+       "decimal": "2.375000"
       },
       "median_lower": {
-       "reduced": "82/33",
-       "decimal": "2.484848"
+       "reduced": "108/43",
+       "decimal": "2.511628"
       },
       "max": {
-       "reduced": "41/16",
-       "decimal": "2.562500"
+       "reduced": "49/19",
+       "decimal": "2.578947"
       }
      }
     }
    },
    "by_units_per_building": {
     "1": {
-     "leaves": 780,
+     "leaves": 98,
      "counts_by_size": [
       0,
-      1460,
-      2881,
-      2963,
-      643,
-      228,
+      84,
+      156,
+      147,
       37,
-      3
+      23,
+      2
      ],
-     "households": 8215,
-     "persons": 20066,
+     "households": 449,
+     "persons": 1112,
      "mean": {
-      "persons": 20066,
-      "households": 8215,
-      "reduced": "20066/8215",
-      "decimal": "2.442605"
+      "persons": 1112,
+      "households": 449,
+      "reduced": "1112/449",
+      "decimal": "2.476615"
      },
-     "max_size": 7,
+     "max_size": 6,
      "size_0_households": 0,
-     "over_6_households": 3,
+     "over_6_households": 0,
      "people_per_household": null
     },
     "2-4": {
-     "leaves": 1024,
+     "leaves": 1230,
      "counts_by_size": [
       0,
-      4443,
-      8369,
-      8819,
-      2751,
-      845,
-      178,
-      11
+      6610,
+      12182,
+      13207,
+      3736,
+      1115,
+      242,
+      25
      ],
-     "households": 25416,
-     "persons": 64012,
+     "households": 37117,
+     "persons": 92741,
      "mean": {
-      "persons": 64012,
-      "households": 25416,
-      "reduced": "16003/6354",
-      "decimal": "2.518571"
+      "persons": 92741,
+      "households": 37117,
+      "reduced": "92741/37117",
+      "decimal": "2.498612"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 11,
+     "over_6_households": 25,
      "people_per_household": null
     },
     "5+": {
-     "leaves": 1,
+     "leaves": 1002,
      "counts_by_size": [
       0,
-      4,
-      7,
-      13,
-      1
+      3285,
+      6188,
+      6101,
+      1936,
+      658,
+      128,
+      8
      ],
-     "households": 25,
-     "persons": 61,
+     "households": 18304,
+     "persons": 45822,
      "mean": {
-      "persons": 61,
-      "households": 25,
-      "reduced": "61/25",
-      "decimal": "2.440000"
+      "persons": 45822,
+      "households": 18304,
+      "reduced": "22911/9152",
+      "decimal": "2.503387"
      },
-     "max_size": 4,
+     "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 0,
+     "over_6_households": 8,
      "people_per_household": null
     }
    }
@@ -1021,157 +1258,270 @@
    "lat": 24.8607,
    "lon": 67.0011,
    "l3_tile": 492602071715094,
-   "leaves_in_tile": 1792,
+   "leaves_in_tile": 2728,
    "leaves_without_households": 0,
-   "leaves": 1792,
+   "leaves": 2728,
    "counts_by_size": [
     0,
-    9521,
-    17400,
-    18461,
-    5356,
-    1700,
-    374,
-    35
+    13046,
+    23626,
+    24028,
+    7630,
+    2365,
+    524,
+    39
    ],
-   "households": 52847,
-   "persons": 132117,
+   "households": 71258,
+   "persons": 178144,
    "mean": {
-    "persons": 132117,
-    "households": 52847,
-    "reduced": "132117/52847",
-    "decimal": "2.499991"
+    "persons": 178144,
+    "households": 71258,
+    "reduced": "89072/35629",
+    "decimal": "2.499986"
    },
    "max_size": 7,
    "size_0_households": 0,
-   "over_6_households": 35,
+   "over_6_households": 39,
    "people_per_household": {
     "min": {
      "reduced": "46/19",
      "decimal": "2.421053"
     },
     "median_lower": {
-     "reduced": "111/44",
-     "decimal": "2.522727"
+     "reduced": "5/2",
+     "decimal": "2.500000"
     },
     "max": {
-     "reduced": "23/9",
-     "decimal": "2.555556"
+     "reduced": "21/8",
+     "decimal": "2.625000"
     }
    },
    "by_density_class": {
-    "dense fabric": {
-     "leaves": 1792,
+    "apartment blocks": {
+     "leaves": 8,
      "counts_by_size": [
       0,
-      9521,
-      17400,
-      18461,
-      5356,
-      1700,
-      374,
-      35
+      69,
+      119,
+      167,
+      33,
+      10,
+      1
      ],
-     "households": 52847,
-     "persons": 132117,
+     "households": 399,
+     "persons": 996,
      "mean": {
-      "persons": 132117,
-      "households": 52847,
-      "reduced": "132117/52847",
-      "decimal": "2.499991"
+      "persons": 996,
+      "households": 399,
+      "reduced": "332/133",
+      "decimal": "2.496241"
+     },
+     "max_size": 6,
+     "size_0_households": 0,
+     "over_6_households": 0,
+     "people_per_household": {
+      "min": {
+       "reduced": "62/25",
+       "decimal": "2.480000"
+      },
+      "median_lower": {
+       "reduced": "5/2",
+       "decimal": "2.500000"
+      },
+      "max": {
+       "reduced": "124/49",
+       "decimal": "2.530612"
+      }
+     }
+    },
+    "dense fabric": {
+     "leaves": 2682,
+     "counts_by_size": [
+      0,
+      12807,
+      23265,
+      23586,
+      7514,
+      2321,
+      517,
+      37
+     ],
+     "households": 70047,
+     "persons": 175117,
+     "mean": {
+      "persons": 175117,
+      "households": 70047,
+      "reduced": "175117/70047",
+      "decimal": "2.499993"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 35,
+     "over_6_households": 37,
      "people_per_household": {
       "min": {
        "reduced": "46/19",
        "decimal": "2.421053"
       },
       "median_lower": {
-       "reduced": "111/44",
-       "decimal": "2.522727"
+       "reduced": "5/2",
+       "decimal": "2.500000"
       },
       "max": {
-       "reduced": "23/9",
-       "decimal": "2.555556"
+       "reduced": "21/8",
+       "decimal": "2.625000"
+      }
+     }
+    },
+    "suburban streets": {
+     "leaves": 8,
+     "counts_by_size": [
+      0,
+      32,
+      34,
+      47,
+      17,
+      3,
+      2
+     ],
+     "households": 135,
+     "persons": 336,
+     "mean": {
+      "persons": 336,
+      "households": 135,
+      "reduced": "112/45",
+      "decimal": "2.488889"
+     },
+     "max_size": 6,
+     "size_0_households": 0,
+     "over_6_households": 0,
+     "people_per_household": {
+      "min": {
+       "reduced": "17/7",
+       "decimal": "2.428571"
+      },
+      "median_lower": {
+       "reduced": "17/7",
+       "decimal": "2.428571"
+      },
+      "max": {
+       "reduced": "67/26",
+       "decimal": "2.576923"
+      }
+     }
+    },
+    "terraced streets": {
+     "leaves": 30,
+     "counts_by_size": [
+      0,
+      138,
+      208,
+      228,
+      66,
+      31,
+      4,
+      2
+     ],
+     "households": 677,
+     "persons": 1695,
+     "mean": {
+      "persons": 1695,
+      "households": 677,
+      "reduced": "1695/677",
+      "decimal": "2.503693"
+     },
+     "max_size": 7,
+     "size_0_households": 0,
+     "over_6_households": 2,
+     "people_per_household": {
+      "min": {
+       "reduced": "47/19",
+       "decimal": "2.473684"
+      },
+      "median_lower": {
+       "reduced": "47/19",
+       "decimal": "2.473684"
+      },
+      "max": {
+       "reduced": "47/18",
+       "decimal": "2.611111"
       }
      }
     }
    },
    "by_units_per_building": {
     "1": {
-     "leaves": 80,
+     "leaves": 42,
      "counts_by_size": [
       0,
-      43,
-      88,
-      94,
-      24,
-      4,
-      2
+      107,
+      133,
+      165,
+      49,
+      18,
+      3,
+      1
      ],
-     "households": 255,
-     "persons": 629,
+     "households": 476,
+     "persons": 1179,
      "mean": {
-      "persons": 629,
-      "households": 255,
-      "reduced": "37/15",
-      "decimal": "2.466667"
+      "persons": 1179,
+      "households": 476,
+      "reduced": "1179/476",
+      "decimal": "2.476891"
      },
-     "max_size": 6,
+     "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 0,
+     "over_6_households": 1,
      "people_per_household": null
     },
     "2-4": {
-     "leaves": 1388,
+     "leaves": 694,
      "counts_by_size": [
       0,
-      6866,
-      12509,
-      13535,
-      3772,
-      1169,
-      268,
-      26
+      2038,
+      3824,
+      3823,
+      1135,
+      359,
+      76,
+      8
      ],
-     "households": 38145,
-     "persons": 95212,
+     "households": 11263,
+     "persons": 28002,
      "mean": {
-      "persons": 95212,
-      "households": 38145,
-      "reduced": "95212/38145",
-      "decimal": "2.496055"
+      "persons": 28002,
+      "households": 11263,
+      "reduced": "28002/11263",
+      "decimal": "2.486194"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 26,
+     "over_6_households": 8,
      "people_per_household": null
     },
     "5+": {
-     "leaves": 972,
+     "leaves": 2528,
      "counts_by_size": [
       0,
-      2612,
-      4803,
-      4832,
-      1560,
-      527,
-      104,
-      9
+      10901,
+      19669,
+      20040,
+      6446,
+      1988,
+      445,
+      30
      ],
-     "households": 14447,
-     "persons": 36276,
+     "households": 59519,
+     "persons": 148963,
      "mean": {
-      "persons": 36276,
-      "households": 14447,
-      "reduced": "36276/14447",
-      "decimal": "2.510971"
+      "persons": 148963,
+      "households": 59519,
+      "reduced": "148963/59519",
+      "decimal": "2.502781"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 9,
+     "over_6_households": 30,
      "people_per_household": null
     }
    }
@@ -1181,157 +1531,158 @@
    "lat": 22.3193,
    "lon": 114.1694,
    "l3_tile": 492599924233804,
-   "leaves_in_tile": 1024,
+   "leaves_in_tile": 2269,
    "leaves_without_households": 0,
-   "leaves": 1024,
+   "leaves": 2269,
    "counts_by_size": [
     0,
-    7162,
-    12758,
-    13501,
-    3994,
-    1300,
-    290,
-    26
+    11622,
+    21066,
+    21959,
+    6632,
+    2123,
+    446,
+    38
    ],
-   "households": 39031,
-   "persons": 97579,
+   "households": 63886,
+   "persons": 159716,
    "mean": {
-    "persons": 97579,
-    "households": 39031,
-    "reduced": "97579/39031",
-    "decimal": "2.500038"
+    "persons": 159716,
+    "households": 63886,
+    "reduced": "79858/31943",
+    "decimal": "2.500016"
    },
    "max_size": 7,
    "size_0_households": 0,
-   "over_6_households": 26,
+   "over_6_households": 38,
    "people_per_household": {
     "min": {
-     "reduced": "32/13",
-     "decimal": "2.461538"
+     "reduced": "41/17",
+     "decimal": "2.411765"
     },
     "median_lower": {
      "reduced": "5/2",
      "decimal": "2.500000"
     },
     "max": {
-     "reduced": "48/19",
-     "decimal": "2.526316"
+     "reduced": "47/18",
+     "decimal": "2.611111"
     }
    },
    "by_density_class": {
     "dense fabric": {
-     "leaves": 1024,
+     "leaves": 2269,
      "counts_by_size": [
       0,
-      7162,
-      12758,
-      13501,
-      3994,
-      1300,
-      290,
-      26
+      11622,
+      21066,
+      21959,
+      6632,
+      2123,
+      446,
+      38
      ],
-     "households": 39031,
-     "persons": 97579,
+     "households": 63886,
+     "persons": 159716,
      "mean": {
-      "persons": 97579,
-      "households": 39031,
-      "reduced": "97579/39031",
-      "decimal": "2.500038"
+      "persons": 159716,
+      "households": 63886,
+      "reduced": "79858/31943",
+      "decimal": "2.500016"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 26,
+     "over_6_households": 38,
      "people_per_household": {
       "min": {
-       "reduced": "32/13",
-       "decimal": "2.461538"
+       "reduced": "41/17",
+       "decimal": "2.411765"
       },
       "median_lower": {
        "reduced": "5/2",
        "decimal": "2.500000"
       },
       "max": {
-       "reduced": "48/19",
-       "decimal": "2.526316"
+       "reduced": "47/18",
+       "decimal": "2.611111"
       }
      }
     }
    },
    "by_units_per_building": {
     "1": {
-     "leaves": 535,
+     "leaves": 100,
      "counts_by_size": [
       0,
-      593,
-      1182,
-      1203,
-      273,
-      85,
-      20,
-      4
+      136,
+      206,
+      224,
+      52,
+      32,
+      4,
+      1
      ],
-     "households": 3360,
-     "persons": 8231,
+     "households": 655,
+     "persons": 1619,
      "mean": {
-      "persons": 8231,
-      "households": 3360,
-      "reduced": "8231/3360",
-      "decimal": "2.449702"
+      "persons": 1619,
+      "households": 655,
+      "reduced": "1619/655",
+      "decimal": "2.471756"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 4,
+     "over_6_households": 1,
      "people_per_household": null
     },
     "2-4": {
-     "leaves": 1024,
+     "leaves": 927,
      "counts_by_size": [
       0,
-      6548,
-      11554,
-      12269,
-      3705,
-      1214,
-      269,
-      22
+      5725,
+      10185,
+      10873,
+      3178,
+      1008,
+      227,
+      20
      ],
-     "households": 35581,
-     "persons": 89121,
+     "households": 31216,
+     "persons": 77968,
      "mean": {
-      "persons": 89121,
-      "households": 35581,
-      "reduced": "89121/35581",
-      "decimal": "2.504736"
+      "persons": 77968,
+      "households": 31216,
+      "reduced": "4873/1951",
+      "decimal": "2.497693"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 22,
+     "over_6_households": 20,
      "people_per_household": null
     },
     "5+": {
-     "leaves": 9,
+     "leaves": 1539,
      "counts_by_size": [
       0,
-      21,
-      22,
-      29,
-      16,
-      1,
-      1
+      5761,
+      10675,
+      10862,
+      3402,
+      1083,
+      215,
+      17
      ],
-     "households": 90,
-     "persons": 227,
+     "households": 32015,
+     "persons": 80129,
      "mean": {
-      "persons": 227,
-      "households": 90,
-      "reduced": "227/90",
-      "decimal": "2.522222"
+      "persons": 80129,
+      "households": 32015,
+      "reduced": "80129/32015",
+      "decimal": "2.502858"
      },
-     "max_size": 6,
+     "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 0,
+     "over_6_households": 17,
      "people_per_household": null
     }
    }
@@ -1346,37 +1697,37 @@
    "leaves": 1024,
    "counts_by_size": [
     0,
-    4290,
-    7573,
-    8021,
-    2394,
-    804,
-    154,
-    16
+    7220,
+    12578,
+    13890,
+    3976,
+    1228,
+    292,
+    26
    ],
-   "households": 23252,
-   "persons": 58131,
+   "households": 39210,
+   "persons": 98024,
    "mean": {
-    "persons": 58131,
-    "households": 23252,
-    "reduced": "58131/23252",
-    "decimal": "2.500043"
+    "persons": 98024,
+    "households": 39210,
+    "reduced": "49012/19605",
+    "decimal": "2.499974"
    },
    "max_size": 7,
    "size_0_households": 0,
-   "over_6_households": 16,
+   "over_6_households": 26,
    "people_per_household": {
     "min": {
-     "reduced": "57/23",
-     "decimal": "2.478261"
+     "reduced": "17/7",
+     "decimal": "2.428571"
     },
     "median_lower": {
-     "reduced": "57/23",
-     "decimal": "2.478261"
+     "reduced": "5/2",
+     "decimal": "2.500000"
     },
     "max": {
-     "reduced": "57/22",
-     "decimal": "2.590909"
+     "reduced": "59/23",
+     "decimal": "2.565217"
     }
    },
    "by_density_class": {
@@ -1384,33 +1735,393 @@
      "leaves": 1024,
      "counts_by_size": [
       0,
-      4290,
-      7573,
-      8021,
-      2394,
-      804,
-      154,
+      7220,
+      12578,
+      13890,
+      3976,
+      1228,
+      292,
+      26
+     ],
+     "households": 39210,
+     "persons": 98024,
+     "mean": {
+      "persons": 98024,
+      "households": 39210,
+      "reduced": "49012/19605",
+      "decimal": "2.499974"
+     },
+     "max_size": 7,
+     "size_0_households": 0,
+     "over_6_households": 26,
+     "people_per_household": {
+      "min": {
+       "reduced": "17/7",
+       "decimal": "2.428571"
+      },
+      "median_lower": {
+       "reduced": "5/2",
+       "decimal": "2.500000"
+      },
+      "max": {
+       "reduced": "59/23",
+       "decimal": "2.565217"
+      }
+     }
+    }
+   },
+   "by_units_per_building": {
+    "1": {
+     "leaves": 342,
+     "counts_by_size": [
+      0,
+      561,
+      1035,
+      1099,
+      250,
+      82,
+      22,
+      3
+     ],
+     "households": 3052,
+     "persons": 7491,
+     "mean": {
+      "persons": 7491,
+      "households": 3052,
+      "reduced": "7491/3052",
+      "decimal": "2.454456"
+     },
+     "max_size": 7,
+     "size_0_households": 0,
+     "over_6_households": 3,
+     "people_per_household": null
+    },
+    "2-4": {
+     "leaves": 980,
+     "counts_by_size": [
+      0,
+      6010,
+      10441,
+      11686,
+      3323,
+      1018,
+      241,
+      22
+     ],
+     "households": 32741,
+     "persons": 81932,
+     "mean": {
+      "persons": 81932,
+      "households": 32741,
+      "reduced": "81932/32741",
+      "decimal": "2.502428"
+     },
+     "max_size": 7,
+     "size_0_households": 0,
+     "over_6_households": 22,
+     "people_per_household": null
+    },
+    "5+": {
+     "leaves": 112,
+     "counts_by_size": [
+      0,
+      649,
+      1102,
+      1105,
+      403,
+      128,
+      29,
+      1
+     ],
+     "households": 3417,
+     "persons": 8601,
+     "mean": {
+      "persons": 8601,
+      "households": 3417,
+      "reduced": "2867/1139",
+      "decimal": "2.517120"
+     },
+     "max_size": 7,
+     "size_0_households": 0,
+     "over_6_households": 1,
+     "people_per_household": null
+    }
+   }
+  },
+  {
+   "place": "Tokyo",
+   "lat": 35.6895,
+   "lon": 139.6917,
+   "l3_tile": 492611148192584,
+   "leaves_in_tile": 1492,
+   "leaves_without_households": 0,
+   "leaves": 1492,
+   "counts_by_size": [
+    0,
+    8192,
+    15276,
+    16163,
+    4696,
+    1404,
+    324,
+    35
+   ],
+   "households": 46090,
+   "persons": 115226,
+   "mean": {
+    "persons": 115226,
+    "households": 46090,
+    "reduced": "57613/23045",
+    "decimal": "2.500022"
+   },
+   "max_size": 7,
+   "size_0_households": 0,
+   "over_6_households": 35,
+   "people_per_household": {
+    "min": {
+     "reduced": "29/12",
+     "decimal": "2.416667"
+    },
+    "median_lower": {
+     "reduced": "5/2",
+     "decimal": "2.500000"
+    },
+    "max": {
+     "reduced": "13/5",
+     "decimal": "2.600000"
+    }
+   },
+   "by_density_class": {
+    "dense fabric": {
+     "leaves": 1492,
+     "counts_by_size": [
+      0,
+      8192,
+      15276,
+      16163,
+      4696,
+      1404,
+      324,
+      35
+     ],
+     "households": 46090,
+     "persons": 115226,
+     "mean": {
+      "persons": 115226,
+      "households": 46090,
+      "reduced": "57613/23045",
+      "decimal": "2.500022"
+     },
+     "max_size": 7,
+     "size_0_households": 0,
+     "over_6_households": 35,
+     "people_per_household": {
+      "min": {
+       "reduced": "29/12",
+       "decimal": "2.416667"
+      },
+      "median_lower": {
+       "reduced": "5/2",
+       "decimal": "2.500000"
+      },
+      "max": {
+       "reduced": "13/5",
+       "decimal": "2.600000"
+      }
+     }
+    }
+   },
+   "by_units_per_building": {
+    "1": {
+     "leaves": 235,
+     "counts_by_size": [
+      0,
+      316,
+      601,
+      624,
+      157,
+      40,
+      12,
+      1
+     ],
+     "households": 1751,
+     "persons": 4297,
+     "mean": {
+      "persons": 4297,
+      "households": 1751,
+      "reduced": "4297/1751",
+      "decimal": "2.454026"
+     },
+     "max_size": 7,
+     "size_0_households": 0,
+     "over_6_households": 1,
+     "people_per_household": null
+    },
+    "2-4": {
+     "leaves": 1180,
+     "counts_by_size": [
+      0,
+      6869,
+      12809,
+      13704,
+      3942,
+      1151,
+      280,
+      29
+     ],
+     "households": 38784,
+     "persons": 97005,
+     "mean": {
+      "persons": 97005,
+      "households": 38784,
+      "reduced": "32335/12928",
+      "decimal": "2.501160"
+     },
+     "max_size": 7,
+     "size_0_households": 0,
+     "over_6_households": 29,
+     "people_per_household": null
+    },
+    "5+": {
+     "leaves": 334,
+     "counts_by_size": [
+      0,
+      1007,
+      1866,
+      1835,
+      597,
+      213,
+      32,
+      5
+     ],
+     "households": 5555,
+     "persons": 13924,
+     "mean": {
+      "persons": 13924,
+      "households": 5555,
+      "reduced": "13924/5555",
+      "decimal": "2.506571"
+     },
+     "max_size": 7,
+     "size_0_households": 0,
+     "over_6_households": 5,
+     "people_per_household": null
+    }
+   }
+  },
+  {
+   "place": "Paris",
+   "lat": 48.8566,
+   "lon": 2.3522,
+   "l3_tile": 492622187593845,
+   "leaves_in_tile": 916,
+   "leaves_without_households": 0,
+   "leaves": 916,
+   "counts_by_size": [
+    0,
+    4684,
+    8545,
+    9025,
+    2659,
+    842,
+    176,
+    17
+   ],
+   "households": 25948,
+   "persons": 64870,
+   "mean": {
+    "persons": 64870,
+    "households": 25948,
+    "reduced": "5/2",
+    "decimal": "2.500000"
+   },
+   "max_size": 7,
+   "size_0_households": 0,
+   "over_6_households": 17,
+   "people_per_household": {
+    "min": {
+     "reduced": "12/5",
+     "decimal": "2.400000"
+    },
+    "median_lower": {
+     "reduced": "5/2",
+     "decimal": "2.500000"
+    },
+    "max": {
+     "reduced": "13/5",
+     "decimal": "2.600000"
+    }
+   },
+   "by_density_class": {
+    "apartment blocks": {
+     "leaves": 67,
+     "counts_by_size": [
+      0,
+      433,
+      855,
+      895,
+      282,
+      56,
+      23,
+      1
+     ],
+     "households": 2545,
+     "persons": 6381,
+     "mean": {
+      "persons": 6381,
+      "households": 2545,
+      "reduced": "6381/2545",
+      "decimal": "2.507269"
+     },
+     "max_size": 7,
+     "size_0_households": 0,
+     "over_6_households": 1,
+     "people_per_household": {
+      "min": {
+       "reduced": "12/5",
+       "decimal": "2.400000"
+      },
+      "median_lower": {
+       "reduced": "73/29",
+       "decimal": "2.517241"
+      },
+      "max": {
+       "reduced": "13/5",
+       "decimal": "2.600000"
+      }
+     }
+    },
+    "dense fabric": {
+     "leaves": 849,
+     "counts_by_size": [
+      0,
+      4251,
+      7690,
+      8130,
+      2377,
+      786,
+      153,
       16
      ],
-     "households": 23252,
-     "persons": 58131,
+     "households": 23403,
+     "persons": 58489,
      "mean": {
-      "persons": 58131,
-      "households": 23252,
-      "reduced": "58131/23252",
-      "decimal": "2.500043"
+      "persons": 58489,
+      "households": 23403,
+      "reduced": "58489/23403",
+      "decimal": "2.499210"
      },
      "max_size": 7,
      "size_0_households": 0,
      "over_6_households": 16,
      "people_per_household": {
       "min": {
-       "reduced": "57/23",
-       "decimal": "2.478261"
+       "reduced": "39/16",
+       "decimal": "2.437500"
       },
       "median_lower": {
-       "reduced": "57/23",
-       "decimal": "2.478261"
+       "reduced": "5/2",
+       "decimal": "2.500000"
       },
       "max": {
        "reduced": "57/22",
@@ -1421,419 +2132,148 @@
    },
    "by_units_per_building": {
     "1": {
-     "leaves": 947,
+     "leaves": 381,
      "counts_by_size": [
       0,
-      1836,
-      3446,
-      3414,
-      863,
-      327,
-      61,
-      9
+      513,
+      1020,
+      986,
+      256,
+      96,
+      26,
+      1
      ],
-     "households": 9956,
-     "persons": 24486,
+     "households": 2898,
+     "persons": 7178,
      "mean": {
-      "persons": 24486,
-      "households": 9956,
-      "reduced": "12243/4978",
-      "decimal": "2.459421"
+      "persons": 7178,
+      "households": 2898,
+      "reduced": "3589/1449",
+      "decimal": "2.476881"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 9,
+     "over_6_households": 1,
      "people_per_household": null
     },
     "2-4": {
-     "leaves": 1003,
+     "leaves": 859,
      "counts_by_size": [
       0,
-      2454,
-      4127,
-      4607,
-      1531,
-      477,
-      93,
-      7
+      3651,
+      6509,
+      7013,
+      2079,
+      663,
+      120,
+      15
      ],
-     "households": 13296,
-     "persons": 33645,
+     "households": 20050,
+     "persons": 50164,
      "mean": {
-      "persons": 33645,
-      "households": 13296,
-      "reduced": "11215/4432",
-      "decimal": "2.530460"
+      "persons": 50164,
+      "households": 20050,
+      "reduced": "25082/10025",
+      "decimal": "2.501945"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 7,
-     "people_per_household": null
-    }
-   }
-  },
-  {
-   "place": "Tokyo",
-   "lat": 35.6895,
-   "lon": 139.6917,
-   "l3_tile": 492611148192584,
-   "leaves_in_tile": 1024,
-   "leaves_without_households": 0,
-   "leaves": 1024,
-   "counts_by_size": [
-    0,
-    4740,
-    9049,
-    9332,
-    2680,
-    863,
-    203,
-    18
-   ],
-   "households": 26885,
-   "persons": 67213,
-   "mean": {
-    "persons": 67213,
-    "households": 26885,
-    "reduced": "67213/26885",
-    "decimal": "2.500019"
-   },
-   "max_size": 7,
-   "size_0_households": 0,
-   "over_6_households": 18,
-   "people_per_household": {
-    "min": {
-     "reduced": "22/9",
-     "decimal": "2.444444"
-    },
-    "median_lower": {
-     "reduced": "5/2",
-     "decimal": "2.500000"
-    },
-    "max": {
-     "reduced": "33/13",
-     "decimal": "2.538462"
-    }
-   },
-   "by_density_class": {
-    "dense fabric": {
-     "leaves": 1024,
-     "counts_by_size": [
-      0,
-      4740,
-      9049,
-      9332,
-      2680,
-      863,
-      203,
-      18
-     ],
-     "households": 26885,
-     "persons": 67213,
-     "mean": {
-      "persons": 67213,
-      "households": 26885,
-      "reduced": "67213/26885",
-      "decimal": "2.500019"
-     },
-     "max_size": 7,
-     "size_0_households": 0,
-     "over_6_households": 18,
-     "people_per_household": {
-      "min": {
-       "reduced": "22/9",
-       "decimal": "2.444444"
-      },
-      "median_lower": {
-       "reduced": "5/2",
-       "decimal": "2.500000"
-      },
-      "max": {
-       "reduced": "33/13",
-       "decimal": "2.538462"
-      }
-     }
-    }
-   },
-   "by_units_per_building": {
-    "1": {
-     "leaves": 885,
-     "counts_by_size": [
-      0,
-      1520,
-      3018,
-      2920,
-      766,
-      232,
-      60,
-      5
-     ],
-     "households": 8521,
-     "persons": 20935,
-     "mean": {
-      "persons": 20935,
-      "households": 8521,
-      "reduced": "20935/8521",
-      "decimal": "2.456871"
-     },
-     "max_size": 7,
-     "size_0_households": 0,
-     "over_6_households": 5,
-     "people_per_household": null
-    },
-    "2-4": {
-     "leaves": 1024,
-     "counts_by_size": [
-      0,
-      3216,
-      6024,
-      6395,
-      1912,
-      631,
-      143,
-      13
-     ],
-     "households": 18334,
-     "persons": 46201,
-     "mean": {
-      "persons": 46201,
-      "households": 18334,
-      "reduced": "46201/18334",
-      "decimal": "2.519963"
-     },
-     "max_size": 7,
-     "size_0_households": 0,
-     "over_6_households": 13,
+     "over_6_households": 15,
      "people_per_household": null
     },
     "5+": {
-     "leaves": 2,
+     "leaves": 94,
      "counts_by_size": [
       0,
-      4,
-      7,
-      17,
-      2
+      520,
+      1016,
+      1026,
+      324,
+      83,
+      30,
+      1
      ],
-     "households": 30,
-     "persons": 77,
+     "households": 3000,
+     "persons": 7528,
      "mean": {
-      "persons": 77,
-      "households": 30,
-      "reduced": "77/30",
-      "decimal": "2.566667"
-     },
-     "max_size": 4,
-     "size_0_households": 0,
-     "over_6_households": 0,
-     "people_per_household": null
-    }
-   }
-  },
-  {
-   "place": "Paris",
-   "lat": 48.8566,
-   "lon": 2.3522,
-   "l3_tile": 492622187593845,
-   "leaves_in_tile": 1024,
-   "leaves_without_households": 0,
-   "leaves": 1024,
-   "counts_by_size": [
-    0,
-    3388,
-    6217,
-    6436,
-    1910,
-    668,
-    113,
-    9
-   ],
-   "households": 18741,
-   "persons": 46851,
-   "mean": {
-    "persons": 46851,
-    "households": 18741,
-    "reduced": "15617/6247",
-    "decimal": "2.499920"
-   },
-   "max_size": 7,
-   "size_0_households": 0,
-   "over_6_households": 9,
-   "people_per_household": {
-    "min": {
-     "reduced": "46/19",
-     "decimal": "2.421053"
-    },
-    "median_lower": {
-     "reduced": "5/2",
-     "decimal": "2.500000"
-    },
-    "max": {
-     "reduced": "23/9",
-     "decimal": "2.555556"
-    }
-   },
-   "by_density_class": {
-    "dense fabric": {
-     "leaves": 1024,
-     "counts_by_size": [
-      0,
-      3388,
-      6217,
-      6436,
-      1910,
-      668,
-      113,
-      9
-     ],
-     "households": 18741,
-     "persons": 46851,
-     "mean": {
-      "persons": 46851,
-      "households": 18741,
-      "reduced": "15617/6247",
-      "decimal": "2.499920"
+      "persons": 7528,
+      "households": 3000,
+      "reduced": "941/375",
+      "decimal": "2.509333"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 9,
-     "people_per_household": {
-      "min": {
-       "reduced": "46/19",
-       "decimal": "2.421053"
-      },
-      "median_lower": {
-       "reduced": "5/2",
-       "decimal": "2.500000"
-      },
-      "max": {
-       "reduced": "23/9",
-       "decimal": "2.555556"
-      }
-     }
-    }
-   },
-   "by_units_per_building": {
-    "1": {
-     "leaves": 943,
-     "counts_by_size": [
-      0,
-      1592,
-      3071,
-      3040,
-      793,
-      285,
-      52,
-      5
-     ],
-     "households": 8838,
-     "persons": 21798,
-     "mean": {
-      "persons": 21798,
-      "households": 8838,
-      "reduced": "1211/491",
-      "decimal": "2.466395"
-     },
-     "max_size": 7,
-     "size_0_households": 0,
-     "over_6_households": 5,
-     "people_per_household": null
-    },
-    "2-4": {
-     "leaves": 976,
-     "counts_by_size": [
-      0,
-      1796,
-      3146,
-      3396,
-      1117,
-      383,
-      61,
-      4
-     ],
-     "households": 9903,
-     "persons": 25053,
-     "mean": {
-      "persons": 25053,
-      "households": 9903,
-      "reduced": "8351/3301",
-      "decimal": "2.529839"
-     },
-     "max_size": 7,
-     "size_0_households": 0,
-     "over_6_households": 4,
+     "over_6_households": 1,
      "people_per_household": null
     }
    }
   }
  ],
  "all_places": {
-  "leaves": 16041,
+  "leaves": 19335,
   "counts_by_size": [
-   0,
-   64380,
-   118343,
-   122240,
-   36990,
-   12004,
-   2350,
-   198,
-   2
+   1,
+   103430,
+   187694,
+   197392,
+   59060,
+   18505,
+   3941,
+   367
   ],
-  "households": 356507,
-  "persons": 891268,
+  "households": 570390,
+  "persons": 1425974,
   "mean": {
-   "persons": 891268,
-   "households": 356507,
-   "reduced": "891268/356507",
-   "decimal": "2.500001"
+   "persons": 1425974,
+   "households": 570390,
+   "reduced": "712987/285195",
+   "decimal": "2.499998"
   },
-  "max_size": 8,
-  "size_0_households": 0,
-  "over_6_households": 200,
+  "max_size": 7,
+  "size_0_households": 1,
+  "over_6_households": 367,
   "people_per_household": {
    "min": {
-    "reduced": "46/19",
-    "decimal": "2.421053"
+    "reduced": "7/3",
+    "decimal": "2.333333"
    },
    "median_lower": {
     "reduced": "5/2",
     "decimal": "2.500000"
    },
    "max": {
-    "reduced": "13/5",
-    "decimal": "2.600000"
+    "reduced": "8/3",
+    "decimal": "2.666667"
    }
   },
   "by_density_class": {
-   "dense fabric": {
-    "leaves": 15872,
+   "apartment blocks": {
+    "leaves": 221,
     "counts_by_size": [
      0,
-     63139,
-     116148,
-     119860,
-     36324,
-     11774,
-     2303,
-     191,
-     2
+     1816,
+     3315,
+     3793,
+     1117,
+     235,
+     61,
+     6
     ],
-    "households": 349741,
-    "persons": 874352,
+    "households": 10343,
+    "persons": 25876,
     "mean": {
-     "persons": 874352,
-     "households": 349741,
-     "reduced": "874352/349741",
-     "decimal": "2.499999"
+     "persons": 25876,
+     "households": 10343,
+     "reduced": "25876/10343",
+     "decimal": "2.501789"
     },
-    "max_size": 8,
+    "max_size": 7,
     "size_0_households": 0,
-    "over_6_households": 193,
+    "over_6_households": 6,
     "people_per_household": {
      "min": {
-      "reduced": "46/19",
-      "decimal": "2.421053"
+      "reduced": "12/5",
+      "decimal": "2.400000"
      },
      "median_lower": {
       "reduced": "5/2",
@@ -1845,193 +2285,231 @@
      }
     }
    },
-   "suburban streets": {
-    "leaves": 40,
+   "dense fabric": {
+    "leaves": 18849,
     "counts_by_size": [
      0,
-     261,
-     424,
-     406,
-     134,
-     61,
-     10,
-     3
+     100405,
+     182240,
+     191437,
+     57294,
+     18006,
+     3834,
+     359
     ],
-    "households": 1299,
-    "persons": 3249,
+    "households": 553575,
+    "persons": 1383919,
     "mean": {
-     "persons": 3249,
-     "households": 1299,
-     "reduced": "1083/433",
-     "decimal": "2.501155"
+     "persons": 1383919,
+     "households": 553575,
+     "reduced": "1383919/553575",
+     "decimal": "2.499967"
     },
     "max_size": 7,
     "size_0_households": 0,
-    "over_6_households": 3,
+    "over_6_households": 359,
     "people_per_household": {
      "min": {
-      "reduced": "67/27",
-      "decimal": "2.481481"
+      "reduced": "19/8",
+      "decimal": "2.375000"
      },
      "median_lower": {
-      "reduced": "67/27",
-      "decimal": "2.481481"
+      "reduced": "5/2",
+      "decimal": "2.500000"
      },
      "max": {
-      "reduced": "67/26",
-      "decimal": "2.576923"
+      "reduced": "21/8",
+      "decimal": "2.625000"
+     }
+    }
+   },
+   "suburban streets": {
+    "leaves": 49,
+    "counts_by_size": [
+     1,
+     202,
+     324,
+     365,
+     105,
+     45,
+     5
+    ],
+    "households": 1047,
+    "persons": 2620,
+    "mean": {
+     "persons": 2620,
+     "households": 1047,
+     "reduced": "2620/1047",
+     "decimal": "2.502388"
+    },
+    "max_size": 6,
+    "size_0_households": 1,
+    "over_6_households": 0,
+    "people_per_household": {
+     "min": {
+      "reduced": "19/8",
+      "decimal": "2.375000"
+     },
+     "median_lower": {
+      "reduced": "5/2",
+      "decimal": "2.500000"
+     },
+     "max": {
+      "reduced": "8/3",
+      "decimal": "2.666667"
      }
     }
    },
    "terraced streets": {
-    "leaves": 128,
+    "leaves": 200,
     "counts_by_size": [
      0,
-     977,
-     1763,
-     1972,
-     527,
-     169,
-     37,
-     4
+     974,
+     1756,
+     1740,
+     530,
+     208,
+     40,
+     2
     ],
-    "households": 5449,
-    "persons": 13622,
+    "households": 5250,
+    "persons": 13120,
     "mean": {
-     "persons": 13622,
-     "households": 5449,
-     "reduced": "13622/5449",
-     "decimal": "2.499908"
+     "persons": 13120,
+     "households": 5250,
+     "reduced": "1312/525",
+     "decimal": "2.499048"
     },
     "max_size": 7,
     "size_0_households": 0,
-    "over_6_households": 4,
+    "over_6_households": 2,
     "people_per_household": {
      "min": {
-      "reduced": "52/21",
-      "decimal": "2.476190"
+      "reduced": "12/5",
+      "decimal": "2.400000"
      },
      "median_lower": {
-      "reduced": "102/41",
-      "decimal": "2.487805"
+      "reduced": "5/2",
+      "decimal": "2.500000"
      },
      "max": {
-      "reduced": "51/20",
-      "decimal": "2.550000"
+      "reduced": "8/3",
+      "decimal": "2.666667"
      }
     }
    },
    "village": {
-    "leaves": 1,
+    "leaves": 16,
     "counts_by_size": [
      0,
-     3,
-     8,
-     2,
-     5
+     33,
+     59,
+     57,
+     14,
+     11,
+     1
     ],
-    "households": 18,
-    "persons": 45,
+    "households": 175,
+    "persons": 439,
     "mean": {
-     "persons": 45,
-     "households": 18,
-     "reduced": "5/2",
-     "decimal": "2.500000"
+     "persons": 439,
+     "households": 175,
+     "reduced": "439/175",
+     "decimal": "2.508571"
     },
-    "max_size": 4,
+    "max_size": 6,
     "size_0_households": 0,
     "over_6_households": 0,
     "people_per_household": {
      "min": {
-      "reduced": "5/2",
-      "decimal": "2.500000"
+      "reduced": "7/3",
+      "decimal": "2.333333"
      },
      "median_lower": {
       "reduced": "5/2",
       "decimal": "2.500000"
      },
      "max": {
-      "reduced": "5/2",
-      "decimal": "2.500000"
+      "reduced": "44/17",
+      "decimal": "2.588235"
      }
     }
    }
   },
   "by_units_per_building": {
    "1": {
-    "leaves": 4927,
+    "leaves": 1529,
     "counts_by_size": [
-     0,
-     8562,
-     16390,
-     16389,
-     4049,
-     1397,
-     282,
-     32
+     1,
+     2283,
+     4133,
+     4257,
+     1089,
+     392,
+     93,
+     8
     ],
-    "households": 47101,
-    "persons": 115606,
+    "households": 12256,
+    "persons": 30250,
     "mean": {
-     "persons": 115606,
-     "households": 47101,
-     "reduced": "115606/47101",
-     "decimal": "2.454428"
+     "persons": 30250,
+     "households": 12256,
+     "reduced": "15125/6128",
+     "decimal": "2.468179"
     },
     "max_size": 7,
-    "size_0_households": 0,
-    "over_6_households": 32,
+    "size_0_households": 1,
+    "over_6_households": 8,
     "people_per_household": null
    },
    "2-4": {
-    "leaves": 12306,
+    "leaves": 7187,
     "counts_by_size": [
      0,
-     44204,
-     80403,
-     84281,
-     25932,
-     8293,
-     1666,
-     135,
-     2
+     34976,
+     63403,
+     67813,
+     19776,
+     6052,
+     1344,
+     129
     ],
-    "households": 244916,
-    "persons": 614003,
+    "households": 193493,
+    "persons": 483552,
     "mean": {
-     "persons": 614003,
-     "households": 244916,
-     "reduced": "614003/244916",
-     "decimal": "2.506994"
-    },
-    "max_size": 8,
-    "size_0_households": 0,
-    "over_6_households": 137,
-    "people_per_household": null
-   },
-   "5+": {
-    "leaves": 4218,
-    "counts_by_size": [
-     0,
-     11614,
-     21550,
-     21570,
-     7009,
-     2314,
-     402,
-     31
-    ],
-    "households": 64490,
-    "persons": 161659,
-    "mean": {
-     "persons": 161659,
-     "households": 64490,
-     "reduced": "161659/64490",
-     "decimal": "2.506730"
+     "persons": 483552,
+     "households": 193493,
+     "reduced": "483552/193493",
+     "decimal": "2.499067"
     },
     "max_size": 7,
     "size_0_households": 0,
-    "over_6_households": 31,
+    "over_6_households": 129,
+    "people_per_household": null
+   },
+   "5+": {
+    "leaves": 13851,
+    "counts_by_size": [
+     0,
+     66171,
+     120158,
+     125322,
+     38195,
+     12061,
+     2504,
+     230
+    ],
+    "households": 364641,
+    "persons": 912172,
+    "mean": {
+     "persons": 912172,
+     "households": 364641,
+     "reduced": "912172/364641",
+     "decimal": "2.501562"
+    },
+    "max_size": 7,
+    "size_0_households": 0,
+    "over_6_households": 230,
     "people_per_household": null
    }
   }

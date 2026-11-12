@@ -78,7 +78,9 @@ pub mod durability;
 pub mod failure_view;
 pub mod seat_view;
 pub mod detmath;
+pub mod holon_tables;
 pub mod popchain;
+pub mod regions_table;
 pub mod couplings;
 
 pub use transport::*;

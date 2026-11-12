@@ -24,6 +24,9 @@ const tlPop = () => (typeof GEODATA !== "undefined" && GEODATA.pop[1]) || null;
 // the cohort tier's GHS total (POP_GRID_PEOPLE), so the street tier apportions the same people
 function tlPopKernel(){
   if (TL.popOk) return true; const P = tlPop(); if (!P || !wasm || !wasm.pop_load) return false;
+  // the in-cell seam's anchors: each cell's first Natural Earth populated place (largest first), before any split
+  if (wasm.pop_anchors && GEO.places){ const pl = GEO.places, ap = wasm.alloc(pl.length * 8) >>> 0, A = new Int32Array(mem.buffer, ap, pl.length * 2);
+    pl.forEach((p, k) => { A[2 * k] = Math.round(p.la * 1e4); A[2 * k + 1] = Math.round(p.lo * 1e4); }); TL.anchors = wasm.pop_anchors(ap, pl.length); }
   const n = P.length, ptr = wasm.alloc(n * 4) >>> 0; new Float32Array(mem.buffer, ptr, n).set(P);
   wasm.pop_load(ptr, n, typeof POP_GRID_PEOPLE === "number" ? POP_GRID_PEOPLE : 0);
   TL.popTotals = Array.from(new Float64Array(mem.buffer, wasm.holon_buf_ptr(0) >>> 0, 4)); TL.popOk = true; return true;
@@ -52,6 +55,16 @@ function tlSplit(p, pb){ // people and households of p's children, apportioned i
 function tlContext(leaf){ const ctx = tlTree().context(leaf), k = HOLON.pack(leaf); let pp = tlPP.get(k);
   if (pp === undefined){ wasm.pop_of(k); pp = tlOut(2)[0]; } ctx[32] = pp; return ctx; }
 function tlTree(){ if (!TL.T) TL.T = HOLON.tree(tlRoot, tlExt, tlSplit, TL_TARGET); return TL.T; }
+// the in-cell seam's switch (kernel pop_incell): CIRISHolon's UNEVEN-0 inside a cell (on, the default) or the legacy
+// even spread; every budget below the cell changes, so the tree, its people and the leaf geometry are rebuilt
+function tlIncell(on){
+  if (typeof wasm === "undefined" || !wasm || !wasm.pop_incell) return; wasm.pop_incell(on ? 1 : 0); TL.incell = !!on;
+  TL.T = null; TL.l0.clear(); tlPP.clear(); TL.lay.clear(); TL.bytes = 0;
+  for (const [, bt] of TL.batch) gl.deleteBuffer(bt.vbo); TL.batch.clear();
+  if (typeof M !== "undefined" && M && M.leaf !== undefined) M = null;
+  if (typeof incellReset === "function") incellReset();
+  if (typeof gfxDirty === "function") gfxDirty(1500);
+}
 
 // one density tone for the mosaic and the leaves' ground: households per km², 10 → 0, ~3,000 → 1.
 // tlGround turns it into a colour between the terrain band's sparse and dense ground.

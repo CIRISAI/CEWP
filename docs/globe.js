@@ -394,7 +394,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=32"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=35"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -977,6 +977,8 @@ function draw(){
     gl.drawArrays(gl.TRIANGLES,0,landVerts); gl.disableVertexAttribArray(gt);
     // 4. terrain: shaded relief and elevation (relief.js), a multiply on the land just drawn
     if (typeof reliefDraw==="function") reliefDraw(R,S,asp,w,h,mpp,(0.6+0.4*Math.min(1,landA*3))*GEO.rf,sunWorld);
+    // 4b. people inside each 1/8-degree cell at ~0.9 km (incell.js: the kernel's in-cell seam, CIRISHolon UNEVEN-0), region and city zoom
+    if (typeof incellDraw==="function") incellDraw(R,S,asp,w,h,mpp,sstep(3000,1200,mpp)*(1-sstep(60,25,mpp)));
     // 5. the night side: the population grid (MODEL input) glows where the kernel's sun has set
     if (typeof gfxNightGlow==="function" && (typeof LAYERS==="undefined" || LAYERS.on("glow"))) gfxNightGlow(R,S,asp,mpp,1.0);
     gl.disable(gl.STENCIL_TEST); }
@@ -2563,7 +2565,9 @@ function holUnevenLine(cls, lat, lon){
   const r = holRegion(lat, lon), e = r === null ? null : u.data.regional[r][k];
   const use = e && e.people ? { v: e, src: "regional, " + u.data.regions[r] } : { v: { people: u.data.world.people[k] }, src: r === null ? "world" : "world: fewer than 30 cells of this class in " + u.data.regions[r] };
   const above = use.v.people.slice(k + 2).reduce((a, b) => a + b, 0) / 1e4;
-  return (`in-cell: in a ${cls} cell ${above.toFixed(0)}% of the people live in ~1 km tiles denser than the cell's class (${use.src}; ${holVd("unresolved", "unresolved: a reading of GHS-POP, no generator scored")}); the twin still spreads them evenly, pending the seam`);
+  const on = !(typeof TL !== "undefined" && TL.incell === false);
+  return (`in-cell: in a ${cls} cell ${above.toFixed(0)}% of the people live in ~1 km tiles denser than the cell's class (${use.src}; ${holVd("unresolved", "unresolved: a reading of GHS-POP, no generator scored")}); ` +
+    (on ? "the twin divides each cell's people over its ~1 km tiles by this table; which tile is the town is the twin's display rule (at the cell's Natural Earth place and toward its densest neighbours, MODEL), not the table's" : holVd("legacy", "legacy even spread inside the cell, no certificate")));
 }
 // evidence:scan
 function updateFocalChip(F){
@@ -2593,7 +2597,7 @@ function updateFocalChip(F){
   chip.innerHTML = `<b>R5 focal 1:1</b> · ${dclass} · ` +
     `${fig("micro-generated", Math.round(m[4]).toLocaleString() + " people/km² · " + Math.round(2 * m[3]) + " m patch · " + kinds[0] + " phones, " + kinds[1] + " home nodes, " + kinds[2] + " laptops, " + kinds[3] + " hosted servers, " + kinds[4] + " seats" + (kinds[5] ? ", " + kinds[5] + " CI" : ""))} · ` +
     `local ${hm} · sim ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · ${scale} scale` +
-    `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people are spread evenly inside a 1/8° cell until CIRISHolon's in-cell table is consumed")}</div>` +
+    `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people inside a 1/8° cell follow CIRISHolon's in-cell table (UNEVEN-0, unresolved)")}</div>` +
     `<div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
     `<div class="chip-sub">rows: ${fig("micro-activity", m[10] + " sent · " + m[11] + " direct (" + m[12] + " shaped) · " + m[13] + " relayed · " + m[15] + " held at a mailbox · " + m[16] + " handed over · punches " + m[20] + "/" + m[19] + " up")} · tap a device</div>` +
     `<div class="chip-sub">model's reading: replication rounds ${fig("micro-activity", (m[37] | 0) + " served · " + (m[38] | 0) + " cadences where an unclaimed device announced with no seat as peer")} · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +

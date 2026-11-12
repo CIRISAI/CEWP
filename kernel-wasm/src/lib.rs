@@ -688,7 +688,21 @@ pub extern "C" fn holon_buf_len(which: u32) -> u32 {
 // budget comes from Rust: `pop_root` for a 1.5-degree holon, `pop_split` for a holon's children,
 // people and households both, apportioned so children sum to the parent exactly.
 struct PtrCells { ptr: *const u32 }
+/// The in-cell seam's switch: true reads CIRISHolon's UNEVEN-0 inside a cell, false the legacy even
+/// spread ("no certificate"); `pop_incell` sets it, and the page rebuilds its tree after.
+static mut INCELL: bool = true;
 impl cewp_sim::popchain::Cells for PtrCells {
+    fn region(&self, r: usize, c: usize) -> Option<u8> {
+        cewp_sim::regions_table::REGION_OF_L0.get((r / 12) * 240 + (c / 12) % 240).copied()
+    }
+    fn incell(&self) -> bool {
+        // SAFETY: one thread.
+        unsafe { *std::ptr::addr_of!(INCELL) }
+    }
+    fn anchor(&self, r: usize, c: usize) -> Option<(f64, f64)> {
+        // SAFETY: one thread.
+        unsafe { (*std::ptr::addr_of!(ANCHORS)).as_ref().and_then(|m| m.get(&(r * cewp_sim::popchain::NX + c)).copied()) }
+    }
     fn people(&self, r: usize, c: usize) -> u32 {
         // SAFETY: `pop_load` converted NX * NY cells in place and the page never frees the buffer.
         unsafe { *self.ptr.add(r * cewp_sim::popchain::NX + c % cewp_sim::popchain::NX) }
@@ -743,6 +757,61 @@ pub extern "C" fn pop_split(id: f64, people: f64, households: f64) -> u32 {
     let h = holon();
     h.out = kids.iter().map(|k| k.1.people as f64).chain(kids.iter().map(|k| k.1.households as f64)).collect();
     kids.len() as u32
+}
+
+/// The anchors of the in-cell seam: the first populated place of each 1/8-degree cell, in pixel units.
+static mut ANCHORS: Option<std::collections::BTreeMap<usize, (f64, f64)>> = None;
+
+/// Natural Earth populated places as the page has them (i32 pairs: lat x 1e4, lon x 1e4, most
+/// important first): each 1/8-degree cell's first place becomes its in-cell anchor. Call before
+/// `pop_load`'s first split. Returns the cells that got an anchor.
+#[no_mangle]
+pub extern "C" fn pop_anchors(ptr: *const i32, n: u32) -> u32 {
+    use cewp_sim::popchain::{CELL_DEG, NX, NY};
+    // SAFETY: the page wrote n pairs at ptr.
+    let v = unsafe { std::slice::from_raw_parts(ptr, 2 * n as usize) };
+    let mut m = std::collections::BTreeMap::new();
+    for k in 0..n as usize {
+        let (la, lo) = (f64::from(v[2 * k]) / 1e4, f64::from(v[2 * k + 1]) / 1e4);
+        let fy = (90.0 - la) / CELL_DEG;
+        let fx = (lo + 180.0) / CELL_DEG;
+        let (r, c) = (fy.floor(), fx.floor());
+        if r < 0.0 || r >= NY as f64 { continue; }
+        let key = r as usize * NX + (c as i64).rem_euclid(NX as i64) as usize;
+        let side = cewp_sim::popchain::incell::SIDE as f64;
+        m.entry(key).or_insert(((fx - c) * side, (fy - r) * side));
+    }
+    let n = m.len() as u32;
+    unsafe { *std::ptr::addr_of_mut!(ANCHORS) = Some(m); }
+    n
+}
+
+/// The in-cell seam on (1, CIRISHolon's UNEVEN-0, the default) or off (0, the legacy even spread).
+/// Returns the setting.
+#[no_mangle]
+pub extern "C" fn pop_incell(on: u32) -> u32 {
+    unsafe { *std::ptr::addr_of_mut!(INCELL) = on != 0; }
+    on
+}
+
+/// One 1/8-degree cell's pixels under the seam (`popchain::incell::pixels`), for the page's in-cell
+/// texture: holon buffer 0 gets 225 people (row-major from the cell's north-west pixel), then 225
+/// tile classes (0 empty, 1..5; 255 for a cell nobody lives in), then [source: 0..8 the region whose
+/// row was read, 9 the world row; cell class 1..5, 0 under the floor]. Returns 225, or 0 before
+/// `pop_load`.
+#[no_mangle]
+pub extern "C" fn pop_cell_pixels(r: u32, c: u32) -> u32 {
+    use cewp_sim::popchain::incell;
+    let Some((cells, _)) = pop_state() else { return 0 };
+    let (r, c) = (r as usize, c as usize % cewp_sim::popchain::NX);
+    let (px, cls, src) = incell::pixels(cells, r, c);
+    let class = incell::class_of(cewp_sim::popchain::Cells::people(cells, r, c), r);
+    let mut out: Vec<f64> = px.iter().map(|&p| f64::from(p)).collect();
+    out.extend(cls.iter().map(|&k| f64::from(k)));
+    out.push(match src { incell::Source::Regional(g) => f64::from(g), incell::Source::World => 9.0 });
+    out.push(f64::from(class));
+    holon().out = out;
+    incell::N as u32
 }
 
 /// Any holon's [people, households] by descending from its level-0 ancestor (random access);

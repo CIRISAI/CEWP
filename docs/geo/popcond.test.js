@@ -8,7 +8,8 @@
 //   children's people);
 // * a holon's households are its people / 2.5 within the rounding of the steps above it, and its
 //   people track the overlap of GHS-POP within the same bound scaled to the cohort total (cross-check
-//   against popcond.js pcPeople, computed independently in JavaScript);
+//   against the overlap computed independently in JavaScript, through the in-cell seam's pixels where a holon
+//   covers a cell in part);
 // * at the leaf: its households' persons sum to its people exactly, and its households' devices sum to
 //   the leaf's device population exactly (the node cap is a display sample of it); its households
 //   summed by access network (their second parent, netgraph::attach_access) are its households;
@@ -25,7 +26,7 @@
 const test = require("node:test"), assert = require("node:assert");
 const fs = require("node:fs"), path = require("node:path"), zlib = require("node:zlib"), os = require("node:os");
 const HOLON = require("../holon.js");
-const { POPCOND, pcPeople, pcCellAt } = require("./popcond.js");
+const { POPCOND, pcPeople, pcCellAt, pcCellKm2 } = require("./popcond.js");
 const G = require("./geodata.js");
 
 const here = (p) => path.join(__dirname, p);
@@ -40,7 +41,12 @@ let K = null;
 async function kernel(){
   if (K) return K;
   const { instance } = await WebAssembly.instantiate(fs.readFileSync(here("../kernel/kernel_scale.wasm")), {});
-  const w = instance.exports, n = P.length, ptr = w.alloc(n * 4) >>> 0;
+  const w = instance.exports, n = P.length;
+  // the in-cell seam's anchors, as the page passes them (tiling.js tlPopKernel): every Natural Earth place, largest first
+  { const buf = fs.readFileSync(here("places.bin")), dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength), np = dv.getUint32(4, true), ll = []; let i = 8;
+    for (let k = 0; k < np; k++){ ll.push(dv.getInt32(i, true), dv.getInt32(i + 4, true)); i += 14 + buf[i + 13]; }
+    const ap = w.alloc(ll.length * 4) >>> 0; new Int32Array(w.memory.buffer, ap, ll.length).set(ll); w.pop_anchors(ap, np); }
+  const ptr = w.alloc(n * 4) >>> 0;
   new Float32Array(w.memory.buffer, ptr, n).set(P);
   const cells = w.pop_load(ptr, n, POP_GRID_PEOPLE);
   const tot = Array.from(new Float64Array(w.memory.buffer, w.holon_buf_ptr(0) >>> 0, 4));
@@ -50,6 +56,28 @@ const out = (w, n) => Array.from(new Float64Array(w.memory.buffer, w.holon_buf_p
 function root(w, c){ w.pop_root(HOLON.pack(c)); const [p, h] = out(w, 2); return { p, h }; }
 function split(w, c, pop){ const n = w.pop_split(HOLON.pack(c), pop.p, pop.h), o = out(w, 2 * n); return HOLON.children(c).map((k, i) => ({ c: k, p: o[i], h: o[n + i] })); }
 const sum = (a) => a.reduce((x, y) => x + y, 0);
+// the overlap the chain should give, computed here in JavaScript: GHS-POP over the holon's rectangle, a cell the holon
+// covers whole at its people, a cell it covers in part through the in-cell seam's pixels (kernel pop_cell_pixels,
+// CIRISHolon's UNEVEN-0), each pixel by the share of it covered; popcond.js pcPeople is the even spread (seam off)
+function seamPeople(w, la0, lo0, la1, lo1){
+  const s = POPCOND.STEP, NX = POPCOND.NX, NY = POPCOND.NY, pd = s / 15;
+  const r0 = Math.max(0, Math.floor((90 - la1) / s)), r1 = Math.min(NY - 1, Math.ceil((90 - la0) / s) - 1);
+  const c0 = Math.floor((lo0 + 180) / s), c1 = Math.ceil((lo1 + 180) / s) - 1; let total = 0;
+  for (let r = r0; r <= r1; r++){
+    const top = 90 - r * s, fy = (Math.min(top, la1) - Math.max(top - s, la0)) / s; if (fy <= 0) continue;
+    for (let c = c0; c <= c1; c++){
+      const cc = ((c % NX) + NX) % NX, p = P[r * NX + cc]; if (!(p > 0) || p / pcCellKm2(r) < POPCOND.FLOOR_KM2) continue;
+      const left = -180 + c * s, fx = (Math.min(left + s, lo1) - Math.max(left, lo0)) / s; if (fx <= 0) continue;
+      if (fx >= 1 && fy >= 1){ total += p; continue; }
+      w.pop_cell_pixels(r, cc); const px = out(w, 225);
+      for (let i = 0; i < 225; i++){ if (!px[i]) continue;
+        const pt = top - Math.floor(i / 15) * pd, pl = left + (i % 15) * pd;
+        const gy = (Math.min(pt, la1) - Math.max(pt - pd, la0)) / pd, gx = (Math.min(pl + pd, lo1) - Math.max(pl, lo0)) / pd;
+        if (gx > 0 && gy > 0) total += px[i] * gx * gy; }
+    }
+  }
+  return total;
+}
 // the four sides of a split's arterial crossings (kernel pop_crossings): [{ parent, peer, children }]
 function crossings(w, c){
   const len = w.pop_crossings(HOLON.pack(c)); if (!len) return [];
@@ -110,7 +138,7 @@ test("every split from the root to the street tile sums exactly; the leaf's pers
         }
       }
       // cross-check against JavaScript's own overlap (popcond.js), scaled to the cohort total
-      const b = HOLON.boundsDeg(s.c), e = pcPeople(P, b[0], b[1], b[2], b[3]) * scale;
+      const b = HOLON.boundsDeg(s.c), e = seamPeople(w, b[0], b[1], b[2], b[3]) * scale;
       // bound: each overlapped cell was rounded to whole people (0.5 each), one unit per apportionment step, and the scale's float error
       const ncell = Math.ceil((b[2] - b[0]) / POPCOND.STEP + 1) * Math.ceil((b[3] - b[1]) / POPCOND.STEP + 1);
       assert.ok(Math.abs(s.pop.p - e) <= 0.5 * ncell * scale + s.c.level + 1 + 1e-6 * e, `${name} L${s.c.level}: ${s.pop.p} people, overlap x scale ${e.toFixed(1)}`);

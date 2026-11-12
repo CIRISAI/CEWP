@@ -49,3 +49,11 @@ dependencies = [
 [[package]]
 name = "cewp-sim"
 version = "0.2.0"
+dependencies = [
+ "holon-scene",
+]
+
+[[package]]
+name = "holon-scene"
+version = "0.1.0"
+source = "git+https://github.com/CIRISAI/CIRISHolon?rev=7783c24fa292ab29437cdeb607c72c97a9776482#7783c24fa292ab29437cdeb607c72c97a9776482"

@@ -29,3 +29,8 @@ test("UNEVEN-0's share vectors are a million each, and the world row stands in b
   for (const r of u.regional) for (const e of r){ if (e.tiles){ published++; assert.strictEqual(sum(e.tiles), 1000000); assert.strictEqual(sum(e.people), 1000000); } else assert.ok(e.cells < 30 && /fewer than 30/.test(e.reason)); }
   assert.strictEqual(published, 35);
 });
+
+test("the kernel's compiled tables are the imported asset's (crates/cewp-sim/src/holon_tables.rs)", () => {
+  const r = require("node:child_process").spawnSync("python3", ["-I", path.join(ROOT, "tools/holon/import.py"), "--check-rust"], { encoding: "utf8" });
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+});

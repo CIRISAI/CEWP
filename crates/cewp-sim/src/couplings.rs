@@ -152,7 +152,7 @@ pub const ROWS: &[Row] = &[
     // ------------------------------------------------------------------ A: read today
     row("cell.people", A, pop(&["region holon (1.5 degree root)", "parent holon"]), "cell (every holon, root to street tile)", "persons",
         "crates/cewp-sim/src/popchain.rs:World::new, split (kernel-wasm pop_load/pop_split; docs/tiling.js tlRoot/tlSplit) -> tiling.rs LeafContext.people -> micro.rs:MicroWorld::populate",
-        "DERIVED", GHS, &[], "the street tier apportions the cohort tier's GHS total (7,830,639,988) over the 355,434 floored 1/8-degree cells; exact at every split (docs/geo/popcond.test.js)"),
+        "DERIVED", GHS, &[], "the street tier apportions the cohort tier's GHS total (7,830,639,988) over the 355,434 floored 1/8-degree cells; exact at every split (docs/geo/popcond.test.js); inside a cell, people follow CIRISHolon's UNEVEN-0 through the in-cell seam (popchain::incell, unresolved)"),
     row("cell.households", A, pop(&["parent holon"]), "cell (every holon, root to street tile)", "households",
         "crates/cewp-sim/src/popchain.rs:World::new, split -> tiling.rs:HolonTree::budget -> tiling.rs leaf layout (dwelling units) -> micro.rs:MicroWorld::from_leaf, populate",
         "MODEL", NONE, &["micro.persons_per_household"], "round(people / 2.5) at the root, apportioned by the children's people below it; persons per household is a named gap"),

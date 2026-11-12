@@ -132,3 +132,25 @@ microseconds, once per tile build and never per frame, so no frame cost. Both to
 refused both (2.500 vs 2.042; 0.182 vs 0.434, from 0.32 in village tiles to 0.62 in dense fabric):
 the family is wrong, not its two numbers, so it is not retuned. The size-7 households come from the
 missing clamp after apportionment (micro.rs populate) and are fixed with the new rule, not before.
+
+## 6. Built (status)
+
+- **Intake** (tools/holon/import.py, docs/geo/holon/, intake.test.js): UNEVEN-0, HOUSEHOLD-0 US and
+  HOUSEHOLD-0 DE at CIRISHolon 7783c24, with ledger entries carrying the notices. Assets are small
+  (UNEVEN-0 15 kB, each household table 5 kB as JSON), so they ship as JSON parsed on demand rather
+  than binary; they load at street zoom or with a world-model layer, never at first paint.
+- **In-cell seam** (crates/cewp-sim/src/popchain.rs `incell`, on by default; kernel `pop_incell`,
+  `pop_cell_pixels`, `pop_anchors`): a cell's people over its 15 x 15 pixels by the regional UNEVEN-0
+  row where published (renormalised import, crates/cewp-sim/src/holon_tables.rs), else Holon's own
+  world constants, with Holon's apportionment and seed rule; it matches `world::incell::divide`
+  class by class on the world table (popchain test). The region of a cell is compiled in
+  (crates/cewp-sim/src/regions_table.rs from regions.json, nearest listed parent for unlisted cells).
+  Placement (MODEL): the 1/8-degree people field interpolated at the pixel plus a pull toward the
+  cell's Natural Earth place. Exact sums at every split; check_sums rc 0.
+- **Drawing**: docs/incell.js, one 180 x 180 R8 texture per 1.5-degree block, built once (about 7 ms a
+  block in wasm, 32 kB of texture), drawn inside the land stencil at region and city zoom, hatched
+  (unresolved); the world-model layers carry the regional chart and the household verdicts.
+- **Owed**: the cell grid still shows (classes are quantised per cell and the table does not place
+  towns); a rhythm Series renderer; envelope greying needs the country test (Natural Earth admin-0
+  polygons, approval asked); under 4x CPU throttle one block build is about 28 ms, so a hitch per
+  frame while blocks build.

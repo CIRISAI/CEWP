@@ -29,4 +29,5 @@ test("regions.json is current and reproduces the page's lookup", () => {
   // every locality is used and lies in one region
   const regOf = new Map(); for (const [, , , loc, reg] of j.cells){ assert.ok(!regOf.has(loc) || regOf.get(loc) === reg); regOf.set(loc, reg); }
   assert.strictEqual(regOf.size, 181);
+  assert.strictEqual(fs.readFileSync(R.RUST, "utf8"), R.rustTable(R.table()), "regions_table.rs stale: node tools/geo/regions.js");
 });
