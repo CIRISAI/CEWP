@@ -223,7 +223,7 @@ Every R5 parameter is `micro.rs` `PARAM_SPECS` at `MicroParams::production_shape
 
 - The access-network split and outage chain: a per-provider outage history (start, duration,
   footprint) for residential fixed-line access. Not requested: any such dataset (e.g. public
-  ISP outage trackers, RIPE Atlas disconnection events) needs the owner's approval (RULES 1); the
+  ISP outage trackers, RIPE Atlas disconnection events) needs approval as a new dataset (RULES 1); the
   loader seam is `holon_demo::access_network` and the two `OUTAGE_*` constants. The full failure
   library is package `failures`.
 - The budgets: a production consumer of the coarse tier's tail (the seat's provisioning

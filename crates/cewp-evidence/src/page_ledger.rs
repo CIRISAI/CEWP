@@ -1593,7 +1593,10 @@ mod tests {
     fn jargon_in(line: &str) -> Vec<&'static str> {
         const AGENTS: [&str; 13] = ["twin-globe", "twin-theory", "twin-calibration", "twin-evidence", "twin-failures", "twin-holon", "twin-media", "twin-nat", "twin-people",
             "twin-topology", "twin-hhsize", "twin-integrate", "twin-geodata"];
-        const TERMS: [&str; 6] = ["team-lead", "sub-agent", "subagent", "this session", "relayed via holon", "the lead"];
+        // process talk about who decided what: the owner's rulings, approvals and specs (a node's owner is domain language)
+        // ("for the owner" alone is domain language too: "a key acting for the owner" of a node)
+        const TERMS: [&str; 13] = ["team-lead", "sub-agent", "subagent", "this session", "relayed via holon", "the lead", "the owner's ruling", "the owner's approval",
+            "(for the owner)", "owner's spec", "the owner approves", "owner's framing", "owner's word"];
         let starts = |s: &str, i: usize| s[..i].chars().next_back().is_none_or(|c| !(c.is_alphanumeric() || c == '-' || c == '_'));
         let ends = |s: &str, j: usize, digits: bool| {
             let rest = &s[j..];
@@ -1620,10 +1623,11 @@ mod tests {
 
     #[test]
     fn the_jargon_matcher_catches_the_forms_that_occurred() {
-        for s in ["twin-globe2", "twin-theory's", "by twin-globe2,", "team-lead's", "(twin-media)", "for the lead.", "in this session", "Eric's approval", "`twin-evidence`"] {
+        for s in ["twin-globe2", "twin-theory's", "by twin-globe2,", "team-lead's", "(twin-media)", "for the lead.", "in this session", "Eric's approval", "`twin-evidence`",
+            "The map strip in plain words (the owner's ruling).", "needs the owner's approval", "a brief (for the owner)"] {
             assert!(!jargon_in(s).is_empty(), "must trip: {s}");
         }
-        for s in [r#""schema": "cewp-twin-holon-index/v1""#, "stewarded by Eric Moore", "Ericsson Mobility Report", "the leader board", "the leading edge", "twin/globe branch", "the media package"] {
+        for s in [r#""schema": "cewp-twin-holon-index/v1""#, "stewarded by Eric Moore", "Ericsson Mobility Report", "the leader board", "the leading edge", "twin/globe branch", "the media package", "the node's owner", "isolation of the owner's remaining devices", "or a key acting for the owner)"] {
             assert!(jargon_in(s).is_empty(), "must pass: {s} -> {:?}", jargon_in(s));
         }
     }

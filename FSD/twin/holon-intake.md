@@ -295,7 +295,7 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   Not built: intensity times the per-person energy net. That net's range spans zero and its data-centre side is a
   world mean, so a country map of "attributed gCO2 per person-year" would colour a sign-open, non-local quantity;
   it waits for a per-place energy side.
-- **The map strip in plain words (the owner's ruling).** The top level holds only layers a stranger reads at a glance,
+- **The map strip in plain words.** The top level holds only layers a stranger reads at a glance,
   in reading order: People (where people live), Awake (who is up right now), Data (how much is moving), Households
   (how many live together), Power (how clean the electricity is). Each legend's first line is a plain sentence with
   its unit; generator names, versions, trust classes and the checking words sit behind "where this comes from", with a

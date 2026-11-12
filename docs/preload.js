@@ -69,7 +69,8 @@ function zpBuild(dl){
 // MSTORY.leaf chosen and builds that one world only. The search's world is dropped afterwards (M = null)
 // so nothing is drawn at orbit.
 function zpStory(){
-  if (typeof storyActive === "undefined" || !storyActive || MSTORY.leaf || !microOk() || microStory || storyCurrentAct > 0) return;
+  // also runs while the street act waits on it (MSTORY.waitSearch): the act joined this search instead of starting its own
+  if (typeof storyActive === "undefined" || !storyActive || MSTORY.leaf || !microOk() || ((microStory || storyCurrentAct > 0) && !MSTORY.waitSearch)) return;
   if (!ZP.cand){ const T = tlTree(), L = tlLand(), lat0 = 47.3769, lon0 = 8.5417, l0 = T.leafAt(lat0, lon0), st = HOLON.STEP[l0.level] / HOLON.UPD, seen = new Set(); ZP.cand = [];
     for (let r = 0; r < 81; r++){ const a = (r % 9) - 4, q = Math.floor(r / 9) - 4, leaf = T.leafAt(lat0 + a * st, lon0 + q * st / Math.cos(lat0 * Math.PI / 180)), id = HOLON.pack(leaf);
       if (seen.has(id)) continue; seen.add(id); const b = HOLON.boundsDeg(leaf); if (T.budget(leaf) && L.squareOnLand(b[0], b[1], b[2] - b[0])) ZP.cand.push({ leaf, d: Math.hypot(a, q) }); }

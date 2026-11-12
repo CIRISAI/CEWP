@@ -280,7 +280,7 @@ Each is a daily fleet sum, keyed by the self-computed buckets above, under the k
 
 ## 6. What a real dataset would replace
 
-No dataset was downloaded. Candidates, each needing the owner's approval (name, what it would
+No dataset was downloaded. Candidates, each needing approval as a new dataset (name, what it would
 replace; licence and size to be checked on the provider's page before asking):
 - A CGN / NAT-behaviour measurement corpus (academic CGN detection studies, STUN-survey data) -
   would replace `fixed_cgnat_*`, `cgn_*`, `router_filter_*`, `cell_*` filter shares.
@@ -309,7 +309,7 @@ filtering, IPv6 share) would replace that one draw; nothing downstream changes.
 - Tech below fixed/cellular (cable/fibre/DSL, 4G/5G) moves only CGN and IPv6 shares here; no
   source supports a per-technology NAT-behaviour difference beyond that.
 
-## 8. Integration into the micro tier (not done; for the owner of `micro.rs`)
+## 8. Integration into the micro tier (not done; for `micro.rs`)
 
 `reach.rs` does not touch `micro.rs`. The seam, smallest hunks:
 1. `MicroWorld::build`, household router draw (the `u_reach` / `u_public` block): give each

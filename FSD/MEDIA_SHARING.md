@@ -632,7 +632,7 @@ Operators can define additional CW classes; established schemes
 
 ## 4. The age gate — operator-managed, standards-compliant
 
-Per the owner's ruling: **operator-managed**, not federation-mandated. Each
+Ruled: **operator-managed**, not federation-mandated. Each
 deployment chooses its age-verification posture appropriate to its
 jurisdiction and audience.
 

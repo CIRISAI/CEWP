@@ -212,7 +212,7 @@ beyond this one seed.
 ## 5. What real datasets would replace (approval requests; none fetched)
 
 The seam is `FailureDomainSource`, plus the `sample_event` duration parameters. Each request
-needs the owner's approval. Licence and size are to be confirmed from each project's own page
+needs approval as a new dataset. Licence and size are to be confirmed from each project's own page
 before any request is granted. They were not read for this package.
 
 | dataset | would replace | form |

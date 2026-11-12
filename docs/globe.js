@@ -2856,8 +2856,8 @@ function dmLegend(){
         ". Trust C rows (secondhand pages) are hatched; where two rows disagree for one place and year the higher-trust row is shown and the other named, never averaged. A country with no row of this kind is 'no reference' (hatched). Colour fills the Natural Earth admin-0 mask (de facto, simplified), not a claim about borders. A country value hides its grid regions: the US mainland eGRID 2023 subregions run " +
         (g.us.avg ? g.us.avg[0].toFixed(0) + " to " + g.us.avg[1].toFixed(0) : "?") + " gCO2/kWh on average and " + (g.us.nbl ? g.us.nbl[0].toFixed(0) + " to " + g.us.nbl[1].toFixed(0) : "?") + " non-baseload (subregion boundaries are not in the twin). An average rate times a change in load is an attribution, never 'emissions avoided'."))}</div>`; }
   if (id === 6){ const lg = (x) => (Math.log10(x) - 2.5) / 3.2 * 0.94 + 0.06, rate = typeof dataRate === "function" ? dataRate() : 0;
-    return `<div class="dm-l1 dm-wrap"><b>Data</b> ${fig("data-activity", "how much is moving on the mesh right now: the model's estimate of messages per hour per km², not a measurement")}</div>` +
-      `<div class="dm-l2 dm-wrap">${fig("data-activity", dmBar("dm-data", [[lg(1000), "1k"], [lg(10000), "10k"], [lg(100000), "100k"]]) + " per hour per km²")} ${more(fig("data-activity", "people per km² in each ~1 km square (the People layer) × " + rate.toFixed(1) + " messages an hour from each person's awake device (the street engine's msg_mean_interval_s, an assumed number) × the engine's day curve at the place's local solar hour (model.diurnal.v1, lowest around 03:00, highest around 19:30). Under the presence tint (United States) the engine moves the same total and changes only whose devices send. One signing device per person; laptops and background sync are not counted. Not a measurement."))}</div>`; }
+    return `<div class="dm-l1 dm-wrap"><b>Data</b> ${fig("data-activity", "messages people send here in this hour, by the model's daily rhythm; an estimate, not a measurement")}</div>` +
+      `<div class="dm-l2 dm-wrap">${fig("data-activity", dmBar("dm-data", [[lg(1000), "1k"], [lg(10000), "10k"], [lg(100000), "100k"]]) + " per hour per km²")} ${more(fig("data-activity", "people per km² in each ~1 km square (the People layer) × " + rate.toFixed(1) + " messages an hour per person (the street engine's assumed mean gap of " + Math.round(3600 / Math.max(rate, 1e-9)) + " s between messages from a person's device) × the engine's daily rhythm at the place's local solar hour (an assumed curve, lowest around 03:00 and highest around 19:30; the same curve everywhere, no country has its own yet). Where people's own days are drawn (United States streets) the engine moves this same total and changes only whose devices send. Devices also sync in the background at a steady rate; that is not drawn here. Not a measurement."))}</div>`; }
   if (id === 3) return `<div class="dm-l1 dm-wrap"><b>Checked?</b> ${fig("holon-housegen1", "whether the twin's household mix here has been compared with a real census")}</div>` +
     `<div class="dm-l2 dm-wrap">${holVd("certified", "matches the census")} ${holVd("unresolved", "read, not yet checked")} <span class="vd dm-noref">nothing to check against</span> ${more(fig("holon-housegen1", "CIRISHolon's household generator (HOUSEGEN-1) per ~1 km tile: German village tiles certified (composition), other German and all US tiles unresolved, elsewhere outside every reference") + " · " + fig("countries-source", "country from Natural Earth's mask, for envelopes only"))}</div>`;
   if (id === 4){ const h = hhMeans(), r = (a) => a ? Math.min(...a).toFixed(2) + " (dense) to " + Math.max(...a).toFixed(2) : "…";
@@ -2907,7 +2907,8 @@ function dmValue(){
   if (id === 4){ const h = hhMeans(); if (!s || !s.on || !s.found || !h) return `households here: the twin's own rule, 2.5 people per home`;
     const row = (s.ref === 0 ? h.de : h.us)[s.cls - 1];
     return `households here: about ${(s.people / s.hhTile).toFixed(1)} people per home in this ~1 km square (${s.hhTile.toLocaleString()} homes); the census figure for this kind of area is ${row.toFixed(1)}`; }
-  return s && s.found ? `verdict here: per unit ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])}, composition ${holVd(HOL_V3[s.comp], HOL_V3[s.comp])} (${holCountryName(c)})` : `verdict here: ${holVd("legacy", "no certificate")}`;
+  const plain = (k) => ["matches the census", "does not match the census", "read, not yet checked"][k];
+  return s && s.found ? `checked here: household size ${holVd(HOL_V3[s.perUnit], plain(s.perUnit))}; household mix ${holVd(HOL_V3[s.comp], plain(s.comp))} (${holCountryName(c)})` : `checked here: ${holVd("legacy", "the twin's own rule, nothing to check against")}`;
 }
 function holGenShort(){ const s = holSeam(); if (!s || !s.on || !s.found) return `households: legacy ${holVd("legacy", "no certificate")}`; return `households: CIRISHolon HOUSEGEN-1, ${s.hhLeaf} here · ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])} / ${holVd(HOL_V3[s.comp], HOL_V3[s.comp])}`; }
 const holCountryFig = (iso) => fig("countries-source", holCountryName(iso));
@@ -2933,10 +2934,10 @@ function updateFocalChip(F){
   const chip = $("focal-chip"); if (!chip) return;
   const show = zoom * Math.min(1, Math.min(cv.clientWidth || 900, cv.clientHeight || 900) / 900) >= FOCAL_ZOOM * 0.6; // same scale rule as microVisible
   chip.classList.toggle("panel-hidden", !show); { const d = $("focal-detail"); if (d && (!show || !M)) d.classList.add("panel-hidden"); } if (!show) return;
-  if (!microOk()){ chip.innerHTML = "<b>R5 focal tier</b> needs WebAssembly: not available in this browser"; return; }
+  if (!microOk()){ chip.innerHTML = "<b>A generated street</b> needs WebAssembly: not available in this browser"; return; }
   if (!M){ chip.innerHTML = microEmpty ? `<b>No one lives here in the model</b> · ${fig("pop-grid-source", "GHS-POP 2020 reads " + (microEmpty.people < 10 ? microEmpty.people.toFixed(1) : Math.round(microEmpty.people).toLocaleString()) + " people in this 1/8° cell (" + (microEmpty.perKm2 < 0.1 ? microEmpty.perKm2.toFixed(3) : microEmpty.perKm2.toFixed(1)) + " per km²)")} · ${fig("land-cover-source", microEmpty.lc ? "land cover: " + microEmpty.lc.toLowerCase() : "no land-cover reading")} · ${fig("street-floor", "no streets or devices below one person per km²")}`
-    : microNoLand ? "<b>R5 focal tier</b> · this tile is not wholly settled land (sea, coast or empty): streets are built only on whole land tiles"
-    : (typeof tlPop === "function" && !tlPop()) ? "<b>R5 focal tier</b> · loading the population grid that every street is conditioned on" : "<b>R5 focal tier</b> · zoom in to build this tile's neighbourhood"; return; }
+    : microNoLand ? "<b>A generated street</b> · this tile is not wholly settled land (sea, coast or empty): streets are built only on whole land tiles"
+    : (typeof tlPop === "function" && !tlPop()) ? "<b>A generated street</b> · loading the population grid that every street is conditioned on" : "<b>A generated street</b> · zoom in to build this tile's neighbourhood"; return; }
   if (chip._t && performance.now() - chip._t < 250) return;
   if (chip.contains(document.activeElement)) return; // a figure focused from the keyboard keeps its focus
   chip._t = performance.now();
@@ -2953,12 +2954,12 @@ function updateFocalChip(F){
   // three lines by default (Holon's stats drawn beautifully, not as a wall of caveats); everything else, word for word, in
   // the "where this comes from" panel (left side on a desktop, a bottom sheet on a phone, closed by default)
   const narrow = F.w < 800, det = $("focal-detail");
-  const head = narrow
-    ? `<b>R5 1:1</b> · ${dclass} · ${fig("micro-generated", Math.round(m[4]).toLocaleString() + "/km² · " + kinds.reduce((a, b) => a + b, 0) + " devices")} · ${hm} ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button>`
-    : `<b>R5 focal 1:1</b> · ${dclass} · ` +
-      `${fig("micro-generated", Math.round(m[4]).toLocaleString() + " people/km² · " + Math.round(2 * m[3]) + " m patch · " + kinds[0] + " phones, " + kinds[1] + " home nodes, " + kinds[2] + " laptops, " + kinds[3] + " hosted servers, " + kinds[4] + " seats" + (kinds[5] ? ", " + kinds[5] + " CI" : ""))} · ` +
-      `local ${hm} · sim ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · ${scale} scale`;
-  const tileLine = `<div class="chip-line">${fig("micro-population", "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households, " + P.dev.toLocaleString() + " devices")}</div>`;
+  // line one in plain words (what kind of place, how many people, the local time and how fast it runs); the tier's own
+  // names (R5, focal, 1:1, patch, seats) are in the "where this comes from" panel
+  const head = `<b>A generated street</b> · ${dclass} · ${fig("micro-generated", Math.round(m[4]).toLocaleString() + " people per km²")} · local ${hm} · time ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button>`;
+  const plural = (n, one, many) => n + " " + (n === 1 ? one : many);
+  const tierLine = `<div class="chip-sub">${fig("micro-generated", "the street tier (R5, focal, 1:1): a " + Math.round(2 * m[3]) + " m patch with " + plural(kinds[0], "phone", "phones") + ", " + plural(kinds[1], "home node", "home nodes") + ", " + plural(kinds[2], "laptop", "laptops") + ", " + plural(kinds[3], "hosted server", "hosted servers") + ", " + plural(kinds[4], "serve seat", "serve seats") + (kinds[5] ? ", " + plural(kinds[5], "CI runner", "CI runners") : "") + "; drawn at " + scale + " scale; the street's clock runs ×" + microTimeScale)}</div>`;
+  const tileLine = `<div class="chip-line">${fig("micro-population", "this street: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " homes, " + P.dev.toLocaleString() + " devices")}</div>`;
   const detail = `<div class="fd-head"><b>Where this street's figures come from</b> <button class="chip-btn" id="fd-close" type="button" aria-label="Close">×</button></div>` +
     (M.denseNote ? `<div class="chip-sub">${fig("dense-fabric", "dense fabric: storeys are the leaf's households over its plots; the density is a 1/8° cell average, and wards inside it are denser")}</div>` : "") +
     `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people inside a 1/8° cell follow CIRISHolon's in-cell table (UNEVEN-0, unresolved)")}</div>` +
@@ -2972,7 +2973,7 @@ function updateFocalChip(F){
   const badges = `<div class="chip-line chip-badges"><button class="chip-btn" id="fd-open" type="button" aria-expanded="${!!(det && det.classList.contains("open"))}" aria-controls="focal-detail">where this comes from</button></div>`;
   const dmv = DATAMAP.active ? `<div class="chip-line">${fig(DM_MAP(DATAMAP.active).ref, dmValue())}</div>` : "";
   chip.innerHTML = head + tileLine + dmv + badges;
-  if (det && !det.contains(document.activeElement)){ det.innerHTML = detail.replace("</div>", "</div>" + checks); det.classList.toggle("panel-hidden", false); }
+  if (det && !det.contains(document.activeElement)){ det.innerHTML = detail.replace("</div>", "</div>" + checks + tierLine); det.classList.toggle("panel-hidden", false); }
   $("fd-open").onclick = () => { det.classList.toggle("open"); chip._t = 0; };
   for (const bt of det.querySelectorAll("[data-hw]")) bt.onclick = () => { homeWhere = +bt.dataset.hw; MICRO_GEN++; if (wasm.micro_device_rule) wasm.micro_device_rule(TL.devicegen === false ? 0 : 1, homeWhere); M = null; chip._t = 0; };
   const fc = $("fd-close"); if (fc) fc.onclick = () => { det.classList.remove("open"); chip._t = 0; };
@@ -3156,6 +3157,10 @@ function storyMicroSetup(act){
     // story's start), and only after a long wait tell it on a lone square tile
     MSTORY.actors = null;
     if (microOk() && !tlReady() && !MSTORY.waitDone){ MSTORY.waitTiled = performance.now(); return; }
+    // the idle search for the story's street (preload.js zpStory) is under way: join it (it goes on, one candidate an idle
+    // slice) instead of starting a search of its own inside this frame; the act adopts the world it finds
+    // (or not yet started, the Zurich prebuild still running on a slow machine: start it now, in idle slices)
+    if (microOk() && !MSTORY.leaf && typeof ZP !== "undefined" && typeof zpStory === "function" && !(ZP.cand && ZP.cand.length === 0) && !MSTORY.waitDone){ MSTORY.waitTiled = performance.now(); MSTORY.waitSearch = true; zpIdle(zpStory, 200); return; }
     // rebuilt at the act's start, so it plays from the same state every time
     if (!storyMicroWorld()){ MSTORY.actors = null; return; }
     wasm.micro_cmd(6, 0, 0); const a = new Uint32Array(mem.buffer, wasm.micro_buf_ptr(10) >>> 0, 4).slice(); MSTORY.actors = Array.from(a);
@@ -3235,8 +3240,12 @@ function storyMicroPlan(act, from, t0){
 function storyMicroTick(act, t){
   if (MSTORY.waitTiled){
     const cfg = STORY_ACTS[act + STORY_LEAD];
-    if (!tlReady() && performance.now() - MSTORY.waitTiled < 15000){ cfg.duration = Math.max(cfg.duration, t + 1); return; }
-    MSTORY.waitTiled = 0; MSTORY.waitDone = true; storyMicroSetup(0); MSTORY.waitDone = false; storyActElapsed = 0; return;
+    // the tiling came in while the act waited: now wait on the street search too (started in idle slices if it has not), with its own 15 s
+    if (tlReady() && !MSTORY.leaf && !MSTORY.waitSearch && typeof ZP !== "undefined" && typeof zpStory === "function" && !(ZP.cand && ZP.cand.length === 0)){ MSTORY.waitSearch = true; MSTORY.waitTiled = performance.now(); zpIdle(zpStory, 200); }
+    const searching = MSTORY.waitSearch && !MSTORY.leaf && typeof ZP !== "undefined" && !(ZP.cand && ZP.cand.length === 0);
+    if ((!tlReady() || searching) && performance.now() - MSTORY.waitTiled < 15000){ cfg.duration = Math.max(cfg.duration, t + 1); return; }
+    // the act starts now: its clock (and so the hour the world is checked against) goes back to 0 BEFORE the setup
+    MSTORY.waitTiled = 0; MSTORY.waitSearch = false; MSTORY.waitDone = true; storyActElapsed = 0; storyMicroSetup(0); MSTORY.waitDone = false; storyActElapsed = 0; return;
   }
   if (!M || !MSTORY.actors) return;
   const beats = MICRO_BEATS[act], c = storyMicroCtx();

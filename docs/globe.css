@@ -92,6 +92,8 @@ input[type=range].adv-range{width:100%;height:4px;margin:4px 0 3px;accent-color:
 @media(max-width:800px){
   #btn-hud{left:8px;top:8px;padding:7px 11px;font-size:11.5px}
   #btn-stats{right:8px;top:8px;padding:7px 11px;font-size:11.5px}
+  /* the two pills share the top row: each keeps to its half, the badge text ellipsised (they overlapped at 390 px) */
+  #btn-hud,#btn-stats{max-width:calc(50vw - 12px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #btn-foot{left:8px;bottom:max(8px,env(safe-area-inset-bottom))}
   .nav-strip{top:46px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 16px);gap:4px;justify-content:center}
   .nav-pill{padding:4px 7px;font-size:9.5px}

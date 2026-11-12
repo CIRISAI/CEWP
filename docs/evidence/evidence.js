@@ -112,7 +112,8 @@ function evLegend(){
 function evTier(force){
   const t = document.getElementById("tier-now"); if (!t) return;
   const micro = typeof microVisible === "function" && microVisible() && typeof M !== "undefined" && M;
-  const label = micro ? "Tier: R5 street, 1:1 · generated, not real" : "Tier: cohorts · simulated";
+  // plain words first; the tier's own names ("R5", "1:1", "cohorts") are in the panel this pill opens
+  const label = micro ? "Generated, not real · one street, every home and device drawn" : "Simulated · the whole world in groups";
   if (t.textContent !== label) t.textContent = label;
   t.classList.toggle("tier-micro", !!micro);
   // a phone-width explorer stacks the pill under the nav strip and the live strip, whichever is lower

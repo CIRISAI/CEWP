@@ -290,7 +290,7 @@ attestations, become discoverable as holders.
 
 | Resource | L0 gate | L1 gate | Source |
 |---|---|---|---|
-| Disk | 256 GB | 1 TB | owner's spec |
+| Disk | 256 GB | 1 TB | project spec |
 | Bandwidth | 1 Gbps (10.8 TB/day sustained) | 1 Gbps | Residential fiber |
 | CPU | 1 full-utilization core (86.4 K cpu-sec/day) | Per-process CIRIS share |
 | Retention | 2-day admitted-trust floor (soft failure under this) | v0.4 — anti-thrash gate |

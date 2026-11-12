@@ -196,7 +196,7 @@ Page footer (`GEO_ATTRIBUTION` in `docs/geo/geodata.js`):
 The README carries the same two credits under "Data credits". Neither publisher endorses this
 twin; the GHSL "how to cite" page asks that the dataset and the concept paper be cited, not the
 website. The CGLS-LC100 manual also asks users to "inform Copernicus about the outcome of the use"
-and send publications to its help desk: an open item for the owner, not a licence condition of CC BY.
+and send publications to its help desk: an open item, not a licence condition of CC BY.
 
 ## Reproduce
 
