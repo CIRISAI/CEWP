@@ -2784,20 +2784,21 @@ const DM_TOP = [0, 1, 2, 6, 4, 5], DM_ADV = [3], DM_ADV_OPEN = { open: false };
 // one kind per map (never two), the year on the legend, trust C hatched, no averaging of disagreeing rows (the higher-trust row
 // shown, the other named), a country with no row is "no reference" (no inherited region value). Each choice is one exact kind.
 // GRID-0 version 3: Ember's yearly data gives most countries a row of one kind (generation average, life-cycle), so that kind
-// is drawn for ONE YEAR at a time (2024, the year half the file's countries have; 2025 sparser and possibly estimated), never
-// "each place's latest". The other kinds keep their own rows.
+// is drawn for ONE YEAR at a time, never "each place's latest". The table keeps 2014, 2019 and each place's latest year, so
+// 2019 is the latest year it holds for every country and is the default; 2024 (111 countries) and 2025 (93, which the file
+// does not mark as estimated or not) are offered. The other kinds keep their own rows.
 const GRID_EMBER = "generation average, life-cycle (Ember:";
 const GRID_KINDS = [
-  { key: "ember2024", label: "Ember, 2024 (life-cycle average)", reading: "the long-run reading: an average, location-based rate, every country in one year", pre: GRID_EMBER, year: 2024 },
-  { key: "ember2019", label: "Ember, 2019 (every country, older)", reading: "the same kind for 2019, the most recent year the table holds for every country (it keeps 2014, 2019 and each place's latest year)", pre: GRID_EMBER, year: 2019 },
-  { key: "ember2025", label: "Ember, 2025 (fewer countries; may be estimates)", reading: "the same kind for 2025: fewer countries, and the file does not mark which 2025 figures are estimates", pre: GRID_EMBER, year: 2025 },
+  { key: "ember2019", label: "Ember, 2019 (life-cycle average)", reading: "the long-run reading: an average, location-based rate; 2019, the latest year the table holds for every country (it keeps 2014, 2019 and each place's latest year)", pre: GRID_EMBER, year: 2019 },
+  { key: "ember2024", label: "Ember, 2024 (111 countries)", reading: "the same kind for 2024: 111 countries; the others' latest year is 2025 and the table holds no 2024 row for them", pre: GRID_EMBER, year: 2024 },
+  { key: "ember2025", label: "Ember, 2025 (93 countries; may include estimates)", reading: "the same kind for 2025: 93 countries, and the file does not mark which 2025 figures are estimates", pre: GRID_EMBER, year: 2025 },
   { key: "lcp", label: "consumption-mix average (third party)", reading: "the long-run reading: an average rate of the consumption mix", pre: "consumption mix average (domestic generation plus net imports)" },
   { key: "nbl", label: "non-baseload (US eGRID)", reading: "the short-run reading: a non-baseload rate, EPA's proxy for a marginal rate", pre: "NON-BASELOAD output emission rate" },
   { key: "om", label: "operating margin (India CEA)", reading: "the short-run reading: a simple operating margin, a marginal proxy", pre: "simple OPERATING MARGIN" },
 ];
 const GRID = { kind: 0, sel: null, key: "" };
 const GRID_TRUST = { A: 3, B: 2, C: 1 };
-const GRID_SCALE = 900; // g per kWh at the top of the bar: the 2024 map's 90th percentile is 681, its 10th 117; above 900 is "900+", drawn at the top
+const GRID_SCALE = 900; // g per kWh at the top of the bar: the 2019 map's 10th and 90th percentiles are 99 and 679 (2024's 102 and 683; linear between ranks); above 900 is "900+", drawn at the top
 // the rows the map shows for the chosen kind: for Ember the chosen year, otherwise each country's latest year (never a row
 // labelled 2026 when the place has an earlier one); rows superseded by a version-3 row are skipped; within a year the row read
 // from the publisher's dataset, then the higher-trust row, is shown and the others named (never averaged)

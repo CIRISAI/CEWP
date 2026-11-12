@@ -313,8 +313,10 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   same Natural Earth file); GLP, GUF, MTQ, REU (inside France's shape) and XKX (no numeric code) have no shape and are
   listed, not drawn. Ember's kind is drawn for ONE year at a time; the table holds 2014, 2019 and each place's latest
   year, so 2024 has 111 countries (Germany, the UK, France and 77 others have 2025 instead and no 2024 row), 2019 has
-  204, 2025 has 93: all three are offered, 2024 by default. Rows superseded by a version-3 row are skipped; within a
-  place and year the publisher's dataset row is shown and any page row named. The scale runs to 900 g per kWh (2024:
-  10th percentile 117, 90th 681); above it is drawn at the top and named as published (Turkmenistan 1,306, unchecked).
+  204, 2025 has 93: all three are offered, 2019 by default (the latest year the table holds for every country; a
+  default map with Germany, the UK and France blank would teach the wrong thing), then 2024 and 2025 (which may include
+  estimates). Rows superseded by a version-3 row are skipped; within a place and year the publisher's dataset row is
+  shown and any page row named. The scale runs to 900 g per kWh (2019: 10th percentile 99, 90th 679; 2024: 102 and 683;
+  linear between ranks); above it is drawn at the top and named as published (Turkmenistan 1,306, unchecked).
   Small systems (under 1 TWh) are dotted. Ember's credit and the licence link stay on the Power legend whenever an
   Ember year is shown, worded from the sidecar's attribution block.
