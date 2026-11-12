@@ -1,0 +1,16 @@
+{
+  "schema": "cewp-twin-street-classes/v1",
+  "source": "crates/cewp-sim/src/micro.rs DensityClass::of and P::{SuburbanDensity, UrbanDensity, UrbanCoreDensity}; crates/cewp-sim/src/tiling.rs DENSE_FABRIC_KM2, DENSE_LANE_M, DENSE_MIN_FLOORS; docs/geo/popcond.js POPCOND",
+  "class": "MODEL",
+  "density_is": "people per km2 of a street leaf: the leaf's households x 2.5 persons per household / the leaf's area (the leaf's households are its share of GHS-POP 2020 people, popcond.js)",
+  "floor": { "people_per_km2": 1, "applies_to": "each 1/8-degree GHS-POP cell, people over the cell's whole area (not land area)", "below": "the cell contributes no people: no households, no streets, no devices" },
+  "persons_per_household": 2.5,
+  "region_rule": "a 1/8-degree cell belongs to the region of the 1.5-degree GHS-POP grid cell holding it; each grid cell belongs to one of 181 localities and each locality to one of 9 regions (N. America, Latin America, Europe, MENA, Sub-Saharan Africa, South Asia, East Asia, SE Asia & Oceania, Russia & C. Asia), a partition inherited from the old grid by nearest old cell (MODEL, docs/geo/popgrid_ghs.js)",
+  "classes": [
+    { "name": "village", "lower_people_per_km2": 0, "generates": "houses of 1-2 storeys, a fifth of plots empty, 5 m streets, 14-50 m between houses, yards and trees" },
+    { "name": "suburban streets", "lower_people_per_km2": 250, "generates": "detached houses of 1-2 storeys, 6 m streets, 9-15 m gaps, 7-11 m setbacks, yards and trees" },
+    { "name": "terraced streets", "lower_people_per_km2": 1500, "generates": "terraced houses of 2-3 storeys, 1-2 dwellings each, 8 m streets, 0.4 m gaps; no yards; sparse trees" },
+    { "name": "apartment blocks", "lower_people_per_km2": 6000, "generates": "blocks of 4-7 storeys on street frontage, about one flat per 9 m a floor, 8 m streets; no trees" },
+    { "name": "dense fabric", "lower_people_per_km2": 12000, "generates": "4 m lanes, plots of 8-13 by 8-12 m filling the leaf 1-2.5 m apart, the leaf's households shared over the buildings, storeys = flats per building / flats per floor (one flat per 6 m a floor), at least 3; no trees" }
+  ]
+}

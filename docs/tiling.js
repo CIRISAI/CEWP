@@ -263,7 +263,9 @@ function tlDraw(w, h, mpp, sun){
     // ground; the terrain's light is not baked per holon (that drew each holon as a flat step) but
     // multiplied over the whole mosaic from ETOPO below, continuous across holon edges
     const km2 = (bx.hw * 2 / (F.k / EARTH_M) / 1000) * (bx.hh * 2 / (F.k / EARTH_M) / 1000), T0 = tlTerrain(bx.la, bx.lo), col0 = tlGround(T0, tlTone(b / Math.max(1e-6, km2)));
-    const f = tlNight(sun, bx.la, bx.lo) / (relA > 0.01 ? T0.lit : 1), col = [col0[0] * f, col0[1] * f, col0[2] * f];
+    // land with no one on it (budget 0) keeps its own ground readable at night: its class colour, lit by the
+    // relief's shade, never darker than 0.85 of day (the ground is real data; only the people are absent)
+    const empty = !b, f = empty ? Math.max(0.85, tlNight(sun, bx.la, bx.lo)) * (relA > 0.01 ? 1 : T0.lit) * 1.6 : tlNight(sun, bx.la, bx.lo) / (relA > 0.01 ? T0.lit : 1), col = [col0[0] * f, col0[1] * f, col0[2] * f];
     const ins = bx.hw >= 20 ? 0.3 : 0; // the tiling reads by tone; a fine seam only once a holon is 40 px wide
     const P = [[bx.x - bx.hw + ins, bx.y - bx.hh + ins], [bx.x + bx.hw - ins, bx.y - bx.hh + ins], [bx.x + bx.hw - ins, bx.y + bx.hh - ins], [bx.x - bx.hw + ins, bx.y + bx.hh - ins]];
     for (const k of [0, 1, 2, 0, 2, 3]){ Q[o++] = P[k][0]; Q[o++] = P[k][1]; Q[o++] = 0; Q[o++] = 0; Q[o++] = 0; Q[o++] = col[0]; Q[o++] = col[1]; Q[o++] = col[2]; Q[o++] = 0.9; Q[o++] = 0; }

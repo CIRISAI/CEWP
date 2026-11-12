@@ -379,3 +379,21 @@ What remains: during the half second the camera passes block zoom (15 to 4 m a p
 that wider view (several hundred to a few thousand) are laid out at 5 ms a frame; until each is built
 its holon shows the density mosaic, not a blank. Bytes: the preload moves about 2.3 MB (390) to 4.3 MB
 (1440) ahead of the dive, all but 0.35 MB (390) and 1.22 MB (1440) of which the path loaded anyway.
+
+## Street classes, the floor and the region rule (one table; machine-readable: docs/geo/classes.json)
+
+Density is people per km² of a street leaf: its households × 2.5 / its area, its households being its
+share of GHS-POP 2020 (popcond.js). All MODEL.
+
+| class | from (people per km²) | what it generates |
+|---|---|---|
+| (none) | below the floor | a 1/8° GHS-POP cell under 1 person per km² of cell area contributes no people: no households, streets or devices |
+| village | 0 | houses of 1-2 storeys, a fifth of plots empty, 5 m streets, 14-50 m apart, yards and trees |
+| suburban streets | 250 | detached 1-2 storeys, 6 m streets, 9-15 m gaps, yards and trees |
+| terraced streets | 1,500 | terraces of 2-3 storeys, 8 m streets; no yards |
+| apartment blocks | 6,000 | 4-7 storeys on street frontage, 8 m streets; no trees |
+| dense fabric | 12,000 | 4 m lanes, plots filling the leaf, storeys from flats (at least 3); no trees |
+
+Region rule: a 1/8° cell belongs to the region of the 1.5° GHS-POP grid cell holding it; each grid cell
+belongs to one of 181 localities and each locality to one of 9 regions, a partition inherited from the
+old grid by nearest old cell (MODEL).
