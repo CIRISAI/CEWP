@@ -34,3 +34,22 @@ test("the kernel's compiled tables are the imported asset's (crates/cewp-sim/src
   const r = require("node:child_process").spawnSync("python3", ["-I", path.join(ROOT, "tools/holon/import.py"), "--check-rust"], { encoding: "utf8" });
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
 });
+// a table's shared strings (data.strings: written once at intake, expanded by the page's holExpand) are whole: every
+// row's index names a string, and the page's expansion gives back each string as published
+test("shared strings: every index names a string, and the expansion gives the published strings", () => {
+  const src = fs.readFileSync(path.join(ROOT, "docs/globe.js"), "utf8"), fn = src.match(/^function holExpand[\s\S]*?^  delete t\.data\.strings; return t; }/m);
+  assert.ok(fn, "holExpand in globe.js"); const holExpand = new Function(fn[0] + "\nreturn holExpand;")();
+  const idx = JSON.parse(fs.readFileSync(path.join(__dirname, "index.json"), "utf8")).tables;
+  let seen = 0;
+  for (const e of Object.values(idx)){
+    const a = JSON.parse(fs.readFileSync(path.join(ROOT, e.asset), "utf8")), S = a.data && a.data.strings; if (!S) continue; seen++;
+    for (const r of a.data.rows) for (const k of Object.keys(S)) if (k in r) assert.ok(Number.isInteger(r[k]) && r[k] >= 0 && r[k] < S[k].length, `${e.asset}: ${k} index ${r[k]}`);
+    const x = holExpand(JSON.parse(JSON.stringify(a)));
+    assert.ok(!("strings" in x.data));
+    for (const r of x.data.rows) for (const k of Object.keys(S)) if (k in r) assert.strictEqual(typeof r[k], "string");
+  }
+  assert.ok(seen >= 1, "grid0 carries its shared strings once");
+  // Ember's rows still carry the publisher's licence, word for word
+  const g = holExpand(JSON.parse(fs.readFileSync(path.join(__dirname, "grid0.json"), "utf8")));
+  assert.ok(g.data.rows.some((r) => /^Ember/.test(r.source) && /CC BY 4\.0/.test(r.licence)));
+});

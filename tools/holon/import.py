@@ -173,6 +173,9 @@ def presence(t):
             "by_day_of_week": {"days": t["by_day_of_week"]["days"], "table": r4(t["by_day_of_week"]["table"])}, "three_numbers": tn, "years": t["years"]}
 
 
+GRID_SHARED = ("kind", "source", "licence")
+
+
 def grid(t):
     """GRID-0: every row kept as published (value, unit, year, kind, trust, source, licence, how it was read),
     with the ISO 3166-1 numeric code of a country row from docs/geo/country_iso.json (the Natural Earth names the
@@ -198,7 +201,15 @@ def grid(t):
             else:
                 raise SystemExit(f"refused: country {r['place']!r} has no ISO code in docs/geo/country_iso.json")
         rows.append(e)
-    return {"conventions": t.get("conventions"), "rows": rows, "not_in_mask": sorted(set(unmapped))}
+    # the long strings rows share (the kind of rate, the source, the licence) are written once, in a header, and each row
+    # carries its index there; the page expands them on load (globe.js holExpand), so every string shown is the one
+    # published, byte for byte
+    strings = {k: sorted({r[k] for r in rows if k in r}) for k in GRID_SHARED}
+    for r in rows:
+        for k in GRID_SHARED:
+            if k in r:
+                r[k] = strings[k].index(r[k])
+    return {"conventions": t.get("conventions"), "rows": rows, "not_in_mask": sorted(set(unmapped)), "strings": strings}
 
 
 def main():

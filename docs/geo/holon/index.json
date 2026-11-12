@@ -38,8 +38,8 @@
   },
   "grid0": {
    "asset": "docs/geo/holon/grid0.json",
-   "asset_bytes": 578217,
-   "asset_sha256": "6b86b7f4108836d2ca0b771f0cdc2b7c2a01e7507b649566ab081c668995f3ea",
+   "asset_bytes": 281496,
+   "asset_sha256": "2a981c4dfbbcbd57877a1c825a617ab63bac8adb970672ea19b984981a5e48ee",
    "class": "MODEL",
    "dataset": "documents gathered by CIRISHolon's scout via CIRISHolon",
    "envelope": null,

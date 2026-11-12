@@ -319,7 +319,10 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   shown and any page row named. The scale runs to 900 g per kWh (2019: 10th percentile 99, 90th 679; 2024: 102 and 683;
   linear between ranks); above it is drawn at the top and named as published (Turkmenistan 1,306, unchecked).
   Small systems (under 1 TWh) are dotted. Ember's credit and the licence link stay on the Power legend whenever an
-  Ember year is shown, worded from the sidecar's attribution block.
+  Ember year is shown, worded from the sidecar's attribution block. The asset writes the strings rows share (kind of
+  rate, source, licence) once, in data.strings, and each row an index there; the page expands them on load (globe.js
+  holExpand), so the strings shown are the published ones byte for byte: 578,217 bytes became 281,496, the source
+  table's sha256 is unchanged and the legend's text for every kind is identical (intake.test.js checks the indices).
 - **MESH-0: held messages and who holds them** (CIRISHolon 60791cf, `conformance/scene/MESH0_RESULTS.md`, imported whole
   as docs/geo/holon/mesh0.json; ledger holon-mesh0 for Holon's figures, street-delivery for the street engine's).
   MESH-0 is a generated population, not a measurement: 0.858 of person-to-person messages taken at once, 0.988 within

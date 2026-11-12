@@ -2577,11 +2577,16 @@ function drawScaleBar(g, F, ppm){
 const pad2 = (n) => String(n).padStart(2, "0"); // the street clock's two-digit fields
 // ---- CIRISHolon's tables on the page (FSD/twin/holon-intake.md): loaded lazily, never at first paint
 const HOLT = { want: false, idx: null, t: {}, reg: null, regAt: null };
-const HOL_V = 6; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
+const HOL_V = 7; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
+// a table whose rows share long strings carries them once (data.strings, tools/holon/import.py) and each row an index:
+// put the strings back, so every string shown is the one published
+function holExpand(t){ const S = t && t.data && t.data.strings; if (!S) return t;
+  for (const r of t.data.rows) for (const k of Object.keys(S)) if (typeof r[k] === "number") r[k] = S[k][r[k]];
+  delete t.data.strings; return t; }
 function holLoad(){
   if (HOLT.want) return; HOLT.want = true;
   const j = (u) => fetch(u + "?v=" + HOL_V).then((r) => r.json());
-  j("geo/holon/index.json").then((x) => { HOLT.idx = x.tables; for (const ref of Object.keys(x.tables)) j("geo/holon/" + ref + ".json").then((t) => { HOLT.t[ref] = t; if (typeof gfxDirty === "function") gfxDirty(300); if (ref === "grid0" && DATAMAP.active === 5) dmRender(); }).catch((e) => console.warn(e.message)); }).catch((e) => console.warn(e.message));
+  j("geo/holon/index.json").then((x) => { HOLT.idx = x.tables; for (const ref of Object.keys(x.tables)) j("geo/holon/" + ref + ".json").then((t) => { HOLT.t[ref] = holExpand(t); if (typeof gfxDirty === "function") gfxDirty(300); if (ref === "grid0" && DATAMAP.active === 5) dmRender(); }).catch((e) => console.warn(e.message)); }).catch((e) => console.warn(e.message));
   j("geo/regions.json").then((r) => { HOLT.reg = r; HOLT.regAt = new Map(r.cells.map((c) => [c[2], c[4]])); }).catch((e) => console.warn(e.message));
   fetch("geo/countries.bin?v=" + HOL_V).then((r) => r.arrayBuffer()).then((b) => { HOLT.countries = countriesDecode(b); if (typeof gfxDirty === "function") gfxDirty(500); }).catch((e) => console.warn(e.message));
 }
