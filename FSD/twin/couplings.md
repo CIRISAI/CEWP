@@ -99,6 +99,14 @@ baae03a, merged):
   detached houses to 18-31 dwellings; (4) dense fabric keeps 3 storeys on one-dwelling plots;
   (5) flats per floor are w/6 in dense fabric but w/9 in the top-up; (6) the unplaced fallback puts
   every dwelling in one 6 x 5 m block (76 real dense leaves); (7) the caps (65,535 units, 60 storeys).
+- Devices (DEVICES-0, US 2020): the legacy rule's 1.0 phone per person is refused (0.813 per
+  person, 0.999 per adult); 0.5 laptop per person (0.576) and 2.25 phones, laptops, desktops and
+  tablets per person (2.15) are certified. The device rule is not changed. The next rule draws device
+  kinds jointly (8.7 % of US households have neither a computer nor fixed broadband, 2.9 times what
+  independence gives), phones by adults and children (0.93 per adult 18-64, 0.67 per adult 65 and
+  over, 0.52 per child), and fixed devices by household size and building type.
+- Presence (PRESENCE-0, US 2022-2024): the twin's awake 0.85 is refused (0.623, 15.0 h a day); the
+  globe's activity inside the United States moves to it through twin-theory's presence seam.
 - The twin's dwelling class (single house versus multi-unit, per building) is the natural key for
   the next rule: HOUSEHOLD-0 reads building type moving persons per household by 0.84, density
   class by only 0.08.

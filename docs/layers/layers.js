@@ -253,6 +253,44 @@ window.CEWP_LAYERS["wm-household"] = layer({ id: "wm-household", title: "World m
   status(){ const us = typeof HOLT !== "undefined" && HOLT.t.household0_us; if (!us) return "loading CIRISHolon's tables…"; const cls = ["nation", ...WM_CLASSES][WM.hcls], u = us.data.rows[cls], d = HOLT.t.household0_de && HOLT.t.household0_de.data.rows[cls];
     const v = (r, k) => r && r[k] ? r[k].verdict : "–"; return `household rule on the street: ${typeof TL !== "undefined" && TL.housegen === false ? "legacy (no certificate)" : "CIRISHolon HOUSEGEN-1 per ~1 km tile"} · these verdicts score the legacy rule: ${cls} · US: mean ${v(u, "mean")}, composition ${v(u, "p1")} · Germany: mean ${v(d, "mean")}, composition ${v(d, "p1")}`; } });
 
+// presence (PRESENCE-0, US time diaries): the first rhythm, drawn as it is: a 24-hour band per day type, six states stacked
+const PRES_COL = ["#3b4a7a", "#7fa0e6", "#ffcf7a", "#7ce0b0", "#5a5f78", "#ff9a7a"];
+window.CEWP_LAYERS["wm-presence"] = layer({ id: "wm-presence", title: "World model · who is where, hour by hour (PRESENCE-0, US)", cls: "MODEL", inputs: "MODEL via CIRISHolon: a verdict",
+  source: "docs/geo/holon/presence0_us.json (tools/holon/import.py from CIRISHolon conformance/scene/tables/presence0_us)",
+  contract: "<span class=\"fig\" data-claim=\"holon-presence0-us\">CIRISHolon's PRESENCE-0</span>: the American Time Use Survey diaries of 2022-2024, ages 15 and over, as the share of persons in six states (home asleep, home awake, workplace or school, elsewhere awake, elsewhere asleep, travelling) by day type (Monday to Thursday, Friday, Saturday, Sunday) and clock hour, with standard errors. The registry row presence.people. Drawn as it is: a stacked 24-hour band per day type. The twin's stand-in (awake 0.85 of the time, model.diurnal.v1) is refused: awake 0.623 of the time (15.0 h a day; 0.04 at 03:00, 0.98 early evening). At most 0.51 of the employed are at a workplace at once; 0.61 of awake time is at home. Limits: one diary per household, so whether anyone is home is a bracket; nobody under 15; a person awake is not a device awake; nothing about devices or networks; it has a year (at home 9 to 17 on working days rose from 0.414 in 2015-2019 to 0.501 in 2022-2024). United States only: outside it the twin keeps its stand-in, hatched ('no reference outside the United States'). The kernel-side use (tinting activity by the awake share at local hour) is twin-theory's presence seam.",
+  available: () => typeof holLoad === "function",
+  onShow(){ holLoad(); },
+  panel(c){
+    const t = typeof HOLT !== "undefined" && HOLT.t.presence0_us; if (!t) return;
+    const D = t.data, [g, W2] = wmCanvas(c, 172), L = 66, R = W2 - 6, bh = 26, gap = 9, T0 = 14;
+    g.fillStyle = "#aab4c2"; g.fillText("share of persons, by clock hour (0 to 23)", L, 10);
+    D.day_types.forEach((dt, k) => { const y0 = T0 + k * (bh + gap); g.fillStyle = "#aab4c2"; g.fillText(dt.replace("Monday to Thursday", "Mon-Thu"), 4, y0 + bh / 2 + 3);
+      for (let h = 0; h < 24; h++){ const x0 = L + (R - L) * h / 24, w = (R - L) / 24 + 0.5; let y = y0 + bh;
+        D.table[k][h].forEach((sh, st) => { const hh = sh * bh; g.fillStyle = PRES_COL[st]; g.fillRect(x0, y - hh, w, hh); y -= hh; }); } });
+    let xx = 4, yy = 172 - 4; for (let st = 0; st < 6; st++){ const tx = D.states[st], tw = 12 + g.measureText(tx).width; if (xx + tw > W2){ xx = 4; yy -= 11; } g.fillStyle = PRES_COL[st]; g.fillRect(xx, yy - 7, 8, 8); g.fillStyle = "#aab4c2"; g.fillText(tx, xx + 10, yy); xx += tw + 4; }
+    const tn = D.three_numbers.weekly_mean_awake_share;
+    this.last = { awake_share: +tn.reference.toFixed(3), awake_hours: +tn.awake_hours_a_day.toFixed(1), twin_awake_share: tn.twin, lowest_hour: +tn.lowest_and_highest_hour_of_week[0].toFixed(3), highest_hour: +tn.lowest_and_highest_hour_of_week[1].toFixed(3), diaries: D.diaries };
+    this.info = { verdict: "the twin's awake 0.85: refused", envelope: "United States, 2022-2024, ages 15 and over", years: D.years };
+  },
+  status(){ const t = typeof HOLT !== "undefined" && HOLT.t.presence0_us; if (!t) return "loading CIRISHolon's table…"; const tn = t.data.three_numbers.weekly_mean_awake_share, w = t.data.three_numbers.employed_at_workplace_Mon_Thu;
+    return `awake ${tn.reference.toFixed(3)} of the time (${tn.awake_hours_a_day.toFixed(1)} h a day; ${tn.lowest_and_highest_hour_of_week[0].toFixed(2)} at the quietest hour, ${tn.lowest_and_highest_hour_of_week[1].toFixed(2)} early evening) against the twin's 0.85: refused · at most ${w.peak_share.toFixed(2)} of the employed at a workplace at once · envelope: United States 2022-2024; outside it the twin's stand-in, no reference`; } });
+// power (POWER-0, priors): device, network and data-centre power by class and state; the energy pass (twin/theory) consumes it
+window.CEWP_LAYERS["wm-power"] = layer({ id: "wm-power", title: "World model · device and network power, priors (POWER-0)", cls: "MODEL", inputs: "MODEL via CIRISHolon, unresolved",
+  source: "docs/geo/holon/power0.json (tools/holon/import.py from CIRISHolon conformance/scene/tables/power0, version 3)",
+  contract: "<span class=\"fig\" data-claim=\"holon-power0\">CIRISHolon's POWER-0</span>: device, network and data-centre power by class and state, each row with a would-be-on-anyway flag, a year, a source and a basis (four rows MEASURED sales-weighted averages for new US network equipment; the rest read from documents). Verdict unresolved on every row: priors, nothing scored. The chart lists the watts rows by class on a log scale, hatched (unresolved), solid edge where the row is would-be-on-anyway. Network energy is mostly baseload per line: pricing traffic kept local at an average kWh per GB would overstate any saving by a large factor. Consumed by the energy pass on twin/theory, not by the globe.",
+  available: () => typeof holLoad === "function",
+  onShow(){ holLoad(); },
+  panel(c){
+    const t = typeof HOLT !== "undefined" && HOLT.t.power0; if (!t) return;
+    const rows = t.data.rows.filter((r) => r.unit === "W" && r.value > 0).slice(0, 14), H2 = 16 + rows.length * 11, [g, W2] = wmCanvas(c, H2), L = 150, R = W2 - 40, lx = (v) => L + (Math.log10(v) + 1) / 4 * (R - L);
+    g.fillStyle = "#aab4c2"; g.fillText("watts, log scale (0.1 to 1,000)", L, 10);
+    rows.forEach((r, i) => { const y = 14 + i * 11; g.fillStyle = "#aab4c2"; g.fillText((r.device_class + ", " + r.state).slice(0, 26), 2, y + 8);
+      const w = Math.max(1, lx(Math.max(0.1, r.value)) - L); wmHatch(g, L, y + 1, w, 8, /yes/.test(String(r.would_be_on_anyway)) ? "rgba(255,207,122,0.85)" : "rgba(170,170,190,0.7)"); g.fillStyle = "#e6ebf2"; g.fillText(r.value + " W", L + w + 3, y + 8); });
+    this.last = { rows: t.data.rows.length, watts_rows_shown: rows.length };
+    this.info = { verdict: "unresolved on every row (priors)", consumer: "twin/theory energy pass" };
+  },
+  status(){ const t = typeof HOLT !== "undefined" && HOLT.t.power0; return t ? `${t.data.rows.length} rows · verdict: unresolved (priors, nothing scored) · consumer: the energy pass (twin/theory) · ${String(t.data.finding).slice(0, 160)}` : "loading CIRISHolon's table…"; } });
+
 // ------------------------------------------------------------------ package views (kernel-wasm views.rs): each runs once per page
 const VW = (slot) => { const p = wasm.view_ptr(slot) >>> 0, n = wasm.view_len(slot) >>> 0; return (wasm.view_is_u32(slot) ? new Uint32Array(mem.buffer, p, n) : new Float32Array(mem.buffer, p, n)).slice(); };
 const DEG = Math.PI / 180;

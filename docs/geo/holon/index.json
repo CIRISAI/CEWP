@@ -1,6 +1,41 @@
 {
  "schema": "cewp-twin-holon-index/v1",
  "tables": {
+  "devices0_us": {
+   "asset": "docs/geo/holon/devices0_us.json",
+   "asset_bytes": 4155,
+   "asset_sha256": "0e6bace47f3e3411453730ece43a527a4a1bb4ac84cb376443624769cad360ce",
+   "class": "MODEL",
+   "dataset": "Residential Energy Consumption Survey, public-use microdata 2020 (v7) and 2024 (v1, preliminary household characteristics) via CIRISHolon",
+   "envelope": {
+    "country": "United States",
+    "note": "a table fitted in 2020 was REFUSED against 2024 for smartphones in one-person households and laptops in the largest: device counts need a year",
+    "year": 2020
+   },
+   "holon_commit": "33dc99f1ef4e6d00bb5f7277f7f6155a20468553",
+   "ledger": "holon-devices0-us",
+   "notice": "Source: U.S. Energy Information Administration, Residential Energy Consumption Survey 2020 and 2024 public-use microdata. A derived work; not endorsed by the agency.",
+   "reference": "DEVICES-0 (United States)",
+   "renormalised_vectors": 0,
+   "serves_registry_rows": [
+    "devices per household by kind (household.devices)",
+    "what a household already has that is on all day and could host (for the energy delta)"
+   ],
+   "source_files": {
+    "device_table.json": {
+     "bytes": 22910,
+     "path": "conformance/scene/tables/devices0_us/device_table.json",
+     "sha256": "e4869380d2133be1ed532a0e15cb13d497f7050102924eb72bbc845eed5a6620"
+    }
+   },
+   "verdict": {
+    "scope": "the twin's figures are world figures; these verdicts are about the United States",
+    "twin_devices_per_person_2.25": "certified (2.15 phones, laptops, desktops and tablets)",
+    "twin_laptops_per_person_0.5": "certified (0.576)",
+    "twin_phones_per_person_1.0": "refused (0.813 per person; 0.999 per adult 18 and over)"
+   },
+   "version": 1
+  },
   "household0_de": {
    "asset": "docs/geo/holon/household0_de.json",
    "asset_bytes": 4605,
@@ -71,6 +106,71 @@
     "generator": "TWIN-SIZE-0: the twin's own emitted histogram, twin/hhsize b939214, sha256 438568abd0258d56bad0d2e286c98e3e03d855848969465af79914971bb0a418",
     "household_composition": "refused nationally (one-person share 0.182 against 0.286) and in village and suburban; unresolved in terraced by the frozen error floor although the miss (0.117) is five times that gap; unresolved in the two densest classes",
     "households_per_leaf": "certified nationally and in village and suburban; unresolved in terraced (the reference's own split-half gap, 0.10, exceeds half the budget) and in the two densest classes"
+   },
+   "version": 1
+  },
+  "power0": {
+   "asset": "docs/geo/holon/power0.json",
+   "asset_bytes": 11258,
+   "asset_sha256": "f421cb00647b0d5595bc7d69e09687711be43f4d516ecb39f60e0fc99a936e60",
+   "class": "MODEL",
+   "dataset": "documents gathered by CIRISHolon's scout via CIRISHolon",
+   "envelope": null,
+   "holon_commit": "33dc99f1ef4e6d00bb5f7277f7f6155a20468553",
+   "ledger": "holon-power0",
+   "notice": "values are facts quoted with their sources; the EU Code of Conduct is CC BY 4.0 (European Commission, Joint Research Centre)",
+   "reference": "POWER-0 (a table of priors)",
+   "renormalised_vectors": 0,
+   "serves_registry_rows": [
+    "device.energy (the twin's energy delta: per class and state, with a would-be-on-anyway flag and a year)"
+   ],
+   "source_files": {
+    "power_table.json": {
+     "bytes": 19772,
+     "path": "conformance/scene/tables/power0/power_table.json",
+     "sha256": "d103390ab4f7ae9c8bf45f2a071cc3b87159f5cf84796f1e65f3facd7fa58b5f"
+    }
+   },
+   "verdict": {
+    "all_rows": "unresolved",
+    "reason": "priors gathered from documents; nothing scored. Four rows are MEASURED sales-weighted averages for new US network equipment; the rest are regulatory targets or model inputs"
+   },
+   "version": 3
+  },
+  "presence0_us": {
+   "asset": "docs/geo/holon/presence0_us.json",
+   "asset_bytes": 18790,
+   "asset_sha256": "75a21b62d9903301378ce0e58290c68e01d3ed8b05c7e28a1c330fb66d5db365",
+   "class": "MODEL",
+   "dataset": "American Time Use Survey, multi-year microdata 2003-2024 (diary years 2022-2024 for the table; 2015-2019 beside it) via CIRISHolon",
+   "envelope": {
+    "country": "United States",
+    "persons": "aged 15 and over",
+    "place": "no geography; metropolitan and non-metropolitan respondents differ by 0.015 on average in the at-home share and by up to 0.07 in an hour",
+    "years": "2022-2024"
+   },
+   "holon_commit": "33dc99f1ef4e6d00bb5f7277f7f6155a20468553",
+   "ledger": "holon-presence0-us",
+   "notice": "Source: U.S. Bureau of Labor Statistics, American Time Use Survey, 2003-2024 multi-year microdata files. A derived work; not endorsed by the Bureau.",
+   "reference": "PRESENCE-0 (United States)",
+   "renormalised_vectors": 0,
+   "serves_registry_rows": [
+    "presence.people (share of persons in each of six states, by day type and clock hour)",
+    "attach.phone.network (a bracket from places, not a measurement of networks)"
+   ],
+   "source_files": {
+    "presence_table.json": {
+     "bytes": 125466,
+     "path": "conformance/scene/tables/presence0_us/presence_table.json",
+     "sha256": "c953def411e5df67799bc7c35560364fcad5e2135f1cdf2c9c004f0e3105eec9"
+    }
+   },
+   "verdict": {
+    "one_table_for_town_and_country": "untestable at this budget: 4 of 96 cells have errors small enough to carry a verdict",
+    "rows_by_age_and_employment_predict_household_size_strata": "untestable at this budget: 6 of 288 cells",
+    "twin_at_work_8_to_18_everyone": "a reading: at most 0.51 of the employed are at a workplace at once (Monday to Thursday), above half that peak from 7 to 17",
+    "twin_awake_0.85": "refused (0.623; 15.0 hours a day against 20.4)",
+    "twin_on_wifi_0.65": "inside the bracket 0.61 to 0.79 of awake time (at home; at home or at a workplace or school): a statement about places, not networks"
    },
    "version": 1
   },

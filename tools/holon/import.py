@@ -20,6 +20,9 @@ OUT = os.path.join(ROOT, "docs", "geo", "holon")
 FORBIDDEN = {"lat", "lon", "latitude", "longitude", "coordinates", "geometry", "bbox", "osm_id", "feature_id",
              "tags", "wikidata", "geoid", "fips", "ags", "address", "x", "y"}
 SOURCES = {
+    "power0": ("conformance/scene/tables/power0", ["power_table.json"]),
+    "devices0_us": ("conformance/scene/tables/devices0_us", ["device_table.json"]),
+    "presence0_us": ("conformance/scene/tables/presence0_us", ["presence_table.json"]),
     "uneven0": ("conformance/scene/tables/uneven0", ["transition_table.json", "transition_table_by_region.json"]),
     "household0_us": ("conformance/scene/tables/household0_us", ["household_table.json"]),
     "household0_de": ("conformance/scene/tables/household0_de", ["household_table.json"]),
@@ -148,6 +151,26 @@ def rust_tables():
             f"/// The Holon commit the tables come from.\npub const UNEVEN0_COMMIT: &str = \"{a['holon_commit']}\";\n")
 
 
+def power(t):
+    keep = ("device_class", "state", "value", "unit", "would_be_on_anyway", "year", "basis")
+    return {"rows": [{k: r.get(k) for k in keep} for r in t["rows"]], "finding": t.get("finding"), "not_available": t.get("not_available"),
+            "corrections": t.get("corrections")}
+
+
+def devices(t):
+    kinds = {k: {"groups": v["groups"], "mean": [round(x, 4) for x in v["mean"]], "none": [round(x, 4) for x in v["none"]]} for k, v in t["kinds"].items()}
+    pp = {k: {f: (round(x, 4) if isinstance(x, float) else x) for f, x in v.items()} for k, v in t["per_person"].items()}
+    return {"per_person": pp, "kinds": kinds, "three_rates": t.get("three_rates"), "have_nots_cluster": t.get("have_nots_cluster")}
+
+
+def presence(t):
+    a = t["all_persons"]
+    r4 = lambda m: [[[round(x, 4) for x in h] for h in d] for d in m]
+    tn = t["three_numbers"]
+    return {"states": t["states"], "day_types": t["day_types"], "table": r4(a["table"]), "standard_error": r4(a["standard_error"]), "diaries": a["diaries"],
+            "by_day_of_week": {"days": t["by_day_of_week"]["days"], "table": r4(t["by_day_of_week"]["table"])}, "three_numbers": tn, "years": t["years"]}
+
+
 def main():
     if sys.argv[1] == "--check-rust":
         same = os.path.exists(RUST) and open(RUST).read() == rust_tables()
@@ -166,15 +189,23 @@ def main():
     shas = {f: hashlib.sha256(b).hexdigest() for f, b in raw.items()}
     if side.get("sha256") and side.get("table") in shas and shas[side["table"]] != side["sha256"]:
         raise SystemExit(f"refused: {side['table']} sha256 differs from the sidecar")
+    if False:
+        raise SystemExit(f"refused: {side['table']} sha256 differs from the sidecar")
     moved = []
     if ref == "uneven0":
         data = uneven0(tables["transition_table.json"], tables["transition_table_by_region.json"], moved)
+    elif ref == "power0":
+        data = power(tables["power_table.json"])
+    elif ref == "devices0_us":
+        data = devices(tables["device_table.json"])
+    elif ref == "presence0_us":
+        data = presence(tables["presence_table.json"])
     else:
         data = household(tables["household_table.json"], ref[-2:])
     full = side.get("commit") or subprocess.run(["git", "-C", holon, "rev-parse", commit], check=True, capture_output=True, text=True).stdout.strip()
-    notice = " ".join(s["notice"] for s in side.get("sources", []) if s.get("notice"))
+    notice = " ".join(s["notice"] for s in side.get("sources", []) if s.get("notice")) or str(side.get("licences", ""))
     asset = {"ref": side.get("reference", ref), "version": side.get("version"), "holon_commit": full, "notice": notice,
-             "class": "MODEL", "dataset": " + ".join(s["name"] for s in side.get("sources", [])) + " via CIRISHolon",
+             "class": "MODEL", "dataset": (" + ".join(s["name"] for s in side.get("sources", [])) or "documents gathered by CIRISHolon's scout") + " via CIRISHolon",
              "envelope": side.get("envelope"), "verdict": side.get("verdict"), "limits": side.get("limits"),
              "renormalised": moved, "data": data}
     os.makedirs(OUT, exist_ok=True)
