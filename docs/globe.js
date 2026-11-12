@@ -296,7 +296,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
   </div>
   <span class="fig" data-claim="all-simulated">Every person and device</span> sits on populated land (<span class="fig" data-claim="pop-grid-cells">4,559 density cells</span> (<span class="fig" data-claim="pop-cuts">two cuts of one GHS-POP total: the cohort tier keeps 1.5° cells of at least 20,000 people, 4,559 cells holding 7,830,639,988 people; the street tier apportions the same 7,830,639,988 over the 355,434 cells of 1/8° above one person per km², which hold 7,834,012,940 before the apportionment, so nobody is dropped twice</span>) stitched to continent polygons) and runs the same constitutional rulebook (CC 4.5.13). Per <b>CC 5.4.3</b> (<span class="fig" data-claim="shaped-link-one-hop">"A shaped link is one hop"</span>), shaped budget classes (<span class="fig" data-claim="budget-class-rates"><code>server</code> 7,000 B/s, <code>home</code> 2,800 B/s, <code>phone-wifi</code> 1,400 B/s, <code>phone-cellular</code> 350 B/s, <code>seat</code> 33,000 B/s at ρ=0.5</span>) <span class="fig" data-claim="shaped-link-one-hop">are 1 direct hop and never forwarded; peers without a direct path carry on ordinary links</span>. Large rooms fan out via the <b>CC 6.1.6 <code>deterministic-alm</code> member relay tree</b> over sealed chunks (distinct from CC 5.3.3.2's no-SFU-relay-role; no seat decodes or selects). <span class="fig" data-claim="onion-tier">15,296 B X-Wing onion packets replace cover frames on shaped links at <b>0 extra wire bytes</b></span> (CC 5.4.6). <a href="how-it-works.html#solves">How it works</a> · <a href="how-it-works.html#peers">vs. other meshes</a> · <a href="mesh.html">6-peer kernel</a> · <a href="toy/">scaling toy</a>
 </div>
-<div id="layer-dock" role="group" aria-label="Globe layers"></div>
+<div id="layer-dock" role="group" aria-label="Globe layers"></div><div id="data-map" role="radiogroup" aria-label="Data map"></div><div id="dm-legend" class="panel-hidden" aria-live="polite"></div>
 `);
 // evidence:end
 // the AGPL source link: the commit tools/page/stamp_source.sh wrote into docs/source.js
@@ -2533,6 +2533,7 @@ function holLoad(){
   const j = (u) => fetch(u + "?v=" + HOL_V).then((r) => r.json());
   j("geo/holon/index.json").then((x) => { HOLT.idx = x.tables; for (const ref of Object.keys(x.tables)) j("geo/holon/" + ref + ".json").then((t) => { HOLT.t[ref] = t; if (typeof gfxDirty === "function") gfxDirty(300); }).catch((e) => console.warn(e.message)); }).catch((e) => console.warn(e.message));
   j("geo/regions.json").then((r) => { HOLT.reg = r; HOLT.regAt = new Map(r.cells.map((c) => [c[2], c[4]])); }).catch((e) => console.warn(e.message));
+  fetch("geo/countries.bin?v=" + HOL_V).then((r) => r.arrayBuffer()).then((b) => { HOLT.countries = countriesDecode(b); if (typeof gfxDirty === "function") gfxDirty(500); }).catch((e) => console.warn(e.message));
 }
 // the twin's region of a point: its 1.5-degree cell's (docs/geo/regions.json); a cell not listed takes the nearest listed
 // cell's region (the rule CIRISHolon's regional cut uses); null until regions.json is in
@@ -2587,6 +2588,40 @@ function holPresLine(){
   const t = HOLT.t.presence0_us; if (!t) return "…"; const tn = t.data.three_numbers.weekly_mean_awake_share, s = holSeam(), c = s ? s.country : -1;
   return `who is awake when: US time diaries give ${tn.reference.toFixed(3)} of the time awake (${tn.awake_hours_a_day.toFixed(1)} h a day) against the twin's 0.85, ${holVd("refused", "refused")} · ` +
     (c === 840 ? holVd("unresolved", "inside the United States (2022-2024): the street's activity still follows the twin's stand-in until the presence seam lands") : holVd("unresolved", "no reference outside the United States: the twin's stand-in (model.diurnal.v1) here"));
+}
+// ---- the data-map strip (Eric: "remember the simcity layer selector?"): one map at a time, each re-tinting the street tier by one
+// quantity from a CIRISHolon table, with a legend; "none" returns the normal view. Drawn by incell.js at region and city zoom.
+var DATAMAP = { active: 1, prev: 0, t0: 0 }; // read by incell.js: the active map and the one fading out (400 ms cross-fade)
+const DM_MAPS = [
+  { id: 0, icon: "○", name: "None" },
+  { id: 1, icon: "◉", name: "People", ref: "holon-uneven0" },
+  { id: 2, icon: "☾", name: "Awake", ref: "holon-presence0-us" },
+  { id: 3, icon: "✓", name: "Verdict", ref: "holon-housegen1" },
+];
+function dmLegend(){
+  const id = DATAMAP.active;
+  if (id === 1) return `<b>People</b> · persons per km² in each ~0.9 km pixel, 100 → 30,000 (log) · ${fig("holon-uneven0", "MODEL via CIRISHolon UNEVEN-0 v1 (unresolved): a cell's people over its pixels; which pixel is the town is the twin's rule")}`;
+  if (id === 2) return `<b>Awake now</b> · <span class="dm-ramp dm-awake"></span> share of persons awake at the local hour, asleep → awake · ${fig("holon-presence0-us", "MODEL via CIRISHolon PRESENCE-0 v1 (US time diaries 2022-2024, 15+): United States only; elsewhere hatched, no reference")}`;
+  if (id === 3) return `<b>Verdict</b> · <span class="vd vd-cert">certified</span> <span class="vd vd-unres">read, not certified</span> <span class="dm-noref">no reference</span> · ${fig("holon-housegen1", "CIRISHolon's household generator per ~1 km tile: German village tiles certified (composition), other German and all US tiles unresolved, elsewhere outside every reference")} · ${fig("countries-source", "country from Natural Earth's mask, for envelopes only")}`;
+  return "";
+}
+function dmRender(){
+  const el = $("data-map"); if (!el) return;
+  el.innerHTML = DM_MAPS.map((m) => `<button type="button" role="radio" aria-checked="${DATAMAP.active === m.id}" class="dm-b${DATAMAP.active === m.id ? " on" : ""}" data-dm="${m.id}"><span aria-hidden="true">${m.icon}</span> ${m.name}</button>`).join("");
+  const lg = $("dm-legend"); if (lg){ const h = dmLegend(); lg.innerHTML = h; lg.classList.toggle("panel-hidden", !h); }
+}
+function dmSet(id){ if (id === DATAMAP.active) return; DATAMAP.prev = DATAMAP.active; DATAMAP.active = id; DATAMAP.t0 = performance.now(); holLoad(); dmRender(); if (typeof gfxDirty === "function") gfxDirty(800); const c = $("focal-chip"); if (c) c._t = 0; }
+document.addEventListener("click", (e) => { const b = e.target.closest && e.target.closest("[data-dm]"); if (b) dmSet(+b.dataset.dm); });
+setTimeout(dmRender, 0);
+// the focal tile's value on the active map, for the chip
+function dmValue(){
+  const id = DATAMAP.active; if (!id || !M || M.leaf === undefined) return "";
+  if (id === 1){ const u = HOLT.t.uneven0, cls = HOL_CLS[(M.meta[2] | 0) === 0 && M.meta[4] >= 12000 ? "dense fabric" : MDCLASS[M.meta[2] | 0]] || "village", k = ["village", "suburban", "terraced", "apartment blocks", "dense fabric"].indexOf(cls);
+    if (!u || k < 0) return "people: loading CIRISHolon's in-cell table…"; const r = holRegion(M.lat0, M.lon0), e = r === null ? null : u.data.regional[r][k], v = e && e.people ? e.people : u.data.world.people[k];
+    return `people here: in a ${cls} cell ${Math.round(v.slice(k + 2).reduce((a, b) => a + b, 0) / 1e4)}% live in denser ~1 km tiles (${e && e.people ? "regional, " + u.data.regions[r] : "world row"}; ${holVd("unresolved", "unresolved")})`; }
+  const s = holSeam(), c = s ? s.country : -1;
+  if (id === 2) return c === 840 ? `awake now here: ${Math.round(incellAwake(M.lon0) * 100)}% of persons (US time diaries at this local hour)` : `awake now: ${holVd("unresolved", "no reference here (" + holCountryName(c) + ")")}; the twin's stand-in drives activity`;
+  return s && s.found ? `verdict here: per unit ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])}, composition ${holVd(HOL_V3[s.comp], HOL_V3[s.comp])} (${holCountryName(c)})` : `verdict here: ${holVd("legacy", "no certificate")}`;
 }
 function holGenShort(){ const s = holSeam(); if (!s || !s.on || !s.found) return `households: legacy ${holVd("legacy", "no certificate")}`; return `households: CIRISHolon HOUSEGEN-1, ${s.hhLeaf} here · ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])} / ${holVd(HOL_V3[s.comp], HOL_V3[s.comp])}`; }
 const holCountryFig = (iso) => fig("countries-source", holCountryName(iso));
@@ -2648,7 +2683,8 @@ function updateFocalChip(F){
   // the verdict badges: CIRISHolon's verdicts counted from the panel's own lines
   const cnt = (k) => (detail.match(new RegExp('class="vd vd-' + k + '"', "g")) || []).length;
   const badges = `<div class="chip-line">Holon: ${fig("holon-verdict-count", '<span class="vd vd-cert" title="certified by CIRISHolon against a reference">' + cnt("cert") + ' certified</span> · <span class="vd vd-ref" title="refused against a reference">' + cnt("ref") + ' refused</span> · <span class="vd vd-unres" title="unresolved, or outside the reference\'s envelope">' + cnt("unres") + ' unresolved</span> · <span class="vd vd-leg" title="the twin\'s legacy rule, no certificate">' + cnt("leg") + ' legacy</span>')} <button class="chip-btn" id="fd-open" type="button" aria-expanded="${!!(det && det.classList.contains("open"))}" aria-controls="focal-detail">where this comes from</button></div>`;
-  chip.innerHTML = head + tileLine + badges;
+  const dmv = DATAMAP.active ? `<div class="chip-line">${fig(DM_MAPS[DATAMAP.active].ref, dmValue())}</div>` : "";
+  chip.innerHTML = head + tileLine + dmv + badges;
   if (det && !det.contains(document.activeElement)){ det.innerHTML = detail; det.classList.toggle("panel-hidden", false); }
   $("fd-open").onclick = () => { det.classList.toggle("open"); chip._t = 0; };
   const fc = $("fd-close"); if (fc) fc.onclick = () => { det.classList.remove("open"); chip._t = 0; };
