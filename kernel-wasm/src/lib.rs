@@ -804,6 +804,18 @@ fn access_graph() -> &'static cewp_sim::netgraph::NetGraph {
     }
 }
 
+/// Leaf `id`'s street network statistics (context at `holon_ctx_ptr`, as `holon_layout`): holon
+/// buffer 0 gets [Gini of segment betweenness, segments, nodes]. Returns the segment count. Not
+/// called per frame: the drawing never needs it.
+#[no_mangle]
+pub extern "C" fn holon_street_stats(id: f64) -> u32 {
+    let Some(l) = holon_layout_of(id) else { return 0 };
+    let g = l.street_graph();
+    let (n, segs) = g.segments(&l.roads);
+    holon().out = vec![g.betweenness_gini(&l.roads), segs.len() as f64, n as f64];
+    segs.len() as u32
+}
+
 /// A street index as the page reads it: -1 for none.
 fn street_f64(s: u32) -> f64 {
     if s == cewp_sim::micro::NO_STREET { -1.0 } else { f64::from(s) }

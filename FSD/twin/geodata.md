@@ -91,6 +91,19 @@ Greenland ice sheet 70, Antarctica null.
 | Level 0 (float32 cells), summed | 7,840,952,952.7 (+5.7: float32 rounding) |
 | Level 1 as the loader rebuilds it | 7,840,952,952.7 (equal to level 0 by construction) |
 
+**The raster's edges.** The GHS-POP source is 43,202 pixel columns wide, two more than 360 x 120:
+its first pixel centre lies half a pixel west of 180 W and its last half a pixel east of 180 E.
+`Tile::cells` assigns each pixel whole to the cell holding its centre, with the column taken modulo
+the grid width, so the extra western column wraps to the last 1/8-degree column (2879) and the
+extra eastern one to column 0; nothing is dropped and nothing is counted twice (each pixel lands
+once). Under that rule the first and last 1/8-degree columns receive 16 pixel columns instead of 15.
+Rows are clamped to the grid; the source's 21,384 rows cover 178.2 degrees, so the cell rows at its
+north and south edges (rows 7 and 1,432 at 1/8 degree) receive 12 pixel rows instead of 15, and the
+rows beyond hold nothing. People in the extra columns: CIRISHolon's gate (2026-11-11) reports pixel
+column 0 holds 18.81 people (landing in cell column 2879) and the last pixel column holds 0, and its
+own reading of the source matched this build exactly (level 0 in all 259,200 cells to 1e-6; level 1
+in all 4,147,200 codes; world total 7,840,952,947.01). Not rebuilt in this round.
+
 Level 1 against the exact 1/8-degree sums, cells of at least 1,000 people: median relative error
 1.6 %, 99th percentile 4.6 %, worst 6.8 % (the code step plus the block rescale). 43.5 people
 sit in level-0 cells whose 16 level-1 cells all coded 0; the loader spreads those evenly.

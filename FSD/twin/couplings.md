@@ -68,6 +68,16 @@ Read from the code, not from memory.
   drawing reads for its end caps; no model reads it, so it stays decoration. A small leaf whose
   ancestors' lines all pass outside it has no street at all (the Cairo and Paris probe leaves):
   its households are on no street.
+- **Street betweenness.** CIRISHolon's street reference includes the Gini coefficient of
+  betweenness over a tile's street segments (generated networks tend to match orientation and degree
+  while missing how unevenly traffic concentrates). The twin computes it on its generated graph:
+  `StreetGraph::segment_betweenness` (Brandes, shortest paths by length, each street cut at its
+  junctions) and `betweenness_gini`, exported as kernel-wasm `holon_street_stats` (never per frame).
+  On the probe leaves it reads 0 to 0.12 (Zurich 0.119 over 6 segments, the Cher village 0.110 over
+  22, Kowloon 0.117 over 12, Dhaka, Delhi, Tokyo and the Maryland suburb 0 over 3 or 4): a leaf of
+  at most 60 households is too small a network for the statistic. A comparison with the reference
+  needs the network assembled across leaves at the reference's tile size (about 1 km), with the
+  ports joining neighbouring leaves; owed.
 - **Day and night by longitude** is read by the scale engine's signer draw (`diurnal_accept`) and
   by the focal world's act rate (`MicroWorld::generate`).
 - **Land cover and relief** are decoration (ground tint and shading).
@@ -109,6 +119,7 @@ integers.
   network), which moves `household.access_network` to a model that reads it. Streets (item 6 f)
   and arterial crossings (item 6 h) are built and summed but stay decoration: no model reads them.
 - A lane for a populated leaf that no line reaches, so every household is on a street.
+- Street betweenness over an assembled 1 km network (ports joining leaves), to compare with CIRISHolon's Gini.
 
 ## 7. Gaps with no free reference, and what the fleet could measure instead
 

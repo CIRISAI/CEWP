@@ -761,6 +761,104 @@ pub struct StreetGraph {
     pub junctions: Vec<Junction>,
 }
 
+impl StreetGraph {
+    /// The graph's segments: each street cut at every junction on it, as (node a, node b, length m),
+    /// with nodes numbered by first appearance (junction points and street ends).
+    #[must_use]
+    pub fn segments(&self, roads: &[Road]) -> (usize, Vec<(usize, usize, f64)>) {
+        let mut ids: BTreeMap<(i64, i64), usize> = BTreeMap::new();
+        let mut node = |x: f64, y: f64| {
+            let k = ((x * 1e4).round() as i64, (y * 1e4).round() as i64);
+            let n = ids.len();
+            *ids.entry(k).or_insert(n)
+        };
+        let mut segs = Vec::new();
+        for st in &self.streets {
+            let r = roads[st.index as usize];
+            let (dx, dy) = (r.x1 - r.x0, r.y1 - r.y0);
+            let len = (dx * dx + dy * dy).sqrt();
+            if len <= 0.0 {
+                continue;
+            }
+            let mut ts: Vec<f64> = vec![0.0, 1.0];
+            for j in self.junctions.iter().filter(|j| j.a == st.index || j.b == st.index) {
+                ts.push((((j.x - r.x0) * dx + (j.y - r.y0) * dy) / (len * len)).clamp(0.0, 1.0));
+            }
+            ts.sort_by(f64::total_cmp);
+            ts.dedup_by(|a, b| (*a - *b).abs() * len < 1e-6);
+            for w in ts.windows(2) {
+                let a = node(r.x0 + w[0] * dx, r.y0 + w[0] * dy);
+                let b = node(r.x0 + w[1] * dx, r.y0 + w[1] * dy);
+                segs.push((a, b, (w[1] - w[0]) * len));
+            }
+        }
+        (ids.len(), segs)
+    }
+
+    /// Edge betweenness of every segment (shortest paths by length between every pair of nodes,
+    /// Brandes; each unordered pair counted once), in [`StreetGraph::segments`] order.
+    #[must_use]
+    pub fn segment_betweenness(&self, roads: &[Road]) -> Vec<f64> {
+        let (n, segs) = self.segments(roads);
+        let mut adj: Vec<Vec<(usize, f64, usize)>> = vec![Vec::new(); n];
+        for (e, &(a, b, l)) in segs.iter().enumerate() {
+            adj[a].push((b, l, e));
+            adj[b].push((a, l, e));
+        }
+        let mut cb = vec![0.0; segs.len()];
+        for s in 0..n {
+            // Dijkstra from s, keeping every shortest predecessor
+            let mut dist = vec![f64::INFINITY; n];
+            let mut sigma = vec![0.0_f64; n];
+            let mut pred: Vec<Vec<(usize, usize)>> = vec![Vec::new(); n];
+            let mut order = Vec::with_capacity(n);
+            let mut done = vec![false; n];
+            dist[s] = 0.0;
+            sigma[s] = 1.0;
+            while let Some(v) = (0..n).filter(|&v| !done[v] && dist[v].is_finite()).min_by(|&a, &b| dist[a].total_cmp(&dist[b]).then(a.cmp(&b))) {
+                done[v] = true;
+                order.push(v);
+                for &(w, l, e) in &adj[v] {
+                    let d = dist[v] + l;
+                    if d < dist[w] - 1e-9 {
+                        dist[w] = d;
+                        sigma[w] = sigma[v];
+                        pred[w] = vec![(v, e)];
+                    } else if (d - dist[w]).abs() <= 1e-9 && !done[w] {
+                        sigma[w] += sigma[v];
+                        pred[w].push((v, e));
+                    }
+                }
+            }
+            let mut delta = vec![0.0; n];
+            for &w in order.iter().rev() {
+                for &(v, e) in &pred[w] {
+                    let c = sigma[v] / sigma[w] * (1.0 + delta[w]);
+                    cb[e] += c;
+                    delta[v] += c;
+                }
+            }
+        }
+        cb.iter().map(|c| c / 2.0).collect()
+    }
+
+    /// Gini coefficient of segment betweenness (0 = traffic spread evenly over the segments, 1 = all
+    /// on one): how unevenly shortest paths concentrate on the street network (CIRISHolon's street
+    /// reference reads the same statistic). 0 for fewer than two segments.
+    #[must_use]
+    pub fn betweenness_gini(&self, roads: &[Road]) -> f64 {
+        let mut v = self.segment_betweenness(roads);
+        let n = v.len();
+        let total: f64 = v.iter().sum();
+        if n < 2 || total <= 0.0 {
+            return 0.0;
+        }
+        v.sort_by(f64::total_cmp);
+        let weighted: f64 = v.iter().enumerate().map(|(i, x)| (2.0 * (i as f64 + 1.0) - n as f64 - 1.0) * x).sum();
+        weighted / (n as f64 * total)
+    }
+}
+
 /// Main road width, metres (an arterial, every class).
 pub const MAIN_ROAD_M: f64 = 12.0;
 
@@ -1261,6 +1359,29 @@ mod tests {
             }
         }
         assert!(kinds[JunctionKind::Cross as usize] + kinds[JunctionKind::Tee as usize] > 0, "{kinds:?}");
+    }
+
+    #[test]
+    fn betweenness_is_brandes_on_a_known_graph_and_gini_is_bounded() {
+        // a plus sign: two crossing streets of 20 m make 4 segments of 10 m meeting at one cross;
+        // every pair of the 5 nodes takes one path, so each arm carries the 4 pairs through its end
+        let id = HolonId::at(9, 47.3769, 8.5417);
+        let (w, h) = id.size_m();
+        let mut l = LeafLayout { id, w, h, households: 0, people: 0, density_km2: 0.0, class: DensityClass::Village, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), unplaced: false };
+        l.roads = vec![Road { x0: 0.0, y0: -10.0, x1: 0.0, y1: 10.0, width: 5.0 }, Road { x0: -10.0, y0: 0.0, x1: 10.0, y1: 0.0, width: 5.0 }];
+        let g = l.street_graph();
+        assert_eq!(g.junctions.iter().filter(|j| j.kind == JunctionKind::Cross).count(), 1);
+        let (n, segs) = g.segments(&l.roads);
+        assert_eq!((n, segs.len()), (5, 4));
+        assert_eq!(g.segment_betweenness(&l.roads), vec![4.0; 4]);
+        assert!(g.betweenness_gini(&l.roads).abs() < 1e-12, "a symmetric plus spreads evenly");
+        // a comb: one spine with teeth concentrates paths on the spine
+        l.roads = vec![Road { x0: -30.0, y0: 0.0, x1: 30.0, y1: 0.0, width: 5.0 }];
+        for x in [-20.0, 0.0, 20.0] {
+            l.roads.push(Road { x0: x, y0: 0.0, x1: x, y1: 10.0, width: 5.0 });
+        }
+        let gc = l.street_graph().betweenness_gini(&l.roads);
+        assert!(gc > 0.1 && gc < 1.0, "comb gini {gc}");
     }
 
     #[test]
