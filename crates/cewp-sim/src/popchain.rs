@@ -699,6 +699,13 @@ mod tests {
     }
 
     #[test]
+    fn the_device_generator_digest_is_the_committed_one() {
+        // CIRISHolon DEVICEGEN-1's own digest over 1,000 fixed calls; docs/geo/holon/devicegen.test.js checks the wasm
+        let want = include_str!("../../../docs/geo/holon/devicegen_digest.txt").trim().parse::<u64>().unwrap();
+        assert_eq!(holon_scene::devices::digest(), want);
+    }
+
+    #[test]
     fn the_generator_digest_is_the_committed_one() {
         // docs/geo/holon/housegen.test.js checks the shipped wasm gives the same number
         let want = include_str!("../../../docs/geo/holon/housegen_digest.txt").trim().parse::<u64>().unwrap();

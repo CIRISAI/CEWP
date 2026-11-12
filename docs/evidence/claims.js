@@ -642,6 +642,24 @@ window.CEWP_LEDGER = {
       "failure": ["A count of verdicts, not a score: one certified and one refused line are not an average."]
     },
     {
+      "id": "holon-devicegen1",
+      "class": "MODEL",
+      "code": "MO",
+      "status": "stated",
+      "live": true,
+      "shows": "The street tile's devices from CIRISHolon's device generator (DEVICEGEN-1, US 2020 tables), called once per household with its size and building type: phones by adults and children, laptops, desktops and the connection drawn together; a home node only where the stated scenario finds something to host on; its verdicts as returned (nothing to host on CERTIFIED for the United States 2020; counts per kind unresolved; elsewhere unresolved).",
+      "source": "holon-scene devices::generate (CIRISHolon 33dc99f, pinned in crates/cewp-sim/Cargo.toml); crates/cewp-sim/src/micro.rs populate (DeviceRule, DeviceSeam); kernel-wasm micro_device_rule, micro_device_seam, pop_device_digest; docs/geo/holon/devicegen_digest.txt",
+      "commit": "f73b918",
+      "window": "",
+      "param": "home node scenario (MODEL): on the gateway (fixed line, default), on an existing computer (a desktop), on a new box (any internet), none; the legacy home_node_household_share (0.6) among households that can host; building: 1 unit house, 5 or more apartment, otherwise and in dense fabric unknown",
+      "dataset": "Source: U.S. Energy Information Administration, Residential Energy Consumption Survey 2020 public-use microdata. A derived work; not endorsed by the agency. Via CIRISHolon DEVICEGEN-1.",
+      "blocker": "",
+      "reproduce": "cargo test -p cewp-sim micro popchain; node --test docs/geo/holon/devicegen.test.js",
+      "correction": "",
+      "interval": null,
+      "failure": ["United States, 2020: by 2024 set-top boxes are off by +76 % and streaming devices by -22 %; outside the United States every call is unresolved.", "Whether the gateway can host, and whether a desktop is on all day, are unknown: where the home node runs is a MODEL scenario. Nothing is keyed on age (the generated share over 64 is unchecked)."]
+    },
+    {
       "id": "holon-uneven0",
       "class": "MODEL",
       "code": "MO",

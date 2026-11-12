@@ -2,7 +2,7 @@
  "what": "buildings and dwellings per building by street class, from the twin's own layout code (tiling.rs LeafLayout::build, run by the page's kernel holon_layout), MODEL",
  "command": "node docs/geo/building_hist.js --write",
  "inputs": {
-  "docs/kernel/kernel_scale.wasm": "c32ff22e1ccdbe97f03ad2774547699c598b254254c3666e201777d0be9d330a",
+  "docs/kernel/kernel_scale.wasm": "a9f52fe95b2a46aea60558b8a242ce37da14bf981941e533f2b699b812fc5e52",
   "docs/geo/gd/pop0.bin.gz": "7711745ab49ecdd6ae0dac09f63c4bcf1d60aee91dd1ddc98426ce7223488dbb",
   "docs/geo/gd/pop1.bin.gz": "ce8ca1dc64950a8646cc04b7bf8ad621e6b1ad4e05b7dd56066aa08576dedf01",
   "docs/geo/geodata.js": "611401a1ee657243ff0427ad697680e36942edea30ed160ba2b5acf93b43234d",

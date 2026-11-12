@@ -79,6 +79,8 @@ pub mod failure_view;
 pub mod seat_view;
 pub mod detmath;
 pub mod holon_tables;
+/// CIRISHolon's scene crate, pinned once here (crates/cewp-sim/Cargo.toml) and re-exported for kernel-wasm.
+pub use holon_scene;
 pub mod countries;
 pub mod popchain;
 pub mod regions_table;

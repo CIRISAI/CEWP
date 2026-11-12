@@ -249,7 +249,8 @@ window.CEWP_LAYERS["wm-household"] = layer({ id: "wm-household", title: "World m
     this.info = { us_mean: ur && ur.mean ? `${ur.mean.verdict}: ${ur.mean.reason}` : "-", us_composition: ur && ur.p1 ? `${ur.p1.verdict}: ${ur.p1.reason}` : "-", de_mean: dr && dr.mean ? `${dr.mean.verdict}: ${dr.mean.reason}` : "-", de_composition: dr && dr.p1 ? `${dr.p1.verdict}: ${dr.p1.reason}` : "-", envelope: "United States (tract density) and Germany (1 km tiles); a twin leaf is outside both" };
   },
   controls: [{ label: "Next class", act(){ WM.hcls = (WM.hcls + 1) % 6; gfxDirty(300); } },
-    { label: "Household rule: CIRISHolon / legacy", act(){ if (typeof tlHouseholds === "function") tlHouseholds(TL.housegen === false); } }],
+    { label: "Household rule: CIRISHolon / legacy", act(){ if (typeof tlHouseholds === "function") tlHouseholds(TL.housegen === false); } },
+    { label: "Device rule: CIRISHolon / legacy", act(){ if (typeof tlDevices === "function") tlDevices(TL.devicegen === false); } }],
   status(){ const us = typeof HOLT !== "undefined" && HOLT.t.household0_us; if (!us) return "loading CIRISHolon's tables…"; const cls = ["nation", ...WM_CLASSES][WM.hcls], u = us.data.rows[cls], d = HOLT.t.household0_de && HOLT.t.household0_de.data.rows[cls];
     const v = (r, k) => r && r[k] ? r[k].verdict : "–"; return `household rule on the street: ${typeof TL !== "undefined" && TL.housegen === false ? "legacy (no certificate)" : "CIRISHolon HOUSEGEN-1 per ~1 km tile"} · these verdicts score the legacy rule: ${cls} · US: mean ${v(u, "mean")}, composition ${v(u, "p1")} · Germany: mean ${v(d, "mean")}, composition ${v(d, "p1")}`; } });
 

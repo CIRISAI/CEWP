@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=39"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=40"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2576,6 +2576,22 @@ function holGenLine(){
   if (!s.found) return `households: CIRISHolon's generator ran for this tile but this leaf is not one the chain's tree reaches under it, so the legacy rule stands in ${holVd("legacy", "no certificate")}`;
   return `households: CIRISHolon's generator (HOUSEGEN-1) for this ~1 km tile: ${s.people.toLocaleString()} people in ${s.hhTile.toLocaleString()} households over ${s.leaves} leaves, ${s.hhLeaf} here; ${s.ref === 0 ? "German 2022" : "US 2024"} rows, class ${HOL_C5[s.cls - 1]}, ${s.inCountry ? "inside the reference's country" : "outside the reference's country (" + holCountryName(s.country) + ")"}; the reference is chosen by a stated rule (MODEL: German rows in Germany, US rows in the United States, German rows elsewhere; the country from Natural Earth's admin-0 mask, which only selects an envelope) · per unit ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit] + ": " + s.why[0])} · composition ${holVd(HOL_V3[s.comp], HOL_V3[s.comp] + ": " + s.why[1])} · no ages, tenure, building type or vacancy; tiles of one class come out too alike · ${s.why[2]}`;
 }
+// the device generator's line (DEVICEGEN-1 per household, kernel micro_device_seam) and the home-node scenario (MODEL)
+const HOME_WHERE = ["on the gateway", "on an existing computer", "on a new box", "none (phones only)"];
+let homeWhere = 0;
+function holDevSeam(){
+  if (!M || !wasm.micro_device_seam) return null; if (M.dseam !== undefined) return M.dseam;
+  const n = wasm.micro_device_seam(), p = wasm.holon_buf_ptr(0) >>> 0, o = Array.from(new Float64Array(wasm.memory.buffer, p, n));
+  const tp = wasm.holon_text_ptr() >>> 0, txt = new TextDecoder().decode(new Uint8Array(wasm.memory.buffer, tp, wasm.holon_text_len())).split("\n");
+  M.dseam = n >= 10 ? { counts: o[1], host: o[2], households: o[3], nothing: o[4], can: o[5], home: o[6], desktops: o[7], where: o[8], inCountry: o[9] === 1, why: txt } : { off: true };
+  return M.dseam;
+}
+const hwButtons = () => "home node (MODEL scenario): " + HOME_WHERE.map((t, k) => '<button class="chip-btn' + (homeWhere === k ? " on" : "") + '" type="button" data-hw="' + k + '">' + t + "</button>").join("");
+function holDevGenLine(){
+  const d = holDevSeam(); if (!d || d.off) return `devices: the twin's legacy draw (1 phone and 0.5 laptop per person, a home node in 60 % of households) ${holVd("legacy", "no certificate")}`;
+  const pct = (a, b) => b ? Math.round(100 * a / b) + "%" : "–";
+  return `devices: CIRISHolon's generator (DEVICEGEN-1, US 2020 tables) per household: phones by adults and children, laptops, desktops and the connection drawn together · nothing to host on ${holVd(HOL_V3[d.host], HOL_V3[d.host] + ": " + d.why[1])} · counts per kind ${holVd(HOL_V3[d.counts], HOL_V3[d.counts] + ": " + d.why[0])} · here ${d.nothing} of ${d.households} households (${pct(d.nothing, d.households)}) have no computer and no fixed line, so no home node · home node ${HOME_WHERE[d.where]} (MODEL scenario): ${d.can} of ${d.households} can host (${pct(d.can, d.households)}), ${d.home} run one (the legacy 60 % among those) · the tables are 2020: by 2024 set-top boxes +76 %, streaming devices −22 % · ${d.why[2]}`;
+}
 // the device line: CIRISHolon DEVICES-0 (United States, 2020) on the twin's legacy device rule (not changed)
 function holDevLine(){
   const t = HOLT.t.devices0_us; if (!t) return "loading CIRISHolon's device verdict…";
@@ -2676,7 +2692,7 @@ function updateFocalChip(F){
   const detail = `<div class="fd-head"><b>Where this street's figures come from</b> <button class="chip-btn" id="fd-close" type="button" aria-label="Close">×</button></div>` +
     (M.denseNote ? `<div class="chip-sub">${fig("dense-fabric", "dense fabric: storeys are the leaf's households over its plots; the density is a 1/8° cell average, and wards inside it are denser")}</div>` : "") +
     `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people inside a 1/8° cell follow CIRISHolon's in-cell table (UNEVEN-0, unresolved)")}</div>` +
-    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
+    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devicegen1", holDevGenLine())} · ${fig("holon-devicegen1", hwButtons())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
     `<div class="chip-sub">rows: ${fig("micro-activity", m[10] + " sent · " + m[11] + " direct (" + m[12] + " shaped) · " + m[13] + " relayed · " + m[15] + " held at a mailbox · " + m[16] + " handed over · punches " + m[20] + "/" + m[19] + " up")} · tap a device</div>` +
     `<div class="chip-sub">model's reading: replication rounds ${fig("micro-activity", (m[37] | 0) + " served · " + (m[38] | 0) + " cadences where an unclaimed device announced with no seat as peer")} · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +
     (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? '<span class="inp">design case: 3, k=2</span>' : '<span class="inp">production: 1</span>'}</button>`) + `</div>`;
@@ -2687,6 +2703,7 @@ function updateFocalChip(F){
   chip.innerHTML = head + tileLine + dmv + badges;
   if (det && !det.contains(document.activeElement)){ det.innerHTML = detail; det.classList.toggle("panel-hidden", false); }
   $("fd-open").onclick = () => { det.classList.toggle("open"); chip._t = 0; };
+  for (const bt of det.querySelectorAll("[data-hw]")) bt.onclick = () => { homeWhere = +bt.dataset.hw; if (wasm.micro_device_rule) wasm.micro_device_rule(TL.devicegen === false ? 0 : 1, homeWhere); M = null; chip._t = 0; };
   const fc = $("fd-close"); if (fc) fc.onclick = () => { det.classList.remove("open"); chip._t = 0; };
   $("ts-dn").onclick = () => { microTimeScale = Math.max(1, Math.round(microTimeScale / 2)); chip._t = 0; };
   $("ts-up").onclick = () => { microTimeScale = Math.min(480, microTimeScale * 2); chip._t = 0; };

@@ -170,3 +170,29 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   with holon-scene, the tables and the region table). A cold tile costs about 27 ms once (Lyon, 136
   leaves) and is cached; steady frames are unchanged (16.7 ms p50 at 1440 and 390, on and off).
   check_sums holds with the tile lines (households and people at the tile over its leaves).
+- **Device seam** (micro.rs `DeviceRule` / `DeviceSeam`, kernel `micro_device_rule(on, where)` /
+  `micro_device_seam` / `pop_device_digest`, on by default; layer "Device rule: CIRISHolon / legacy"):
+  `holon_scene::devices::generate` (DEVICEGEN-1, CIRISHolon 33dc99f) once per household with its
+  persons, its building type (1 unit house, 5 or more apartment, dense fabric or 2-4 units unknown) and
+  in_country = the tile's Natural Earth country is the United States (840); elsewhere every call is
+  unresolved and still generates. Phones by person group and laptops are drawn as nodes; desktops are
+  counted in the device population, not drawn. The household's sizes are never changed. The legacy
+  rule's random stream is still read, so its other draws keep their order (the histograms are
+  unchanged; only their wasm hash moved). One digest over a fixed grid of calls is the same natively
+  and in wasm (11302191051290176534, docs/geo/holon/devicegen_digest.txt). Wasm 1,390,075 bytes
+  (+70 kB over 1,320,017).
+- **Where a home node runs** is a MODEL scenario on the page (DEVICEGEN-1 declares a gateway with a
+  fixed line, whether it can host unknown, and a desktop, whether it is on all day unknown); a home
+  node is drawn at the legacy 0.6 share among the households the scenario lets host. Shares
+  (crates/cewp-sim/examples/devicegen_shares.rs: 162,879 US households from HOUSEGEN-1, class 2,
+  buildings in equal thirds; MODEL):
+
+  | scenario | households that can host | home nodes |
+  |---|---|---|
+  | on the gateway (fixed line), default | 71.6 % | 43.0 % |
+  | on an existing computer (desktop) | 38.6 % | 23.2 % |
+  | on a new box (any internet at home) | 92.4 % | 55.5 % |
+  | none (phones only) | 0 % | 0 % |
+  | legacy rule (no generator) | all | 60 % |
+
+  9.2 % of households have nothing to host on (no computer and no fixed line), certified in the country.

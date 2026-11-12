@@ -65,6 +65,11 @@ function tlIncell(on){
 function tlHouseholds(on){
   if (typeof wasm === "undefined" || !wasm || !wasm.pop_households) return; wasm.pop_households(on ? 1 : 0); TL.housegen = !!on; tlRebuild();
 }
+// the device seam's switch (kernel micro_device_rule): CIRISHolon's DEVICEGEN-1 per household or the legacy draw
+function tlDevices(on){
+  if (typeof wasm === "undefined" || !wasm || !wasm.micro_device_rule) return; wasm.micro_device_rule(on ? 1 : 0, typeof homeWhere === "number" ? homeWhere : 0); TL.devicegen = !!on;
+  if (typeof M !== "undefined") M = null; if (typeof gfxDirty === "function") gfxDirty(800);
+}
 function tlRebuild(){
   TL.T = null; TL.l0.clear(); tlPP.clear(); TL.lay.clear(); TL.bytes = 0;
   for (const [, bt] of TL.batch) gl.deleteBuffer(bt.vbo); TL.batch.clear();

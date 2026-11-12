@@ -269,8 +269,8 @@ does every household), the tiled drawing takes its street-end caps from it, and 
 households summed by street are its households. Two probe leaves (Cairo, Paris) have no street:
 their ancestors' lines all pass outside them, so their households are on none (owed: a lane). The test writes CIRISHolon's sums format (one line per holon and kind,
 seed 0: the twin's tree takes no seed; crossings lines carry `side` and `peer`) to
-/tmp/cewp-popchain-sums.jsonl, which `cargo run -p holon-scene --example check_sums` accepts (1,458
-lines; 513 crossing pairs checked from both sides); a sample is docs/geo/sums.sample.jsonl.
+/tmp/cewp-popchain-sums.jsonl, which `cargo run -p holon-scene --example check_sums` accepts (1,602
+lines; 553 crossing pairs checked from both sides); a sample is docs/geo/sums.sample.jsonl.
 
 Probe (headless, both widths, street and block zoom; devices = the focal patch's devices including
 its off-patch seat and servers):

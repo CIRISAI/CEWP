@@ -723,6 +723,40 @@ pub extern "C" fn pop_generator_digest() -> u32 {
     2
 }
 
+/// `cewp_sim::holon_scene::devices::digest()` (DEVICEGEN-1's own digest over 1,000 fixed calls) as two u32 halves in
+/// holon buffer 0 (low, high): the same number natively proves the page runs the generator as certified.
+#[no_mangle]
+pub extern "C" fn pop_device_digest() -> u32 {
+    let d = cewp_sim::holon_scene::devices::digest();
+    holon().out = vec![(d & 0xFFFF_FFFF) as f64, (d >> 32) as f64];
+    2
+}
+
+/// The device seam: on (1, CIRISHolon's DEVICEGEN-1 per household, the default) or off (0, the legacy draw),
+/// and where a home node may run (0 on the gateway, 1 on an existing computer, 2 on a new box, 3 none).
+#[no_mangle]
+pub extern "C" fn micro_device_rule(on: u32, home_where: u32) -> u32 {
+    unsafe { *std::ptr::addr_of_mut!(DEVICEGEN) = on != 0; *std::ptr::addr_of_mut!(HOME_WHERE) = home_where.min(3) as u8; }
+    on
+}
+static mut DEVICEGEN: bool = true;
+static mut HOME_WHERE: u8 = cewp_sim::micro::HOME_ON_GATEWAY;
+
+/// What the device generator gave the focal world: holon buffer 0 gets [on, counts verdict, nothing-to-host
+/// verdict (0 certified, 1 refused, 2 unresolved), households, nothing to host on, can host, home nodes,
+/// desktops, where (0..3), in country]; the text buffer the two reasons and the notice, one per line.
+#[no_mangle]
+pub extern "C" fn micro_device_seam() -> u32 {
+    let h = holon();
+    let on = unsafe { *std::ptr::addr_of!(DEVICEGEN) };
+    let Some(w) = micro().world.as_ref() else { h.out = vec![0.0]; return 1 };
+    let Some(s) = w.device_seam.as_ref() else { h.out = vec![f64::from(u8::from(on))]; h.text = Vec::new(); return 1 };
+    let rule = w.device_rule.unwrap_or(cewp_sim::micro::DeviceRule { home_node_where: 0, in_country: false });
+    h.out = vec![1.0, f64::from(s.counts.0), f64::from(s.host.0), f64::from(s.households), f64::from(s.nothing_to_host), f64::from(s.can_host), f64::from(s.home_nodes), f64::from(s.desktops), f64::from(rule.home_node_where), f64::from(u8::from(rule.in_country))];
+    h.text = format!("{}\n{}\n{}", s.counts.1, s.host.1, cewp_sim::holon_scene::devices::NOTICE_US).into_bytes();
+    10
+}
+
 /// The text buffer (UTF-8) a door wrote last.
 #[no_mangle]
 pub extern "C" fn holon_text_ptr() -> u32 { holon().text.as_ptr() as usize as u32 }
@@ -970,7 +1004,14 @@ pub extern "C" fn micro_build_leaf(id: f64) -> u32 {
     let m = micro();
     let params = MicroParams { values: m.params };
     let mut w = match HolonId::unpack(id as u64).and_then(leaf_sizes) {
-        Some(sizes) => MicroWorld::from_leaf_with_sizes(&l, params, sizes),
+        Some(sizes) => {
+            // the device seam rides on the household seam: the generator needs each household's size
+            let rule = if unsafe { *std::ptr::addr_of!(DEVICEGEN) } {
+                let tile = cewp_sim::popchain::households::tile_of(l.id);
+                Some(cewp_sim::micro::DeviceRule { home_node_where: unsafe { *std::ptr::addr_of!(HOME_WHERE) }, in_country: cewp_sim::popchain::households::reference_for(tile).2 == Some(840) })
+            } else { None };
+            MicroWorld::from_leaf_with(&l, params, sizes, rule)
+        }
         None => MicroWorld::from_leaf(&l, params),
     };
     cewp_sim::netgraph::attach_access(&mut w, access_graph());

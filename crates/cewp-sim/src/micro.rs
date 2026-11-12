@@ -363,6 +363,46 @@ pub struct Building {
     pub street: u32,
 }
 
+/// Where a home node runs, under CIRISHolon's device generator (a MODEL scenario, stated on the page):
+/// DEVICEGEN-1 declares a gateway with a fixed line (whether it can host is unknown) and a desktop able
+/// to host (whether it is on all day is unknown), so the scenario picks which declared fact a node needs.
+pub const HOME_ON_GATEWAY: u8 = 0;
+/// On an existing computer (a desktop the household has).
+pub const HOME_ON_COMPUTER: u8 = 1;
+/// On a new box (any household with internet at home).
+pub const HOME_ON_NEW_BOX: u8 = 2;
+/// No home node (phones only).
+pub const HOME_NONE: u8 = 3;
+
+/// The device rule: CIRISHolon's DEVICEGEN-1 per household, and where a home node may run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeviceRule {
+    /// One of [`HOME_ON_GATEWAY`], [`HOME_ON_COMPUTER`], [`HOME_ON_NEW_BOX`], [`HOME_NONE`].
+    pub home_node_where: u8,
+    /// The tile is inside the generator's country read (the United States).
+    pub in_country: bool,
+}
+
+/// What the device generator gave a world: verdicts as returned (0 certified, 1 refused, 2 unresolved)
+/// with their reasons, and the counts behind the home-node scenario.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeviceSeam {
+    /// Counts per kind: verdict and reason.
+    pub counts: (u8, &'static str),
+    /// Nothing to host on: verdict and reason.
+    pub host: (u8, &'static str),
+    /// Households generated.
+    pub households: u32,
+    /// Households with no computer and no fixed line (nothing to host on).
+    pub nothing_to_host: u32,
+    /// Households where the scenario lets a home node run.
+    pub can_host: u32,
+    /// Home nodes drawn (the legacy adoption share among those that can host).
+    pub home_nodes: u32,
+    /// Desktops counted in the device population.
+    pub desktops: u32,
+}
+
 /// A building on no street (the focal world built without a leaf, or a leaf with no road).
 pub const NO_STREET: u32 = u32::MAX;
 
@@ -802,6 +842,10 @@ pub struct MicroWorld {
     /// Household sizes given from outside (CIRISHolon's generator through `popchain::households`), one
     /// per dwelling in building order; when set they replace the legacy draw and apportionment.
     pub given_sizes: Option<Vec<u8>>,
+    /// CIRISHolon's device generator (DEVICEGEN-1) in place of the legacy device draw, when set.
+    pub device_rule: Option<DeviceRule>,
+    /// What the device generator gave this world (None under the legacy rule).
+    pub device_seam: Option<DeviceSeam>,
     /// Devices drawn for every household, adopting or not, inside the node cap or beyond it: the
     /// holon's device population. The nodes are a display sample of it (at most R5_MAX_NODES).
     pub device_population: u64,
@@ -959,6 +1003,12 @@ impl MicroWorld {
     /// which must have been laid out for `sizes.len()` households).
     #[must_use]
     pub fn from_leaf_with_sizes(leaf: &crate::tiling::LeafLayout, params: MicroParams, sizes: Vec<u8>) -> Self {
+        Self::from_leaf_with(leaf, params, sizes, None)
+    }
+
+    /// [`MicroWorld::from_leaf_with_sizes`] with CIRISHolon's device generator in place of the legacy draw.
+    #[must_use]
+    pub fn from_leaf_with(leaf: &crate::tiling::LeafLayout, params: MicroParams, sizes: Vec<u8>, device_rule: Option<DeviceRule>) -> Self {
         let (lat0, lon0) = leaf.id.centre_deg();
         let half = leaf.w.max(leaf.h) / 2.0;
         let mut w = Self::empty(lat0, lon0, leaf.density_km2, leaf.class, half, leaf.id.seed(), params);
@@ -966,6 +1016,7 @@ impl MicroWorld {
         w.buildings = leaf.buildings.clone();
         w.target_people = sizes.iter().map(|&s| u64::from(s)).sum();
         w.given_sizes = Some(sizes);
+        w.device_rule = device_rule;
         w.place_sites();
         w.populate();
         w.assign_claims();
@@ -1017,6 +1068,8 @@ impl MicroWorld {
             runs: 0,
             target_people: 0,
             given_sizes: None,
+            device_rule: None,
+            device_seam: None,
             device_population: 0,
             household_devices: Vec::new(),
         }
@@ -1421,8 +1474,68 @@ impl MicroWorld {
                 if u_srv < server_p {
                     kinds.push((HostKind::HostedServer, 0));
                 }
-                self.device_population += kinds.len() as u64;
-                self.household_devices.push(kinds.len() as u32);
+                // CIRISHolon's device generator in place of the legacy draw (the stream above is still read, so
+                // the legacy rule's other draws keep their order): phones per person by group, laptops and
+                // desktops, and a home node only where the scenario finds something to host on
+                let mut desktops = 0u32;
+                if let Some(rule) = self.device_rule {
+                    let building = if self.class == DensityClass::UrbanCore && self.density_km2 >= crate::tiling::DENSE_FABRIC_KM2 {
+                        holon_scene::devices::BUILDING_UNKNOWN
+                    } else if b.units <= 1 {
+                        holon_scene::devices::BUILDING_HOUSE
+                    } else if b.units >= 5 {
+                        holon_scene::devices::BUILDING_APARTMENT
+                    } else {
+                        holon_scene::devices::BUILDING_UNKNOWN
+                    };
+                    let seed = holon_scene::seed::child_seed(self.seed ^ 0xDE71_CE6E_0000_0001, hi as u64);
+                    let (hd, counts_call, host_call) = holon_scene::devices::generate(seed, u32::from(persons), building, rule.in_country);
+                    let had_server = kinds.iter().any(|k| k.0 == HostKind::HostedServer);
+                    kinds.clear();
+                    let mut owner = 0u8;
+                    for &n in &hd.phones {
+                        for _ in 0..n {
+                            kinds.push((HostKind::Phone, owner.min(persons.saturating_sub(1))));
+                            owner = owner.saturating_add(1);
+                        }
+                    }
+                    for i in 0..hd.counts[0] {
+                        kinds.push((HostKind::Laptop, i % persons.max(1)));
+                    }
+                    let nothing = hd.connection != 0 && hd.counts[0] == 0 && hd.counts[1] == 0 && hd.counts[2] == 0;
+                    let can = match rule.home_node_where {
+                        HOME_ON_GATEWAY => hd.gateway_declared(),
+                        HOME_ON_COMPUTER => hd.has_desktop(),
+                        HOME_ON_NEW_BOX => hd.connection != 2,
+                        _ => false,
+                    };
+                    let home = can && u_home < p.share(P::HomeNodeHouseholdShare);
+                    if home {
+                        kinds.push((HostKind::HomeNode, 0));
+                    }
+                    if had_server {
+                        kinds.push((HostKind::HostedServer, 0));
+                    }
+                    // a home node on an existing computer IS one of the desktops
+                    desktops = u32::from(hd.counts[1]) - u32::from(home && rule.home_node_where == HOME_ON_COMPUTER).min(u32::from(hd.counts[1]));
+                    let code = |v: holon_scene::verdict::Verdict| crate::popchain::households::verdict_code(v);
+                    let seam = self.device_seam.get_or_insert(DeviceSeam {
+                        counts: (code(counts_call.verdict), counts_call.reason),
+                        host: (code(host_call.verdict), host_call.reason),
+                        households: 0,
+                        nothing_to_host: 0,
+                        can_host: 0,
+                        home_nodes: 0,
+                        desktops: 0,
+                    });
+                    seam.households += 1;
+                    seam.nothing_to_host += u32::from(nothing);
+                    seam.can_host += u32::from(can);
+                    seam.home_nodes += u32::from(home);
+                    seam.desktops += desktops;
+                }
+                self.device_population += kinds.len() as u64 + u64::from(desktops);
+                self.household_devices.push(kinds.len() as u32 + desktops);
                 if !hh.adopting || used + kinds.len() > budget {
                     hh.adopting = false;
                     hh.in_community = false;
@@ -2482,6 +2595,46 @@ mod tests {
 
     fn world(density: f64, seed: u64) -> MicroWorld {
         MicroWorld::build_at_density(ZRH.0, ZRH.1, density, seed, MicroParams::default())
+    }
+
+    #[test]
+    fn the_device_generator_fills_households_and_home_nodes_need_something_to_host_on() {
+        use crate::tiling::{HolonId, LeafContext, LeafLayout};
+        let p = MicroParams::default();
+        let mut totals = (0u32, 0u32, 0u32);
+        for (k, &(la, lo)) in [(40.75, -73.99), (39.2, -77.25), (41.9, -87.7), (34.05, -118.25)].iter().enumerate() {
+            let id = HolonId::at(8, la, lo);
+            let ctx = LeafContext { budget: 40, chain: [3_000; 11], ..LeafContext::default() };
+            let leaf = LeafLayout::build(id, &ctx, &p);
+            let dwellings: usize = leaf.buildings.iter().map(|b| usize::from(b.units)).sum();
+            let sizes: Vec<u8> = (0..dwellings).map(|i| 1 + ((i * 7 + k) % 4) as u8).collect();
+            for where_ in [HOME_ON_GATEWAY, HOME_ON_COMPUTER, HOME_ON_NEW_BOX, HOME_NONE] {
+                let w = MicroWorld::from_leaf_with(&leaf, p.clone(), sizes.clone(), Some(DeviceRule { home_node_where: where_, in_country: true }));
+                assert_eq!(w.household_devices.iter().map(|&d| u64::from(d)).sum::<u64>(), w.device_population, "devices sum to the leaf");
+                let seam = w.device_seam.clone().expect("the generator ran");
+                assert_eq!(seam.households as usize, dwellings);
+                assert!(seam.home_nodes <= seam.can_host);
+                assert_eq!(seam.host.0, 0, "nothing to host on: certified in the country");
+                if where_ == HOME_NONE {
+                    assert_eq!(seam.home_nodes, 0);
+                    assert_eq!(w.nodes.iter().filter(|n| n.kind == HostKind::HomeNode).count(), 0);
+                }
+                if where_ == HOME_ON_GATEWAY {
+                    totals.0 += seam.households;
+                    totals.1 += seam.nothing_to_host;
+                    totals.2 += seam.can_host;
+                }
+                // persons are the given sizes: the generator never changes them
+                assert_eq!(w.households.iter().map(|h| u32::from(h.persons)).collect::<Vec<_>>(), sizes.iter().map(|&s| u32::from(s)).collect::<Vec<_>>());
+            }
+        }
+        // outside the country the calls are unresolved and still generate
+        let id = HolonId::at(8, 47.37, 8.54);
+        let leaf = LeafLayout::build(id, &LeafContext { budget: 30, chain: [3_000; 11], ..LeafContext::default() }, &p);
+        let n: usize = leaf.buildings.iter().map(|b| usize::from(b.units)).sum();
+        let w = MicroWorld::from_leaf_with(&leaf, p, vec![2; n], Some(DeviceRule { home_node_where: HOME_ON_GATEWAY, in_country: false }));
+        assert_eq!(w.device_seam.unwrap().host.0, 2);
+        assert!(totals.1 > 0 && totals.1 < totals.0 / 4, "nothing to host on: {} of {}", totals.1, totals.0);
     }
 
     #[test]
