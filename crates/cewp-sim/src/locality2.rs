@@ -297,6 +297,38 @@ impl Presence for StandInPresence {
     }
 }
 
+/// CIRISHolon PRESENCE-0 (US time diaries 2022-2024, 15+) as `presence.people`: awake and at
+/// home by day type and clock hour. Networks are not in the table: Wi-Fi at a workplace or
+/// school and elsewhere are FRONTIER inputs.
+#[derive(Debug, Clone, Copy)]
+pub struct Presence0Presence {
+    /// Share of time at a workplace or school on Wi-Fi (FRONTIER).
+    pub work_wifi: f64,
+    /// Share of time elsewhere on Wi-Fi (FRONTIER).
+    pub away_wifi: f64,
+}
+
+impl Default for Presence0Presence {
+    fn default() -> Self {
+        Self { work_wifi: crate::energy::WORK_WIFI, away_wifi: crate::energy::AWAY_WIFI }
+    }
+}
+
+impl Presence for Presence0Presence {
+    fn awake(&self, how: usize) -> f64 {
+        crate::presence0::awake(how)
+    }
+    fn at_home(&self, how: usize) -> f64 {
+        crate::presence0::at_home(how)
+    }
+    fn on_wifi(&self, how: usize) -> f64 {
+        crate::presence0::on_wifi(how, self.work_wifi, self.away_wifi)
+    }
+    fn verdict(&self) -> (Class, &'static str) {
+        (Class::Model, "PRESENCE-0 as presence.people (US time diaries 2022-2024, ages 15+; awake 0.623 of the week, the twin's 0.85 refused); outside the US it is a stand-in of another country's week; Wi-Fi at work 0.8 and elsewhere 0.2 are FRONTIER; nothing for under-15s or for whether anyone is home in a multi-person household")
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Verdict
 // ---------------------------------------------------------------------------
@@ -940,6 +972,7 @@ pub fn report(geo: &Geography, geo_name: &str, persons: usize, days: f64, seed: 
     let pm = PathModel::build(seed, ParameterRegime::Expected);
     let w = SocialWorld::build(geo, &SocialParams::default(), persons, seed, Placement::Placed);
     let l = measure(&w, &ActivityParams::poisson(), &Loc2Params::default(), &pm, &StandInPresence, horizon, seed);
+    let l0 = measure(&w, &ActivityParams::poisson(), &Loc2Params::default(), &pm, &Presence0Presence::default(), horizon, seed);
     let mut s = format!("# Three localities ({persons} persons, {days} day(s), seed {seed}, geography: {geo_name})\n\nNever merged into one number. Each carries the verdict of its inputs.\n\n");
     s.push_str(&format!("## (a) Audience locality: where recipients sit\n\nVerdict: **{}**. {}. Will read: {}.\n\n", l.audience.class.as_str(), l.audience.note, l.audience.reads.join(", ")));
     s.push_str("Share of deliveries per band, and act locality (every recipient within the band) at the locality band.\n\n| kind | acts | deliveries |");
@@ -971,11 +1004,14 @@ pub fn report(geo: &Geography, geo_name: &str, persons: usize, days: f64, seed: 
         let leave = |v: &[f64; 5]| v[3] + v[4];
         s.push_str(&format!(" {} | {} | {} / {} | {:+.1} pp / {:+.1} pp |\n", pct(k.relayed), pct(k.relayed_by_neighbour), pct(near(b)), pct(leave(b)), 100.0 * (near(&k.path_segment) - near(b)), 100.0 * (leave(&k.path_segment) - leave(b))));
     }
-    s.push_str(&format!("\n## (c) Presence-weighted locality\n\nVerdict: **{}**. {}. Will read: {}.\n\nDeliveries weighted by the recipient being awake at the act's local hour; the path by who is at home and on Wi-Fi at that hour.\n\n| kind | within locality (a) | within locality (c) | home LAN (b) | home LAN (c) | leaves the metro (b) | leaves the metro (c) |\n|---|---|---|---|---|---|---|\n", l.presence.class.as_str(), l.presence.note, l.presence.reads.join(", ")));
-    for k in l.kinds.iter().chain(core::iter::once(&l.all)) {
+    s.push_str(&format!("\n## (c) Presence-weighted locality\n\nVerdict: **{}**. {}. Will read: {}.\n\nBeside it, PRESENCE-0: verdict **{}**. {}.\n\nDeliveries weighted by the recipient being awake at the act's local hour; the path by who is at home and on Wi-Fi at that hour. (b) uses the presence's daily means; (c) the hour's.\n\n| kind | within locality (a) | within locality (c, stand-in) | within locality (c, PRESENCE-0) | home LAN (b, stand-in) | home LAN (c, stand-in) | home LAN (c, PRESENCE-0) | leaves the metro (b, stand-in) | leaves the metro (c, stand-in) | leaves the metro (c, PRESENCE-0) |\n|---|---|---|---|---|---|---|---|---|---|\n", l.presence.class.as_str(), l.presence.note, l.presence.reads.join(", "), l0.presence.class.as_str(), l0.presence.note));
+    let k0s: Vec<&KindLocality> = l0.kinds.iter().chain(core::iter::once(&l0.all)).collect();
+    for (i, k) in l.kinds.iter().chain(core::iter::once(&l.all)).enumerate() {
         let name = if core::ptr::eq(k, &l.all) { "all kinds" } else { k.kind.as_str() };
+        let k0 = k0s[i];
         let wl = |b: &[f64; 7]| b[..=LOCALITY_BAND].iter().sum::<f64>();
-        s.push_str(&format!("| {name} | {} | {} | {} | {} | {} | {} |\n", pct(wl(&k.delivery_band)), pct(wl(&k.presence_band)), pct(k.path_segment[0]), pct(k.presence_segment[0]), pct(k.path_segment[3] + k.path_segment[4]), pct(k.presence_segment[3] + k.presence_segment[4])));
+        let lv = |v: &[f64; 5]| v[3] + v[4];
+        s.push_str(&format!("| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n", pct(wl(&k.delivery_band)), pct(wl(&k.presence_band)), pct(wl(&k0.presence_band)), pct(k.path_segment[0]), pct(k.presence_segment[0]), pct(k0.presence_segment[0]), pct(lv(&k.path_segment)), pct(lv(&k.presence_segment)), pct(lv(&k0.presence_segment))));
     }
     if with_sweep {
         s.push_str("\n## Sweep: the headline as a function of the room-placement inputs\n\nAct and delivery locality at the locality band (the page's definition) over social.rs's seven kinds, then over all ten, and the share of delivered bytes that leave the metro. Inputs one at a time from the defaults, then jointly, then the placeless null.\n\n| setting | act locality (7 kinds) | delivery locality (7) | act locality (10) | delivery locality (10) | delivery within the tile (10) | bytes leaving the metro |\n|---|---|---|---|---|---|---|\n");
@@ -1121,6 +1157,13 @@ mod tests {
 
     #[test]
     fn presence_seam_has_168_bins_in_range() {
+        let q = Presence0Presence::default();
+        for b in 0..HOW_BINS {
+            for x in [q.awake(b), q.at_home(b), q.on_wifi(b)] {
+                assert!((-1e-9..=1.0 + 1e-9).contains(&x));
+            }
+        }
+        assert!(q.awake(3) < 0.1 && q.awake(19) > 0.9, "PRESENCE-0: 0.04 at 03:00, 0.98 early evening");
         let p = StandInPresence;
         for b in 0..HOW_BINS {
             for x in [p.awake(b), p.at_home(b), p.on_wifi(b)] {

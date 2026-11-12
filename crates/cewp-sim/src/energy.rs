@@ -191,6 +191,9 @@ energy_rows! {
         "the twin assumes per-round: edge's round runs over every live link on any network (micro.rs changes only the budget class and relay offering with the network; capacity.rs has no metered or battery path). 0.1 is a 5-minute batch, 0 push-woken or suspended on cellular";
     RoundCadenceS = "lever.round_cadence_s", "lever", "seconds between Revocation rounds", "s", [30.0, 30.0, 30.0], Model, None, 2026, "", "",
         "capacity.rs CadenceS = 30 s (DERIVED, edge #881); Pull cycles ride on top";
+    PhoneRoundsWhileUnsuspended = "phone.rounds_while_unsuspended", "phone", "share of the phone's unsuspended hours in which it runs edge rounds", "share", [0.7, 1.0, 1.0], Model, None, 2026, "",
+        "PRESENCE-0 (US 2022-2024, 15+): a person is awake 0.623 of the week, against the twin's 0.85 unsuspended (refused)",
+        "1.0 is edge today: a phone node keeps its rounds while the OS lets it run, whether or not its person is asleep (the twin's suspended share, micro mobile_offline_share 0.15, is the only pause); 0.733 = 0.623 / 0.85 is rounds only while the person is awake";
     // ---- home --------------------------------------------------------------------------------
     GatewayW = "home.gateway_w", "home gateway", "ready, Wi-Fi on (already on: not charged)", "W", [3.3, 13.77, 25.0], Model, Some(true), 2025, "",
         "POWER-0 rows 10 (13.77 W, US new integrated gateways 2025, MEASURED sales-weighted) and 0 (9.1 W, Arcep 36 boxes, range 3.3 to 25)",
@@ -828,11 +831,12 @@ fn phone_lines<T: Q>(l: &mut Ledger<T>, val: &dyn Fn(E) -> T, k: &Counters, phon
     let c = one - w;
     let n = wakes_per_hour(val, k);
     let share = val(E::PhoneCellRoundShare).mid();
+    let running = phones * val(E::PhoneRoundsWhileUnsuspended);
     // Wi-Fi: every round is a short exchange
-    l.put(A, Dev::Phone, E::PhoneWakeJWifi, "edge round and Pull exchanges on Wi-Fi (seat_hooks)", phones * w * T::k(n), val(E::PhoneWakeJWifi), 1.0);
+    l.put(A, Dev::Phone, E::PhoneWakeJWifi, "edge round and Pull exchanges on Wi-Fi (seat_hooks)", running * w * T::k(n), val(E::PhoneWakeJWifi), 1.0);
     // carrier: the share of rounds that touch the radio; each pays a promotion and a tail cut
     // short by the next round when rounds come faster than the tail
-    let cell_wakes = phones * c * T::k(n * share);
+    let cell_wakes = running * c * T::k(n * share);
     let gap = if n * share > 0.0 { 3600.0 / (n * share) } else { f64::INFINITY };
     l.put(A, Dev::Phone, E::PhoneCellPromoJ, "edge round and Pull wake-ups on a carrier (seat_hooks x round share)", cell_wakes, val(E::PhoneCellPromoJ), 1.0);
     l.put(A, Dev::Phone, E::PhoneCellTailW, "radio tail seconds after those wake-ups (tail, cut at the gap to the next)", cell_wakes * val(E::PhoneCellTailS).min_c(gap), val(E::PhoneCellTailW), 1.0);
@@ -841,7 +845,7 @@ fn phone_lines<T: Q>(l: &mut Ledger<T>, val: &dyn Fn(E) -> T, k: &Counters, phon
     l.put(A, Dev::Phone, E::PhoneCellPromoJ, "extra content wake-ups on a carrier", cw * c, val(E::PhoneCellPromoJ), 1.0);
     l.put(A, Dev::Phone, E::PhoneCellTailW, "tail seconds after extra content wake-ups", cw * c * val(E::PhoneCellTailS), val(E::PhoneCellTailW), 1.0);
     let sched = val(E::PhoneScheduleShare);
-    let sync_mb = T::k(2.0 * k.sync_bytes_per_device_hour / 1e6) * sched * phones;
+    let sync_mb = T::k(2.0 * k.sync_bytes_per_device_hour / 1e6) * sched * phones * val(E::PhoneRoundsWhileUnsuspended);
     let ka_mb = T::k(k.held_mappings_per_phone / 1e6) * val(E::KeepaliveBytesPerMappingHour) * phones;
     l.put(A, Dev::Phone, E::PhoneJPerMbWifi, "edge sync MB both ways on Wi-Fi (seat_hooks)", sync_mb * w, val(E::PhoneJPerMbWifi), 1.0);
     l.put(A, Dev::Phone, E::PhoneJPerMbCell, "edge sync MB both ways on a carrier", sync_mb * c, val(E::PhoneJPerMbCell), 1.0);
@@ -1186,6 +1190,63 @@ pub fn phone_wh_per_day(p: &EnergyParams, k: &Counters, round_share: f64, cadenc
     24.0 * online * per_hour / 3600.0
 }
 
+/// Presence settings the delta is reported under, side by side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PresenceSetting {
+    /// The twin's stand-in: unsuspended 0.85 of the day, Wi-Fi 0.65 flat.
+    StandIn,
+    /// PRESENCE-0, edge as it is: rounds run whenever unsuspended (asleep or not); the Wi-Fi
+    /// share of device-hours from where people are, hour by hour.
+    Presence0Edge,
+    /// PRESENCE-0, rounds only while the person is awake (0.623 / 0.85); the Wi-Fi share of
+    /// awake hours.
+    Presence0Awake,
+}
+
+impl PresenceSetting {
+    /// All three.
+    pub const ALL: [Self; 3] = [Self::StandIn, Self::Presence0Edge, Self::Presence0Awake];
+    /// Name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::StandIn => "stand-in (unsuspended 0.85, Wi-Fi 0.65)",
+            Self::Presence0Edge => "PRESENCE-0, edge as is (rounds while unsuspended)",
+            Self::Presence0Awake => "PRESENCE-0, rounds only while awake",
+        }
+    }
+}
+
+/// Wi-Fi at a workplace or school, and elsewhere awake or asleep (FRONTIER: PRESENCE-0 says
+/// nothing about networks).
+pub const WORK_WIFI: f64 = 0.8;
+/// See [`WORK_WIFI`].
+pub const AWAY_WIFI: f64 = 0.2;
+
+/// The rows a presence setting sets, from PRESENCE-0 hour by hour (DERIVED from the table, with
+/// the two Wi-Fi shares above).
+#[must_use]
+pub fn presence_params(base: &EnergyParams, s: PresenceSetting) -> EnergyParams {
+    use crate::presence0 as p0;
+    let mut p = base.clone();
+    match s {
+        PresenceSetting::StandIn => {}
+        PresenceSetting::Presence0Edge => {
+            p.set(E::WifiShare, p0::week_mean(|h| p0::on_wifi(h, WORK_WIFI, AWAY_WIFI)));
+        }
+        PresenceSetting::Presence0Awake => {
+            let awake = p0::week_mean(p0::awake);
+            let wifi_awake = p0::week_mean(|h| {
+                let r = p0::row(h);
+                r[1] + r[2] * WORK_WIFI + r[3] * AWAY_WIFI
+            }) / awake;
+            p.set(E::WifiShare, wifi_awake);
+            p.set(E::PhoneRoundsWhileUnsuspended, awake / 0.85);
+        }
+    }
+    p
+}
+
 /// The grid the report prints: round share, cadence, tail, Wi-Fi share.
 pub const PHONE_GRID: ([f64; 3], [f64; 3], [f64; 3], [f64; 3]) = ([1.0, 0.1, 0.0], [30.0, 120.0, 300.0], [2.0, 5.0, 11.6], [0.1, 0.65, 0.9]);
 
@@ -1244,6 +1305,28 @@ pub fn report(seed: u64) -> String {
             }
             s.push('\n');
         }
+    }
+    s.push_str(&format!("\n## Presence side by side (expected regime, short run)\n\n{}. Wi-Fi at a workplace or school {WORK_WIFI}, elsewhere {AWAY_WIFI} (FRONTIER). Bounds as below.\n\n| scenario |", crate::presence0::PRESENCE0_PIN));
+    for ps in PresenceSetting::ALL {
+        s.push_str(&format!(" {} |", ps.as_str()));
+    }
+    s.push_str("\n|---|---|---|---|\n");
+    let pp: Vec<EnergyParams> = PresenceSetting::ALL.iter().map(|&ps| presence_params(&p, ps)).collect();
+    s.push_str("| (inputs) |");
+    for q in &pp {
+        s.push_str(&format!(" Wi-Fi share {:.3}, rounds while unsuspended {:.3}, phone Wh/day {:.2} |", q.get(E::WifiShare), q.get(E::PhoneRoundsWhileUnsuspended), phone_wh_per_day(q, &k, 1.0, 30.0, q.get(E::PhoneCellTailS), q.get(E::WifiShare), 0.85 * q.get(E::PhoneRoundsWhileUnsuspended))));
+    }
+    s.push('\n');
+    for sc in Scenario::ALL {
+        if sc.per() != "household-hour" {
+            continue;
+        }
+        s.push_str(&format!("| {} |", sc.as_str()));
+        for q in &pp {
+            let d = delta(q, &k, sc, ParameterRegime::Expected, Run::Short);
+            s.push_str(&format!(" {} [{}, {}] {} |", j(d.net), j(d.net_bounds.lo), j(d.net_bounds.hi), sign_word(&d)));
+        }
+        s.push('\n');
     }
     s.push_str("\n## The delta by scenario, regime and network run\n\n| scenario | per | regime | run | A added on existing | B added devices | C avoided upstream (net) | delta = A + B - C | enclosure | sign | class |\n|---|---|---|---|---|---|---|---|---|---|---|\n");
     for sc in Scenario::ALL {
@@ -1548,6 +1631,22 @@ mod tests {
             let wsum = 0.728 + 0.146 + 0.071;
             let want = (0.728 * net_at(&p, &k, Scenario::RouterNode, r, run) + 0.146 * net_at(&p, &k, Scenario::CellOnlyPhones, r, run)) / wsum;
             assert!((net_at(&p, &k, Scenario::MixGateway, r, run) - want).abs() < 1e-6 * want.abs().max(1.0));
+        }
+    }
+
+    #[test]
+    fn presence0_lowers_the_phone_term() {
+        let k = counters();
+        let p = EnergyParams::default();
+        let a = presence_params(&p, PresenceSetting::Presence0Awake);
+        let e = presence_params(&p, PresenceSetting::Presence0Edge);
+        assert!((a.get(E::PhoneRoundsWhileUnsuspended) - 0.623 / 0.85).abs() < 0.01);
+        // the Wi-Fi share of awake hours sits in PRESENCE-0's bracket [0.61, 0.79]
+        assert!((0.6..0.8).contains(&a.get(E::WifiShare)), "{}", a.get(E::WifiShare));
+        for sc in [Scenario::PhonesOnly, Scenario::RouterNode] {
+            let r = ParameterRegime::Expected;
+            assert!(net_at(&a, &k, sc, r, Run::Short) < net_at(&p, &k, sc, r, Run::Short));
+            assert!(net_at(&e, &k, sc, r, Run::Short) < net_at(&p, &k, sc, r, Run::Short), "nights at home put rounds on Wi-Fi");
         }
     }
 
