@@ -3162,6 +3162,9 @@ function storyMicroSetup(act){
     // slice) instead of starting a search of its own inside this frame; the act adopts the world it finds
     // (or not yet started, the Zurich prebuild still running on a slow machine: start it now, in idle slices)
     if (microOk() && !MSTORY.leaf && typeof ZP !== "undefined" && typeof zpStory === "function" && !(ZP.cand && ZP.cand.length === 0) && !MSTORY.waitDone){ MSTORY.waitTiled = performance.now(); MSTORY.waitSearch = true; zpIdle(zpStory, 200); return; }
+    // the street is found: wait (the same 15 s) for the leaves its views show around it (preload.js zpStreetBuild), so the
+    // camera never arrives before its ground
+    if (microOk() && MSTORY.leaf && typeof zpStreetReady === "function" && !zpStreetReady() && !MSTORY.waitDone){ MSTORY.waitTiled = performance.now(); MSTORY.waitSearch = true; return; }
     // rebuilt at the act's start, so it plays from the same state every time
     if (!storyMicroWorld()){ MSTORY.actors = null; return; }
     wasm.micro_cmd(6, 0, 0); const a = new Uint32Array(mem.buffer, wasm.micro_buf_ptr(10) >>> 0, 4).slice(); MSTORY.actors = Array.from(a);
@@ -3243,7 +3246,7 @@ function storyMicroTick(act, t){
     const cfg = STORY_ACTS[act + STORY_LEAD];
     // the tiling came in while the act waited: now wait on the street search too (started in idle slices if it has not), with its own 15 s
     if (tlReady() && !MSTORY.leaf && !MSTORY.waitSearch && typeof ZP !== "undefined" && typeof zpStory === "function" && !(ZP.cand && ZP.cand.length === 0)){ MSTORY.waitSearch = true; MSTORY.waitTiled = performance.now(); zpIdle(zpStory, 200); }
-    const searching = MSTORY.waitSearch && !MSTORY.leaf && typeof ZP !== "undefined" && !(ZP.cand && ZP.cand.length === 0);
+    const searching = MSTORY.waitSearch && ((!MSTORY.leaf && typeof ZP !== "undefined" && !(ZP.cand && ZP.cand.length === 0)) || (MSTORY.leaf && typeof zpStreetReady === "function" && !zpStreetReady()));
     if ((!tlReady() || searching) && performance.now() - MSTORY.waitTiled < 15000){ cfg.duration = Math.max(cfg.duration, t + 1); return; }
     // the act starts now: its clock (and so the hour the world is checked against) goes back to 0 BEFORE the setup
     MSTORY.waitTiled = 0; MSTORY.waitSearch = false; MSTORY.waitDone = true; storyActElapsed = 0; storyMicroSetup(0); MSTORY.waitDone = false; storyActElapsed = 0; return;

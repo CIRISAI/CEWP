@@ -389,11 +389,16 @@ Giza 4, Kowloon 12, Delhi 16, Mumbai 12. Storeys fall to match.
 `docs/preload.js`, at idle after first paint, asks once for what the Story's and the default zoom's
 path to Zurich draws, through the page's own loaders so everything is decoded and on the GPU: the 50 m
 coast, lakes and places, GHS-POP and land cover at 1/8°, relief levels 1 and 2 over the Zurich
-corridor (1.6 × the view's half-width at level 2, because the camera is still settling when it starts
-to draw) and the ne10 tiles geoSets will ask for from 2,400 m a pixel. Then, in idle slices under
-8 ms, it builds the Zurich street tiling (leaf layouts and arterials within 0.018° of the centre;
-240 leaves, about 13 MB) and runs the Story's street search (the leaf whose two homes a punch can
-join) one candidate world per idle callback, dropping the world afterwards. The Story now finishes
+corridor and the ne10 tiles geoSets will ask for from 2,400 m a pixel, each for every view centred within
+0.05 rad of Zurich (the Story starts its dive within that of its target). The relief tiles it asks for stay
+on the GPU through the Story's opening and street steps (the level caps would otherwise drop those not in
+view at the dive's first frame). Then, in idle slices under 8 ms: the Story's street search (the leaf whose
+two homes a punch can join), one candidate world per idle callback, dropping the world afterwards; then the
+leaves the street act's views show around that street (the whole street, 600 m or more across the
+screen's short side, on this screen, plus the street's half-width: about 250 leaves at 390 px and 270 at
+1440 px), which the street act waits on as it waits on the search (the same 15 s bound); then, once the
+street steps are over, the square around the centre that the default zoom lands in (leaf layouts and
+arterials within 0.018°; about 220 more leaves). The Story now finishes
 turning to Zurich before it dives (no zoom in while more than about 3° off), so the dive comes
 straight down and needs only the Zurich tiles. `docs/sw.js` serves versioned and geo/kernel files
 from its cache on a return visit (return visit measured: 0 network responses, 78 from the service
@@ -413,6 +418,32 @@ What remains: during the half second the camera passes block zoom (15 to 4 m a p
 that wider view (several hundred to a few thousand) are laid out at 5 ms a frame; until each is built
 its holon shows the density mosaic, not a blank. Bytes: the preload moves about 2.3 MB (390) to 4.3 MB
 (1440) ahead of the dive, all but 0.35 MB (390) and 1.22 MB (1440) of which the path loaded anyway.
+
+### Checked frame by frame (tools/page/story_zoom/run.py)
+
+The Story played from navigation through its street steps at 390 and 1440 px, 1x and 4x CPU, cold and
+warm (service worker and HTTP cache filled by an earlier visit), with every painted frame captured and,
+per tile, when it was asked for and by what (the preload or a frame that needed it), when its bytes and
+its texture arrived, and when it was first drawn. Before the change: no frame with bare ground under the
+centre, but (1) two relief tiles fetched on demand during the dive at 390 px and 4x, cold and warm: the
+level-2 window stepped from its edge in whole tiles and asked for a row wholly outside the view, which the
+preload had not fetched (relief.js reliefWindow is now the exact window, shared by the draw and the
+preload; docs/geo/relief_window.test.js); (2) the square of prebuilt leaves stood around the city centre,
+not the Story's street, so 840 to 1,550 leaves were laid out on demand inside the street steps (116 to
+395 at 4x, where fewer frames ran), including while the camera sat on the street; the dive showed the
+prebuilt square as a patch of streets in the mosaic with leaves popping in around it; (3) at 4x the
+prebuild was not finished when the act began (1440, cold: done 3.7 s after the camera reached the street).
+After: zero tiles fetched on demand inside the street steps in all eight runs, zero frames with unloaded
+ground under the centre, zero leaves laid out on demand while the camera is on the street; the detail is
+drawn as a disc of laid-out leaves (tiling.js: it ends at the nearest leaf with no layout yet), so the
+leaves the dive and the pull-back pass over appear at its faded edge, never as holes. The street act now
+waits for its street's leaves, yet waits less: at 1440 px and 4x the time from the act's start to its
+street being found and laid out fell from 7.2 s to 1.3 s (cold) and from 4.2 s to 1.6 s (warm), and the
+camera reached the street 12 s and 9 s sooner; at 1x and at 390 px it reached it as before or up to 4.3 s
+sooner. No frame's brightness jumped by more than
+24 of 255 between painted frames in any run. Long tasks and frame gaps per act, before and after, were
+within the run-to-run spread of this shared machine; the largest outliers (2.7 s and 5.3 s) held 6 ms of
+script and fell on both sides.
 
 ## Street classes, the floor and the region rule (one table; machine-readable: docs/geo/classes.json)
 

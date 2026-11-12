@@ -341,12 +341,17 @@ function tlDraw(w, h, mpp, sun){
   for (const d of detail){ const k = HOLON.pack(d.c); if (TL.lay.has(k)) continue; pending++;
     if (performance.now() - t0 > TL_GEN_MS) continue; const e = tlBuildLeaf(d.c); TL.lay.set(k, e); TL.bytes += e.bytes; }
   TL.genMs = performance.now() - t0;
+  // the detail is a disc of laid-out leaves: it ends at the nearest leaf with no layout yet (detail is in distance
+  // order), so a leaf built late appears at the disc's faded edge, never as a hole or a lone patch in the mosaic (a
+  // film strip of the Story's dive showed the prebuilt square standing in the mosaic, then leaves popping in around it)
+  let cut = detail.length; for (let i = 0; i < detail.length; i++) if (!TL.lay.has(HOLON.pack(detail[i].c))){ cut = i; break; }
+  TL.cut = cut < detail.length ? Math.max(0.5, detail[cut].bx.dist) : 0;
   // detail: one buffer and one draw per L3 tile, rebuilt only when its set of live leaves changes
   const live = new Set(), byTile = new Map();
-  for (const d of detail){ const k = HOLON.pack(d.c), e = TL.lay.get(k); if (!e) continue;
+  for (let i = 0; i < cut; i++){ const d = detail[i], k = HOLON.pack(d.c), e = TL.lay.get(k);
     TL.lay.delete(k); TL.lay.set(k, e); live.add(e); if (!byTile.has(e.tile)) byTile.set(e.tile, []); byTile.get(e.tile).push(e); }
   const homePx = 10 * F.k / EARTH_M, dpr = window.devicePixelRatio || 1, mh = 0.55 / Math.min(2, dpr);
-  const Re = TL.ringEff || TL.ring.ring, edge = Re < Math.hypot(F.w, F.h) / 2;
+  const Re = TL.cut ? Math.min(TL.ringEff || TL.ring.ring, TL.cut) : (TL.ringEff || TL.ring.ring), edge = Re < Math.hypot(F.w, F.h) / 2;
   if (detA > 0.01 && byTile.size){
     gl.uniform4f(tlLoc.kindA, detA, detA * sstep(1.2, 3, homePx * 0.25), detA, detA * sstep(0.6, 2, homePx));
     gl.uniform4f(tlLoc.minHalf, 0, mh + 0.5, mh, 0); gl.uniform3f(tlLoc.ring, F.w / 2, F.h / 2, edge ? Re : 0);

@@ -96,18 +96,26 @@ function reliefGlobe(){
   const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(V), gl.STATIC_DRAW);
   return { buf, n: V.length / 5 };
 }
-// the tiles of level z the view can see (centre = (pitch, yaw); half-extent from metres a pixel)
-function reliefVisible(z, w, h, mpp){
-  const deg = z === 1 ? 45 : 15, la = pitch * 180 / Math.PI, lo = ((yaw * 180 / Math.PI + 540) % 360) - 180;
+// the tiles of level z a view centred at (la, lo) can see: every row and column the window (half-extent from metres a
+// pixel) overlaps, and no other. Shared by the draw and the Zurich preload (preload.js), so the two cannot disagree.
+// (It once stepped from the window's edge by whole tiles and could add a tile wholly outside the view: a film strip
+// caught the Story's dive fetching such tiles on demand.)
+function reliefWindow(z, w, h, mpp, la, lo){
+  const deg = z === 1 ? 45 : 15, n = 360 / deg;
   const ext = Math.min(90, 1.25 * Math.max(w, h) / 2 * mpp / 111000), lx = Math.min(180, ext / Math.max(0.15, Math.cos(la * Math.PI / 180)));
-  const out = [], have = RELIEF.idx[z];
-  for (let a = la - ext; a < la + ext + deg; a += deg){ const r = Math.floor((90 - Math.max(-89.999, Math.min(89.999, a))) / deg);
-    for (let o = lo - lx; o < lo + lx + deg; o += deg){ const c = Math.floor((((o + 180) % 360 + 360) % 360) / deg); const k = r + "_" + c; if (have.has(k) && !out.includes(k)) out.push(k); } }
-  return out.map(k => k.split("_").map(Number));
+  const r0 = Math.floor((90 - Math.min(89.999, la + ext)) / deg), r1 = Math.floor((90 - Math.max(-89.999, la - ext)) / deg);
+  const c0 = Math.floor((lo - lx + 180) / deg), c1 = Math.min(Math.floor((lo + lx + 180) / deg), c0 + n - 1), out = [];
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) out.push([r, ((c % n) + n) % n]);
+  return out;
+}
+// the tiles of level z the view can see (centre = (pitch, yaw))
+function reliefVisible(z, w, h, mpp){
+  const have = RELIEF.idx[z];
+  return reliefWindow(z, w, h, mpp, pitch * 180 / Math.PI, ((yaw * 180 / Math.PI + 540) % 360) - 180).filter(([r, c]) => have.has(r + "_" + c));
 }
 function reliefEvict(z, keep){
   const n = [...RELIEF.tiles.values()].filter(t => t.z === z).length; if (n <= RELIEF.cap[z]) return;
-  const old = [...RELIEF.tiles.entries()].filter(([k, t]) => t.z === z && !keep.has(k) && !t.pending).sort((a, b) => a[1].used - b[1].used);
+  const old = [...RELIEF.tiles.entries()].filter(([k, t]) => t.z === z && !keep.has(k) && !t.pending && !(typeof zpPinned === "function" && zpPinned(k))).sort((a, b) => a[1].used - b[1].used);
   for (let i = 0; i < n - RELIEF.cap[z] && i < old.length; i++){ const [k, t] = old[i]; gl.deleteTexture(t.tex); gl.deleteBuffer(t.mesh.buf); RELIEF.tiles.delete(k); RELIEF.cpu.delete(k); }
 }
 // Called inside the land stencil (bit 1). Finest first; each pass marks bit 2, so a pixel is shaded once.
