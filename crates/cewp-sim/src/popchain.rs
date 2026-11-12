@@ -80,6 +80,11 @@ pub trait Cells {
     fn anchor(&self, _r: usize, _c: usize) -> Option<(f64, f64)> {
         None
     }
+    /// A cell's in-cell pixel people, if the caller keeps them (the kernel memoises them: a tree's
+    /// splits ask for the same partly covered cells many times). None computes them afresh.
+    fn cached_pixels(&self, _r: usize, _c: usize) -> Option<[u32; incell::N]> {
+        None
+    }
 }
 
 /// The in-cell seam (FSD/twin/holon-intake.md section 2): a 1/8-degree cell's people divided over its
@@ -296,7 +301,7 @@ fn overlap_milli<C: Cells>(cells: &C, h: HolonId) -> u64 {
                 continue;
             }
             // a cell the holon only partly covers: its pixels' people, each by the share of the pixel covered
-            let (px, _, _) = incell::pixels(cells, r, cc);
+            let px = cells.cached_pixels(r, cc).unwrap_or_else(|| incell::pixels(cells, r, cc).0);
             let pd = CELL_DEG / incell::SIDE as f64;
             for (i, &q) in px.iter().enumerate() {
                 if q == 0 {

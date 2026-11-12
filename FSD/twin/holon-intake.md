@@ -152,8 +152,12 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   (unresolved); the world-model layers carry the regional chart and the household verdicts.
 - **Owed**: the cell grid still shows (classes are quantised per cell and the table does not place
   towns); a rhythm Series renderer; envelope greying needs the country test (Natural Earth admin-0
-  polygons, approval asked); under 4x CPU throttle one block build is about 28 ms, so a hitch per
-  frame while blocks build.
+  polygons, approval asked).
+- **Under 4x CPU throttle (390 x 844)**: in-cell blocks build off the frame, cell by cell, in idle slices
+  (at least 2 ms a slice when the thread is never idle); the longest slice measured 2.9 ms. The tree's
+  splits now read memoised cell pixels (kernel), which took the camera jump's longest task from 2.1 s
+  to 0.36 s at the Ruhr (both seams off: 0.15 s); max frame 67 ms (was 2,083 ms). Blocks fill
+  gradually: about 6 s per block on a busy throttled thread.
 - **Household seam** (popchain::households, kernel pop_households / pop_household_seam, on by default):
   `holon_scene::household::generate` once per L4 tile with the tile's people, its class (explicit
   map 1..5 at 0 / 250 / 1,500 / 6,000 / 12,000 per km2, tested) and the reference rule (MODEL: German

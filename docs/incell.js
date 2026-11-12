@@ -4,7 +4,9 @@
 // town is the twin's display rule). One R8 texture per 1.5-degree block (180 x 180 pixels = 12 x 12 cells),
 // built once from pop_cell_pixels and kept, drawn as a tint inside the land stencil at region and city zoom,
 // blended with the land and relief already drawn. No per-frame loop over cells: a frame binds textures and
-// draws one mesh per visible block; at most a few blocks are built a frame, within a time budget.
+// draws one mesh per visible block. Blocks are built off the frame, cell by cell, in idle slices
+// (requestIdleCallback), stopping while 1.5 ms of the slice remain (2 ms at least when the thread is never idle),
+// so a slow phone never hitches.
 // Unresolved data looks unresolved: a fine diagonal hatch runs through the tint (the verdict of every row).
 const INCELL = { blocks: new Map(), cap: 48, budgetMs: 6, built: 0, buildMs: 0, bytes: 0, frameMs: 0, gen: 0 };
 const ICV = `attribute vec3 p;attribute vec2 uv;uniform mat3 R;uniform float S;uniform vec2 asp;varying vec2 vUv;varying float vz;void main(){vec3 q=R*p;vz=q.z;vUv=uv;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
@@ -22,28 +24,41 @@ function incellMesh(la1, lo0){
   const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(V), gl.STATIC_DRAW);
   return { buf, n: V.length / 5 };
 }
-// build block (br, bc) of 1.5-degree cells: 144 cells x 225 pixels; a pixel's value is log-scaled people per km2
-// (0.9 km pixels: 100 per km2 -> 0, about 30,000 -> 1; sparser pixels are not drawn). Returns null before the chain is in.
-function incellBuild(br, bc){
-  if (typeof wasm === "undefined" || !wasm || !wasm.pop_cell_pixels) return null;
-  const t0 = performance.now(), N = 180, img = new Uint8Array(N * N); let any = false;
-  for (let cr = 0; cr < 12; cr++) for (let cc = 0; cc < 12; cc++){
-    const r = br * 12 + cr, c = bc * 12 + cc; if (!wasm.pop_cell_pixels(r, c)) return null;
-    const p = wasm.holon_buf_ptr(0) >>> 0, o = new Float64Array(wasm.memory.buffer, p, 452);
-    if (o[451] === 0) continue; // under the floor: nobody
-    const lat = 90 - (r + 0.5) * 0.125, km2 = 0.86 * 0.86 * Math.cos(lat * Math.PI / 180);
-    for (let i = 0; i < 225; i++){ const q = o[i]; if (!q) continue; any = true;
-      const v = Math.max(0, Math.min(1, (Math.log10(q / km2) - 2) / 2.5)); img[(cr * 15 + Math.floor(i / 15)) * N + cc * 15 + (i % 15)] = Math.round(v * 255); }
+// the blocks the view wants, nearest first, built in idle slices; `job` is the block in progress
+INCELL.want = []; INCELL.job = null; INCELL.idle = false; INCELL.slices = 0; INCELL.longest = 0;
+function incellCell(job){
+  const k = job.next++, cr = Math.floor(k / 12), cc = k % 12, r = job.br * 12 + cr, c = job.bc * 12 + cc, N = 180;
+  if (!wasm.pop_cell_pixels(r, c)) return false;
+  const p = wasm.holon_buf_ptr(0) >>> 0, o = new Float64Array(wasm.memory.buffer, p, 452);
+  if (o[451] === 0) return true;
+  const lat = 90 - (r + 0.5) * 0.125, km2 = 0.86 * 0.86 * Math.cos(lat * Math.PI / 180);
+  for (let i = 0; i < 225; i++){ const q = o[i]; if (!q) continue; job.any = true;
+    const v = Math.max(0, Math.min(1, (Math.log10(q / km2) - 2) / 2.5)); job.img[(cr * 15 + Math.floor(i / 15)) * N + cc * 15 + (i % 15)] = Math.round(v * 255); }
+  return true;
+}
+function incellIdle(dl){
+  INCELL.idle = false; const t0 = performance.now(); INCELL.slices++;
+  // as much as the idle slice allows (leaving 1.5 ms), and at least 2 ms when the thread is never idle (a cell is
+  // about 0.05 ms, 0.2 ms at 4x throttle): a starved slow phone still fills its blocks without a visible hitch
+  while (dl.timeRemaining() > 1.5 || performance.now() - t0 < 2){
+    if (!INCELL.job){ const v = INCELL.want.find((x) => !INCELL.blocks.has(x.k)); if (!v) break; INCELL.job = { k: v.k, br: v.br, bc: v.bc, next: 0, any: false, img: new Uint8Array(180 * 180), gen: INCELL.gen }; }
+    const j = INCELL.job; if (j.gen !== INCELL.gen){ INCELL.job = null; continue; }
+    if (!incellCell(j)){ INCELL.job = null; break; }
+    if (j.next === 144){ INCELL.blocks.set(j.k, incellUpload(j)); INCELL.built++; INCELL.job = null; if (typeof gfxDirty === "function") gfxDirty(300); }
   }
-  INCELL.buildMs += performance.now() - t0; INCELL.built++;
-  if (!any) return { empty: true };
-  const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  const dt = performance.now() - t0; INCELL.buildMs += dt; INCELL.longest = Math.max(INCELL.longest, dt);
+  if (INCELL.job || INCELL.want.some((x) => !INCELL.blocks.has(x.k))) incellSchedule();
+}
+function incellSchedule(){ if (INCELL.idle) return; INCELL.idle = true; (window.requestIdleCallback || ((f) => setTimeout(() => f({ timeRemaining: () => 8 }), 16)))(incellIdle, { timeout: 100 }); }
+function incellUpload(j){
+  if (!j.any) return { empty: true };
+  const N = 180, tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, N, N, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, img);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, N, N, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, j.img);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   INCELL.bytes += N * N;
-  return { tex, mesh: incellMesh(90 - br * 1.5, -180 + bc * 1.5) };
+  return { tex, mesh: incellMesh(90 - j.br * 1.5, -180 + j.bc * 1.5) };
 }
 // every block the view can see, nearest the centre first
 function incellVisible(w, h, mpp){
@@ -56,15 +71,14 @@ function incellVisible(w, h, mpp){
   return out.sort((x, y) => x.d - y.d);
 }
 // the seam switch or a new population chain invalidates every block
-function incellReset(){ for (const b of INCELL.blocks.values()) if (b && b.tex){ gl.deleteTexture(b.tex); gl.deleteBuffer(b.mesh.buf); } INCELL.blocks.clear(); INCELL.bytes = 0; INCELL.gen++; }
+function incellReset(){ for (const b of INCELL.blocks.values()) if (b && b.tex){ gl.deleteTexture(b.tex); gl.deleteBuffer(b.mesh.buf); } INCELL.blocks.clear(); INCELL.bytes = 0; INCELL.gen++; INCELL.job = null; }
 // Called inside the land stencil, after the relief. a: the layer's opacity (zoom fade).
 function incellDraw(R, S, asp, w, h, mpp, a){
   if (a <= 0.01 || typeof tlPop !== "function" || !tlPop() || !(typeof TL !== "undefined" && TL.l0 && TL.l0.size)) return;
   if (TL.incell === false) return; // the legacy even spread has no structure to draw
   const t0 = performance.now(), vis = incellVisible(w, h, mpp), keep = new Set();
-  let spent = 0;
-  for (const v of vis){ keep.add(v.k); if (INCELL.blocks.has(v.k) || spent > INCELL.budgetMs) continue;
-    const s = performance.now(), b = incellBuild(v.br, v.bc); spent += performance.now() - s; if (b) INCELL.blocks.set(v.k, b); }
+  for (const v of vis) keep.add(v.k);
+  INCELL.want = vis; if (vis.some((x) => !INCELL.blocks.has(x.k))) incellSchedule(); // built off the frame, in idle slices
   if (INCELL.blocks.size > INCELL.cap) for (const [k, b] of INCELL.blocks){ if (INCELL.blocks.size <= INCELL.cap) break; if (keep.has(k)) continue; if (b && b.tex){ gl.deleteTexture(b.tex); gl.deleteBuffer(b.mesh.buf); INCELL.bytes -= 180 * 180; } INCELL.blocks.delete(k); }
   if (!pIncell) pIncell = prog(ICV, ICF);
   gl.useProgram(pIncell);
@@ -78,5 +92,4 @@ function incellDraw(R, S, asp, w, h, mpp, a){
     gl.drawArrays(gl.TRIANGLES, 0, b.mesh.n); }
   gl.disableVertexAttribArray(au);
   INCELL.frameMs = performance.now() - t0;
-  if (spent > 0 && typeof gfxDirty === "function") gfxDirty(300); // more blocks to build next frame
 }

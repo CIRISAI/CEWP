@@ -797,6 +797,16 @@ impl cewp_sim::popchain::Cells for PtrCells {
         // SAFETY: one thread.
         unsafe { *std::ptr::addr_of!(INCELL) }
     }
+    fn cached_pixels(&self, r: usize, c: usize) -> Option<[u32; cewp_sim::popchain::incell::N]> {
+        let key = r * cewp_sim::popchain::NX + c;
+        // SAFETY: one thread.
+        let m = unsafe { (*std::ptr::addr_of_mut!(PIXELS)).get_or_insert_with(std::collections::BTreeMap::new) };
+        if let Some(p) = m.get(&key) { return Some(*p); }
+        if m.len() > 20_000 { m.clear(); }
+        let p = cewp_sim::popchain::incell::pixels(self, r, c).0;
+        m.insert(key, p);
+        Some(p)
+    }
     fn anchor(&self, r: usize, c: usize) -> Option<(f64, f64)> {
         // SAFETY: one thread.
         unsafe { (*std::ptr::addr_of!(ANCHORS)).as_ref().and_then(|m| m.get(&(r * cewp_sim::popchain::NX + c)).copied()) }
@@ -821,6 +831,7 @@ fn pop_state() -> Option<&'static (PtrCells, cewp_sim::popchain::World)> {
 pub extern "C" fn pop_load(ptr: *mut f32, len: u32, world_people: f64) -> u32 {
     use cewp_sim::popchain::{cell_people, World, NX, NY};
     tiles().clear();
+    pixels_clear();
     if (len as usize) < NX * NY { return 0; }
     // SAFETY: the page allocated `len` f32 at `ptr` and keeps it; f32 and u32 have the same size.
     unsafe {
@@ -858,6 +869,10 @@ pub extern "C" fn pop_split(id: f64, people: f64, households: f64) -> u32 {
     kids.len() as u32
 }
 
+/// Memoised in-cell pixels per 1/8-degree cell (cleared when the seam or the population changes).
+static mut PIXELS: Option<std::collections::BTreeMap<usize, [u32; cewp_sim::popchain::incell::N]>> = None;
+fn pixels_clear() { unsafe { *std::ptr::addr_of_mut!(PIXELS) = None; } }
+
 /// The anchors of the in-cell seam: the first populated place of each 1/8-degree cell, in pixel units.
 static mut ANCHORS: Option<std::collections::BTreeMap<usize, (f64, f64)>> = None;
 
@@ -882,6 +897,7 @@ pub extern "C" fn pop_anchors(ptr: *const i32, n: u32) -> u32 {
     }
     let n = m.len() as u32;
     unsafe { *std::ptr::addr_of_mut!(ANCHORS) = Some(m); }
+    pixels_clear();
     n
 }
 
@@ -891,6 +907,7 @@ pub extern "C" fn pop_anchors(ptr: *const i32, n: u32) -> u32 {
 pub extern "C" fn pop_incell(on: u32) -> u32 {
     unsafe { *std::ptr::addr_of_mut!(INCELL) = on != 0; }
     tiles().clear();
+    pixels_clear();
     on
 }
 
