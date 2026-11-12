@@ -371,7 +371,7 @@ which would cut the per-copy overhead.
 
 ## 13. One thin publisher in a five-person call (`media_thin.rs`, `cewp-cli media-thin 5`)
 
-The design case for edge v45.1. Eric's rule: ALM engages by the publisher's measured uplink,
+The design case for edge v45.1. The rule: ALM engages by the publisher's measured uplink,
 not by room size. Member 0 publishes on a thin uplink (DSL buffer depth and last mile, uplink
 swept 128 / 256 / 512 / 1,000 kbit/s, plus 2,000 to bracket video; MODEL). Member 1 is the
 natural next hop (fibre, nearest, joins first). Members 2–4 are a fibre home, a cable-Wi-Fi

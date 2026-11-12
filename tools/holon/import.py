@@ -2,7 +2,7 @@
 """Import one CIRISHolon statistics table into the twin (FSD/twin/holon-intake.md section 1).
 
 Usage: python3 -I tools/holon/import.py <CIRISHolon checkout> <commit> <ref>
-       ref: uneven0 | household0_us | household0_de
+       ref: uneven0 | household0_us | household0_de | power0 | devices0_us | presence0_us | grid0
 
 Reads the table and its sidecar from the checkout at the pinned commit (`git show`; nothing is
 fetched from the network), validates it (integers where the table promises integers; no key that
@@ -26,6 +26,7 @@ SOURCES = {
     "uneven0": ("conformance/scene/tables/uneven0", ["transition_table.json", "transition_table_by_region.json"]),
     "household0_us": ("conformance/scene/tables/household0_us", ["household_table.json"]),
     "household0_de": ("conformance/scene/tables/household0_de", ["household_table.json"]),
+    "grid0": ("conformance/scene/tables/grid0", ["grid_table.json"]),
 }
 
 
@@ -171,6 +172,23 @@ def presence(t):
             "by_day_of_week": {"days": t["by_day_of_week"]["days"], "table": r4(t["by_day_of_week"]["table"])}, "three_numbers": tn, "years": t["years"]}
 
 
+def grid(t):
+    """GRID-0: every row kept as published (value, unit, year, kind, trust, source, licence, how it was read),
+    with the ISO 3166-1 numeric code of a country row from docs/geo/country_iso.json (the Natural Earth names the
+    country mask is built from); a country row whose name is not there is refused, never guessed."""
+    names = json.load(open(os.path.join(ROOT, "docs", "geo", "country_iso.json")))["names"]
+    keep = ("id", "place", "place_kind", "parent", "year", "value", "unit", "kind", "trust", "source", "licence", "read", "original_value")
+    rows = []
+    for r in t["rows"]:
+        e = {k: r.get(k) for k in keep}
+        if r["place_kind"] == "country":
+            if r["place"] not in names:
+                raise SystemExit(f"refused: country {r['place']!r} has no ISO code in docs/geo/country_iso.json")
+            e["iso"] = names[r["place"]]
+        rows.append(e)
+    return {"conventions": t.get("conventions"), "rows": rows}
+
+
 def main():
     if sys.argv[1] == "--check-rust":
         same = os.path.exists(RUST) and open(RUST).read() == rust_tables()
@@ -200,6 +218,8 @@ def main():
         data = devices(tables["device_table.json"])
     elif ref == "presence0_us":
         data = presence(tables["presence_table.json"])
+    elif ref == "grid0":
+        data = grid(tables["grid_table.json"])
     else:
         data = household(tables["household_table.json"], ref[-2:])
     full = side.get("commit") or subprocess.run(["git", "-C", holon, "rev-parse", commit], check=True, capture_output=True, text=True).stdout.strip()

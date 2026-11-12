@@ -36,6 +36,34 @@
    },
    "version": 1
   },
+  "grid0": {
+   "asset": "docs/geo/holon/grid0.json",
+   "asset_bytes": 150684,
+   "asset_sha256": "3f567db56488c0712a35b80431d15a23576fe9992a172b8643939c27f8da7f84",
+   "class": "MODEL",
+   "dataset": "documents gathered by CIRISHolon's scout via CIRISHolon",
+   "envelope": null,
+   "holon_commit": "0d38d4db88c2715a4d3bb1e3062164cd723ce825",
+   "ledger": "holon-grid0",
+   "notice": "values are facts quoted with their sources; each row carries the licence as read, and the report lists the licences that could not be read",
+   "reference": "GRID-0 (a table of priors)",
+   "renormalised_vectors": 0,
+   "serves_registry_rows": [
+    "grid.carbon_intensity (the twin's Power map: gCO2 per person-year added or saved, by place)"
+   ],
+   "source_files": {
+    "grid_table.json": {
+     "bytes": 266548,
+     "path": "conformance/scene/tables/grid0/grid_table.json",
+     "sha256": "ffd498180d9c3bb095f2277a10315c98a87e6bd389cf46579e3767f5de5512cf"
+    }
+   },
+   "verdict": {
+    "all_rows": "unresolved",
+    "reason": "priors gathered from documents; nothing scored. Web pages were read through a fetch tool's extraction, not raw; 52 US state rows were transcribed by eye and are rated B for it"
+   },
+   "version": 1
+  },
   "household0_de": {
    "asset": "docs/geo/holon/household0_de.json",
    "asset_bytes": 4605,

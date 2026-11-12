@@ -272,9 +272,26 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   baked as `FULL_REST` and recomputed by a test, which also checks energy_full's net = its additions + this side),
   times ALL the street's persons, stated on the line as an upper end (every household member an internet user; no
   sourced user share is in the twin). Envelopes, stated on the line: the data-centre side is the world-mean user's
-  estate (71.7 kWh per user-year), not a US user's draw; the device side is US 2020. twin-theory confirmed the
+  estate (71.7 kWh per user-year), not a US user's draw; the device side is US 2020. the energy package confirmed the
   sum: A + B alone (C is inside "removed"), the additions enter eval nowhere else, and the two sides share no
   input row, so the sum of the lows is attainable. Columbus suburb, 25 households, 48 people, gateway: devices +6.8 (+0.9 to +34.8), data
   centre -29.6 (-83.2 to +1,745.9), net -22.8 (-82.2 to +1,780.7), sign open. The pass's counters at seed 1 are
   baked too (`counters_seed1`, test against `Counters::from_hooks(1)`): read live they ran a stand-in day, a
   1.2 s task on a phone at 4x CPU throttle. A street costs 10 to 45 ms there. Wasm 1,591,135 bytes.
+- **Power map: GRID-0 by country** (CIRISHolon 0d38d4d `conformance/scene/tables/grid0`, imported as
+  docs/geo/holon/grid0.json; ledger holon-grid0). Country rows are matched to ISO codes through
+  docs/geo/country_iso.json (NAME / ADMIN / NAME_LONG of the same Natural Earth admin-0 file the mask is built from;
+  tools/geo/country_iso.py; a name not there is refused, never guessed). GRID-0's rules, all applied: one kind per
+  map, chosen in the legend (Ember generation average, life-cycle, the default long-run reading; a third-party
+  consumption-mix average, all trust C; the US non-baseload rate and India's operating margin, the short-run
+  readings); each country at its latest year in that kind, the year (or span) on the legend; trust C hatched;
+  rows that disagree for one place and year are not averaged (the higher-trust row shown, the other named in the
+  disclosure); a country with no row of the kind is "no reference", no region value inherited. Only COUNTRY rows
+  are drawn (no subregion boundaries in the twin); the disclosure gives the US mainland eGRID 2023 subregion span
+  the country value hides (110 to 634 g per kWh average, 402 to 858 non-baseload). Drawn as one equirectangular
+  texture painted from the admin-0 mask's rings (2,048 x 1,024, NEAREST) on a whole-sphere mesh inside the land
+  stencil, over the veil, ramp cmocean thermal 0 to 1,000 g per kWh; the population points and the night glow
+  are off under it. Coverage today: 6 countries (Ember 2025), 17 (consumption mix), 1 each (short run).
+  Not built: intensity times the per-person energy net. That net's range spans zero and its data-centre side is a
+  world mean, so a country map of "attributed gCO2 per person-year" would colour a sign-open, non-local quantity;
+  it waits for a per-place energy side.

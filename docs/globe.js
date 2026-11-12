@@ -986,8 +986,9 @@ function draw(){
     // 4b. people inside each 1/8-degree cell at ~0.9 km (incell.js: the kernel's in-cell seam, CIRISHolon UNEVEN-0), region and city zoom
     if (typeof incellDraw==="function") incellDraw(R,S,asp,w,h,mpp,sstep(3000,1200,mpp)*(1-sstep(60,25,mpp)));
     if (typeof incellAwakeWide==="function") incellAwakeWide(R,S,asp,sstep(1200,3000,mpp)*(1-sstep(12000,25000,mpp))); // continental zoom: the veil, and Awake by longitude
+    if (typeof incellPower==="function") incellPower(R,S,asp,1-sstep(60,25,mpp)); // Power: GRID-0 by country, every zoom above the street
     // 5. the night side: the population grid (MODEL input) glows where the kernel's sun has set
-    if (typeof gfxNightGlow==="function" && (typeof LAYERS==="undefined" || LAYERS.on("glow")) && !(typeof DATAMAP!=="undefined" && DATAMAP.active && mpp<25000 && mpp>25)) gfxNightGlow(R,S,asp,mpp,1.0); // a data map replaces the glow where it draws
+    if (typeof gfxNightGlow==="function" && (typeof LAYERS==="undefined" || LAYERS.on("glow")) && !(typeof DATAMAP!=="undefined" && DATAMAP.active && mpp>25 && (mpp<25000 || DATAMAP.active===5))) gfxNightGlow(R,S,asp,mpp,1.0); // a data map replaces the glow where it draws
     gl.disable(gl.STENCIL_TEST); }
   // shorelines, country borders and rivers from the set in use; they fade out before streets fade in
   if (gsets.length && GEO.rf>0.004){ gl.useProgram(pV); gl.uniformMatrix3fv(gl.getUniformLocation(pV,"R"),false,R); gl.uniform1f(gl.getUniformLocation(pV,"S"),S); gl.uniform2fv(gl.getUniformLocation(pV,"asp"),asp); gl.uniform3fv(gl.getUniformLocation(pV,"uSunWorld"),sunWorld);
@@ -1013,7 +1014,7 @@ function draw(){
     gl.bindBuffer(gl.ARRAY_BUFFER,kindBuf); gl.enableVertexAttribArray(ak); gl.vertexAttribPointer(ak,1,gl.UNSIGNED_BYTE,false,0,0);
     // below the planetary view, people sit on the same land the fill shows: the stencil still holds it
     if (landVerts){ gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL,1,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP); }
-    gl.drawArrays(gl.POINTS,0,npts); gl.disable(gl.STENCIL_TEST);
+    if (!(typeof DATAMAP!=="undefined" && DATAMAP.active===5 && mpp>25)) gl.drawArrays(gl.POINTS,0,npts); gl.disable(gl.STENCIL_TEST); // the Power map replaces the population points
     gl.disable(gl.DEPTH_TEST); }
   // the street tiling (tiling.js): holons over the land, clipped by the same land stencil
   if (typeof tlDraw==="function") tlDraw(w,h,mpp,sunWorld);
@@ -2534,11 +2535,11 @@ function drawScaleBar(g, F, ppm){
 const pad2 = (n) => String(n).padStart(2, "0"); // the street clock's two-digit fields
 // ---- CIRISHolon's tables on the page (FSD/twin/holon-intake.md): loaded lazily, never at first paint
 const HOLT = { want: false, idx: null, t: {}, reg: null, regAt: null };
-const HOL_V = 2; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
+const HOL_V = 3; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
 function holLoad(){
   if (HOLT.want) return; HOLT.want = true;
   const j = (u) => fetch(u + "?v=" + HOL_V).then((r) => r.json());
-  j("geo/holon/index.json").then((x) => { HOLT.idx = x.tables; for (const ref of Object.keys(x.tables)) j("geo/holon/" + ref + ".json").then((t) => { HOLT.t[ref] = t; if (typeof gfxDirty === "function") gfxDirty(300); }).catch((e) => console.warn(e.message)); }).catch((e) => console.warn(e.message));
+  j("geo/holon/index.json").then((x) => { HOLT.idx = x.tables; for (const ref of Object.keys(x.tables)) j("geo/holon/" + ref + ".json").then((t) => { HOLT.t[ref] = t; if (typeof gfxDirty === "function") gfxDirty(300); if (ref === "grid0" && DATAMAP.active === 5) dmRender(); }).catch((e) => console.warn(e.message)); }).catch((e) => console.warn(e.message));
   j("geo/regions.json").then((r) => { HOLT.reg = r; HOLT.regAt = new Map(r.cells.map((c) => [c[2], c[4]])); }).catch((e) => console.warn(e.message));
   fetch("geo/countries.bin?v=" + HOL_V).then((r) => r.arrayBuffer()).then((b) => { HOLT.countries = countriesDecode(b); if (typeof gfxDirty === "function") gfxDirty(500); }).catch((e) => console.warn(e.message));
 }
@@ -2725,7 +2726,36 @@ const DM_MAPS = [
   { id: 2, icon: "☾", name: "Awake", ref: "holon-presence0-us" },
   { id: 3, icon: "✓", name: "Verdict", ref: "holon-housegen1" },
   { id: 4, icon: "⌂", name: "Households", ref: "holon-housegen1" },
+  { id: 5, icon: "ϟ", name: "Power", ref: "holon-grid0" },
 ];
+// ---- Power: CIRISHolon GRID-0 (grid carbon intensity priors) by COUNTRY on the Natural Earth admin-0 mask. GRID-0's rules:
+// one kind per map (never two), the year on the legend, trust C hatched, no averaging of disagreeing rows (the higher-trust row
+// shown, the other named), a country with no row is "no reference" (no inherited region value). Each choice is one exact kind.
+const GRID_KINDS = [
+  { key: "ember", label: "generation average, life-cycle (Ember)", reading: "the long-run reading: an average, location-based rate", pre: "generation average, life-cycle (Ember:" },
+  { key: "lcp", label: "consumption-mix average (third party)", reading: "the long-run reading: an average rate of the consumption mix", pre: "consumption mix average (domestic generation plus net imports)" },
+  { key: "nbl", label: "non-baseload (US eGRID)", reading: "the short-run reading: a non-baseload rate, EPA's proxy for a marginal rate", pre: "NON-BASELOAD output emission rate" },
+  { key: "om", label: "operating margin (India CEA)", reading: "the short-run reading: a simple operating margin, a marginal proxy", pre: "simple OPERATING MARGIN" },
+];
+const GRID = { kind: 0, sel: null, key: "" };
+const GRID_TRUST = { A: 3, B: 2, C: 1 };
+// the rows the map shows for the chosen kind: per country its latest year; within that year the higher-trust row, the others named
+function gridSel(){
+  const t = HOLT.t.grid0; if (!t) return null; const K = GRID_KINDS[GRID.kind]; if (GRID.sel && GRID.key === K.key) return GRID.sel;
+  const by = new Map();
+  for (const r of t.data.rows){ if (r.place_kind !== "country" || !r.kind.startsWith(K.pre)) continue; const b = by.get(r.iso) || []; b.push(r); by.set(r.iso, b); }
+  const rows = [];
+  for (const [iso, b] of by){ const yr = Math.max(...b.map((r) => r.year)), same = b.filter((r) => r.year === yr).sort((x, y) => GRID_TRUST[y.trust] - GRID_TRUST[x.trust]);
+    rows.push({ iso, row: same[0], others: same.slice(1) }); }
+  rows.sort((a, b) => b.row.value - a.row.value);
+  const years = [...new Set(rows.map((r) => r.row.year))].sort(), units = [...new Set(rows.map((r) => r.row.unit))];
+  // the US subregion span behind the country value (eGRID 2023, the mainland: Alaska, Hawaii and Puerto Rico apart)
+  const sub = (pre) => { const v = t.data.rows.filter((r) => r.place_kind === "subregion" && r.parent === "United States" && r.year === 2023 && r.kind.startsWith(pre) && !/^(AK|HI|PR)/.test(r.place)).map((r) => r.value); return v.length ? [Math.min(...v), Math.max(...v)] : null; };
+  GRID.sel = { rows, years, units, kind: rows.length ? rows[0].row.kind : K.pre, us: { avg: sub("generation average (eGRID"), nbl: sub("NON-BASELOAD") } }; GRID.key = K.key;
+  if (typeof incellPowerReset === "function") incellPowerReset();
+  return GRID.sel;
+}
+function gridName(iso){ const t = HOLT.t.grid0, r = t && t.data.rows.find((x) => x.iso === iso); return r ? r.place : holCountryName(iso); }
 // HOUSEGEN-1's rows as people per household (kernel pop_household_means): German 2022 classes 1..5, US 2024 classes 1..5,
 // then the classes' lower bounds in people per km2; read once, for the Households map and its chip line
 let HH_MEANS = null;
@@ -2737,7 +2767,7 @@ function hhMeans(){
 // a legend is two lines: the map's name with its ramp (ticks and units) or its swatches, then the table's badge and a
 // "where this comes from" disclosure holding the prose (review: legends had become prose)
 const DM_MORE = { open: false };
-const DM_RAMP_OF = { "dm-people": "people", "dm-awake": "awake", "dm-hh": "households" }; // incell.js DM_RAMPS: the bars use the shader's stops
+const DM_RAMP_OF = { "dm-people": "people", "dm-awake": "awake", "dm-hh": "households", "dm-power": "power" }; // incell.js DM_RAMPS: the bars use the shader's stops
 const dmGrad = (cls) => typeof DM_RAMPS !== "undefined" && DM_RAMP_OF[cls] ? `background:linear-gradient(90deg,${DM_RAMPS[DM_RAMP_OF[cls]].join(",")})` : "";
 function dmBar(cls, ticks){ return `<span class="dm-bar"><span class="dm-ramp ${cls}" style="${dmGrad(cls)}"></span>${ticks.map(([v, t]) => `<i style="left:${(v * 100).toFixed(1)}%">${t}</i>`).join("")}</span>`; }
 function dmLegend(){
@@ -2747,6 +2777,15 @@ function dmLegend(){
     `<div class="dm-l2"><span class="dm-tb">CIRISHolon UNEVEN-0 v1</span> ${holVd("unresolved", "unresolved")} ${more(fig("holon-uneven0", "persons per km² in each ~0.9 km pixel, log scale: a 1/8° cell's people over its pixels by CIRISHolon's in-cell table (regional row where published); which pixel is the town is the twin's rule (MODEL)"))}</div>`;
   if (id === 2) return `<div class="dm-l1"><b>Awake now</b> ${fig("holon-presence0-us", dmBar("dm-awake", [[0, "0%"], [0.5, "50%"], [1, "100%"]]) + " awake")} <span class="dm-noref">no ref.</span></div>` +
     `<div class="dm-l2"><span class="dm-tb">CIRISHolon PRESENCE-0 v1 · US 2022-24</span> ${more(fig("holon-presence0-us", "the share of persons aged 15 and over awake at each block's local hour (US time diaries 2022-2024, by day type, interpolated between hours); United States only, hatched with no reference elsewhere; at street zoom each adult's own generated day (PRESENCEGEN-2) shows instead"))}</div>`;
+  if (id === 5){ const g = gridSel(), K = GRID_KINDS[GRID.kind];
+    if (!g) return `<div class="dm-l1"><b>Power</b> loading CIRISHolon's GRID-0…</div>`;
+    const yr = g.years.length ? (g.years.length === 1 ? String(g.years[0]) : g.years[0] + "–" + g.years[g.years.length - 1]) : "no row", unit = g.units.join(" / ") || "gCO2/kWh";
+    const sel = `<select class="dm-kind" data-grid-kind aria-label="kind of rate">${GRID_KINDS.map((k, i) => `<option value="${i}"${i === GRID.kind ? " selected" : ""}>${k.label}</option>`).join("")}</select>`;
+    const list = g.rows.map((r) => `${r.row.place} ${r.row.value} (${r.row.year}, trust ${r.row.trust}${r.others.length ? "; also " + r.others.map((o) => o.value + " trust " + o.trust + ", " + o.source).join("; ") : ""})`).join(", ");
+    return `<div class="dm-l1 dm-wrap"><b>Power</b> ${fig("holon-grid0", "grid carbon intensity, " + unit + ", " + yr)} ${sel}</div>` +
+      `<div class="dm-l2 dm-wrap">${fig("holon-grid0", dmBar("dm-power", [[0, "0"], [0.25, "250"], [0.5, "500"], [0.75, "750"], [1, "1000"]]))} <span class="dm-tb">CIRISHolon GRID-0 v1</span> ${holVd("unresolved", "unresolved")} <span class="vd dm-noref">no ref.</span> ${more(fig("holon-grid0", "kind shown: " + g.kind + " — " + K.reading + ". One kind per map; another kind is another map. Countries (" + g.rows.length + "): " + (list || "none") +
+        ". Trust C rows (secondhand pages) are hatched; where two rows disagree for one place and year the higher-trust row is shown and the other named, never averaged. A country with no row of this kind is 'no reference'. Colour fills the Natural Earth admin-0 mask (de facto, simplified), not a claim about borders. A country value hides its grid regions: the US mainland eGRID 2023 subregions run " +
+        (g.us.avg ? g.us.avg[0].toFixed(0) + " to " + g.us.avg[1].toFixed(0) : "?") + " gCO2/kWh on average and " + (g.us.nbl ? g.us.nbl[0].toFixed(0) + " to " + g.us.nbl[1].toFixed(0) : "?") + " non-baseload (subregion boundaries are not in the twin). An average rate times a change in load is an attribution, never 'emissions avoided'."))}</div>`; }
   if (id === 3) return `<div class="dm-l1"><b>Verdict</b> ${holVd("certified", "certified")} ${holVd("unresolved", "read, not certified")} <span class="vd dm-noref">no reference</span></div>` +
     `<div class="dm-l2"><span class="dm-tb">CIRISHolon HOUSEGEN-1</span> ${more(fig("holon-housegen1", "CIRISHolon's household generator per ~1 km tile: German village tiles certified (composition), other German and all US tiles unresolved, elsewhere outside every reference") + " · " + fig("countries-source", "country from Natural Earth's mask, for envelopes only"))}</div>`;
   if (id === 4){ const h = hhMeans(), r = (a) => a ? Math.min(...a).toFixed(2) + " (dense) to " + Math.max(...a).toFixed(2) : "…";
@@ -2765,6 +2804,7 @@ function dmRender(){
 function dmSet(id){ if (id === DATAMAP.active) return; DATAMAP.prev = DATAMAP.active; DATAMAP.active = id; DATAMAP.t0 = performance.now(); holLoad(); dmRender(); if (typeof gfxDirty === "function") gfxDirty(800); const c = $("focal-chip"); if (c) c._t = 0; }
 document.addEventListener("click", (e) => { const b = e.target.closest && e.target.closest("[data-dm]"); if (b) dmSet(+b.dataset.dm);
   const m = e.target.closest && e.target.closest("[data-dm-more]"); if (m){ DM_MORE.open = !DM_MORE.open; dmRender(); } });
+document.addEventListener("change", (e) => { const s = e.target.closest && e.target.closest("[data-grid-kind]"); if (s){ GRID.kind = +s.value; GRID.sel = null; dmRender(); if (typeof gfxDirty === "function") gfxDirty(500); const c = $("focal-chip"); if (c) c._t = 0; } });
 // on a phone the strip and its legend are one block directly under the tier pill (clear of the chip and the zoom column)
 function dmPlace(){ const b = $("dm-block"), t = $("tier-now"); if (!b) return; if (window.innerWidth > 800 || !t){ b.style.top = ""; return; }
   const r = t.getBoundingClientRect(); b.style.top = (r.height ? r.bottom + 6 : 120) + "px"; }
@@ -2777,6 +2817,9 @@ function dmValue(){
     if (!u || k < 0) return "people: loading CIRISHolon's in-cell table…"; const r = holRegion(M.lat0, M.lon0), e = r === null ? null : u.data.regional[r][k], v = e && e.people ? e.people : u.data.world.people[k];
     return `people here: in ${/^[aeiou]/.test(cls) ? "an" : "a"} ${cls} cell ${Math.round(v.slice(k + 2).reduce((a, b) => a + b, 0) / 1e4)}% live in denser ~1 km tiles (${e && e.people ? "regional, " + u.data.regions[r] : "world row"}; ${holVd("unresolved", "unresolved")})`; }
   const s = holSeam(), c = s ? s.country : -1;
+  if (id === 5){ const g = gridSel(), iso = HOLT.countries ? countryNear(HOLT.countries, M.lat0, M.lon0) : null; if (!g) return "grid here: loading…";
+    const r = g.rows.find((x) => x.iso === iso);
+    return r ? `grid here: ${r.row.place} ${r.row.value} ${r.row.unit} (${r.row.year}, ${GRID_KINDS[GRID.kind].label}, trust ${r.row.trust}; ${holVd("unresolved", "a prior, unresolved")})` : `grid here: ${holVd("unresolved", "no reference")} for ${holCountryName(iso)} in this kind (${GRID_KINDS[GRID.kind].label})`; }
   if (id === 2 && c === 840){ const d = typeof rhyData === "function" ? rhyData() : null, k = typeof rhyClock === "function" ? rhyClock() : null;
     if (d && k){ const s0 = Math.min(23, Math.floor(k.s)), row = d.counts[s0], home = row.slice(0, d.H).reduce((a, b) => a + b, 0), aw = d.awake[s0].reduce((a, b) => a + b, 0), out = row[d.H] + row[d.H + 1] + row[d.H + 2];
       // away: work or school, elsewhere (awake or asleep) and travelling; the asleep-elsewhere few are counted with the away, a bracket

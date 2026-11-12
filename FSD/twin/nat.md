@@ -280,7 +280,7 @@ Each is a daily fleet sum, keyed by the self-computed buckets above, under the k
 
 ## 6. What a real dataset would replace
 
-No dataset was downloaded. Candidates, each needing Eric's approval (name, what it would
+No dataset was downloaded. Candidates, each needing the owner's approval (name, what it would
 replace; licence and size to be checked on the provider's page before asking):
 - A CGN / NAT-behaviour measurement corpus (academic CGN detection studies, STUN-survey data) -
   would replace `fixed_cgnat_*`, `cgn_*`, `router_filter_*`, `cell_*` filter shares.

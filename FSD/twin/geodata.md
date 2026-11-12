@@ -1,6 +1,6 @@
 # Twin package `geodata`: real population and land cover at coarse grain
 
-Approved by Eric on 2026-11-11 ("Approve GHSL and land cover, add them to the twin"). Two datasets,
+Approved by the owner on 2026-11-11 (GHSL and land cover, added to the twin). Two datasets,
 both CC BY 4.0, both fetched once from the publisher's host by `tools/geodata/fetch_geodata.sh`,
 reduced by `tools/geodata/build_geodata.py` to page assets under `docs/geo/gd/` and a drop-in
 for globe.js's population grid (`docs/geo/popgrid_ghs.js`), read by `docs/geo/geodata.js`.
@@ -196,7 +196,7 @@ Page footer (`GEO_ATTRIBUTION` in `docs/geo/geodata.js`):
 The README carries the same two credits under "Data credits". Neither publisher endorses this
 twin; the GHSL "how to cite" page asks that the dataset and the concept paper be cited, not the
 website. The CGLS-LC100 manual also asks users to "inform Copernicus about the outcome of the use"
-and send publications to its help desk: an open item for Eric, not a licence condition of CC BY.
+and send publications to its help desk: an open item for the owner, not a licence condition of CC BY.
 
 ## Reproduce
 

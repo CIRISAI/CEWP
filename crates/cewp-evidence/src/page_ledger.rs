@@ -468,6 +468,21 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ..BASE
     },
     PageClaim {
+        id: "holon-grid0",
+        class: Model,
+        live: true,
+        shows: "The Power data map: CIRISHolon's GRID-0 (version 1) grid carbon intensity priors by COUNTRY, one kind of rate per map (the long-run reading by default: Ember's generation average, life-cycle, location-based; a third-party consumption-mix average; the short-run non-baseload rate for the United States; India's operating margin), each country at its latest year in that kind, the year on the legend; trust C rows hatched; disagreeing rows never averaged (the higher-trust row shown, the other named); a country with no row of the kind is 'no reference'. Every row is an unresolved prior.",
+        source: "docs/geo/holon/grid0.json, imported by tools/holon/import.py from CIRISHolon 0d38d4d conformance/scene/tables/grid0 (country rows matched to ISO codes through docs/geo/country_iso.json, Natural Earth admin-0 names); docs/globe.js gridSel; docs/incell.js incellPower",
+        param: "the kind choices (exact kind strings, GRID_KINDS in globe.js); the colour scale 0 to 1,000 g per kWh (cividis); colour fills the Natural Earth admin-0 mask, de facto and simplified, not a claim about borders",
+        dataset: "values are facts quoted with their sources; each row carries the licence as read, and the report lists the licences that could not be read Via CIRISHolon GRID-0 (sources per row: Ember, US EPA eGRID, IEA, national agencies and third-party pages).",
+        failure: &[
+            "Priors gathered from documents; nothing scored. A country value hides its grid regions (the US mainland eGRID 2023 subregions run about 110 to 634 g per kWh on average and 402 to 858 non-baseload); subregion boundaries are not in the twin.",
+            "An average rate times a change in load is an attribution, never 'emissions avoided'; the kinds (generation or consumption, direct or life-cycle, average or marginal, year and edition) are not comparable across maps.",
+        ],
+        reproduce: "python3 -I tools/holon/import.py <CIRISHolon> 0d38d4d grid0; node --test docs/geo/holon/intake.test.js",
+        ..BASE
+    },
+    PageClaim {
         id: "holon-power0",
         class: Model,
         shows: "CIRISHolon's POWER-0 (version 3): device, network and data-centre power by class and state with a would-be-on-anyway flag, a year, a source and a basis; priors, verdict unresolved on every row.",

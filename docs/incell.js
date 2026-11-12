@@ -43,6 +43,7 @@ const DM_RAMPS = {
   people: ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d", "#fcffa4"],
   awake: ["#0c1a4a", "#1d3383", "#3a4fa6", "#6b65a6", "#9c7a95", "#c98f74", "#eaa64c", "#ffc35a", "#ffe09a"],
   households: ["#440154", "#482878", "#3e4a89", "#31688e", "#26828e", "#1f9e89", "#35b779", "#6ece58", "#b5de2b", "#fde725"],
+  power: ["#042333", "#1b2f6b", "#2c3395", "#533f97", "#744992", "#93548a", "#b15f82", "#d06c6e", "#eb7958", "#fbb43d", "#e8fa5b"], // cmocean thermal
 };
 // a stop list sampled at t in [0, 1] (linear between stops), as [r, g, b] 0..255
 function dmRampAt(stops, t){
@@ -53,7 +54,7 @@ function dmRampAt(stops, t){
 let rampTex = null;
 function incellRampTex(){
   if (rampTex) return rampTex;
-  const W = 256, rows = [DM_RAMPS.people, DM_RAMPS.awake, DM_RAMPS.households, DM_RAMPS.households], D = new Uint8Array(W * 4 * 4);
+  const W = 256, rows = [DM_RAMPS.people, DM_RAMPS.awake, DM_RAMPS.households, DM_RAMPS.power], D = new Uint8Array(W * 4 * 4);
   rows.forEach((st, r) => { for (let x = 0; x < W; x++){ const c = dmRampAt(st, x / (W - 1)); D.set([c[0], c[1], c[2], 255], (r * W + x) * 4); } });
   rampTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, rampTex); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, 4, 0, gl.RGBA, gl.UNSIGNED_BYTE, D);
@@ -180,6 +181,43 @@ function incellAwakeWide(R, S, asp, a){
   gl.vertexAttribPointer(ap, 3, gl.FLOAT, false, 20, 0); gl.vertexAttribPointer(al, 2, gl.FLOAT, false, 20, 12); gl.drawArrays(gl.TRIANGLES, 0, AWW.mesh.n); gl.disableVertexAttribArray(al); gl.disableVertexAttribArray(ap);
   if (typeof gfxDirty === "function") gfxDirty(1000); // the share follows the clock
 }
+// Power (the data-map strip's GRID-0 map): one equirectangular RGBA texture of the chosen kind's country rows, painted on a
+// 2D canvas from the Natural Earth admin-0 mask (each country's rings, even-odd): r the value over 0..1,000 g/kWh, g a row
+// exists, b trust C (hatched). A whole-sphere mesh samples it inside the land stencil, over the veil; no row is a dark hatch.
+const PWR = { tex: null, mesh: null, W: 2048, H: 1024 };
+const PWF = `precision mediump float;uniform sampler2D T;uniform sampler2D Rp;uniform float uA;varying vec2 vLL;varying float vz;
+void main(){if(vz<0.0)discard;vec4 a=texture2D(T,vec2((vLL.y+180.0)/360.0,(90.0-vLL.x)/180.0));float hatch=step(0.5,fract((gl_FragCoord.x+gl_FragCoord.y)/6.0));
+if(a.g<0.5){gl_FragColor=vec4(0.36,0.38,0.44,uA*0.55*hatch);return;}
+vec3 c=texture2D(Rp,vec2(a.r*0.992+0.004,0.875)).rgb;gl_FragColor=a.b>0.5?vec4(c,uA*0.85*(0.30+0.70*hatch)):vec4(c,uA*0.88);}`;
+let pPwr = null;
+function incellPowerReset(){ if (PWR.tex){ gl.deleteTexture(PWR.tex); PWR.tex = null; } }
+function incellPowerTex(){
+  if (PWR.tex) return PWR.tex; const g = typeof gridSel === "function" ? gridSel() : null; if (!g || typeof HOLT === "undefined" || !HOLT.countries) return null;
+  const cv2 = document.createElement("canvas"); cv2.width = PWR.W; cv2.height = PWR.H; const c = cv2.getContext("2d"); c.imageSmoothingEnabled = false;
+  const X = (lo) => (lo / 100 + 180) / 360 * PWR.W, Y = (la) => (90 - la / 100) / 180 * PWR.H;
+  for (const s of g.rows){ const v = Math.max(0, Math.min(255, Math.round(s.row.value / 1000 * 255)));
+    c.fillStyle = `rgb(${v},255,${s.row.trust === "C" ? 255 : 0})`; c.beginPath();
+    for (const r of HOLT.countries.rings){ if (r.iso !== s.iso) continue; const P = r.P; c.moveTo(X(P[1]), Y(P[0])); for (let i = 1; i < P.length / 2; i++) c.lineTo(X(P[2 * i + 1]), Y(P[2 * i])); c.closePath(); }
+    c.fill("evenodd"); }
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv2);
+  for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+  PWR.tex = t; return t;
+}
+function incellPower(R, S, asp, a){
+  const k = Math.min(1, (performance.now() - DATAMAP.t0) / 400), f = (DATAMAP.active === 5 ? k : 0) + (DATAMAP.prev === 5 && k < 1 ? 1 - k : 0);
+  if (a <= 0.01 || f <= 0.01) return; const tex = incellPowerTex(); if (!tex) return;
+  incellVeil(a * 0.82 * Math.min(1, f));
+  if (!PWR.mesh){ const V = []; for (let la = -90; la < 90; la += 3) for (let lo = -180; lo < 180; lo += 3){ for (const [y, x] of [[la, lo], [la, lo + 3], [la + 3, lo + 3], [la, lo], [la + 3, lo + 3], [la + 3, lo]]) V.push(...xyz(y, x), y, x); }
+    const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(V), gl.STATIC_DRAW); PWR.mesh = { b, n: V.length / 5 }; }
+  if (!pPwr) pPwr = prog(AWV, PWF);
+  gl.useProgram(pPwr);
+  gl.uniformMatrix3fv(gl.getUniformLocation(pPwr, "R"), false, R); gl.uniform1f(gl.getUniformLocation(pPwr, "S"), S); gl.uniform2fv(gl.getUniformLocation(pPwr, "asp"), asp); gl.uniform1f(gl.getUniformLocation(pPwr, "uA"), a * f);
+  gl.uniform1i(gl.getUniformLocation(pPwr, "T"), 0); gl.uniform1i(gl.getUniformLocation(pPwr, "Rp"), 2);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, incellRampTex()); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
+  const ap = gl.getAttribLocation(pPwr, "p"), al = gl.getAttribLocation(pPwr, "ll"); gl.bindBuffer(gl.ARRAY_BUFFER, PWR.mesh.b); gl.enableVertexAttribArray(ap); gl.enableVertexAttribArray(al);
+  gl.vertexAttribPointer(ap, 3, gl.FLOAT, false, 20, 0); gl.vertexAttribPointer(al, 2, gl.FLOAT, false, 20, 12); gl.drawArrays(gl.TRIANGLES, 0, PWR.mesh.n); gl.disableVertexAttribArray(al); gl.disableVertexAttribArray(ap);
+  if (k < 1 && typeof gfxDirty === "function") gfxDirty(100);
+}
 // every block the view can see, nearest the centre first
 function incellVisible(w, h, mpp){
   const la = pitch * 180 / Math.PI, lo = ((yaw * 180 / Math.PI + 540) % 360) - 180;
@@ -200,7 +238,7 @@ function incellDraw(R, S, asp, w, h, mpp, a){
   for (const v of vis) keep.add(v.k);
   INCELL.want = vis; if (vis.some((x) => !INCELL.blocks.has(x.k))) incellSchedule(); // built off the frame, in idle slices
   if (INCELL.blocks.size > INCELL.cap) for (const [k, b] of INCELL.blocks){ if (INCELL.blocks.size <= INCELL.cap) break; if (keep.has(k)) continue; if (b && b.tex){ gl.deleteTexture(b.tex); gl.deleteBuffer(b.mesh.buf); if (b.aux) gl.deleteTexture(b.aux); INCELL.bytes -= 180 * 180; } INCELL.blocks.delete(k); }
-  { const k0 = Math.min(1, (performance.now() - DATAMAP.t0) / 400), on = (DATAMAP.active ? k0 : 0) + (DATAMAP.prev && k0 < 1 ? 1 - k0 : 0); incellVeil(a * 0.82 * Math.min(1, on)); } // one veil, faded with the map; None (0) has none
+  { const k0 = Math.min(1, (performance.now() - DATAMAP.t0) / 400), blk = (m) => m >= 1 && m <= 4, on = (blk(DATAMAP.active) ? k0 : 0) + (blk(DATAMAP.prev) && k0 < 1 ? 1 - k0 : 0); incellVeil(a * 0.82 * Math.min(1, on)); } // one veil, faded with the map; None (0) has none
   if (!pIncell) pIncell = prog(ICV, ICF);
   gl.useProgram(pIncell);
   gl.uniformMatrix3fv(gl.getUniformLocation(pIncell, "R"), false, R); gl.uniform1f(gl.getUniformLocation(pIncell, "S"), S); gl.uniform2fv(gl.getUniformLocation(pIncell, "asp"), asp);
@@ -215,7 +253,7 @@ function incellDraw(R, S, asp, w, h, mpp, a){
   if (hm){ const lv = (x) => (Math.log10(x) - 2) / 2.5, d = (a) => [a[1] - a[0], a[2] - a[1], a[3] - a[2], a[4] - a[3]];
     gl.uniform4fv(gl.getUniformLocation(pIncell, "uT"), hm.km2.slice(1).map(lv)); gl.uniform1f(gl.getUniformLocation(pIncell, "uDE0"), hm.de[0]); gl.uniform4fv(gl.getUniformLocation(pIncell, "uDEd"), d(hm.de));
     gl.uniform1f(gl.getUniformLocation(pIncell, "uUS0"), hm.us[0]); gl.uniform4fv(gl.getUniformLocation(pIncell, "uUSd"), d(hm.us)); }
-  for (const [mode, f] of passes){ if (f <= 0.01 || (mode === 4 && !hm)) continue;
+  for (const [mode, f] of passes){ if (f <= 0.01 || mode === 5 || (mode === 4 && !hm)) continue;
     gl.uniform1f(uA, a * f); gl.uniform1f(uM, mode === 0 ? 0.5 : mode);
     for (const v of vis){ const b = INCELL.blocks.get(v.k); if (!b || !b.tex) continue;
       let aux = null; if (mode > 1){ aux = incellAux(b); if (!aux) continue; }
