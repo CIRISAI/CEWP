@@ -119,7 +119,7 @@ pub extern "C" fn tick(
             // with the clock's diurnal switch on, who signs follows workload.rs: a signer is kept with
             // probability diurnal_multiplier(local time) / peak and redrawn otherwise (at most 16
             // times), so `acts` is unchanged and its spread over the planet follows the hour. On by
-            // default since twin/globe (Eric: day and night looked alike); clock_set(.., 0) turns it off,
+            // default since twin/globe (in review, day and night looked alike); clock_set(.., 0) turns it off,
             // and then nothing extra is drawn and every slot matches the f73b918 build.
             if gs.diurnal {
                 let mut tries = 0;

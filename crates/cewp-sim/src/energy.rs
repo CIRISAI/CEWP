@@ -257,9 +257,9 @@ energy_rows! {
     DcMsgWhPerPersonHour = "c1.delivery_kwh_per_person_year", "data centre", "C1 delivery: message relay, fan-out and serving per daily person", "kWh", [0.02, 0.2, 1.0], Frontier, None, 2023, "",
         "UPSTREAM-0 rows 26 and 8 (a serving-only messenger: servers 2.9 M USD a year for its whole user base; messages queued only until delivered): a small share of the 5.5 kWh ceiling",
         "kept under its old identifier; now kWh per person-year";
-    // ---- C2-C5: what the status quo spends beyond delivery (Eric 2026-11-11: "most of the data
-    // centre energy we are saving is not from the pure processing, it is the storing and
-    // harvesting for personal information and ads"); every row FRONTIER, for CIRISHolon to source
+    // ---- C2-C5: what the status quo spends beyond delivery (a correction in review, 2026-11-11: most of the
+    // data-centre energy saved is not the processing but the storing and harvesting of personal
+    // information and ads); every row FRONTIER, for CIRISHolon to source
     SubstitutionShare = "c.substitution_share", "lever", "share of use that MOVES from an ad-funded platform to the mesh (not kept alongside it)", "share", [0.05, 0.05, 0.05], Frontier, None, 2021, "",
         "UPSTREAM-0 rows 39-44 (survey 2021: 26% wanted to leave a messenger, about a quarter of them managed, 0.5% uninstalled; median five messaging apps; 79% overlap): PRIOR 0.005 to 0.16",
         "0 = the mesh is purely additive, the honest floor; the axis runs 0 to 1, the prior is 0.005 to 0.16; it multiplies every status-quo line of C";

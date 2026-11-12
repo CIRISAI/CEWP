@@ -53,7 +53,7 @@
 //! archive" with a `T_direct` knob and a separate "cache" with TTL +
 //! LRU cap; that dichotomy was premature.
 //!
-//! **The discipline** (Eric, this session):
+//! **The discipline:**
 //!
 //! Replication intake at every node, for every byte-attempt:
 //! ```
@@ -1123,7 +1123,7 @@ fn per_actor(tier: Tier, s: &Scenario) -> ActorCosts {
             )
         }
         Tier::Proxy => {
-            // **Proxy = L0 server** (Eric's framing) — low-storage
+            // **Proxy = L0 server** (the owner's framing) — low-storage
             // server tier (256 GB default budget). Same trust+capacity
             // admission discipline as server; just smaller disk and
             // depth=0 (strict — direct trust only, no recursion).
@@ -2090,7 +2090,7 @@ fn print_footprint(s: &Scenario) {
 
 /// Print per-region CEWP footprint using each region's real grid CO2 +
 /// real population × smartphone penetration share. The truer number
-/// than a single global average. Direction Eric asked for: phones,
+/// than a single global average. The direction asked for: phones,
 /// by region/capability/availability, as a class.
 fn print_regional_breakdown(base: &Scenario, style: FleetStyle) {
     println!();

@@ -20,7 +20,7 @@ carries category.
   only while the sim plays; the story sets its own hours. Sun: circular orbit, 23.44° tilt, no
   equation of time. Day of year `SIM_DOY = 314` (MODEL scenario parameter).
 * **Who signs when, and who lights:** the clock's diurnal switch is ON by default (changed in
-  twin/globe after f9cc739; Eric: "looks identical in day and night"). `tick` keeps a drawn signer
+  twin/globe after f9cc739: in review, day and night looked identical). `tick` keeps a drawn signer
   with probability `diurnal_multiplier(local solar time) / 2.30` and redraws otherwise (at most 16
   times); `acts` is unchanged and where the acts land follows the hour (workload.rs, FSD §4.1, MODEL).
   New: a receiving node's mark in the activity buffer is scaled by the same multiplier (`rx_mark`),
@@ -30,8 +30,7 @@ carries category.
   call `clock_set`. `clock_set(.., 0)` restores the f73b918 tick exactly. No test pinned the old
   slots; `diurnal_is_on_by_default_and_night_receivers_mark_less` pins the new default.
   The daily curve (workload.rs `diurnal_multiplier`, a MODEL stand-in with no reference) is
-  `model.diurnal.v1` since twin/globe after 322b63c (Eric: "0.2 is too low and the current high is too
-  high"): trough `DIURNAL_TROUGH` 0.50x around 03:10, peak `DIURNAL_PEAK` 1.60x at
+  `model.diurnal.v1` since twin/globe after 322b63c (in review, the old trough was too low and its peak too high): trough `DIURNAL_TROUGH` 0.50x around 03:10, peak `DIURNAL_PEAK` 1.60x at
   `DIURNAL_PEAK_HOUR` 19:30, 0.89x to 1.21x from 09:00 to 16:00, integrating to 1.0. Hourly values
   00-23 h: 0.89 0.69 0.56 0.50 0.53 0.61 0.72 0.83 0.91 0.94 0.94 0.91 0.89 0.89 0.95 1.06 1.21 1.37
   1.51 1.59 1.59 1.50 1.33 1.11. `model.diurnal.v0` was 1.57 1.23 0.90 0.62 0.42 0.30 0.23 0.21 0.20
@@ -75,7 +74,7 @@ carries category.
   asks for frames again.
 * **Reduced motion:** with `prefers-reduced-motion` there is no auto-rotate and arcs are drawn still
   (no flowing heads). Auto-rotate also stops while the sim is paused.
-* **Nothing flashes (WCAG 2.3.1; Eric: "seizure flashy").** A dot's drawn activity is a display
+* **Nothing flashes (WCAG 2.3.1; review: the old pulses flashed).** A dot's drawn activity is a display
   envelope following the tick's pulse at a bounded slew (`ACT_RAMP_MS` 450 up and down; the pulse
   fades linearly over `ACT_HOLD_MS` 900), and the point shader maps it continuously (colour, size,
   the visibility of idle dots: no thresholds, no hash flicker; the `floor(uTime*2.5)` term is gone).
@@ -219,7 +218,7 @@ contention on, which the view scenario leaves off. A view with contention on may
 
 ## Where streets are built (population-conditioned street tier)
 
-Eric, on the live page: neighbourhoods in the middle of the Urals. Cause: the tiling's root budget came
+Found in review on the live page: neighbourhoods in the middle of the Urals. Cause: the tiling's root budget came
 from the nearest 1.5° grid cell within 1.6° (`tlCellNear`), and each child's weight was its land
 samples × (40 + a populated-place kernel), so every land holon got a share of its 1.5° cell's people
 however empty it was. A place fallback added a city's Natural Earth population where the old grid had
@@ -291,7 +290,7 @@ its off-patch seat and servers):
 The cohort tier and the night glow draw the 1.5° grid at its own grain (cohorts scattered inside
 their cell), which is the coarse tier, not generated streets.
 
-## The dense extreme (Eric: "the most populated places on earth")
+## The dense extreme (the most populated places on earth)
 
 What the data says: the densest 1/8° cells in GHS-POP 2020 by people per km² of land (land share from
 the Natural Earth 50 m mask, 10 × 10 samples a cell) are Karachi (24.94 N 67.06 E, 41,964), Karachi's
@@ -385,7 +384,7 @@ does not fit now tries the smallest plot (8 m), then slides on a metre, and a ro
 tries an 8 m row, then moves up a metre. Probe leaves now: Dhaka 3 buildings (was 1), Karachi 4,
 Giza 4, Kowloon 12, Delhi 16, Mumbai 12. Storeys fall to match.
 
-## The Zurich path without loading (Eric: "pre-cache all the Zurich tiles")
+## The Zurich path without loading (every Zurich tile pre-cached)
 
 `docs/preload.js`, at idle after first paint, asks once for what the Story's and the default zoom's
 path to Zurich draws, through the page's own loaders so everything is decoded and on the GPU: the 50 m

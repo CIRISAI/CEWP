@@ -290,7 +290,7 @@ attestations, become discoverable as holders.
 
 | Resource | L0 gate | L1 gate | Source |
 |---|---|---|---|
-| Disk | 256 GB | 1 TB | Eric's spec |
+| Disk | 256 GB | 1 TB | owner's spec |
 | Bandwidth | 1 Gbps (10.8 TB/day sustained) | 1 Gbps | Residential fiber |
 | CPU | 1 full-utilization core (86.4 K cpu-sec/day) | Per-process CIRIS share |
 | Retention | 2-day admitted-trust floor (soft failure under this) | v0.4 — anti-thrash gate |
@@ -597,9 +597,9 @@ attestation graph. CEG's 1+4 wire format stays locked.
 
 ## 9. Why this works at all — the identity-aware-storage property
 
-> **Eric's thesis:** "What makes this work is that you know whose
+> **The thesis:** what makes this work is that you know whose
 > data you are storing, and can evict their data at any time if
-> you choose."
+> you choose.
 
 This isn't just a feature — it's the load-bearing property the
 entire discipline rests on. The whole `trust(source) ≥ threshold

@@ -6,8 +6,8 @@ Code: `crates/cewp-sim/src/energy.rs` and `crates/cewp-sim/src/presence0.rs`. CL
 
 ## 0. Two tests, kept apart
 
-**TEST 1, THE THEORY: full replacement.** Eric: "the whole assumption is if we replaced the
-internet entirely with cewp"; "we do not need massive datacenters, or big tech". Substitution
+**TEST 1, THE THEORY: full replacement.** The scenario is the internet replaced entirely by the mesh, with no need for massive data centres or big
+tech. Substitution
 is 1 by definition. The baseline is the WHOLE data-centre estate the replaced internet would no
 longer need, per user. Code: `crates/cewp-sim/src/energy_full.rs`; CLI: `cewp-cli energy-full`.
 
@@ -171,9 +171,8 @@ sends calls to dearer local tiers. With the forced-local share at 0 the mix equa
 (−14.3). At 0.5 it is −3.3 to −4.6.
 
 **The stay share as two business cases** (ESTATE-0 v2, CIRISHolon 8e95fef, "businesses" block,
-and `conformance/scene/TWIN_THEORY_INPUTS.md`). The rows "awaiting Eric's answer" are dropped.
-Eric's answer, relayed via Holon and not said in this session, was "whatever is defensible, do
-some web searches and look at how CC models businesses". CC 4.4.3.2.8 treats a business as an
+and `conformance/scene/TWIN_THEORY_INPUTS.md`). The rows awaiting an answer are dropped.
+The stay share follows the project's instruction to use what is defensible from published sources and from how the Constitution models a business (CC 4.4.3.2.8). CC 4.4.3.2.8 treats a business as an
 affiliation, "a room that acts as one voice", running nodes it owns ("a node is a device or
 server you own"). The Constitution bans dependence, not scale.
 
@@ -240,8 +239,8 @@ holds:
 
 #### TEST 1 headline (superseded): the TIERED MIX × the AGENT-KIND MIX (the design), kWh per person-year, no new boxes
 
-**Placement.** Eric: "a hybrid means a mixture of on-device, edge, prosumer, office appliance,
-servers, etc... - the market optimizes".
+**Placement.** A hybrid is a mixture of on-device, edge, prosumer, office appliance and server
+inference, placed by the market.
 * Each model call goes to one of five tiers: phone or laptop, prosumer machine, office or home
   appliance, edge or on-premises server, or hosted with zero retention.
 * Each tier has its own energy per 1,000 tokens and largest model class, all FRONTIER. Edge-tier
@@ -380,7 +379,7 @@ data. ZDR removes retention and training on the conversation, not inference ener
 
 ### Result
 
-AI cases (ESTATE-0 v4, ai_as_a_mix_across_tiers): the **tiered mix by the market rule (the design)**, Eric: "a hybrid means a mixture of on-device, edge, prosumer, office appliance, servers, etc... - the market optimizes". A tier that is ON ANYWAY (a phone, a laptop in use) carries only its marginal energy per token; a tier on FOR inference carries its idle draw too, over its utilisation. So light, private work goes to devices already awake, heavy work to shared batched servers, small jobs to small models (right-sizing saves 48-80% from MODEL SIZE, not hardware), and a dedicated box only where its utilisation pays for its idle (the break-even is reported; it is not chosen at the defaults). Efficiency is decided by model size and how full the machine is, not by where it sits: the same model on a laptop is 18-46x a batched data centre. A cost-minimising market is not the same as an energy-minimising one (cost also prices privacy, latency and hardware already owned). Bounds: all hosted right-sized, all hosted on one mid-size model (like for like with CIRISProxy today), and all on devices; the earlier rule is kept as a comparison. What vanishes: ranking, advertising and training on harvested data; ZDR removes retention and training on the conversation and almost no energy on the hosted tier.
+AI cases (ESTATE-0 v4, ai_as_a_mix_across_tiers): the **tiered mix by the market rule (the design)**: a hybrid is a mixture of on-device, edge, prosumer, office appliance and server inference, placed by the market. A tier that is ON ANYWAY (a phone, a laptop in use) carries only its marginal energy per token; a tier on FOR inference carries its idle draw too, over its utilisation. So light, private work goes to devices already awake, heavy work to shared batched servers, small jobs to small models (right-sizing saves 48-80% from MODEL SIZE, not hardware), and a dedicated box only where its utilisation pays for its idle (the break-even is reported; it is not chosen at the defaults). Efficiency is decided by model size and how full the machine is, not by where it sits: the same model on a laptop is 18-46x a batched data centre. A cost-minimising market is not the same as an energy-minimising one (cost also prices privacy, latency and hardware already owned). Bounds: all hosted right-sized, all hosted on one mid-size model (like for like with CIRISProxy today), and all on devices; the earlier rule is kept as a comparison. What vanishes: ranking, advertising and training on harvested data; ZDR removes retention and training on the conversation and almost no energy on the hosted tier.
 
 | AI case | agent interactions per person-day | new-box share of homes | removed (of which vanishes) | relocated at the edge (AI on edge tiers included) | inference kept in data centres | mesh additions | signed records | Proof of Benefit | self-observation | net (default) | net bounds | sign |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -419,7 +418,7 @@ AI cases (ESTATE-0 v4, ai_as_a_mix_across_tiers): the **tiered mix by the market
 
 ### The two business cases (CIRISHolon 8e95fef5715ffaf3bb8f1df9984d107113da752c conformance/scene/tables/estate0/estate_table.json v2 sha256 68fe7f825b690bcbfed45dd6b4061a6910a29e164b5fa25452ed4caccc6e2b58; conformance/scene/TWIN_THEORY_INPUTS.md)
 
-Eric's answer on the stay share, relayed via Holon (not said in this session): "whatever is defensible, do some web searches and look at how CC models businesses". CC 4.4.3.2.8: a business is an affiliation, "a room that acts as one voice", running nodes it owns ("a node is a device or server you own"). The Constitution bans dependence, not scale.
+The stay share follows the project's instruction to use what is defensible from published sources and from how the Constitution models a business (CC 4.4.3.2.8). CC 4.4.3.2.8: a business is an affiliation, "a room that acts as one voice", running nodes it owns ("a node is a device or server you own"). The Constitution bans dependence, not scale.
 
 - **CASE A (central): the market keeps servers where they are cheapest.** Enterprise-owned work (0.255 of the estate, read at source) is already a node its owner runs: inside the scenario, unchanged. Rented business work stays on servers at about today's efficiency. Stay share 0.45-0.75, centre 0.6 (the split inside the bracket is unsourced). What is in play is consumer work, about 29 kWh per user-year (18-40): the saving is a share of 29, not of 72.
 - **CASE B (labelled counterfactual): no large facilities at all.** Rented business work (stay share minus enterprise) moves to organisations' own premises at 1.4-4 times today's energy (by search result). It prices "no massive datacenters" read as a ban on scale, where the Constitution only bans dependence.
@@ -549,7 +548,7 @@ estate and printed "4.8× less". That comparison is now labelled an untested gro
 unlike quantities. The typed constant `planetary_5b_power_mw = 3,082 MW PROJECTED` had nothing
 computing it and is removed.
 
-Eric's framing: "it is delta from status quo not gross total"; "people use phones regardless".
+The framing: the delta from the status quo, not a gross total; people use phones regardless.
 Per household-hour (per participant-hour for a call):
 
     delta = A + B - C
@@ -736,8 +735,8 @@ contains all three settings. The points move.
 
 ## 4b. Term C as named components, sourced from CIRISHolon UPSTREAM-0
 
-Eric's correction ("most of the data center energy we are saving is ... the storing and
-harvesting for personal information and ads") made term C a sum of named components. CIRISHolon
+A correction in review (most of the data-centre energy saved is the storing and harvesting of
+personal information and ads, not the processing) made term C a sum of named components. CIRISHolon
 **UPSTREAM-0** (`conformance/scene/tables/upstream0/upstream_table.json`, 45 rows, each tagged
 average allocation, marginal or capacity, read at 1beb5f5, verdict unresolved) now supplies them
 through the seam. Each row carries its tag and basis. Where the table showed the structure was

@@ -2693,7 +2693,7 @@ function rhyLine(){
   const s0 = Math.min(23, Math.floor(c.s)), hr = (4 + s0) % 24, row = d.counts[s0], home = row.slice(0, d.H).reduce((a, b) => a + b, 0), aw = d.awake[s0].reduce((a, b) => a + b, 0);
   return `street day (CIRISHolon PRESENCEGEN-2, the chain, one generated day per adult, ${RHY_DAYS[c.dt]}): ${String(hr).padStart(2, "0")}:${String(Math.floor((c.s - s0) * 60)).padStart(2, "0")} local, ${home} of ${d.persons} adults at home (${aw} awake), ${row[d.H]} at work or school, ${row[d.H + 1]} elsewhere, ${row[d.H + 2]} travelling · ${holVd(HOL_V3[d.verdict], HOL_V3[d.verdict] + ": " + d.why)} · ${d.viol === 0 ? "every hour holds every adult (the continuity law, source zero)" : d.viol + " continuity violations"} · ${M.presOn ? "the street's phones and laptops sleep and wake with their people (a child's device by the diaries' share)" : "devices follow the twin's stand-in"} · ${d.children} children have no diary and are not drawn; employment drawn per adult (MODEL: 18 to 64 at the 25-to-64 share, ${d.employed} employed) · ${d.notice}`;
 }
-// ---- the data-map strip (Eric: "remember the simcity layer selector?"): one map at a time, each re-tinting the street tier by one
+// ---- the data-map strip (a layer selector in the manner of a city-builder game): one map at a time, each re-tinting the street tier by one
 // quantity from a CIRISHolon table, with a legend; "none" returns the normal view. Drawn by incell.js at region and city zoom.
 var DATAMAP = { active: 0, prev: 0, t0: 0 }; // None by default: the plain view; a map is chosen // read by incell.js: the active map and the one fading out (400 ms cross-fade)
 const DM_MAPS = [
@@ -2712,7 +2712,7 @@ function hhMeans(){
   HH_MEANS = { de: o.slice(0, 5), us: o.slice(5, 10), km2: o.slice(10, 15) }; return HH_MEANS;
 }
 // a legend is two lines: the map's name with its ramp (ticks and units) or its swatches, then the table's badge and a
-// "where this comes from" disclosure holding the prose (Eric's review: legends were prose again)
+// "where this comes from" disclosure holding the prose (review: legends had become prose)
 const DM_MORE = { open: false };
 const DM_RAMP_OF = { "dm-people": "people", "dm-awake": "awake", "dm-hh": "households" }; // incell.js DM_RAMPS: the bars use the shader's stops
 const dmGrad = (cls) => typeof DM_RAMPS !== "undefined" && DM_RAMP_OF[cls] ? `background:linear-gradient(90deg,${DM_RAMPS[DM_RAMP_OF[cls]].join(",")})` : "";
@@ -2805,7 +2805,7 @@ function updateFocalChip(F){
   let dclass = MDCLASS[m[2] | 0];
   if ((m[2] | 0) === 0 && m[4] >= 12000 && M.bld && M.bld.length){ let fl = 0, nb = 0; for (let b = 0; b < M.bld.length; b += 8) if (M.bld[b + 6] > 0){ fl += M.bld[b + 5]; nb++; } dclass = "dense fabric · " + fig("dense-fabric", (nb ? Math.round(fl / nb) : "?") + " storeys"); M.denseNote = true; } else M.denseNote = false;
   const ppm = F.k / EARTH_M; const scale = ppm > 1.5 ? "street" : ppm > 0.25 ? "neighbourhood" : ppm > 0.02 ? "district" : "region";
-  // three lines by default (Eric: draw Holon's stats beautifully, not as a wall of caveats); everything else, word for word, in
+  // three lines by default (Holon's stats drawn beautifully, not as a wall of caveats); everything else, word for word, in
   // the "where this comes from" panel (left side on a desktop, a bottom sheet on a phone, closed by default)
   const narrow = F.w < 800, det = $("focal-detail");
   const head = narrow

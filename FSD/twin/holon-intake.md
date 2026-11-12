@@ -1,7 +1,7 @@
 # Twin package: CIRISHolon intake (consume Holon's statistics, draw them the same day)
 
-Eric, 2026-11-11: "we need to consume those stats from holon as they come available and draw them as
-beautifully and efficiently as possible". This is the design; the first instance is UNEVEN-0
+The project's instruction (2026-11-11): consume CIRISHolon's statistics as they become available and draw them as
+beautifully and efficiently as possible. This is the design; the first instance is UNEVEN-0
 (CIRISHolon 90ef9d0, `conformance/scene/tables/uneven0/`), built after the current candidate.
 
 ## 1. Intake: one path for every table
