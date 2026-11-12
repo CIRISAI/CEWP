@@ -4,6 +4,90 @@ Code: `crates/cewp-sim/src/energy.rs` and `crates/cewp-sim/src/presence0.rs`. CL
 `cewp-cli energy [seed]`. Views: `view_delta`, `view_delta_class`, `view_break_even` and
 `view_phone_wh` (layouts are in their doc comments and in section 9).
 
+## 0. Two tests, kept apart
+
+**TEST 1, THE THEORY: full replacement.** Eric: "the whole assumption is if we replaced the
+internet entirely with cewp"; "we do not need massive datacenters, or big tech". Substitution
+is 1 by definition. The baseline is the WHOLE data-centre estate the replaced internet would no
+longer need, per user. Code: `crates/cewp-sim/src/energy_full.rs`; CLI: `cewp-cli energy-full`.
+
+**TEST 2, THE ADOPTION PATH** (sections 1-10 below; not the theory). What does one more
+household joining cost or save while the platforms still run? Substitution runs from 0 to 1,
+with a prior of 0.005 to 0.16. This is where the idle-cadence lever and "do not add a box"
+matter in the near term. Code: `energy.rs`; CLI: `cewp-cli energy`.
+
+### TEST 1 headline (verified from the model, kWh per person-year, no new boxes)
+
+* **AI left in data centres** (out of "entirely"): removed 38.5 (of which 19.2 vanishes),
+  relocated at the edge 19.2, mesh additions 2.8 → **net −16.5, a saving at the defaults.**
+  Over every corner of the input box the net runs from −65.4 to +110.6, so the sign is open.
+* **AI moved onto members' devices**: removed 49.8, relocated at the edge 53.2, additions 2.8 →
+  **net +6.2, a cost at the defaults.** Over the box it runs from −65.4 to +333.
+* **A new always-on box in every home that can take one** adds 22 kWh per person-year and
+  erases the AI-out saving: +2.8 with AI out, +25.4 with AI in.
+* **What decides it:** whether "entirely" includes AI, the share of work that vanishes, and how
+  efficient the edge is at relocated work. The mesh's own additions are small against the
+  estate (75.5 kWh per user-year) unless every home adds a box.
+* **Break-even, AI out.** The saving vanishes if any one of these holds:
+  * the vanish share is below 0.072;
+  * the edge efficiency ratio is above 1.86;
+  * the stays share is above 0.91;
+  * the new-box share of homes is above 0.855;
+  * the mesh additions are above 19.2 kWh per person-year.
+* **Break-even, AI in.** It turns into a saving if any one of these holds:
+  * the vanish share is above 0.66;
+  * the edge ratio is below 0.68;
+  * the AI edge ratio is below 2.46;
+  * the AI share is below 0.115.
+* **Worst corner:** 5.0 bn users, 460 TWh, stays 0.2, vanish 0.2, edge ratio 3 (AI edge 10 and
+  AI share 0.30 when AI is in), and the highest mesh additions.
+
+### Inputs
+
+| row | unit | lo / default / hi | class | year | source and basis |
+|---|---|---|---|---|---|
+| `estate.all_data_centres_twh_per_year` | TWh/year | 340 / 415 / 460 | MODEL | 2024 | CIRISHolon POWER-0 row 43 (415 TWh, 2024: a model estimate of EVERY data-centre workload); interval ours (estimates of the order of 340 to 460 are commonly quoted; not re-read) |
+| `estate.internet_users_billion` | billion | 5 / 5.5 / 5.8 | FRONTIER | 2024 | Holon's arithmetic: about 5.5 billion internet users, from its memory, not a read figure |
+| `estate.ai_share` | share | 0.05 / 0.15 / 0.3 | FRONTIER | 2024 | the share of the estate that is AI training and inference: the fastest-growing part and the least clearly relocatable (UPSTREAM-0 row 0 includes generative AI); no published split |
+| `estate.stays_share` | share of the non-AI estate | 0.2 / 0.4 / 0.6 | FRONTIER | 2024 | (c) data-centre work that is not the consumer internet (enterprise, science, government) and stays whatever the internet runs on; no published split |
+| `estate.vanish_share` | share of the consumer part | 0.2 / 0.5 / 0.8 | FRONTIER | 2024 | (a) harvesting, profiling, ranking, advertising and the duplication that serves them: UPSTREAM-0 row 25 puts them at 0.5 to 5.5 of one operator's 5.5 kWh per person (9% to 100%), rows 18-24 at 10% to over 40% of server energy; NOBODY PUBLISHES (a) against (b) |
+| `edge.efficiency_ratio` | x data-centre energy per unit of work | 0.3 / 1 / 3 | FRONTIER | 2026 | (b) relocated non-AI work at the edge: storage and serving on devices already on cost only a marginal draw (below 1), compute on a phone or home node is less efficient per unit and has no PUE (above 1) |
+| `edge.ai_efficiency_ratio` | x data-centre energy per unit of work | 1 / 3 / 10 | FRONTIER | 2026 | AI the person still wants, run on their own devices: accelerators in a data centre are far more efficient per unit of inference |
+| `household.persons` | persons | 2.5 / 2.5 / 2.5 | MODEL | 2026 | the household pass's default (micro.rs); per person-year = household-hour figures x 8,766 / 2.5 |
+| mesh additions, gateway mix | kWh/person-year | 0.34 / 2.77 / 12.74 | FRONTIER | 2026 | the household pass (energy.rs), US 2020 mix, node on gateway, terms A + B, expected regime |
+| mesh additions, new-box mix | kWh/person-year | 11.30 / 22.03 / 55.22 | FRONTIER | 2026 | same, a new always-on box in every home that can take one |
+
+### Result
+
+| AI | new-box share of homes | estate per user | removed (of which vanishes) | relocated at the edge | mesh additions | net (default) | net over every corner | sign |
+|---|---|---|---|---|---|---|---|---|
+| in | 0 | 75.5 | 49.8 (19.2) | 53.2 | 2.77 | 6.2 | [-65.4, 333.3] | open: the box spans zero |
+| in | 0.25 | 75.5 | 49.8 (19.2) | 53.2 | 7.58 | 11.0 | [-62.6, 343.9] | open: the box spans zero |
+| in | 1 | 75.5 | 49.8 (19.2) | 53.2 | 22.03 | 25.4 | [-54.4, 375.7] | open: the box spans zero |
+| out | 0 | 75.5 | 38.5 (19.2) | 19.2 | 2.77 | -16.5 | [-65.4, 110.6] | open: the box spans zero |
+| out | 0.25 | 75.5 | 38.5 (19.2) | 19.2 | 7.58 | -11.7 | [-62.6, 121.2] | open: the box spans zero |
+| out | 1 | 75.5 | 38.5 (19.2) | 19.2 | 22.03 | 2.8 | [-54.4, 153.1] | open: the box spans zero |
+
+The worst corner (the highest net: farthest from a saving), AI in, no new boxes: net 333.3 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.300, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `edge.ai_efficiency_ratio` = 10.000, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 11.305.
+
+The worst corner (the highest net: farthest from a saving), AI out, no new boxes: net 110.6 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.050, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 11.305.
+
+### Break-even for this test (one input, others at default; no new boxes)
+
+| input | AI in | AI out |
+|---|---|---|
+| `estate.vanish_share` | 0.660 | 0.072 |
+| `edge.efficiency_ratio` | 0.680 | 1.856 |
+| `edge.ai_efficiency_ratio` | 2.456 | none in range |
+| `estate.stays_share` | 0.208 | 0.914 |
+| `estate.ai_share` | 0.115 | 0.878 |
+| `estate.all_data_centres_twh_per_year` | none in range | 59.642 |
+| `share of homes with a new always-on box` | none in range | 0.855 |
+| `mesh additions (kWh per person-year)` | none in range | 19.241 |
+
+
+# TEST 2, THE ADOPTION PATH (substitution 0 to 1; prior 0.005 to 0.16)
+
 ## 1. What replaced what
 
 `FEDERATION_SCALING_MODEL.md` §3.6 compared a gross device-fleet draw with a whole data-centre

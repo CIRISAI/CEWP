@@ -1010,6 +1010,12 @@ fn main() {
                     process::exit(1);
                 }
             },
+            "energy-full" => {
+                // FSD/twin/energy.md section 0: TEST 1, full replacement (the theory)
+                let seed = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(1);
+                print!("{}", cewp_sim::energy_full::report(seed));
+                return;
+            }
             "energy" => {
                 // FSD/twin/energy.md: the per-household delta from the status quo, `energy [seed]`
                 let seed = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(1);

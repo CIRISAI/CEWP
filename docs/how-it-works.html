@@ -268,10 +268,10 @@ svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--acce
       <h3 class="accent">⚡ 3. Potential Impact: Planetary &amp; Epistemic</h3>
       <ul>
         <li>
-          <b>The Datacenter Tax (energy: untested, sign not yet known)</b>:
+          <b>The Datacenter Tax (energy: the full-replacement comparison, mesh side being recomputed)</b>:
           The model draws its rooms mostly local, so <b>91.9%</b> of acts remain within their locality <i>by construction</i> (an input, MODEL; by delivery the page engine gives 58% at 100 k nodes and 21% at 1 M; whether real groups are that local is what <code>FSD/twin/locality.md</code> tests), and 50M-viewer live broadcasts consume only a <code>48 Mbps</code> root seed via ALM (CEWP scaling model assumption, <i>k</i> = 8; <code>CLM-alm-live-tree-verified</code> is staged under CIRISEdge#945) instead of <code>300 Tbps</code> centralized CDN egress (<b>6,250,000&times; reduction</b>):
           <ul>
-            <li>Untested gross estimate (MODEL, unlike quantities, not a saving): <b>~415 TWh/yr</b> (47.4 GW hyperscale datacenter baseline) against <b>~27 TWh/yr</b> (a 3.08 GW typed constant with no computation behind it, since removed from the evidence bundle). The per-household delta, whose sign can come out either way, is in <code>FSD/twin/energy.md</code>.</li>
+            <li>The full-replacement comparison: the baseline, <b>~415 TWh/yr</b> of data centres the replaced internet would no longer need, is the right one for the theory. The mesh side (a 3.08 GW typed constant, since removed) counted whole devices; it is being recomputed as what the mesh adds plus the work that relocates onto members' devices. Test 1 (full replacement, <code>cewp-cli energy-full</code>): at the defaults a saving of about 16.5 kWh per person-year if "entirely" leaves AI in data centres, a cost of about 6 kWh if it moves AI onto members' devices; over the input box both span zero, and it is decided by the share of data-centre work that vanishes and by how efficient the edge is at the work that relocates (all MODEL/FRONTIER; <code>FSD/twin/energy.md</code>).</li>
             <li>End-to-end p50 fetch and call RTT drops by <b>73%–79%</b> (<code>25.1 ms</code> vs <code>96.4 ms</code>).</li>
           </ul>
         </li>
@@ -483,7 +483,7 @@ svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--acce
           <td><b>~415 TWh/year</b> (47.4 GW continuous draw for hyperscale cloud data centers)</td>
           <td><b>~380 TWh/year</b> (high cloud transcoding and SFU routing compute)</td>
           <td><b>~180 TWh/year</b> (unshaped P2P churn, duplicate block exchanges)</td>
-          <td><span class="tag">untested</span><b>Sign not yet known.</b> The earlier "~93.5% reduction" compared a gross device-fleet draw with a whole data-centre estate (unlike quantities, MODEL). The twin now computes the per-household delta from the status quo (added draw on devices already on + devices added for the mesh &minus; avoided upstream energy) with its interval and break-even inputs; see <code>FSD/twin/energy.md</code>.</td>
+          <td><span class="tag">recomputing</span><b>Full replacement: sign open.</b> The earlier "~93.5% reduction" had the right baseline (the data-centre estate a replaced internet no longer needs) but counted whole devices on the mesh side. The twin recomputes it as mesh additions plus relocated work: about &minus;16.5 kWh per person-year with AI left in data centres, +6 kWh with AI moved onto members' devices, both spanning zero over the inputs (MODEL/FRONTIER; <code>FSD/twin/energy.md</code>).</td>
         </tr>
         <tr>
           <td><b>Multiscale Certification</b><br><small class="m">(Formal Mathematical Bounds)</small></td>

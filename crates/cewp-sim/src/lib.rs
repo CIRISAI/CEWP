@@ -80,6 +80,7 @@ pub mod seat_view;
 pub mod popchain;
 pub mod couplings;
 pub mod energy;
+pub mod energy_full;
 pub mod locality2;
 pub mod presence0;
 

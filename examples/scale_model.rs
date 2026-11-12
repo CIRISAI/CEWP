@@ -2062,9 +2062,9 @@ fn print_footprint(s: &Scenario) {
     );
     println!();
     println!("  CEWP substrate (fleet styles, no datacenters):");
-    println!("    UNTESTED GROSS ESTIMATE (MODEL): whole-fleet device draw against a whole data-centre estate,");
-    println!("    unlike quantities; reads no traffic, locality or presence and is not a saving. The delta from");
-    println!("    the status quo, with its sign and break-even inputs: cewp-cli energy (FSD/twin/energy.md).");
+    println!("    The full-replacement comparison (MODEL): the baseline is the data-centre estate a replaced");
+    println!("    internet no longer needs; the mesh side below counts whole devices and predates its");
+    println!("    recomputation as additions + relocated work: cewp-cli energy-full (FSD/twin/energy.md, TEST 1).");
     for style in [
         FleetStyle::PhoneFirst,
         FleetStyle::Realistic2026,
@@ -2077,7 +2077,7 @@ fn print_footprint(s: &Scenario) {
         };
         let fp = cewp_footprint(s, style, GLOBAL_GRID_CO2_KG_PER_KWH);
         let ratio = internet.power_mw / fp.power_mw.max(0.001);
-        println!("    [{}] {:>7.1} MW  (marginal {:>6.1} / new-build {:>5.1})  {:>5.1} TWh/yr  {:>5.1} Mt CO2/yr  (gross ratio {}x, MODEL, untested)",
+        println!("    [{}] {:>7.1} MW  (marginal {:>6.1} / new-build {:>5.1})  {:>5.1} TWh/yr  {:>5.1} Mt CO2/yr  (ratio {}x, MODEL, mesh side predates its recomputation)",
             label,
             fp.power_mw,
             fp.marginal_power_mw,
@@ -2177,7 +2177,7 @@ fn print_regional_breakdown(base: &Scenario, style: FleetStyle) {
     let power_ratio = internet.power_mw / fp_total.power_mw.max(0.001);
     let co2_ratio = internet.co2_mt_per_year / fp_total.co2_mt_per_year.max(0.001);
     println!(
-        "    Gross ratio (UNTESTED, MODEL, unlike quantities, not a saving): {}x power, {}x CO2 against the data-centre estate.",
+        "    Ratio (MODEL; the mesh side counts whole devices and predates its recomputation, see cewp-cli energy-full): {}x power, {}x CO2.",
         fmt_count(power_ratio),
         fmt_count(co2_ratio)
     );
@@ -3987,8 +3987,8 @@ fn main() {
     println!("  what an operator configures. The only knobs are workload +");
     println!("  topology + disk size.");
     println!();
-    println!("  Environmental footprint is an UNTESTED GROSS ESTIMATE (see FSD/twin/energy.md");
-    println!("  for the per-household delta, whose sign is not known in advance). It compares CEWP against a hyperscale");
+    println!("  Environmental footprint: the full-replacement comparison; its mesh side counts whole");
+    println!("  devices and is being recomputed as additions + relocated work (FSD/twin/energy.md TEST 1). It compares CEWP against a hyperscale");
     println!("  baseline calibrated to ~10K facilities × 5 MW (IEA 2024 ≈");
     println!("  415 TWh/yr at 5 B users). CEWP power is per-device-class,");
     println!("  marginal-share-discounted (phones spend ~5% of their idle");

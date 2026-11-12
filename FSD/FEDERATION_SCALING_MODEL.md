@@ -354,23 +354,23 @@ Iceland or Norway has near-zero CO2 cost; sub-Saharan Africa's home-
 server capability is real but small (12%), so substrate participation
 there is dominated by the phone-class client tier at first.
 
-### 3.6 Environmental footprint (v0.4): an untested gross estimate
+### 3.6 Environmental footprint (v0.4): the full-replacement comparison
 
-> **Status (2026-11-11): UNTESTED GROSS ESTIMATE, kept for its arithmetic,
-> not a finding.** The table below compares unlike quantities: a whole
-> fleet's device draw (users × device shares × idle watts × an assumed
-> marginal share, `examples/scale_model.rs`) against a whole data-centre
-> estate (10,000 facilities × 5 MW). It reads no traffic, no locality and
-> no presence, it does not subtract the draw of phones people run
-> regardless, and it does not ask which data-centre and network energy a
-> mesh workload would actually move off. The ratio column is therefore
-> not a saving. The quantity that answers the question is a per-household
-> **delta from the status quo** (added draw on devices already on, plus
-> devices added or kept on for the mesh, minus avoided upstream energy),
-> whose sign is not known in advance: see `FSD/twin/energy.md` and
-> `crates/cewp-sim/src/energy.rs`, which report that delta with its
-> interval and the inputs that flip its sign. Every row below is MODEL
-> (hand-set wattages and shares), not MEASURED.
+> **Status (2026-11-12): the full-replacement comparison; the ratio
+> below predates its recomputation.** The theory is that CEWP replaces
+> the internet entirely, so the **baseline** side of this table is the
+> right one: the data-centre estate that would no longer be needed. The
+> mismatch is on the **mesh** side: it counted whole devices (users ×
+> device shares × idle watts × an assumed marginal share,
+> `examples/scale_model.rs`) instead of what the mesh *adds* to devices
+> people run anyway, and it left out the work that relocates onto
+> members' devices and the networks that stay either way. The mesh side
+> is being recomputed as additions plus relocated work in
+> `FSD/twin/energy.md` (TEST 1, `crates/cewp-sim/src/energy_full.rs`).
+> Test 1 (full replacement, `cewp-cli energy-full`): at the defaults a saving of about 16.5 kWh per person-year if "entirely" leaves AI in data centres, a cost of about 6 kWh if it moves AI onto members' devices; over the input box both span zero, and it is decided by the share of data-centre work that vanishes and by how efficient the edge is at the work that relocates.
+> The arithmetic below is kept; every row is MODEL. The adoption path
+> (one household joining while the platforms still run) is TEST 2, in the
+> same file.
 
 Two perspectives in parallel:
 
@@ -384,7 +384,7 @@ Two perspectives in parallel:
 
 At the `full_internet_v1` scenario (5 B users):
 
-| Posture | Power (MODEL, gross) | Electricity | CO2 | gross ratio (unlike quantities, untested) |
+| Posture | Power (MODEL, mesh side as whole devices) | Electricity | CO2 | ratio (predates the recomputed mesh side) |
 |---|---|---|---|---|
 | Internet substrate (today) | 50 GW | 438 TWh/yr | 175 Mt/yr | baseline |
 | CEWP PhoneFirst | 5.3 GW | 47 TWh/yr | 18.6 Mt/yr | 9.4 (gross) |
