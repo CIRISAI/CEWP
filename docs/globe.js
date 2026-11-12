@@ -394,7 +394,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=36"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=37"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2564,7 +2564,7 @@ function holSeam(){
   const n = wasm.pop_household_seam(M.leaf); if (!n){ M.seam = null; return null; }
   const p = wasm.holon_buf_ptr(0) >>> 0, o = Array.from(new Float64Array(wasm.memory.buffer, p, n));
   const tp = wasm.holon_text_ptr() >>> 0, tl = wasm.holon_text_len(), txt = new TextDecoder().decode(new Uint8Array(wasm.memory.buffer, tp, tl)).split("\n");
-  M.seam = { on: o[0] === 1, found: o[1] === 1, people: o[3], cls: o[4], ref: o[5], inCountry: o[6] === 1, perUnit: o[7], comp: o[8], hhLeaf: o[9], hhTile: o[10], leaves: o[11], why: txt };
+  M.seam = { on: o[0] === 1, found: o[1] === 1, people: o[3], cls: o[4], ref: o[5], inCountry: o[6] === 1, perUnit: o[7], comp: o[8], hhLeaf: o[9], hhTile: o[10], leaves: o[11], country: n > 12 ? o[12 + 2 * o[11]] : -1, why: txt };
   return M.seam;
 }
 const HOL_V3 = ["certified", "refused", "unresolved"], HOL_C5 = ["village", "suburban", "terraced", "apartment blocks", "dense fabric"];
@@ -2572,10 +2572,16 @@ function holGenLine(){
   const s = holSeam();
   if (!s || !s.on) return `households: the twin's legacy rule (round(people / 2.5) per leaf, sizes drawn) ${holVd("legacy", "no certificate")}; CIRISHolon's household generator is switched off`;
   if (!s.found) return `households: CIRISHolon's generator ran for this tile but this leaf is not one the chain's tree reaches under it, so the legacy rule stands in ${holVd("legacy", "no certificate")}`;
-  return `households: CIRISHolon's generator (HOUSEGEN-1) for this ~1 km tile: ${s.people.toLocaleString()} people in ${s.hhTile.toLocaleString()} households over ${s.leaves} leaves, ${s.hhLeaf} here; ${s.ref === 0 ? "German 2022" : "US 2024"} rows, class ${HOL_C5[s.cls - 1]}; the reference is chosen by a stated rule (MODEL: German rows everywhere, in_country false: the twin cannot yet test countries) · per unit ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit] + ": " + s.why[0])} · composition ${holVd(HOL_V3[s.comp], HOL_V3[s.comp] + ": " + s.why[1])} · no ages, tenure, building type or vacancy; tiles of one class come out too alike · ${s.why[2]}`;
+  return `households: CIRISHolon's generator (HOUSEGEN-1) for this ~1 km tile: ${s.people.toLocaleString()} people in ${s.hhTile.toLocaleString()} households over ${s.leaves} leaves, ${s.hhLeaf} here; ${s.ref === 0 ? "German 2022" : "US 2024"} rows, class ${HOL_C5[s.cls - 1]}, ${s.inCountry ? "inside the reference's country" : "outside the reference's country (" + holCountryName(s.country) + ")"}; the reference is chosen by a stated rule (MODEL: German rows in Germany, US rows in the United States, German rows elsewhere; the country from Natural Earth's admin-0 mask, which only selects an envelope) · per unit ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit] + ": " + s.why[0])} · composition ${holVd(HOL_V3[s.comp], HOL_V3[s.comp] + ": " + s.why[1])} · no ages, tenure, building type or vacancy; tiles of one class come out too alike · ${s.why[2]}`;
 }
 function holGenShort(){ const s = holSeam(); if (!s || !s.on || !s.found) return `households: legacy ${holVd("legacy", "no certificate")}`; return `households: CIRISHolon HOUSEGEN-1, ${s.hhLeaf} here · ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])} / ${holVd(HOL_V3[s.comp], HOL_V3[s.comp])}`; }
-const holEnvelope = () => `${holVd("unresolved", "outside the envelope for this place: the references are the United States and Germany, keyed by a census unit's density, and the twin does not yet test which country a patch is in")} · these verdicts score the twin's legacy rule (${holVd("legacy", "no certificate")}, kept as the fallback, not retuned)`;
+const holCountryFig = (iso) => fig("countries-source", holCountryName(iso));
+const holCountryName = (iso) => iso === 276 ? "Germany" : iso === 840 ? "United States" : iso === -1 || iso === undefined ? "no country: at sea" : iso === 0 ? "an entity with no ISO code" : "ISO " + iso;
+function holEnvelope(){
+  const s = holSeam(), c = s ? s.country : -1;
+  const where = c === 840 ? holVd("unresolved", "inside the United States, but the US key is a census tract's density, which a leaf does not have: outside the envelope") : c === 276 ? holVd("unresolved", "inside Germany (the German table's envelope), keyed by the 1 km tile's density") : holVd("unresolved", "outside the envelope for this place (" + holCountryFig(c) + "): the references are the United States and Germany");
+  return `${where} · these verdicts score the twin's legacy rule (${holVd("legacy", "no certificate")}, kept as the fallback, not retuned)`;
+}
 // the in-cell line: UNEVEN-0 for the patch's region and class (the world row where the region's is below the floor)
 function holUnevenLine(cls, lat, lon){
   const u = HOLT.t.uneven0; if (!u) return "loading CIRISHolon's in-cell table…";

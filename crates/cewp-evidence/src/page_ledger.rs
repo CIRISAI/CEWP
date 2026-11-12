@@ -483,6 +483,20 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ..BASE
     },
     PageClaim {
+        id: "countries-source",
+        class: Model,
+        shows: "The country a street tile is in, used only to choose which statistical reference's envelope applies (CIRISHolon's household generator's reference, HOUSEHOLD-0's envelope); never drawn as a border.",
+        source: "docs/geo/countries.bin (tools/geo/build_countries.py from ne_50m_admin_0_countries.geojson, Natural Earth v5.1.2); docs/geo/countries.js; crates/cewp-sim/src/countries.rs; FSD/twin/geodata.md",
+        param: "Douglas-Peucker 0.05 degree, quantised 0.01 degree; nearest edge within 0.15 degree for coastal points; ISO 3166-1 numeric from ISO_N3_EH",
+        dataset: "External published estimate: Natural Earth 1:50m Cultural Vectors, Admin 0 - Countries, v5.1.2 (naturalearthdata.com), public domain. Natural Earth shows de facto boundaries; this mask only selects a reference's envelope and is not a claim about any border.",
+        failure: &[
+            "Simplified at about 5 km: a point within a few km of a border or coast can be assigned to the neighbour (at 1:50m the source itself puts downtown El Paso's centre point in Mexico).",
+            "Somaliland, Kosovo, Northern Cyprus and Siachen Glacier carry no ISO numeric code (coded 0: no envelope).",
+        ],
+        reproduce: "python3 -I tools/geo/build_countries.py <raw dir> docs/geo; node --test docs/geo/countries.test.js; cargo test -p cewp-sim countries",
+        ..BASE
+    },
+    PageClaim {
         id: "pop-grid-source",
         class: Model,
         shows: "A land-bounded world population grid: GHS-POP R2023A, epoch 2020, summed to 1.5-degree cells of at least 20,000 people.",
@@ -603,7 +617,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         failure: &[
             "The locality share is set largely by the generated room mix (90% of community rooms sit in one locality): an input, not a discovery.",
             "A locality is one of 181 grid localities, not a town.",
-            "By delivery, the same engine gives 0.58 at 100 k nodes and 0.21 at 1 M nodes (people.md, MEASURED on the page engine). The act share is the headline only because public rooms are 1% of acts and carry most deliveries.",
+            "By delivery, the same engine gives 0.58 at 100 k nodes and 0.21 at 1 M nodes (people.md; MODEL: computed by the page's engine on its generated world). The act share is the headline only because public rooms are 1% of acts and carry most deliveries.",
         ],
         reproduce: "node --test docs/kernel/kernel.test.js",
         ..BASE

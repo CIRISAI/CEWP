@@ -649,11 +649,6 @@ fn tiles() -> &'static mut std::collections::BTreeMap<u64, cewp_sim::popchain::h
     unsafe { (*std::ptr::addr_of_mut!(TILES)).get_or_insert_with(std::collections::BTreeMap::new) }
 }
 
-/// The reference rule (MODEL, stated on the page): Germany 2022 rows everywhere, with in_country false
-/// because the twin cannot yet test which country a tile is in; CIRISHolon's call then answers
-/// "unresolved: outside the country read" and still generates.
-const REFERENCE: cewp_sim::popchain::households::Reference = cewp_sim::popchain::households::Reference::Germany2022;
-const IN_COUNTRY: bool = false;
 
 /// The tile's generated households for leaf `c`, if the seam is on and the leaf is one the chain's
 /// tree reaches under its tile.
@@ -665,7 +660,8 @@ fn tile_for(c: HolonId) -> Option<&'static cewp_sim::popchain::households::Tile>
     let m = tiles();
     if !m.contains_key(&t.pack()) {
         if m.len() > 4096 { m.clear(); }
-        m.insert(t.pack(), households::generate(cells, world, t, REFERENCE, IN_COUNTRY));
+        let (reference, in_country, _) = households::reference_for(t);
+        m.insert(t.pack(), households::generate(cells, world, t, reference, in_country));
     }
     m.get(&t.pack())
 }
@@ -706,10 +702,13 @@ pub extern "C" fn pop_household_seam(id: f64) -> u32 {
         if t.reference == Reference::Germany2022 { 0.0 } else { 1.0 }, f64::from(u8::from(t.in_country)),
         f64::from(t.per_unit.0), f64::from(t.composition.0), mine.map_or(0.0, |l| l.1.len() as f64), hh_tile as f64, t.leaves.len() as f64,
     ];
+    // after the leaves: the tile's country (ISO numeric; -1 none), so the page can name it
+    let country = cewp_sim::popchain::households::reference_for(t.id).2;
     for l in &t.leaves {
         out.push(l.1.iter().map(|&s| f64::from(s)).sum());
         out.push(l.1.len() as f64);
     }
+    out.push(country.map_or(-1.0, f64::from));
     h.text = format!("{}\n{}\n{}", t.per_unit.1, t.composition.1, t.notice).into_bytes();
     let n = out.len() as u32;
     h.out = out;

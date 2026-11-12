@@ -28,6 +28,27 @@ with an account. CGLS-LC100 is CC BY 4.0 on an open Zenodo record, one 1.7 GB fi
 (23 UN-LCCS classes) separates urban, cropland, forest types, bare, snow and water. Total raw
 download 2.20 GB (cap 3 GB).
 
+
+### Countries (admin-0), for envelopes only
+
+Natural Earth 1:50m admin-0 countries, v5.1.2 (public domain), fetched by `NE_FILES=ne_50m_admin_0_countries
+tools/geo/fetch_ne.sh <new empty dir>` into a scratch directory with its manifest (3,083,490 bytes, sha256
+3e458fc036ad0a66411f2c1e6cac49c5d7bfb81cb1123bc513b22511a2b7fdeb); the raw file is never committed.
+`tools/geo/build_countries.py` writes `docs/geo/countries.bin`: every country (237 codes, ISO 3166-1
+numeric from ISO_N3_EH, which carries France 250 and Norway 578; Somaliland, Kosovo, Northern Cyprus and
+Siachen Glacier have no ISO numeric code and are coded 0), 1,632 rings, 31,452 points, Douglas-Peucker at
+0.05 degree, quantised to 0.01 degree, one-byte steps: 85,289 bytes (69,231 gzipped). A ring the
+simplification would drop keeps its four extreme points, so no code is lost. `docs/geo/countries.js`
+(page) and `crates/cewp-sim/src/countries.rs` (kernel, compiled in) run the same exact-integer even-odd
+test; `country_near` falls back to the nearest edge within 0.15 degree, because a coastal city's centre
+can fall just offshore of the simplified coast. Tests: Basel and Loerrach, El Paso and Ciudad Juarez,
+Kaliningrad, Reykjavik, Mallorca, Suva, Maseru (an enclave inside South Africa), open sea (none). At
+1:50m the source's own Rio Grande line puts downtown El Paso's centre point in Mexico; the test uses
+El Paso's airport. **Use:** the mask only selects which statistical reference's envelope a place is
+in (CIRISHolon tables name a country: the household generator's reference, HOUSEHOLD-0's envelope).
+It is never drawn and is not a claim about any border; Natural Earth draws de facto boundaries and
+states its own caveat on disputed areas, and so does this use of it.
+
 ## Processing
 
 GHS-POP is LZW and tifffile on this box has no LZW codec, so `build_geodata.py` reads the tile

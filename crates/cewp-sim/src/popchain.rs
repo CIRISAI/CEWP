@@ -436,6 +436,22 @@ pub mod households {
     /// blocks, dense fabric), people per km2 of the tile (classes.json, the same as the twin's).
     pub const CLASS_KM2: [f64; 5] = [0.0, 250.0, 1_500.0, 6_000.0, 12_000.0];
 
+    /// The reference rule (MODEL, stated on the page): the tile's country by the Natural Earth mask
+    /// (`crate::countries::country_near`, its centre, 0.15 degree to the nearest edge for coasts):
+    /// Germany (276) reads the German 2022 rows in the country, the United States (840) the US 2024
+    /// rows in the country, anywhere else the German rows outside the country (the tile-keyed rows;
+    /// CIRISHolon's call then answers "unresolved: outside the country read"). Returns the country too.
+    #[must_use]
+    pub fn reference_for(tile: HolonId) -> (Reference, bool, Option<u16>) {
+        let (la, lo) = tile.centre_deg();
+        let c = crate::countries::country_near(la, lo, 0.15);
+        match c {
+            Some(276) => (Reference::Germany2022, true, c),
+            Some(840) => (Reference::UnitedStates2024, true, c),
+            _ => (Reference::Germany2022, false, c),
+        }
+    }
+
     /// The tile holding a leaf.
     #[must_use]
     pub fn tile_of(leaf: HolonId) -> HolonId {
@@ -682,6 +698,16 @@ mod tests {
         // docs/geo/holon/housegen.test.js checks the shipped wasm gives the same number
         let want = include_str!("../../../docs/geo/holon/housegen_digest.txt").trim().parse::<u64>().unwrap();
         assert_eq!(households::generator_digest(), want);
+    }
+
+    #[test]
+    fn the_reference_rule_follows_the_country() {
+        use households::*;
+        let at = |la: f64, lo: f64| reference_for(tile_of(HolonId::at(9, la, lo)));
+        assert_eq!(at(52.52, 13.405), (Reference::Germany2022, true, Some(276)));
+        assert_eq!(at(40.75, -73.99), (Reference::UnitedStates2024, true, Some(840)));
+        assert_eq!(at(47.3769, 8.5417), (Reference::Germany2022, false, Some(756)));
+        assert_eq!(at(45.76, 4.84), (Reference::Germany2022, false, Some(250)));
     }
 
     #[test]
