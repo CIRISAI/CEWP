@@ -88,4 +88,4 @@ function zpStart(){
 // after the first painted frames
 if (document.readyState === "complete") setTimeout(zpStart, 800); else window.addEventListener("load", () => setTimeout(zpStart, 800));
 // return visits: the service worker keeps the versioned assets (sw.js)
-if ("serviceWorker" in navigator && location.protocol !== "file:") window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch((e) => console.info("no service worker: " + e.message)); });
+if ("serviceWorker" in navigator && location.protocol !== "file:") window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch((e) => console.info("no service worker: " + e.message)); });
