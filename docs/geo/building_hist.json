@@ -1,0 +1,5109 @@
+{
+ "what": "buildings and dwellings per building by street class, from the twin's own layout code (tiling.rs LeafLayout::build, run by the page's kernel holon_layout), MODEL",
+ "command": "node docs/geo/building_hist.js --write",
+ "inputs": {
+  "docs/kernel/kernel_scale.wasm": "2c80ec452fc46dd72a8a6efd1d0633e1fede5a8760f11feca93073769cb64007",
+  "docs/geo/gd/pop0.bin.gz": "7711745ab49ecdd6ae0dac09f63c4bcf1d60aee91dd1ddc98426ce7223488dbb",
+  "docs/geo/gd/pop1.bin.gz": "ce8ca1dc64950a8646cc04b7bf8ad621e6b1ad4e05b7dd56066aa08576dedf01",
+  "docs/geo/geodata.js": "611401a1ee657243ff0427ad697680e36942edea30ed160ba2b5acf93b43234d",
+  "docs/holon.js": "a1e0a4da1e56da93ffc237c6b8e67afa9f1443974f2bddb8529f089ec48b53f1",
+  "docs/geo/classes.json": "24d6f653feccbb6798132ae198d509b481e8d607d395daa164b555d3b950e0ed"
+ },
+ "definitions": {
+  "class": "docs/geo/classes.json, from the layout's own people per km2 (holon_layout meta slot 4: households x 2.5 / leaf area) and checked against its DensityClass (meta slot 3; dense fabric = UrbanCore at >= 12,000)",
+  "leaf_area": "w x h of holon_layout meta (HolonId::size_m: the holon's side lengths in metres at its centre latitude)",
+  "dwelling_building": "a building with units >= 1; non_dwelling_buildings are village barns / sheds (units 0)",
+  "bands": "dwellings per building 1, 2, 3-6, 7-12, 13+; buildings_by_dwellings_exact gives the raw counts",
+  "per_leaf": "over the group's leaves: min, lower median (the floor((n-1)/2)-th of n sorted), max; per km2 of that leaf's area",
+  "footprint": "floor(w x d / 10) x 10 m2 of each dwelling building (frontage x depth)",
+  "parameters": "micro parameters at their defaults (the class thresholds and 2.5 persons per household are PARAM_SPECS MODEL values)"
+ },
+ "synthetic": {
+  "scheme": "per rung a uniform world at the rung's people per km2 (households per km2 = rung / 2.5); level-0 budgets round(households per km2 x area), splits by cos(child centre latitude) x 1e6 through holon_split_exact; the page's tree and leaf rule; the first 400 leaves holding households, in tree order, of the L3 tiles HOLON.make(3, i0, j0 + k), k = 0, 1, ..., (i0, j0) = HOLON.at(3, 51, 10); a leaf's seed is its id",
+  "rungs": [
+   {
+    "ladder_class": "village",
+    "people_per_km2": 5,
+    "l3_tiles_walked": 400,
+    "leaves_by_layout_class": {
+     "village": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 1247.511511,
+    "households": 2666,
+    "dwelling_buildings": 2666,
+    "non_dwelling_buildings": 12084,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 2666,
+     "buildings": 2666,
+     "decimal": "1.000000"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 2666
+    },
+    "buildings_by_dwellings_band": {
+     "1": 2666,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 2666,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 2.137054,
+    "dwellings_per_km2": 2.137054,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 4.809575,
+      "median_lower": 5.611171,
+      "max": 5.611171
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 1.92383,
+      "median_lower": 2.244468,
+      "max": 2.244468
+     },
+     "dwellings_per_km2": {
+      "min": 1.92383,
+      "median_lower": 2.244468,
+      "max": 2.244468
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 1341,
+     "2": 1325
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 12,
+      "70": 208,
+      "80": 422,
+      "90": 617,
+      "100": 568,
+      "110": 462,
+      "120": 265,
+      "130": 106,
+      "140": 6
+     }
+    }
+   },
+   {
+    "ladder_class": "village",
+    "people_per_km2": 15,
+    "l3_tiles_walked": 400,
+    "leaves_by_layout_class": {
+     "village": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 1247.511511,
+    "households": 7600,
+    "dwelling_buildings": 7600,
+    "non_dwelling_buildings": 19763,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 7600,
+     "buildings": 7600,
+     "decimal": "1.000000"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 7600
+    },
+    "buildings_by_dwellings_band": {
+     "1": 7600,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 7600,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 6.092128,
+    "dwellings_per_km2": 6.092128,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 15.23032,
+      "median_lower": 15.23032,
+      "max": 15.23032
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 6.092128,
+      "median_lower": 6.092128,
+      "max": 6.092128
+     },
+     "dwellings_per_km2": {
+      "min": 6.092128,
+      "median_lower": 6.092128,
+      "max": 6.092128
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 3838,
+     "2": 3762
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 14,
+      "70": 528,
+      "80": 1256,
+      "90": 1703,
+      "100": 1764,
+      "110": 1217,
+      "120": 773,
+      "130": 325,
+      "140": 20
+     }
+    }
+   },
+   {
+    "ladder_class": "village",
+    "people_per_km2": 40,
+    "l3_tiles_walked": 400,
+    "leaves_by_layout_class": {
+     "village": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 1247.511511,
+    "households": 20000,
+    "dwelling_buildings": 20000,
+    "non_dwelling_buildings": 28085,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 20000,
+     "buildings": 20000,
+     "decimal": "1.000000"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 20000
+    },
+    "buildings_by_dwellings_band": {
+     "1": 20000,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 20000,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 16.031916,
+    "dwellings_per_km2": 16.031916,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 40.079791,
+      "median_lower": 40.079791,
+      "max": 40.079791
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 16.031916,
+      "median_lower": 16.031916,
+      "max": 16.031916
+     },
+     "dwellings_per_km2": {
+      "min": 16.031916,
+      "median_lower": 16.031916,
+      "max": 16.031916
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 10052,
+     "2": 9948
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 50,
+      "70": 1530,
+      "80": 3381,
+      "90": 4627,
+      "100": 4385,
+      "110": 3175,
+      "120": 1998,
+      "130": 811,
+      "140": 43
+     }
+    }
+   },
+   {
+    "ladder_class": "village",
+    "people_per_km2": 80,
+    "l3_tiles_walked": 100,
+    "leaves_by_layout_class": {
+     "village": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 311.877877,
+    "households": 10000,
+    "dwelling_buildings": 10000,
+    "non_dwelling_buildings": 7665,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 10000,
+     "buildings": 10000,
+     "decimal": "1.000000"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 10000
+    },
+    "buildings_by_dwellings_band": {
+     "1": 10000,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 10000,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 32.063833,
+    "dwellings_per_km2": 32.063833,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 80.150941,
+      "median_lower": 80.150941,
+      "max": 80.168224
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 32.060376,
+      "median_lower": 32.060376,
+      "max": 32.067289
+     },
+     "dwellings_per_km2": {
+      "min": 32.060376,
+      "median_lower": 32.060376,
+      "max": 32.067289
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 5033,
+     "2": 4967
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 20,
+      "70": 740,
+      "80": 1637,
+      "90": 2263,
+      "100": 2269,
+      "110": 1659,
+      "120": 982,
+      "130": 405,
+      "140": 25
+     }
+    }
+   },
+   {
+    "ladder_class": "village",
+    "people_per_km2": 150,
+    "l3_tiles_walked": 100,
+    "leaves_by_layout_class": {
+     "village": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 311.877877,
+    "households": 18714,
+    "dwelling_buildings": 18714,
+    "non_dwelling_buildings": 9687,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 18714,
+     "buildings": 18714,
+     "decimal": "1.000000"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 18714
+    },
+    "buildings_by_dwellings_band": {
+     "1": 18714,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 18714,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 60.004256,
+    "dwellings_per_km2": 60.004256,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 147.509532,
+      "median_lower": 150.683769,
+      "max": 150.716261
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 59.003813,
+      "median_lower": 60.273507,
+      "max": 60.286504
+     },
+     "dwellings_per_km2": {
+      "min": 59.003813,
+      "median_lower": 60.273507,
+      "max": 60.286504
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 9346,
+     "2": 9368
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 39,
+      "70": 1407,
+      "80": 3160,
+      "90": 4295,
+      "100": 4175,
+      "110": 3004,
+      "120": 1825,
+      "130": 763,
+      "140": 46
+     }
+    }
+   },
+   {
+    "ladder_class": "village",
+    "people_per_km2": 230,
+    "l3_tiles_walked": 25,
+    "leaves_by_layout_class": {
+     "village": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 77.969469,
+    "households": 7175,
+    "dwelling_buildings": 6847,
+    "non_dwelling_buildings": 2265,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 7175,
+     "buildings": 6847,
+     "decimal": "1.047904"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 6549,
+     "2": 289,
+     "3": 4,
+     "4": 2,
+     "5": 2,
+     "18": 1
+    },
+    "buildings_by_dwellings_band": {
+     "1": 6549,
+     "2": 289,
+     "3-6": 8,
+     "7-12": 0,
+     "13+": 1
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 6549,
+     "2": 578,
+     "3-6": 30,
+     "7-12": 0,
+     "13+": 18
+    },
+    "dwelling_buildings_per_km2": 87.816425,
+    "dwellings_per_km2": 92.023199,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 218.069325,
+      "median_lower": 230.84715,
+      "max": 230.896933
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 5.129384,
+      "median_lower": 92.33886,
+      "max": 92.358773
+     },
+     "dwellings_per_km2": {
+      "min": 87.22773,
+      "median_lower": 92.33886,
+      "max": 92.358773
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 3256,
+     "2": 3582,
+     "3": 4,
+     "4": 2,
+     "5": 2,
+     "6": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 18,
+      "70": 438,
+      "80": 1146,
+      "90": 1646,
+      "100": 1532,
+      "110": 1096,
+      "120": 677,
+      "130": 278,
+      "140": 15,
+      "450": 1
+     }
+    }
+   },
+   {
+    "ladder_class": "suburban streets",
+    "people_per_km2": 270,
+    "l3_tiles_walked": 25,
+    "leaves_by_layout_class": {
+     "suburban streets": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 77.969469,
+    "households": 8425,
+    "dwelling_buildings": 8388,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 8425,
+     "buildings": 8388,
+     "decimal": "1.004411"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 8371,
+     "2": 15,
+     "3": 1,
+     "21": 1
+    },
+    "buildings_by_dwellings_band": {
+     "1": 8371,
+     "2": 15,
+     "3-6": 1,
+     "7-12": 0,
+     "13+": 1
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 8371,
+     "2": 30,
+     "3-6": 3,
+     "7-12": 0,
+     "13+": 21
+    },
+    "dwelling_buildings_per_km2": 107.580571,
+    "dwellings_per_km2": 108.055116,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 269.292648,
+      "median_lower": 269.350711,
+      "max": 282.116108
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 5.129384,
+      "median_lower": 107.740284,
+      "max": 112.846443
+     },
+     "dwellings_per_km2": {
+      "min": 107.717059,
+      "median_lower": 107.740284,
+      "max": 112.846443
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 4199,
+     "2": 4187,
+     "3": 1,
+     "7": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "80": 355,
+      "90": 1130,
+      "100": 1846,
+      "110": 2077,
+      "120": 1441,
+      "130": 976,
+      "140": 498,
+      "150": 64,
+      "520": 1
+     }
+    }
+   },
+   {
+    "ladder_class": "suburban streets",
+    "people_per_km2": 400,
+    "l3_tiles_walked": 25,
+    "leaves_by_layout_class": {
+     "suburban streets": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 77.969469,
+    "households": 12475,
+    "dwelling_buildings": 12455,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 12475,
+     "buildings": 12455,
+     "decimal": "1.001606"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 12435,
+     "2": 20
+    },
+    "buildings_by_dwellings_band": {
+     "1": 12435,
+     "2": 20,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 12435,
+     "2": 40,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 159.742014,
+    "dwellings_per_km2": 159.998524,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 397.527243,
+      "median_lower": 397.612954,
+      "max": 410.439179
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 133.363978,
+      "median_lower": 159.045182,
+      "max": 164.175671
+     },
+     "dwellings_per_km2": {
+      "min": 159.010897,
+      "median_lower": 159.045182,
+      "max": 164.175671
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 6233,
+     "2": 6222
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "80": 513,
+      "90": 1723,
+      "100": 2799,
+      "110": 3038,
+      "120": 2159,
+      "130": 1385,
+      "140": 723,
+      "150": 115
+     }
+    }
+   },
+   {
+    "ladder_class": "suburban streets",
+    "people_per_km2": 600,
+    "l3_tiles_walked": 25,
+    "leaves_by_layout_class": {
+     "suburban streets": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 77.969469,
+    "households": 18716,
+    "dwelling_buildings": 18664,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 18716,
+     "buildings": 18664,
+     "decimal": "1.002786"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 18612,
+     "2": 52
+    },
+    "buildings_by_dwellings_band": {
+     "1": 18612,
+     "2": 52,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 18612,
+     "2": 104,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 239.375748,
+    "dwellings_per_km2": 240.042676,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 589.942718,
+      "median_lower": 602.767559,
+      "max": 602.897546
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 133.392733,
+      "median_lower": 241.107024,
+      "max": 241.159018
+     },
+     "dwellings_per_km2": {
+      "min": 235.977087,
+      "median_lower": 241.107024,
+      "max": 241.159018
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 9309,
+     "2": 9355
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "80": 783,
+      "90": 2589,
+      "100": 4114,
+      "110": 4522,
+      "120": 3208,
+      "130": 2146,
+      "140": 1130,
+      "150": 172
+     }
+    }
+   },
+   {
+    "ladder_class": "suburban streets",
+    "people_per_km2": 850,
+    "l3_tiles_walked": 7,
+    "leaves_by_layout_class": {
+     "suburban streets": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 19.492451,
+    "households": 6625,
+    "dwelling_buildings": 5758,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 6625,
+     "buildings": 5758,
+     "decimal": "1.150573"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 5173,
+     "2": 439,
+     "3": 97,
+     "4": 35,
+     "5": 4,
+     "6": 4,
+     "16": 3,
+     "17": 3
+    },
+    "buildings_by_dwellings_band": {
+     "1": 5173,
+     "2": 439,
+     "3-6": 140,
+     "7-12": 0,
+     "13+": 6
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 5173,
+     "2": 878,
+     "3-6": 475,
+     "7-12": 0,
+     "13+": 99
+    },
+    "dwelling_buildings_per_km2": 295.396403,
+    "dwellings_per_km2": 339.87516,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 820.723518,
+      "median_lower": 871.971749,
+      "max": 872.253787
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 20.516982,
+      "median_lower": 328.324795,
+      "max": 348.901515
+     },
+     "dwellings_per_km2": {
+      "min": 328.289407,
+      "median_lower": 348.788699,
+      "max": 348.901515
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 2574,
+     "2": 3038,
+     "3": 97,
+     "4": 35,
+     "5": 4,
+     "6": 10
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "80": 245,
+      "90": 749,
+      "100": 1213,
+      "110": 1411,
+      "120": 1058,
+      "130": 685,
+      "140": 323,
+      "150": 68,
+      "400": 3,
+      "420": 3
+     }
+    }
+   },
+   {
+    "ladder_class": "suburban streets",
+    "people_per_km2": 1150,
+    "l3_tiles_walked": 7,
+    "leaves_by_layout_class": {
+     "suburban streets": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 19.492451,
+    "households": 8969,
+    "dwelling_buildings": 7635,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 8969,
+     "buildings": 7635,
+     "decimal": "1.174722"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 6585,
+     "2": 909,
+     "3": 72,
+     "4": 45,
+     "5": 11,
+     "6": 8,
+     "7": 1,
+     "8": 2,
+     "22": 2
+    },
+    "buildings_by_dwellings_band": {
+     "1": 6585,
+     "2": 909,
+     "3-6": 136,
+     "7-12": 3,
+     "13+": 2
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 6585,
+     "2": 1818,
+     "3-6": 499,
+     "7-12": 23,
+     "13+": 44
+    },
+    "dwelling_buildings_per_km2": 391.69009,
+    "dwellings_per_km2": 460.126839,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 1128.494838,
+      "median_lower": 1128.85988,
+      "max": 1180.108064
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 20.524725,
+      "median_lower": 451.397935,
+      "max": 472.043226
+     },
+     "dwellings_per_km2": {
+      "min": 451.397935,
+      "median_lower": 451.543952,
+      "max": 472.043226
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 3216,
+     "2": 4278,
+     "3": 72,
+     "4": 45,
+     "5": 11,
+     "6": 8,
+     "7": 1,
+     "8": 4
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "80": 317,
+      "90": 991,
+      "100": 1616,
+      "110": 1887,
+      "120": 1391,
+      "130": 896,
+      "140": 452,
+      "150": 83,
+      "550": 2
+     }
+    }
+   },
+   {
+    "ladder_class": "suburban streets",
+    "people_per_km2": 1450,
+    "l3_tiles_walked": 7,
+    "leaves_by_layout_class": {
+     "suburban streets": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 19.492451,
+    "households": 11307,
+    "dwelling_buildings": 8908,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 11307,
+     "buildings": 8908,
+     "decimal": "1.269308"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 6970,
+     "2": 1663,
+     "3": 193,
+     "4": 43,
+     "5": 19,
+     "6": 4,
+     "7": 12,
+     "9": 1,
+     "10": 2,
+     "28": 1
+    },
+    "buildings_by_dwellings_band": {
+     "1": 6970,
+     "2": 1663,
+     "3-6": 259,
+     "7-12": 15,
+     "13+": 1
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 6970,
+     "2": 3326,
+     "3-6": 870,
+     "7-12": 113,
+     "13+": 28
+    },
+    "dwelling_buildings_per_km2": 456.997422,
+    "dwellings_per_km2": 580.070706,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 1436.188762,
+      "median_lower": 1436.575846,
+      "max": 1487.962342
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 20.524725,
+      "median_lower": 512.924558,
+      "max": 595.184937
+     },
+     "dwellings_per_km2": {
+      "min": 574.475505,
+      "median_lower": 574.630338,
+      "max": 595.184937
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 3427,
+     "2": 5206,
+     "3": 193,
+     "4": 43,
+     "5": 19,
+     "6": 4,
+     "7": 13,
+     "9": 1,
+     "10": 2
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "80": 366,
+      "90": 1168,
+      "100": 1918,
+      "110": 2170,
+      "120": 1619,
+      "130": 1046,
+      "140": 523,
+      "150": 97,
+      "700": 1
+     }
+    }
+   },
+   {
+    "ladder_class": "terraced streets",
+    "people_per_km2": 1600,
+    "l3_tiles_walked": 7,
+    "leaves_by_layout_class": {
+     "terraced streets": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 19.492451,
+    "households": 12475,
+    "dwelling_buildings": 8866,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 12475,
+     "buildings": 8866,
+     "decimal": "1.407061"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 5539,
+     "2": 3159,
+     "3": 120,
+     "4": 35,
+     "5": 10,
+     "6": 1,
+     "31": 2
+    },
+    "buildings_by_dwellings_band": {
+     "1": 5539,
+     "2": 3159,
+     "3-6": 166,
+     "7-12": 0,
+     "13+": 2
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 5539,
+     "2": 6318,
+     "3-6": 556,
+     "7-12": 0,
+     "13+": 62
+    },
+    "dwelling_buildings_per_km2": 454.842742,
+    "dwellings_per_km2": 639.991338,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 1590.06613,
+      "median_lower": 1590.494686,
+      "max": 1641.889481
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 20.519194,
+      "median_lower": 471.966893,
+      "max": 574.630338
+     },
+     "dwellings_per_km2": {
+      "min": 636.026452,
+      "median_lower": 636.197874,
+      "max": 656.755792
+     }
+    },
+    "floors_per_dwelling_building": {
+     "2": 4461,
+     "3": 4357,
+     "4": 35,
+     "5": 10,
+     "6": 1,
+     "8": 2
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "50": 305,
+      "60": 2369,
+      "70": 3466,
+      "80": 2138,
+      "90": 586,
+      "780": 2
+     }
+    }
+   },
+   {
+    "ladder_class": "terraced streets",
+    "people_per_km2": 2200,
+    "l3_tiles_walked": 7,
+    "leaves_by_layout_class": {
+     "terraced streets": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 19.492451,
+    "households": 17157,
+    "dwelling_buildings": 12103,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 17157,
+     "buildings": 12103,
+     "decimal": "1.417582"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 7257,
+     "2": 4695,
+     "3": 108,
+     "4": 29,
+     "5": 14
+    },
+    "buildings_by_dwellings_band": {
+     "1": 7257,
+     "2": 4695,
+     "3-6": 151,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 7257,
+     "2": 9390,
+     "3-6": 510,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 620.907027,
+    "dwellings_per_km2": 880.186885,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 2154.631469,
+      "median_lower": 2205.932218,
+      "max": 2206.407948
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 205.169823,
+      "median_lower": 636.095006,
+      "max": 738.850266
+     },
+     "dwellings_per_km2": {
+      "min": 861.852587,
+      "median_lower": 882.372887,
+      "max": 882.563179
+     }
+    },
+    "floors_per_dwelling_building": {
+     "2": 5987,
+     "3": 6073,
+     "4": 29,
+     "5": 14
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "50": 419,
+      "60": 3238,
+      "70": 4788,
+      "80": 2850,
+      "90": 808
+     }
+    }
+   },
+   {
+    "ladder_class": "terraced streets",
+    "people_per_km2": 3000,
+    "l3_tiles_walked": 7,
+    "leaves_by_layout_class": {
+     "terraced streets": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 19.492451,
+    "households": 23394,
+    "dwelling_buildings": 15825,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 23394,
+     "buildings": 15825,
+     "decimal": "1.478294"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 8650,
+     "2": 6802,
+     "3": 355,
+     "4": 15,
+     "5": 3
+    },
+    "buildings_by_dwellings_band": {
+     "1": 8650,
+     "2": 6802,
+     "3-6": 373,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 8650,
+     "2": 13604,
+     "3-6": 1140,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 811.85274,
+    "dwellings_per_km2": 1200.156903,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 2975.122753,
+      "median_lower": 2976.085139,
+      "max": 3027.23373
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 328.289407,
+      "median_lower": 841.196275,
+      "max": 964.61007
+     },
+     "dwellings_per_km2": {
+      "min": 1190.049101,
+      "median_lower": 1190.434055,
+      "max": 1210.893492
+     }
+    },
+    "floors_per_dwelling_building": {
+     "2": 7718,
+     "3": 8089,
+     "4": 15,
+     "5": 3
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "50": 547,
+      "60": 4175,
+      "70": 6305,
+      "80": 3763,
+      "90": 1035
+     }
+    }
+   },
+   {
+    "ladder_class": "terraced streets",
+    "people_per_km2": 4000,
+    "l3_tiles_walked": 2,
+    "leaves_by_layout_class": {
+     "terraced streets": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 4.873249,
+    "households": 7798,
+    "dwelling_buildings": 3737,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 7798,
+     "buildings": 3737,
+     "decimal": "2.086701"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 1238,
+     "2": 1665,
+     "3": 516,
+     "4": 121,
+     "5": 134,
+     "6": 34,
+     "7": 4,
+     "9": 6,
+     "10": 11,
+     "11": 3,
+     "19": 1,
+     "20": 4
+    },
+    "buildings_by_dwellings_band": {
+     "1": 1238,
+     "2": 1665,
+     "3-6": 805,
+     "7-12": 24,
+     "13+": 5
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 1238,
+     "2": 3330,
+     "3-6": 2906,
+     "7-12": 225,
+     "13+": 99
+    },
+    "dwelling_buildings_per_km2": 766.83947,
+    "dwellings_per_km2": 1600.164353,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 3898.279155,
+      "median_lower": 3899.750335,
+      "max": 4104.889686
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 82.066824,
+      "median_lower": 820.690349,
+      "max": 1395.361577
+     },
+     "dwellings_per_km2": {
+      "min": 1559.311662,
+      "median_lower": 1559.900134,
+      "max": 1641.955875
+     }
+    },
+    "floors_per_dwelling_building": {
+     "2": 1508,
+     "3": 1911,
+     "4": 121,
+     "5": 134,
+     "6": 34,
+     "7": 7,
+     "9": 6,
+     "10": 11,
+     "11": 3,
+     "19": 1,
+     "20": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "50": 125,
+      "60": 978,
+      "70": 1477,
+      "80": 907,
+      "90": 247,
+      "500": 3
+     }
+    }
+   },
+   {
+    "ladder_class": "terraced streets",
+    "people_per_km2": 5000,
+    "l3_tiles_walked": 2,
+    "leaves_by_layout_class": {
+     "terraced streets": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 4.873249,
+    "households": 9748,
+    "dwelling_buildings": 4234,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 9748,
+     "buildings": 4234,
+     "decimal": "2.302315"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 999,
+     "2": 1909,
+     "3": 926,
+     "4": 201,
+     "5": 49,
+     "6": 97,
+     "7": 29,
+     "8": 3,
+     "9": 3,
+     "11": 3,
+     "12": 7,
+     "13": 4,
+     "24": 1,
+     "25": 3
+    },
+    "buildings_by_dwellings_band": {
+     "1": 999,
+     "2": 1909,
+     "3-6": 1273,
+     "7-12": 45,
+     "13+": 8
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 999,
+     "2": 3818,
+     "3-6": 4409,
+     "7-12": 371,
+     "13+": 151
+    },
+    "dwelling_buildings_per_km2": 868.82481,
+    "dwellings_per_km2": 2000.308042,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 4924.142091,
+      "median_lower": 4925.469281,
+      "max": 5131.112108
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 82.080093,
+      "median_lower": 902.954024,
+      "max": 1477.44167
+     },
+     "dwellings_per_km2": {
+      "min": 1969.656836,
+      "median_lower": 1970.187713,
+      "max": 2052.444843
+     }
+    },
+    "floors_per_dwelling_building": {
+     "2": 1498,
+     "3": 2336,
+     "4": 201,
+     "5": 49,
+     "6": 97,
+     "7": 29,
+     "8": 3,
+     "9": 5,
+     "11": 3,
+     "12": 7,
+     "13": 4,
+     "24": 1,
+     "25": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "50": 135,
+      "60": 1142,
+      "70": 1667,
+      "80": 1001,
+      "90": 287,
+      "630": 2
+     }
+    }
+   },
+   {
+    "ladder_class": "terraced streets",
+    "people_per_km2": 5900,
+    "l3_tiles_walked": 2,
+    "leaves_by_layout_class": {
+     "terraced streets": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 4.873249,
+    "households": 11502,
+    "dwelling_buildings": 4541,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 11502,
+     "buildings": 4541,
+     "decimal": "2.532922"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 815,
+     "2": 1887,
+     "3": 1247,
+     "4": 369,
+     "5": 49,
+     "6": 34,
+     "7": 79,
+     "8": 33,
+     "9": 8,
+     "10": 2,
+     "11": 2,
+     "14": 5,
+     "15": 5,
+     "28": 3,
+     "29": 3
+    },
+    "buildings_by_dwellings_band": {
+     "1": 815,
+     "2": 1887,
+     "3-6": 1699,
+     "7-12": 124,
+     "13+": 16
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 815,
+     "2": 3774,
+     "3-6": 5666,
+     "7-12": 931,
+     "13+": 316
+    },
+    "dwelling_buildings_per_km2": 931.821791,
+    "dwellings_per_km2": 2360.232161,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 5744.83244,
+      "median_lower": 5950.486013,
+      "max": 5952.250512
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 82.091155,
+      "median_lower": 984.90803,
+      "max": 1641.955875
+     },
+     "dwellings_per_km2": {
+      "min": 2297.932976,
+      "median_lower": 2380.194405,
+      "max": 2380.900205
+     }
+    },
+    "floors_per_dwelling_building": {
+     "2": 1378,
+     "3": 2571,
+     "4": 369,
+     "5": 49,
+     "6": 34,
+     "7": 82,
+     "8": 35,
+     "9": 8,
+     "10": 2,
+     "11": 2,
+     "14": 5,
+     "15": 5,
+     "29": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "50": 136,
+      "60": 1217,
+      "70": 1811,
+      "80": 1075,
+      "90": 297,
+      "700": 3,
+      "730": 2
+     }
+    }
+   },
+   {
+    "ladder_class": "apartment blocks",
+    "people_per_km2": 6100,
+    "l3_tiles_walked": 2,
+    "leaves_by_layout_class": {
+     "apartment blocks": 292,
+     "terraced streets": 108
+    },
+    "leaves": 400,
+    "leaf_area_km2": 4.873249,
+    "households": 11892,
+    "dwelling_buildings": 2395,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 11892,
+     "buildings": 2395,
+     "decimal": "4.965344"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 258,
+     "2": 515,
+     "3": 503,
+     "4": 229,
+     "5": 126,
+     "6": 122,
+     "7": 135,
+     "8": 103,
+     "9": 81,
+     "10": 69,
+     "11": 59,
+     "12": 55,
+     "13": 32,
+     "14": 33,
+     "15": 23,
+     "16": 10,
+     "17": 12,
+     "18": 5,
+     "19": 4,
+     "20": 5,
+     "22": 1,
+     "29": 5,
+     "30": 10
+    },
+    "buildings_by_dwellings_band": {
+     "1": 258,
+     "2": 515,
+     "3-6": 980,
+     "7-12": 502,
+     "13+": 140
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 258,
+     "2": 1030,
+     "3-6": 3787,
+     "7-12": 4497,
+     "13+": 2320
+    },
+    "dwelling_buildings_per_km2": 491.458531,
+    "dwellings_per_km2": 2440.260899,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 5950.005027,
+      "median_lower": 6155.509317,
+      "max": 6157.500529
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 82.066824,
+      "median_lower": 410.389404,
+      "max": 1477.56113
+     },
+     "dwellings_per_km2": {
+      "min": 2380.002011,
+      "median_lower": 2462.203727,
+      "max": 2463.000212
+     }
+    },
+    "floors_per_dwelling_building": {
+     "2": 295,
+     "3": 649,
+     "4": 384,
+     "5": 316,
+     "6": 330,
+     "7": 385,
+     "8": 23,
+     "9": 2,
+     "10": 3,
+     "14": 1,
+     "15": 6,
+     "29": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "50": 30,
+      "60": 301,
+      "70": 466,
+      "80": 266,
+      "90": 61,
+      "180": 12,
+      "190": 30,
+      "200": 32,
+      "210": 58,
+      "220": 69,
+      "230": 78,
+      "240": 80,
+      "250": 94,
+      "260": 91,
+      "270": 78,
+      "280": 76,
+      "290": 83,
+      "300": 89,
+      "310": 70,
+      "320": 80,
+      "330": 40,
+      "340": 56,
+      "350": 42,
+      "360": 37,
+      "370": 13,
+      "380": 28,
+      "390": 21,
+      "400": 3,
+      "410": 3,
+      "730": 4,
+      "750": 4
+     }
+    }
+   },
+   {
+    "ladder_class": "apartment blocks",
+    "people_per_km2": 7000,
+    "l3_tiles_walked": 2,
+    "leaves_by_layout_class": {
+     "apartment blocks": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 4.873249,
+    "households": 13646,
+    "dwelling_buildings": 1817,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 13646,
+     "buildings": 1817,
+     "decimal": "7.510182"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 119,
+     "2": 133,
+     "3": 156,
+     "4": 149,
+     "5": 153,
+     "6": 162,
+     "7": 139,
+     "8": 136,
+     "9": 137,
+     "10": 113,
+     "11": 89,
+     "12": 81,
+     "13": 61,
+     "14": 58,
+     "15": 40,
+     "16": 23,
+     "17": 18,
+     "18": 12,
+     "19": 9,
+     "20": 6,
+     "21": 2,
+     "22": 4,
+     "24": 1,
+     "34": 15,
+     "35": 1
+    },
+    "buildings_by_dwellings_band": {
+     "1": 119,
+     "2": 133,
+     "3-6": 620,
+     "7-12": 695,
+     "13+": 250
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 119,
+     "2": 266,
+     "3-6": 2801,
+     "7-12": 6375,
+     "13+": 4085
+    },
+    "dwelling_buildings_per_km2": 372.851838,
+    "dwellings_per_km2": 2800.185017,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 6975.680018,
+      "median_lower": 6976.995913,
+      "max": 7183.16966
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 82.066824,
+      "median_lower": 410.356231,
+      "max": 738.621314
+     },
+     "dwellings_per_km2": {
+      "min": 2790.272007,
+      "median_lower": 2790.798365,
+      "max": 2873.267864
+     }
+    },
+    "floors_per_dwelling_building": {
+     "4": 350,
+     "5": 457,
+     "6": 464,
+     "7": 498,
+     "8": 17,
+     "9": 21,
+     "10": 3,
+     "12": 4,
+     "17": 3
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "180": 21,
+      "190": 39,
+      "200": 60,
+      "210": 88,
+      "220": 98,
+      "230": 117,
+      "240": 117,
+      "250": 125,
+      "260": 116,
+      "270": 112,
+      "280": 99,
+      "290": 122,
+      "300": 129,
+      "310": 95,
+      "320": 115,
+      "330": 66,
+      "340": 74,
+      "350": 53,
+      "360": 47,
+      "370": 27,
+      "380": 46,
+      "390": 32,
+      "400": 6,
+      "410": 4,
+      "850": 9
+     }
+    }
+   },
+   {
+    "ladder_class": "apartment blocks",
+    "people_per_km2": 8000,
+    "l3_tiles_walked": 2,
+    "leaves_by_layout_class": {
+     "apartment blocks": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 4.873249,
+    "households": 15595,
+    "dwelling_buildings": 1962,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 15595,
+     "buildings": 1962,
+     "decimal": "7.948522"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 89,
+     "2": 115,
+     "3": 160,
+     "4": 151,
+     "5": 173,
+     "6": 178,
+     "7": 159,
+     "8": 151,
+     "9": 132,
+     "10": 130,
+     "11": 124,
+     "12": 84,
+     "13": 79,
+     "14": 59,
+     "15": 58,
+     "16": 32,
+     "17": 31,
+     "18": 14,
+     "19": 10,
+     "20": 7,
+     "21": 6,
+     "22": 4,
+     "23": 2,
+     "24": 3,
+     "25": 1,
+     "26": 1,
+     "39": 9
+    },
+    "buildings_by_dwellings_band": {
+     "1": 89,
+     "2": 115,
+     "3-6": 662,
+     "7-12": 780,
+     "13+": 316
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 89,
+     "2": 230,
+     "3-6": 3017,
+     "7-12": 7181,
+     "13+": 5078
+    },
+    "dwelling_buildings_per_km2": 402.606112,
+    "dwellings_per_km2": 3200.123505,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 7797.818961,
+      "median_lower": 8002.809047,
+      "max": 8004.750688
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 82.066824,
+      "median_lower": 410.400464,
+      "max": 738.621314
+     },
+     "dwellings_per_km2": {
+      "min": 3119.127585,
+      "median_lower": 3201.123619,
+      "max": 3201.900275
+     }
+    },
+    "floors_per_dwelling_building": {
+     "4": 389,
+     "5": 495,
+     "6": 503,
+     "7": 530,
+     "8": 12,
+     "9": 10,
+     "10": 13,
+     "11": 3,
+     "13": 4,
+     "20": 3
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "170": 1,
+      "180": 24,
+      "190": 41,
+      "200": 66,
+      "210": 95,
+      "220": 102,
+      "230": 128,
+      "240": 129,
+      "250": 140,
+      "260": 132,
+      "270": 130,
+      "280": 105,
+      "290": 134,
+      "300": 134,
+      "310": 102,
+      "320": 118,
+      "330": 76,
+      "340": 81,
+      "350": 56,
+      "360": 46,
+      "370": 27,
+      "380": 46,
+      "390": 35,
+      "400": 7,
+      "410": 5,
+      "980": 2
+     }
+    }
+   },
+   {
+    "ladder_class": "apartment blocks",
+    "people_per_km2": 9500,
+    "l3_tiles_walked": 2,
+    "leaves_by_layout_class": {
+     "apartment blocks": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 4.873249,
+    "households": 18519,
+    "dwelling_buildings": 2139,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 18519,
+     "buildings": 2139,
+     "decimal": "8.657784"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 62,
+     "2": 114,
+     "3": 135,
+     "4": 135,
+     "5": 172,
+     "6": 181,
+     "7": 188,
+     "8": 175,
+     "9": 176,
+     "10": 132,
+     "11": 116,
+     "12": 130,
+     "13": 86,
+     "14": 92,
+     "15": 64,
+     "16": 50,
+     "17": 35,
+     "18": 26,
+     "19": 22,
+     "20": 12,
+     "21": 3,
+     "22": 7,
+     "23": 6,
+     "24": 4,
+     "25": 3,
+     "26": 2,
+     "27": 2,
+     "28": 2,
+     "29": 1,
+     "46": 4,
+     "47": 2
+    },
+    "buildings_by_dwellings_band": {
+     "1": 62,
+     "2": 114,
+     "3-6": 623,
+     "7-12": 917,
+     "13+": 423
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 62,
+     "2": 228,
+     "3-6": 2891,
+     "7-12": 8456,
+     "13+": 6882
+    },
+    "dwelling_buildings_per_km2": 438.926847,
+    "dwellings_per_km2": 3800.133837,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 9437.68473,
+      "median_lower": 9439.973887,
+      "max": 9646.490763
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 82.069035,
+      "median_lower": 410.477903,
+      "max": 820.778809
+     },
+     "dwellings_per_km2": {
+      "min": 3775.073892,
+      "median_lower": 3775.989555,
+      "max": 3858.596305
+     }
+    },
+    "floors_per_dwelling_building": {
+     "4": 432,
+     "5": 538,
+     "6": 537,
+     "7": 577,
+     "8": 19,
+     "9": 10,
+     "10": 9,
+     "11": 5,
+     "12": 8,
+     "13": 1,
+     "16": 1,
+     "23": 1,
+     "24": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "170": 1,
+      "180": 27,
+      "190": 42,
+      "200": 70,
+      "210": 99,
+      "220": 122,
+      "230": 126,
+      "240": 144,
+      "250": 149,
+      "260": 151,
+      "270": 136,
+      "280": 123,
+      "290": 139,
+      "300": 157,
+      "310": 117,
+      "320": 126,
+      "330": 77,
+      "340": 93,
+      "350": 56,
+      "360": 55,
+      "370": 32,
+      "380": 45,
+      "390": 35,
+      "400": 9,
+      "410": 5,
+      "1150": 2,
+      "1180": 1
+     }
+    }
+   },
+   {
+    "ladder_class": "apartment blocks",
+    "people_per_km2": 10500,
+    "l3_tiles_walked": 2,
+    "leaves_by_layout_class": {
+     "apartment blocks": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 4.873249,
+    "households": 20468,
+    "dwelling_buildings": 2221,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 20468,
+     "buildings": 2221,
+     "decimal": "9.215669"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 66,
+     "2": 74,
+     "3": 117,
+     "4": 125,
+     "5": 141,
+     "6": 174,
+     "7": 189,
+     "8": 200,
+     "9": 194,
+     "10": 172,
+     "11": 124,
+     "12": 138,
+     "13": 93,
+     "14": 102,
+     "15": 79,
+     "16": 68,
+     "17": 52,
+     "18": 35,
+     "19": 18,
+     "20": 16,
+     "21": 15,
+     "22": 4,
+     "23": 3,
+     "24": 3,
+     "25": 4,
+     "26": 4,
+     "27": 1,
+     "28": 1,
+     "29": 1,
+     "30": 3,
+     "31": 1,
+     "51": 2,
+     "52": 2
+    },
+    "buildings_by_dwellings_band": {
+     "1": 66,
+     "2": 74,
+     "3-6": 557,
+     "7-12": 1017,
+     "13+": 507
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 66,
+     "2": 148,
+     "3-6": 2600,
+     "7-12": 9409,
+     "13+": 8245
+    },
+    "dwelling_buildings_per_km2": 455.753402,
+    "dwellings_per_km2": 4200.072324,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 10463.520027,
+      "median_lower": 10465.493869,
+      "max": 10672.713185
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 82.071246,
+      "median_lower": 492.400942,
+      "max": 820.88942
+     },
+     "dwellings_per_km2": {
+      "min": 4185.408011,
+      "median_lower": 4186.197548,
+      "max": 4269.085274
+     }
+    },
+    "floors_per_dwelling_building": {
+     "4": 441,
+     "5": 559,
+     "6": 569,
+     "7": 594,
+     "8": 26,
+     "9": 9,
+     "10": 7,
+     "11": 5,
+     "12": 2,
+     "13": 6,
+     "14": 1,
+     "26": 2
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "170": 2,
+      "180": 30,
+      "190": 49,
+      "200": 76,
+      "210": 101,
+      "220": 122,
+      "230": 147,
+      "240": 150,
+      "250": 156,
+      "260": 156,
+      "270": 148,
+      "280": 127,
+      "290": 144,
+      "300": 161,
+      "310": 112,
+      "320": 126,
+      "330": 75,
+      "340": 96,
+      "350": 57,
+      "360": 61,
+      "370": 31,
+      "380": 43,
+      "390": 38,
+      "400": 6,
+      "410": 5,
+      "1280": 1,
+      "1310": 1
+     }
+    }
+   },
+   {
+    "ladder_class": "apartment blocks",
+    "people_per_km2": 11800,
+    "l3_tiles_walked": 2,
+    "leaves_by_layout_class": {
+     "apartment blocks": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 4.873249,
+    "households": 23002,
+    "dwelling_buildings": 2382,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 23002,
+     "buildings": 2382,
+     "decimal": "9.656591"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 44,
+     "2": 69,
+     "3": 86,
+     "4": 128,
+     "5": 155,
+     "6": 167,
+     "7": 187,
+     "8": 232,
+     "9": 199,
+     "10": 201,
+     "11": 172,
+     "12": 160,
+     "13": 126,
+     "14": 99,
+     "15": 77,
+     "16": 63,
+     "17": 65,
+     "18": 42,
+     "19": 35,
+     "20": 18,
+     "21": 20,
+     "22": 8,
+     "23": 6,
+     "24": 6,
+     "25": 4,
+     "27": 2,
+     "28": 2,
+     "29": 2,
+     "30": 2,
+     "33": 2,
+     "34": 1,
+     "58": 2
+    },
+    "buildings_by_dwellings_band": {
+     "1": 44,
+     "2": 69,
+     "3-6": 536,
+     "7-12": 1151,
+     "13+": 582
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 44,
+     "2": 138,
+     "3-6": 2547,
+     "7-12": 10778,
+     "13+": 9495
+    },
+    "dwelling_buildings_per_km2": 488.790907,
+    "dwellings_per_km2": 4720.053918,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 11694.837466,
+      "median_lower": 11899.689442,
+      "max": 11904.180091
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 82.071246,
+      "median_lower": 492.480557,
+      "max": 820.690349
+     },
+     "dwellings_per_km2": {
+      "min": 4677.934987,
+      "median_lower": 4759.875777,
+      "max": 4761.672036
+     }
+    },
+    "floors_per_dwelling_building": {
+     "4": 509,
+     "5": 618,
+     "6": 573,
+     "7": 605,
+     "8": 44,
+     "9": 15,
+     "10": 5,
+     "11": 3,
+     "12": 2,
+     "13": 2,
+     "14": 2,
+     "15": 3,
+     "20": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "170": 2,
+      "180": 36,
+      "190": 57,
+      "200": 92,
+      "210": 97,
+      "220": 130,
+      "230": 171,
+      "240": 170,
+      "250": 167,
+      "260": 164,
+      "270": 143,
+      "280": 141,
+      "290": 143,
+      "300": 163,
+      "310": 128,
+      "320": 117,
+      "330": 99,
+      "340": 101,
+      "350": 69,
+      "360": 55,
+      "370": 47,
+      "380": 43,
+      "390": 33,
+      "400": 7,
+      "410": 6,
+      "1460": 1
+     }
+    }
+   },
+   {
+    "ladder_class": "dense fabric",
+    "people_per_km2": 12500,
+    "l3_tiles_walked": 1,
+    "leaves_by_layout_class": {
+     "dense fabric": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 1.282388,
+    "households": 6414,
+    "dwelling_buildings": 5546,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 6414,
+     "buildings": 5546,
+     "decimal": "1.156509"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 4728,
+     "2": 775,
+     "3": 36,
+     "4": 7
+    },
+    "buildings_by_dwellings_band": {
+     "1": 4728,
+     "2": 775,
+     "3-6": 43,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 4728,
+     "2": 1550,
+     "3-6": 136,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 4324.74451,
+    "dwellings_per_km2": 5001.606796,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 12309.940648,
+      "median_lower": 12311.433309,
+      "max": 13133.080292
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 1313.219553,
+      "median_lower": 4596.330364,
+      "max": 5253.090547
+     },
+     "dwellings_per_km2": {
+      "min": 4923.976259,
+      "median_lower": 4924.573324,
+      "max": 5253.232117
+     }
+    },
+    "floors_per_dwelling_building": {
+     "3": 5545,
+     "4": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 202,
+      "70": 653,
+      "80": 856,
+      "90": 1096,
+      "100": 955,
+      "110": 748,
+      "120": 537,
+      "130": 323,
+      "140": 146,
+      "150": 30
+     }
+    }
+   },
+   {
+    "ladder_class": "dense fabric",
+    "people_per_km2": 16000,
+    "l3_tiles_walked": 1,
+    "leaves_by_layout_class": {
+     "dense fabric": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 1.218424,
+    "households": 7799,
+    "dwelling_buildings": 5050,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 7799,
+     "buildings": 5050,
+     "decimal": "1.544356"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 2557,
+     "2": 2287,
+     "3": 166,
+     "4": 30,
+     "5": 10
+    },
+    "buildings_by_dwellings_band": {
+     "1": 2557,
+     "2": 2287,
+     "3-6": 206,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 2557,
+     "2": 4574,
+     "3-6": 668,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 4144.698443,
+    "dwellings_per_km2": 6400.891714,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 15592.801535,
+      "median_lower": 15595.743,
+      "max": 16416.350365
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 1313.113402,
+      "median_lower": 4267.618558,
+      "max": 5909.726866
+     },
+     "dwellings_per_km2": {
+      "min": 6237.120614,
+      "median_lower": 6238.2972,
+      "max": 6566.540146
+     }
+    },
+    "floors_per_dwelling_building": {
+     "3": 5042,
+     "4": 7,
+     "5": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 198,
+      "70": 559,
+      "80": 811,
+      "90": 1017,
+      "100": 868,
+      "110": 686,
+      "120": 443,
+      "130": 309,
+      "140": 143,
+      "150": 16
+     }
+    }
+   },
+   {
+    "ladder_class": "dense fabric",
+    "people_per_km2": 22000,
+    "l3_tiles_walked": 1,
+    "leaves_by_layout_class": {
+     "dense fabric": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 1.218424,
+    "households": 10723,
+    "dwelling_buildings": 4973,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 10723,
+     "buildings": 4973,
+     "decimal": "2.156244"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 522,
+     "2": 3401,
+     "3": 893,
+     "4": 90,
+     "5": 49,
+     "6": 11,
+     "7": 7
+    },
+    "buildings_by_dwellings_band": {
+     "1": 522,
+     "2": 3401,
+     "3-6": 1043,
+     "7-12": 7,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 522,
+     "2": 6802,
+     "3-6": 3350,
+     "7-12": 49,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 4081.502051,
+    "dwellings_per_km2": 8800.71315,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 21337.517891,
+      "median_lower": 22159.087189,
+      "max": 22162.371632
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 1313.113402,
+      "median_lower": 4267.503578,
+      "max": 5909.726866
+     },
+     "dwellings_per_km2": {
+      "min": 8535.007156,
+      "median_lower": 8863.634875,
+      "max": 8864.948653
+     }
+    },
+    "floors_per_dwelling_building": {
+     "3": 4933,
+     "4": 28,
+     "5": 8,
+     "6": 4
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 184,
+      "70": 589,
+      "80": 833,
+      "90": 992,
+      "100": 837,
+      "110": 667,
+      "120": 429,
+      "130": 304,
+      "140": 126,
+      "150": 12
+     }
+    }
+   },
+   {
+    "ladder_class": "dense fabric",
+    "people_per_km2": 30000,
+    "l3_tiles_walked": 1,
+    "leaves_by_layout_class": {
+     "dense fabric": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 1.218424,
+    "households": 14623,
+    "dwelling_buildings": 4931,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 14623,
+     "buildings": 4931,
+     "decimal": "2.965524"
+    },
+    "buildings_by_dwellings_exact": {
+     "2": 1491,
+     "3": 2566,
+     "4": 643,
+     "5": 116,
+     "6": 66,
+     "7": 21,
+     "8": 8,
+     "9": 16,
+     "10": 4
+    },
+    "buildings_by_dwellings_band": {
+     "1": 0,
+     "2": 1491,
+     "3-6": 3391,
+     "7-12": 49,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 0,
+     "2": 2982,
+     "3-6": 11246,
+     "7-12": 395,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 4047.031292,
+    "dwellings_per_km2": 12001.569373,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 29544.255541,
+      "median_lower": 30364.520264,
+      "max": 30370.248175
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 1313.20186,
+      "median_lower": 4267.561067,
+      "max": 5909.010311
+     },
+     "dwellings_per_km2": {
+      "min": 11817.702216,
+      "median_lower": 12145.808106,
+      "max": 12148.09927
+     }
+    },
+    "floors_per_dwelling_building": {
+     "3": 4669,
+     "4": 193,
+     "5": 41,
+     "6": 21,
+     "7": 2,
+     "8": 3,
+     "9": 2
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 233,
+      "70": 629,
+      "80": 798,
+      "90": 1016,
+      "100": 825,
+      "110": 617,
+      "120": 398,
+      "130": 261,
+      "140": 134,
+      "150": 20
+     }
+    }
+   },
+   {
+    "ladder_class": "dense fabric",
+    "people_per_km2": 45000,
+    "l3_tiles_walked": 1,
+    "leaves_by_layout_class": {
+     "dense fabric": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 1.218424,
+    "households": 21934,
+    "dwelling_buildings": 4744,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 21934,
+     "buildings": 4744,
+     "decimal": "4.623524"
+    },
+    "buildings_by_dwellings_exact": {
+     "3": 655,
+     "4": 2074,
+     "5": 1194,
+     "6": 460,
+     "7": 217,
+     "8": 27,
+     "9": 67,
+     "10": 11,
+     "11": 20,
+     "13": 4,
+     "14": 12,
+     "18": 2,
+     "19": 1
+    },
+    "buildings_by_dwellings_band": {
+     "1": 0,
+     "2": 0,
+     "3-6": 4383,
+     "7-12": 342,
+     "13+": 19
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 0,
+     "2": 0,
+     "3-6": 18991,
+     "7-12": 2668,
+     "13+": 275
+    },
+    "dwelling_buildings_per_km2": 3893.554339,
+    "dwellings_per_km2": 18001.943693,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 44316.383311,
+      "median_lower": 45138.88131,
+      "max": 45145.571843
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 984.914665,
+      "median_lower": 3939.44635,
+      "max": 5909.010311
+     },
+     "dwellings_per_km2": {
+      "min": 17726.553324,
+      "median_lower": 18055.552524,
+      "max": 18058.228737
+     }
+    },
+    "floors_per_dwelling_building": {
+     "3": 3173,
+     "4": 863,
+     "5": 454,
+     "6": 151,
+     "7": 57,
+     "8": 11,
+     "9": 27,
+     "10": 1,
+     "11": 5,
+     "13": 1,
+     "14": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 251,
+      "70": 613,
+      "80": 808,
+      "90": 966,
+      "100": 776,
+      "110": 558,
+      "120": 388,
+      "130": 250,
+      "140": 118,
+      "150": 16
+     }
+    }
+   },
+   {
+    "ladder_class": "dense fabric",
+    "people_per_km2": 70000,
+    "l3_tiles_walked": 1,
+    "leaves_by_layout_class": {
+     "dense fabric": 400
+    },
+    "leaves": 400,
+    "leaf_area_km2": 0.30462,
+    "households": 8531,
+    "dwelling_buildings": 753,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 8531,
+     "buildings": 753,
+     "decimal": "11.329349"
+    },
+    "buildings_by_dwellings_exact": {
+     "7": 78,
+     "8": 6,
+     "10": 202,
+     "11": 392,
+     "21": 45,
+     "22": 30
+    },
+    "buildings_by_dwellings_band": {
+     "1": 0,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 678,
+     "13+": 75
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 0,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 6926,
+     "13+": 1605
+    },
+    "dwelling_buildings_per_km2": 2471.932651,
+    "dwellings_per_km2": 28005.388371,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 68935.435474,
+      "median_lower": 68940.078937,
+      "max": 72224.885914
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 1313.055914,
+      "median_lower": 2626.200271,
+      "max": 3939.56577
+     },
+     "dwellings_per_km2": {
+      "min": 27574.17419,
+      "median_lower": 27576.031575,
+      "max": 28889.954366
+     }
+    },
+    "floors_per_dwelling_building": {
+     "4": 51,
+     "5": 133,
+     "6": 243,
+     "7": 32,
+     "8": 1,
+     "10": 69,
+     "11": 183,
+     "21": 22,
+     "22": 19
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "30": 15,
+      "60": 55,
+      "70": 98,
+      "80": 137,
+      "90": 148,
+      "100": 101,
+      "110": 85,
+      "120": 60,
+      "130": 32,
+      "140": 19,
+      "150": 3
+     }
+    }
+   }
+  ],
+  "by_class": {
+   "village": {
+    "leaves": 2400,
+    "leaf_area_km2": 4444.259754,
+    "households": 66155,
+    "dwelling_buildings": 65827,
+    "non_dwelling_buildings": 79549,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 66155,
+     "buildings": 65827,
+     "decimal": "1.004983"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 65529,
+     "2": 289,
+     "3": 4,
+     "4": 2,
+     "5": 2,
+     "18": 1
+    },
+    "buildings_by_dwellings_band": {
+     "1": 65529,
+     "2": 289,
+     "3-6": 8,
+     "7-12": 0,
+     "13+": 1
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 65529,
+     "2": 578,
+     "3-6": 30,
+     "7-12": 0,
+     "13+": 18
+    },
+    "dwelling_buildings_per_km2": 14.811691,
+    "dwellings_per_km2": 14.885494,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 4.809575,
+      "median_lower": 40.079791,
+      "max": 230.896933
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 1.92383,
+      "median_lower": 16.031916,
+      "max": 92.358773
+     },
+     "dwellings_per_km2": {
+      "min": 1.92383,
+      "median_lower": 16.031916,
+      "max": 92.358773
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 32866,
+     "2": 32952,
+     "3": 4,
+     "4": 2,
+     "5": 2,
+     "6": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 153,
+      "70": 4851,
+      "80": 11002,
+      "90": 15151,
+      "100": 14693,
+      "110": 10613,
+      "120": 6520,
+      "130": 2688,
+      "140": 155,
+      "450": 1
+     }
+    }
+   },
+   "suburban streets": {
+    "leaves": 2400,
+    "leaf_area_km2": 292.385761,
+    "households": 66517,
+    "dwelling_buildings": 61808,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 66517,
+     "buildings": 61808,
+     "decimal": "1.076188"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 58146,
+     "2": 3098,
+     "3": 363,
+     "4": 123,
+     "5": 34,
+     "6": 16,
+     "7": 13,
+     "8": 2,
+     "9": 1,
+     "10": 2,
+     "16": 3,
+     "17": 3,
+     "21": 1,
+     "22": 2,
+     "28": 1
+    },
+    "buildings_by_dwellings_band": {
+     "1": 58146,
+     "2": 3098,
+     "3-6": 536,
+     "7-12": 18,
+     "13+": 10
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 58146,
+     "2": 6196,
+     "3-6": 1847,
+     "7-12": 136,
+     "13+": 192
+    },
+    "dwelling_buildings_per_km2": 211.391963,
+    "dwellings_per_km2": 227.497398,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 269.292648,
+      "median_lower": 602.897546,
+      "max": 1487.962342
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 5.129384,
+      "median_lower": 241.133017,
+      "max": 595.184937
+     },
+     "dwellings_per_km2": {
+      "min": 107.717059,
+      "median_lower": 241.159018,
+      "max": 595.184937
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 28958,
+     "2": 32286,
+     "3": 363,
+     "4": 123,
+     "5": 34,
+     "6": 22,
+     "7": 15,
+     "8": 4,
+     "9": 1,
+     "10": 2
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "80": 2579,
+      "90": 8350,
+      "100": 13506,
+      "110": 15105,
+      "120": 10876,
+      "130": 7134,
+      "140": 3649,
+      "150": 599,
+      "400": 3,
+      "420": 3,
+      "520": 1,
+      "550": 2,
+      "700": 1
+     }
+    }
+   },
+   "terraced streets": {
+    "leaves": 2508,
+    "leaf_area_km2": 74.412851,
+    "households": 85206,
+    "dwelling_buildings": 50434,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 85206,
+     "buildings": 50434,
+     "decimal": "1.689456"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 24656,
+     "2": 20519,
+     "3": 3656,
+     "4": 893,
+     "5": 278,
+     "6": 170,
+     "7": 132,
+     "8": 44,
+     "9": 18,
+     "10": 15,
+     "11": 8,
+     "12": 7,
+     "13": 4,
+     "14": 6,
+     "15": 6,
+     "19": 1,
+     "20": 4,
+     "24": 1,
+     "25": 3,
+     "28": 3,
+     "29": 8,
+     "31": 2
+    },
+    "buildings_by_dwellings_band": {
+     "1": 24656,
+     "2": 20519,
+     "3-6": 4997,
+     "7-12": 224,
+     "13+": 38
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 24656,
+     "2": 41038,
+     "3-6": 16950,
+     "7-12": 1760,
+     "13+": 802
+    },
+    "dwelling_buildings_per_km2": 677.759278,
+    "dwellings_per_km2": 1145.044157,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 1590.06613,
+      "median_lower": 3898.489234,
+      "max": 5952.250512
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 20.519194,
+      "median_lower": 697.61499,
+      "max": 1641.955875
+     },
+     "dwellings_per_km2": {
+      "min": 636.026452,
+      "median_lower": 1559.395694,
+      "max": 2380.900205
+     }
+    },
+    "floors_per_dwelling_building": {
+     "2": 22845,
+     "3": 25986,
+     "4": 893,
+     "5": 278,
+     "6": 170,
+     "7": 138,
+     "8": 52,
+     "9": 20,
+     "10": 15,
+     "11": 8,
+     "12": 7,
+     "13": 4,
+     "14": 6,
+     "15": 6,
+     "19": 1,
+     "20": 1,
+     "24": 1,
+     "25": 1,
+     "29": 2
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "50": 1697,
+      "60": 13420,
+      "70": 19980,
+      "80": 12000,
+      "90": 3321,
+      "500": 3,
+      "630": 2,
+      "700": 3,
+      "730": 6,
+      "780": 2
+     }
+    }
+   },
+   "apartment blocks": {
+    "leaves": 2292,
+    "leaf_area_km2": 27.923748,
+    "households": 99990,
+    "dwelling_buildings": 11788,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 99990,
+     "buildings": 11788,
+     "decimal": "8.482355"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 480,
+     "2": 618,
+     "3": 773,
+     "4": 794,
+     "5": 901,
+     "6": 980,
+     "7": 977,
+     "8": 989,
+     "9": 918,
+     "10": 815,
+     "11": 684,
+     "12": 648,
+     "13": 477,
+     "14": 442,
+     "15": 340,
+     "16": 246,
+     "17": 213,
+     "18": 134,
+     "19": 98,
+     "20": 64,
+     "21": 46,
+     "22": 28,
+     "23": 17,
+     "24": 17,
+     "25": 12,
+     "26": 7,
+     "27": 5,
+     "28": 5,
+     "29": 4,
+     "30": 15,
+     "31": 1,
+     "33": 2,
+     "34": 16,
+     "35": 1,
+     "39": 9,
+     "46": 4,
+     "47": 2,
+     "51": 2,
+     "52": 2,
+     "58": 2
+    },
+    "buildings_by_dwellings_band": {
+     "1": 480,
+     "2": 618,
+     "3-6": 3448,
+     "7-12": 5031,
+     "13+": 2211
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 480,
+     "2": 1236,
+     "3-6": 15880,
+     "7-12": 46463,
+     "13+": 35931
+    },
+    "dwelling_buildings_per_km2": 422.149635,
+    "dwellings_per_km2": 3580.823044,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 6155.01178,
+      "median_lower": 9438.193304,
+      "max": 11904.180091
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 82.066824,
+      "median_lower": 410.433647,
+      "max": 820.88942
+     },
+     "dwellings_per_km2": {
+      "min": 2462.004712,
+      "median_lower": 3775.277322,
+      "max": 4761.672036
+     }
+    },
+    "floors_per_dwelling_building": {
+     "4": 2382,
+     "5": 2964,
+     "6": 2972,
+     "7": 3169,
+     "8": 129,
+     "9": 66,
+     "10": 38,
+     "11": 16,
+     "12": 16,
+     "13": 13,
+     "14": 3,
+     "15": 8,
+     "16": 1,
+     "17": 3,
+     "20": 4,
+     "23": 1,
+     "24": 1,
+     "26": 2
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "170": 6,
+      "180": 150,
+      "190": 258,
+      "200": 396,
+      "210": 538,
+      "220": 643,
+      "230": 767,
+      "240": 790,
+      "250": 831,
+      "260": 810,
+      "270": 747,
+      "280": 671,
+      "290": 765,
+      "300": 833,
+      "310": 624,
+      "320": 682,
+      "330": 433,
+      "340": 501,
+      "350": 333,
+      "360": 301,
+      "370": 177,
+      "380": 251,
+      "390": 194,
+      "400": 38,
+      "410": 28,
+      "750": 4,
+      "850": 9,
+      "980": 2,
+      "1150": 2,
+      "1180": 1,
+      "1280": 1,
+      "1310": 1,
+      "1460": 1
+     }
+    }
+   },
+   "dense fabric": {
+    "leaves": 2400,
+    "leaf_area_km2": 6.460704,
+    "households": 70024,
+    "dwelling_buildings": 25997,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 70024,
+     "buildings": 25997,
+     "decimal": "2.693542"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 7807,
+     "2": 7954,
+     "3": 4316,
+     "4": 2844,
+     "5": 1369,
+     "6": 537,
+     "7": 323,
+     "8": 41,
+     "9": 83,
+     "10": 217,
+     "11": 412,
+     "13": 4,
+     "14": 12,
+     "18": 2,
+     "19": 1,
+     "21": 45,
+     "22": 30
+    },
+    "buildings_by_dwellings_band": {
+     "1": 7807,
+     "2": 7954,
+     "3-6": 9066,
+     "7-12": 1076,
+     "13+": 94
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 7807,
+     "2": 15908,
+     "3-6": 34391,
+     "7-12": 10038,
+     "13+": 1880
+    },
+    "dwelling_buildings_per_km2": 4023.865023,
+    "dwellings_per_km2": 10838.447681,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 12309.940648,
+      "median_lower": 22162.371632,
+      "max": 72224.885914
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 984.914665,
+      "median_lower": 3939.44635,
+      "max": 5909.726866
+     },
+     "dwellings_per_km2": {
+      "min": 4923.976259,
+      "median_lower": 8864.948653,
+      "max": 28889.954366
+     }
+    },
+    "floors_per_dwelling_building": {
+     "3": 23362,
+     "4": 1143,
+     "5": 637,
+     "6": 419,
+     "7": 91,
+     "8": 15,
+     "9": 29,
+     "10": 70,
+     "11": 188,
+     "13": 1,
+     "14": 1,
+     "21": 22,
+     "22": 19
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "30": 15,
+      "60": 1123,
+      "70": 3141,
+      "80": 4243,
+      "90": 5235,
+      "100": 4362,
+      "110": 3361,
+      "120": 2255,
+      "130": 1479,
+      "140": 686,
+      "150": 97
+     }
+    }
+   }
+  }
+ },
+ "real": {
+  "scheme": "every leaf of each place's L3 street tile, through the page's path (GHS-POP assets -> geoPopFine -> pop_load / pop_root / pop_split / pop_of -> HOLON.tree -> the leaf's context -> holon_layout)",
+  "places": [
+   {
+    "place": "Zurich",
+    "lat": 47.3769,
+    "lon": 8.5417,
+    "l3_tile": 492620946080171,
+    "leaves_in_tile": 64,
+    "leaves_without_households": 0,
+    "by_class": {
+     "terraced streets": {
+      "leaves": 64,
+      "leaf_area_km2": 3.357087,
+      "households": 2837,
+      "dwelling_buildings": 2036,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 2837,
+       "buildings": 2036,
+       "decimal": "1.393418"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 1259,
+       "2": 754,
+       "3": 22,
+       "4": 1
+      },
+      "buildings_by_dwellings_band": {
+       "1": 1259,
+       "2": 754,
+       "3-6": 23,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 1259,
+       "2": 1508,
+       "3-6": 70,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 606.478112,
+      "dwellings_per_km2": 845.077801,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 1953.843326,
+        "median_lower": 2001.5929,
+        "max": 2478.750096
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 305.033548,
+        "median_lower": 590.974485,
+        "max": 819.855389
+       },
+       "dwellings_per_km2": {
+        "min": 781.537331,
+        "median_lower": 800.63716,
+        "max": 991.500038
+       }
+      },
+      "floors_per_dwelling_building": {
+       "2": 1046,
+       "3": 989,
+       "4": 1
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "50": 58,
+        "60": 513,
+        "70": 850,
+        "80": 488,
+        "90": 127
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Cairo",
+    "lat": 30.0444,
+    "lon": 31.2357,
+    "l3_tile": 492606417012249,
+    "leaves_in_tile": 4096,
+    "leaves_without_households": 0,
+    "by_class": {
+     "dense fabric": {
+      "leaves": 4096,
+      "leaf_area_km2": 4.2906,
+      "households": 63463,
+      "dwelling_buildings": 13382,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 63463,
+       "buildings": 13382,
+       "decimal": "4.742415"
+      },
+      "buildings_by_dwellings_exact": {
+       "2": 452,
+       "3": 1793,
+       "4": 7251,
+       "5": 1244,
+       "6": 265,
+       "7": 631,
+       "8": 1473,
+       "15": 203,
+       "16": 70
+      },
+      "buildings_by_dwellings_band": {
+       "1": 0,
+       "2": 452,
+       "3-6": 10553,
+       "7-12": 2104,
+       "13+": 273
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 0,
+       "2": 904,
+       "3-6": 42193,
+       "7-12": 16201,
+       "13+": 4165
+      },
+      "dwelling_buildings_per_km2": 3118.91143,
+      "dwellings_per_km2": 14791.172924,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 35795.748061,
+        "median_lower": 35802.751477,
+        "max": 38189.481029
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 954.550271,
+        "median_lower": 3818.273344,
+        "max": 5728.440236
+       },
+       "dwellings_per_km2": {
+        "min": 14318.299225,
+        "median_lower": 14321.100591,
+        "max": 15275.792412
+       }
+      },
+      "floors_per_dwelling_building": {
+       "3": 7985,
+       "4": 3956,
+       "5": 535,
+       "6": 81,
+       "7": 207,
+       "8": 497,
+       "15": 78,
+       "16": 43
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "30": 78,
+        "60": 918,
+        "70": 1790,
+        "80": 2404,
+        "90": 2688,
+        "100": 2075,
+        "110": 1433,
+        "120": 1017,
+        "130": 647,
+        "140": 294,
+        "150": 38
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Lagos",
+    "lat": 6.5244,
+    "lon": 3.3792,
+    "l3_tile": 492586687004840,
+    "leaves_in_tile": 832,
+    "leaves_without_households": 0,
+    "by_class": {
+     "terraced streets": {
+      "leaves": 64,
+      "leaf_area_km2": 1.231175,
+      "households": 2612,
+      "dwelling_buildings": 1497,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 2612,
+       "buildings": 1497,
+       "decimal": "1.744823"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 602,
+       "2": 696,
+       "3": 187,
+       "4": 6,
+       "5": 3,
+       "6": 3
+      },
+      "buildings_by_dwellings_band": {
+       "1": 602,
+       "2": 696,
+       "3-6": 199,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 602,
+       "2": 1392,
+       "3-6": 618,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 1215.911861,
+      "dwellings_per_km2": 2121.550956,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 5198.20283,
+        "median_lower": 5328.211078,
+        "max": 5328.344203
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 415.868687,
+        "median_lower": 1247.58113,
+        "max": 1663.437356
+       },
+       "dwellings_per_km2": {
+        "min": 2079.281132,
+        "median_lower": 2131.284431,
+        "max": 2131.337681
+       }
+      },
+      "floors_per_dwelling_building": {
+       "2": 630,
+       "3": 855,
+       "4": 6,
+       "5": 3,
+       "6": 3
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "50": 55,
+        "60": 390,
+        "70": 596,
+        "80": 355,
+        "90": 101
+       }
+      }
+     },
+     "dense fabric": {
+      "leaves": 768,
+      "leaf_area_km2": 3.693524,
+      "households": 28758,
+      "dwelling_buildings": 16404,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 28758,
+       "buildings": 16404,
+       "decimal": "1.753109"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 4939,
+       "2": 10614,
+       "3": 816,
+       "4": 32,
+       "5": 3
+      },
+      "buildings_by_dwellings_band": {
+       "1": 4939,
+       "2": 10614,
+       "3-6": 851,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 4939,
+       "2": 21228,
+       "3-6": 2591,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 4441.286611,
+      "dwellings_per_km2": 7786.05952,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 19233.314496,
+        "median_lower": 19233.986904,
+        "max": 19753.849086
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 1871.358854,
+        "median_lower": 4366.563937,
+        "max": 6653.89484
+       },
+       "dwellings_per_km2": {
+        "min": 7693.325798,
+        "median_lower": 7693.594761,
+        "max": 7901.539634
+       }
+      },
+      "floors_per_dwelling_building": {
+       "3": 16395,
+       "4": 9
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "60": 613,
+        "70": 1712,
+        "80": 2579,
+        "90": 3251,
+        "100": 2961,
+        "110": 2101,
+        "120": 1602,
+        "130": 1006,
+        "140": 502,
+        "150": 77
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "US suburb (Maryland)",
+    "lat": 39.2,
+    "lon": -77.25,
+    "l3_tile": 492614100971753,
+    "leaves_in_tile": 40,
+    "leaves_without_households": 0,
+    "by_class": {
+     "suburban streets": {
+      "leaves": 40,
+      "leaf_area_km2": 3.840742,
+      "households": 1299,
+      "dwelling_buildings": 1213,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 1299,
+       "buildings": 1213,
+       "decimal": "1.070899"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 1138,
+       "2": 67,
+       "3": 5,
+       "4": 3
+      },
+      "buildings_by_dwellings_band": {
+       "1": 1138,
+       "2": 67,
+       "3-6": 8,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 1138,
+       "2": 134,
+       "3-6": 27,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 315.824381,
+      "dwellings_per_km2": 338.215887,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 572.785574,
+        "median_lower": 1124.642506,
+        "max": 1124.882739
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 133.319436,
+        "median_lower": 433.21105,
+        "max": 449.953096
+       },
+       "dwellings_per_km2": {
+        "min": 229.11423,
+        "median_lower": 449.857003,
+        "max": 449.953096
+       }
+      },
+      "floors_per_dwelling_building": {
+       "1": 595,
+       "2": 610,
+       "3": 5,
+       "4": 3
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "80": 59,
+        "90": 157,
+        "100": 281,
+        "110": 293,
+        "120": 212,
+        "130": 137,
+        "140": 63,
+        "150": 11
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "rural French village (Cher)",
+    "lat": 46.3,
+    "lon": 2.3,
+    "l3_tile": 492620056887410,
+    "leaves_in_tile": 1,
+    "leaves_without_households": 0,
+    "by_class": {
+     "village": {
+      "leaves": 1,
+      "leaf_area_km2": 3.42398,
+      "households": 18,
+      "dwelling_buildings": 18,
+      "non_dwelling_buildings": 44,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 18,
+       "buildings": 18,
+       "decimal": "1.000000"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 18
+      },
+      "buildings_by_dwellings_band": {
+       "1": 18,
+       "2": 0,
+       "3-6": 0,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 18,
+       "2": 0,
+       "3-6": 0,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 5.25704,
+      "dwellings_per_km2": 5.25704,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 13.142601,
+        "median_lower": 13.142601,
+        "max": 13.142601
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 5.25704,
+        "median_lower": 5.25704,
+        "max": 5.25704
+       },
+       "dwellings_per_km2": {
+        "min": 5.25704,
+        "median_lower": 5.25704,
+        "max": 5.25704
+       }
+      },
+      "floors_per_dwelling_building": {
+       "1": 7,
+       "2": 11
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "60": 1,
+        "70": 3,
+        "80": 2,
+        "90": 3,
+        "100": 1,
+        "110": 4,
+        "120": 4
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Dhaka",
+    "lat": 23.7104,
+    "lon": 90.4074,
+    "l3_tile": 492601098637736,
+    "leaves_in_tile": 4096,
+    "leaves_without_households": 0,
+    "by_class": {
+     "dense fabric": {
+      "leaves": 4096,
+      "leaf_area_km2": 4.538461,
+      "households": 63108,
+      "dwelling_buildings": 14353,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 63108,
+       "buildings": 14353,
+       "decimal": "4.396851"
+      },
+      "buildings_by_dwellings_exact": {
+       "2": 675,
+       "3": 2526,
+       "4": 8115,
+       "5": 1135,
+       "6": 182,
+       "7": 391,
+       "8": 1115,
+       "15": 128,
+       "16": 86
+      },
+      "buildings_by_dwellings_band": {
+       "1": 0,
+       "2": 675,
+       "3-6": 11958,
+       "7-12": 1506,
+       "13+": 214
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 0,
+       "2": 1350,
+       "3-6": 46805,
+       "7-12": 11657,
+       "13+": 3296
+      },
+      "dwelling_buildings_per_km2": 3162.526031,
+      "dwellings_per_km2": 13905.15521,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 33841.60219,
+        "median_lower": 33845.898504,
+        "max": 36102.983835
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 902.440564,
+        "median_lower": 3609.909203,
+        "max": 5415.460553
+       },
+       "dwellings_per_km2": {
+        "min": 13536.640876,
+        "median_lower": 13538.359402,
+        "max": 14441.193534
+       }
+      },
+      "floors_per_dwelling_building": {
+       "3": 9556,
+       "4": 3654,
+       "5": 478,
+       "6": 62,
+       "7": 98,
+       "8": 462,
+       "15": 22,
+       "16": 21
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "30": 15,
+        "60": 817,
+        "70": 1803,
+        "80": 2535,
+        "90": 2900,
+        "100": 2315,
+        "110": 1671,
+        "120": 1143,
+        "130": 746,
+        "140": 357,
+        "150": 51
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Mumbai",
+    "lat": 19.043,
+    "lon": 72.856,
+    "l3_tile": 492597189545530,
+    "leaves_in_tile": 1024,
+    "leaves_without_households": 0,
+    "by_class": {
+     "dense fabric": {
+      "leaves": 1024,
+      "leaf_area_km2": 4.68539,
+      "households": 33656,
+      "dwelling_buildings": 20495,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 33656,
+       "buildings": 20495,
+       "decimal": "1.642157"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 8215,
+       "2": 11451,
+       "3": 782,
+       "4": 42,
+       "5": 5
+      },
+      "buildings_by_dwellings_band": {
+       "1": 8215,
+       "2": 11451,
+       "3-6": 829,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 8215,
+       "2": 22902,
+       "3-6": 2539,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 4374.235448,
+      "dwellings_per_km2": 7183.179714,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 17483.312927,
+        "median_lower": 18030.345409,
+        "max": 18031.568194
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 1529.853251,
+        "median_lower": 4371.108081,
+        "max": 6556.933889
+       },
+       "dwellings_per_km2": {
+        "min": 6993.325171,
+        "median_lower": 7212.138164,
+        "max": 7212.627278
+       }
+      },
+      "floors_per_dwelling_building": {
+       "3": 20482,
+       "4": 13
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "60": 800,
+        "70": 2208,
+        "80": 3393,
+        "90": 4021,
+        "100": 3610,
+        "110": 2508,
+        "120": 1953,
+        "130": 1257,
+        "140": 640,
+        "150": 105
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Karachi",
+    "lat": 24.8607,
+    "lon": 67.0011,
+    "l3_tile": 492602071715094,
+    "leaves_in_tile": 1792,
+    "leaves_without_households": 0,
+    "by_class": {
+     "dense fabric": {
+      "leaves": 1792,
+      "leaf_area_km2": 4.49718,
+      "households": 52847,
+      "dwelling_buildings": 17519,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 52847,
+       "buildings": 17519,
+       "decimal": "3.016553"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 274,
+       "2": 8242,
+       "3": 5136,
+       "4": 1557,
+       "5": 1412,
+       "6": 321,
+       "7": 46,
+       "9": 423,
+       "10": 77,
+       "18": 21,
+       "19": 10
+      },
+      "buildings_by_dwellings_band": {
+       "1": 274,
+       "2": 8242,
+       "3-6": 8426,
+       "7-12": 546,
+       "13+": 31
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 274,
+       "2": 16484,
+       "3-6": 30622,
+       "7-12": 4899,
+       "13+": 568
+      },
+      "dwelling_buildings_per_km2": 3895.55271,
+      "dwellings_per_km2": 11751.142991,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 25044.846905,
+        "median_lower": 40987.70919,
+        "max": 43266.007825
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 910.831072,
+        "median_lower": 3643.388785,
+        "max": 6375.761071
+       },
+       "dwellings_per_km2": {
+        "min": 10017.938762,
+        "median_lower": 16395.083676,
+        "max": 17306.40313
+       }
+      },
+      "floors_per_dwelling_building": {
+       "3": 15924,
+       "4": 489,
+       "5": 837,
+       "6": 128,
+       "7": 12,
+       "9": 98,
+       "10": 25,
+       "18": 3,
+       "19": 3
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "60": 895,
+        "70": 2191,
+        "80": 2924,
+        "90": 3444,
+        "100": 2951,
+        "110": 2091,
+        "120": 1519,
+        "130": 973,
+        "140": 474,
+        "150": 57
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Kowloon",
+    "lat": 22.3193,
+    "lon": 114.1694,
+    "l3_tile": 492599924233804,
+    "leaves_in_tile": 1024,
+    "leaves_without_households": 0,
+    "by_class": {
+     "dense fabric": {
+      "leaves": 1024,
+      "leaf_area_km2": 4.585804,
+      "households": 39031,
+      "dwelling_buildings": 19681,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 39031,
+       "buildings": 19681,
+       "decimal": "1.983182"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 3360,
+       "2": 13551,
+       "3": 2529,
+       "4": 223,
+       "5": 18
+      },
+      "buildings_by_dwellings_band": {
+       "1": 3360,
+       "2": 13551,
+       "3-6": 2770,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 3360,
+       "2": 27102,
+       "3-6": 8569,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 4291.723024,
+      "dwellings_per_km2": 8511.266772,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 21211.821353,
+        "median_lower": 21213.530089,
+        "max": 21772.755645
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 2009.549961,
+        "median_lower": 4465.726522,
+        "max": 6699.03949
+       },
+       "dwellings_per_km2": {
+        "min": 8484.728541,
+        "median_lower": 8485.412036,
+        "max": 8709.102258
+       }
+      },
+      "floors_per_dwelling_building": {
+       "3": 19634,
+       "4": 44,
+       "5": 3
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "60": 844,
+        "70": 2293,
+        "80": 3330,
+        "90": 3980,
+        "100": 3441,
+        "110": 2408,
+        "120": 1748,
+        "130": 1035,
+        "140": 523,
+        "150": 79
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Manhattan",
+    "lat": 40.7831,
+    "lon": -73.9712,
+    "l3_tile": 492615426371981,
+    "leaves_in_tile": 1024,
+    "leaves_without_households": 0,
+    "by_class": {
+     "dense fabric": {
+      "leaves": 1024,
+      "leaf_area_km2": 3.752881,
+      "households": 23252,
+      "dwelling_buildings": 16438,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 23252,
+       "buildings": 16438,
+       "decimal": "1.414527"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 9956,
+       "2": 6165,
+       "3": 302,
+       "4": 15
+      },
+      "buildings_by_dwellings_band": {
+       "1": 9956,
+       "2": 6165,
+       "3-6": 317,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 9956,
+       "2": 12330,
+       "3-6": 966,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 4380.101078,
+      "dwellings_per_km2": 6195.772616,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 15005.087664,
+        "median_lower": 15688.17047,
+        "max": 15691.567422
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 1636.995673,
+        "median_lower": 4365.52721,
+        "max": 6276.449681
+       },
+       "dwellings_per_km2": {
+        "min": 6002.035065,
+        "median_lower": 6275.268188,
+        "max": 6276.626969
+       }
+      },
+      "floors_per_dwelling_building": {
+       "3": 16434,
+       "4": 4
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "60": 733,
+        "70": 1885,
+        "80": 2790,
+        "90": 3248,
+        "100": 2770,
+        "110": 2015,
+        "120": 1518,
+        "130": 977,
+        "140": 445,
+        "150": 57
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Tokyo",
+    "lat": 35.6895,
+    "lon": 139.6917,
+    "l3_tile": 492611148192584,
+    "leaves_in_tile": 1024,
+    "leaves_without_households": 0,
+    "by_class": {
+     "dense fabric": {
+      "leaves": 1024,
+      "leaf_area_km2": 4.025887,
+      "households": 26885,
+      "dwelling_buildings": 17559,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 26885,
+       "buildings": 17559,
+       "decimal": "1.531124"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 8542,
+       "2": 8726,
+       "3": 279,
+       "4": 6,
+       "5": 6
+      },
+      "buildings_by_dwellings_band": {
+       "1": 8542,
+       "2": 8726,
+       "3-6": 291,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 8542,
+       "2": 17452,
+       "3-6": 891,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 4361.523699,
+      "dwellings_per_km2": 6678.032043,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 16530.996461,
+        "median_lower": 16533.716482,
+        "max": 17170.839774
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 1526.081589,
+        "median_lower": 4324.101117,
+        "max": 6358.972231
+       },
+       "dwellings_per_km2": {
+        "min": 6612.398584,
+        "median_lower": 6613.486593,
+        "max": 6868.33591
+       }
+      },
+      "floors_per_dwelling_building": {
+       "3": 17555,
+       "4": 2,
+       "5": 2
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "60": 762,
+        "70": 1918,
+        "80": 2968,
+        "90": 3482,
+        "100": 2948,
+        "110": 2274,
+        "120": 1607,
+        "130": 1010,
+        "140": 517,
+        "150": 73
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Paris",
+    "lat": 48.8566,
+    "lon": 2.3522,
+    "l3_tile": 492622187593845,
+    "leaves_in_tile": 1024,
+    "leaves_without_households": 0,
+    "by_class": {
+     "dense fabric": {
+      "leaves": 1024,
+      "leaf_area_km2": 3.261773,
+      "households": 18741,
+      "dwelling_buildings": 13700,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 18741,
+       "buildings": 13700,
+       "decimal": "1.367956"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 8850,
+       "2": 4663,
+       "3": 183,
+       "4": 4
+      },
+      "buildings_by_dwellings_band": {
+       "1": 8850,
+       "2": 4663,
+       "3-6": 187,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 8850,
+       "2": 9326,
+       "3-6": 565,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 4200.169052,
+      "dwellings_per_km2": 5745.647314,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 14124.551282,
+        "median_lower": 14128.606605,
+        "max": 14914.832665
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 1883.438023,
+        "median_lower": 4395.45675,
+        "max": 5965.635114
+       },
+       "dwellings_per_km2": {
+        "min": 5649.820513,
+        "median_lower": 5651.442642,
+        "max": 5965.933066
+       }
+      },
+      "floors_per_dwelling_building": {
+       "3": 13700
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "60": 487,
+        "70": 1550,
+        "80": 2304,
+        "90": 2697,
+        "100": 2351,
+        "110": 1808,
+        "120": 1283,
+        "130": 794,
+        "140": 366,
+        "150": 60
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Berlin centre",
+    "lat": 52.52,
+    "lon": 13.405,
+    "l3_tile": 492625274602142,
+    "leaves_in_tile": 256,
+    "leaves_without_households": 0,
+    "by_class": {
+     "apartment blocks": {
+      "leaves": 256,
+      "leaf_area_km2": 3.015484,
+      "households": 7770,
+      "dwelling_buildings": 1094,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 7770,
+       "buildings": 1094,
+       "decimal": "7.102377"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 67,
+       "2": 94,
+       "3": 82,
+       "4": 113,
+       "5": 104,
+       "6": 106,
+       "7": 97,
+       "8": 83,
+       "9": 67,
+       "10": 70,
+       "11": 45,
+       "12": 43,
+       "13": 34,
+       "14": 20,
+       "15": 24,
+       "16": 13,
+       "17": 10,
+       "18": 6,
+       "19": 1,
+       "20": 3,
+       "22": 1,
+       "30": 6,
+       "31": 5
+      },
+      "buildings_by_dwellings_band": {
+       "1": 67,
+       "2": 94,
+       "3-6": 405,
+       "7-12": 405,
+       "13+": 123
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 67,
+       "2": 188,
+       "3-6": 1854,
+       "7-12": 3657,
+       "13+": 2004
+      },
+      "dwelling_buildings_per_km2": 362.794186,
+      "dwellings_per_km2": 2576.700938,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 6365.959729,
+        "median_lower": 6368.134369,
+        "max": 6580.592865
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 84.886709,
+        "median_lower": 339.624164,
+        "max": 679.13233
+       },
+       "dwellings_per_km2": {
+        "min": 2546.383892,
+        "median_lower": 2547.253748,
+        "max": 2632.237146
+       }
+      },
+      "floors_per_dwelling_building": {
+       "4": 203,
+       "5": 263,
+       "6": 307,
+       "7": 299,
+       "8": 15,
+       "9": 3,
+       "10": 1,
+       "11": 2,
+       "15": 1
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "180": 7,
+        "190": 25,
+        "200": 46,
+        "210": 44,
+        "220": 70,
+        "230": 71,
+        "240": 70,
+        "250": 66,
+        "260": 75,
+        "270": 63,
+        "280": 69,
+        "290": 75,
+        "300": 65,
+        "310": 62,
+        "320": 52,
+        "330": 49,
+        "340": 45,
+        "350": 40,
+        "360": 34,
+        "370": 21,
+        "380": 11,
+        "390": 16,
+        "400": 7,
+        "410": 3,
+        "750": 5,
+        "780": 3
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Munich suburb (Unterhaching)",
+    "lat": 48.066,
+    "lon": 11.615,
+    "l3_tile": 492621533282884,
+    "leaves_in_tile": 64,
+    "leaves_without_households": 0,
+    "by_class": {
+     "terraced streets": {
+      "leaves": 64,
+      "leaf_area_km2": 3.312282,
+      "households": 3538,
+      "dwelling_buildings": 2503,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 3538,
+       "buildings": 2503,
+       "decimal": "1.413504"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 1483,
+       "2": 1005,
+       "3": 15
+      },
+      "buildings_by_dwellings_band": {
+       "1": 1483,
+       "2": 1005,
+       "3-6": 15,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 1483,
+       "2": 2010,
+       "3-6": 45,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 755.672426,
+      "dwellings_per_km2": 1068.145842,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 2656.327178,
+        "median_lower": 2656.972406,
+        "max": 2705.412441
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 579.674907,
+        "median_lower": 753.650608,
+        "max": 850.148564
+       },
+       "dwellings_per_km2": {
+        "min": 1062.530871,
+        "median_lower": 1062.788962,
+        "max": 1082.164976
+       }
+      },
+      "floors_per_dwelling_building": {
+       "2": 1250,
+       "3": 1253
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "50": 59,
+        "60": 661,
+        "70": 1002,
+        "80": 611,
+        "90": 170
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Ruhr terraced district (Gelsenkirchen)",
+    "lat": 51.5177,
+    "lon": 7.0857,
+    "l3_tile": 492624418963810,
+    "leaves_in_tile": 64,
+    "leaves_without_households": 0,
+    "by_class": {
+     "terraced streets": {
+      "leaves": 64,
+      "leaf_area_km2": 3.085039,
+      "households": 3292,
+      "dwelling_buildings": 2371,
+      "non_dwelling_buildings": 0,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 3292,
+       "buildings": 2371,
+       "decimal": "1.388444"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 1457,
+       "2": 907,
+       "3": 7
+      },
+      "buildings_by_dwellings_band": {
+       "1": 1457,
+       "2": 907,
+       "3-6": 7,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 1457,
+       "2": 1814,
+       "3-6": 21,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 768.547849,
+      "dwellings_per_km2": 1067.085415,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 2644.66058,
+        "median_lower": 2645.531504,
+        "max": 2697.256617
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 663.75795,
+        "median_lower": 767.512237,
+        "max": 892.071574
+       },
+       "dwellings_per_km2": {
+        "min": 1057.864232,
+        "median_lower": 1058.212601,
+        "max": 1078.902647
+       }
+      },
+      "floors_per_dwelling_building": {
+       "2": 1205,
+       "3": 1166
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "50": 81,
+        "60": 632,
+        "70": 944,
+        "80": 566,
+        "90": 148
+       }
+      }
+     }
+    }
+   },
+   {
+    "place": "Mecklenburg village (Krakow am See)",
+    "lat": 53.65,
+    "lon": 12.27,
+    "l3_tile": 492626214126181,
+    "leaves_in_tile": 1,
+    "leaves_without_households": 0,
+    "by_class": {
+     "village": {
+      "leaves": 1,
+      "leaf_area_km2": 2.93801,
+      "households": 47,
+      "dwelling_buildings": 47,
+      "non_dwelling_buildings": 69,
+      "leaves_without_a_dwelling_building": 0,
+      "dwellings_per_building": {
+       "dwellings": 47,
+       "buildings": 47,
+       "decimal": "1.000000"
+      },
+      "buildings_by_dwellings_exact": {
+       "1": 47
+      },
+      "buildings_by_dwellings_band": {
+       "1": 47,
+       "2": 0,
+       "3-6": 0,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwellings_by_dwellings_band": {
+       "1": 47,
+       "2": 0,
+       "3-6": 0,
+       "7-12": 0,
+       "13+": 0
+      },
+      "dwelling_buildings_per_km2": 15.997224,
+      "dwellings_per_km2": 15.997224,
+      "per_leaf": {
+       "people_per_km2": {
+        "min": 39.99306,
+        "median_lower": 39.99306,
+        "max": 39.99306
+       },
+       "dwelling_buildings_per_km2": {
+        "min": 15.997224,
+        "median_lower": 15.997224,
+        "max": 15.997224
+       },
+       "dwellings_per_km2": {
+        "min": 15.997224,
+        "median_lower": 15.997224,
+        "max": 15.997224
+       }
+      },
+      "floors_per_dwelling_building": {
+       "1": 20,
+       "2": 27
+      },
+      "footprint_m2_per_dwelling_building": {
+       "bin_m2": 10,
+       "counts_by_bin_lower_bound": {
+        "70": 7,
+        "80": 12,
+        "90": 11,
+        "100": 5,
+        "110": 8,
+        "120": 2,
+        "130": 2
+       }
+      }
+     }
+    }
+   }
+  ],
+  "by_class": {
+   "village": {
+    "leaves": 2,
+    "leaf_area_km2": 6.361989,
+    "households": 65,
+    "dwelling_buildings": 65,
+    "non_dwelling_buildings": 113,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 65,
+     "buildings": 65,
+     "decimal": "1.000000"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 65
+    },
+    "buildings_by_dwellings_band": {
+     "1": 65,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 65,
+     "2": 0,
+     "3-6": 0,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 10.21693,
+    "dwellings_per_km2": 10.21693,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 13.142601,
+      "median_lower": 13.142601,
+      "max": 39.99306
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 5.25704,
+      "median_lower": 5.25704,
+      "max": 15.997224
+     },
+     "dwellings_per_km2": {
+      "min": 5.25704,
+      "median_lower": 5.25704,
+      "max": 15.997224
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 27,
+     "2": 38
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "60": 1,
+      "70": 10,
+      "80": 14,
+      "90": 14,
+      "100": 6,
+      "110": 12,
+      "120": 6,
+      "130": 2
+     }
+    }
+   },
+   "suburban streets": {
+    "leaves": 40,
+    "leaf_area_km2": 3.840742,
+    "households": 1299,
+    "dwelling_buildings": 1213,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 1299,
+     "buildings": 1213,
+     "decimal": "1.070899"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 1138,
+     "2": 67,
+     "3": 5,
+     "4": 3
+    },
+    "buildings_by_dwellings_band": {
+     "1": 1138,
+     "2": 67,
+     "3-6": 8,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 1138,
+     "2": 134,
+     "3-6": 27,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 315.824381,
+    "dwellings_per_km2": 338.215887,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 572.785574,
+      "median_lower": 1124.642506,
+      "max": 1124.882739
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 133.319436,
+      "median_lower": 433.21105,
+      "max": 449.953096
+     },
+     "dwellings_per_km2": {
+      "min": 229.11423,
+      "median_lower": 449.857003,
+      "max": 449.953096
+     }
+    },
+    "floors_per_dwelling_building": {
+     "1": 595,
+     "2": 610,
+     "3": 5,
+     "4": 3
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "80": 59,
+      "90": 157,
+      "100": 281,
+      "110": 293,
+      "120": 212,
+      "130": 137,
+      "140": 63,
+      "150": 11
+     }
+    }
+   },
+   "terraced streets": {
+    "leaves": 256,
+    "leaf_area_km2": 10.985583,
+    "households": 12279,
+    "dwelling_buildings": 8407,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 12279,
+     "buildings": 8407,
+     "decimal": "1.460569"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 4801,
+     "2": 3362,
+     "3": 231,
+     "4": 7,
+     "5": 3,
+     "6": 3
+    },
+    "buildings_by_dwellings_band": {
+     "1": 4801,
+     "2": 3362,
+     "3-6": 244,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 4801,
+     "2": 6724,
+     "3-6": 754,
+     "7-12": 0,
+     "13+": 0
+    },
+    "dwelling_buildings_per_km2": 765.275741,
+    "dwellings_per_km2": 1117.737698,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 1953.843326,
+      "median_lower": 2656.972406,
+      "max": 5328.344203
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 305.033548,
+      "median_lower": 762.656176,
+      "max": 1663.437356
+     },
+     "dwellings_per_km2": {
+      "min": 781.537331,
+      "median_lower": 1062.788962,
+      "max": 2131.337681
+     }
+    },
+    "floors_per_dwelling_building": {
+     "2": 4131,
+     "3": 4263,
+     "4": 7,
+     "5": 3,
+     "6": 3
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "50": 253,
+      "60": 2196,
+      "70": 3392,
+      "80": 2020,
+      "90": 546
+     }
+    }
+   },
+   "apartment blocks": {
+    "leaves": 256,
+    "leaf_area_km2": 3.015484,
+    "households": 7770,
+    "dwelling_buildings": 1094,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 7770,
+     "buildings": 1094,
+     "decimal": "7.102377"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 67,
+     "2": 94,
+     "3": 82,
+     "4": 113,
+     "5": 104,
+     "6": 106,
+     "7": 97,
+     "8": 83,
+     "9": 67,
+     "10": 70,
+     "11": 45,
+     "12": 43,
+     "13": 34,
+     "14": 20,
+     "15": 24,
+     "16": 13,
+     "17": 10,
+     "18": 6,
+     "19": 1,
+     "20": 3,
+     "22": 1,
+     "30": 6,
+     "31": 5
+    },
+    "buildings_by_dwellings_band": {
+     "1": 67,
+     "2": 94,
+     "3-6": 405,
+     "7-12": 405,
+     "13+": 123
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 67,
+     "2": 188,
+     "3-6": 1854,
+     "7-12": 3657,
+     "13+": 2004
+    },
+    "dwelling_buildings_per_km2": 362.794186,
+    "dwellings_per_km2": 2576.700938,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 6365.959729,
+      "median_lower": 6368.134369,
+      "max": 6580.592865
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 84.886709,
+      "median_lower": 339.624164,
+      "max": 679.13233
+     },
+     "dwellings_per_km2": {
+      "min": 2546.383892,
+      "median_lower": 2547.253748,
+      "max": 2632.237146
+     }
+    },
+    "floors_per_dwelling_building": {
+     "4": 203,
+     "5": 263,
+     "6": 307,
+     "7": 299,
+     "8": 15,
+     "9": 3,
+     "10": 1,
+     "11": 2,
+     "15": 1
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "180": 7,
+      "190": 25,
+      "200": 46,
+      "210": 44,
+      "220": 70,
+      "230": 71,
+      "240": 70,
+      "250": 66,
+      "260": 75,
+      "270": 63,
+      "280": 69,
+      "290": 75,
+      "300": 65,
+      "310": 62,
+      "320": 52,
+      "330": 49,
+      "340": 45,
+      "350": 40,
+      "360": 34,
+      "370": 21,
+      "380": 11,
+      "390": 16,
+      "400": 7,
+      "410": 3,
+      "750": 5,
+      "780": 3
+     }
+    }
+   },
+   "dense fabric": {
+    "leaves": 15872,
+    "leaf_area_km2": 37.3315,
+    "households": 349741,
+    "dwelling_buildings": 149531,
+    "non_dwelling_buildings": 0,
+    "leaves_without_a_dwelling_building": 0,
+    "dwellings_per_building": {
+     "dwellings": 349741,
+     "buildings": 149531,
+     "decimal": "2.338920"
+    },
+    "buildings_by_dwellings_exact": {
+     "1": 44136,
+     "2": 64539,
+     "3": 14346,
+     "4": 17245,
+     "5": 3823,
+     "6": 768,
+     "7": 1068,
+     "8": 2588,
+     "9": 423,
+     "10": 77,
+     "15": 331,
+     "16": 156,
+     "18": 21,
+     "19": 10
+    },
+    "buildings_by_dwellings_band": {
+     "1": 44136,
+     "2": 64539,
+     "3-6": 36182,
+     "7-12": 4156,
+     "13+": 518
+    },
+    "dwellings_by_dwellings_band": {
+     "1": 44136,
+     "2": 129078,
+     "3-6": 135741,
+     "7-12": 32757,
+     "13+": 8029
+    },
+    "dwelling_buildings_per_km2": 4005.491373,
+    "dwellings_per_km2": 9368.522636,
+    "per_leaf": {
+     "people_per_km2": {
+      "min": 14124.551282,
+      "median_lower": 33844.276793,
+      "max": 43266.007825
+     },
+     "dwelling_buildings_per_km2": {
+      "min": 902.440564,
+      "median_lower": 3643.425644,
+      "max": 6699.03949
+     },
+     "dwellings_per_km2": {
+      "min": 5649.820513,
+      "median_lower": 13537.710717,
+      "max": 17306.40313
+     }
+    },
+    "floors_per_dwelling_building": {
+     "3": 137665,
+     "4": 8171,
+     "5": 1855,
+     "6": 271,
+     "7": 317,
+     "8": 959,
+     "9": 98,
+     "10": 25,
+     "15": 100,
+     "16": 64,
+     "18": 3,
+     "19": 3
+    },
+    "footprint_m2_per_dwelling_building": {
+     "bin_m2": 10,
+     "counts_by_bin_lower_bound": {
+      "30": 93,
+      "60": 6869,
+      "70": 17350,
+      "80": 25227,
+      "90": 29711,
+      "100": 25422,
+      "110": 18309,
+      "120": 13390,
+      "130": 8445,
+      "140": 4118,
+      "150": 597
+     }
+    }
+   }
+  }
+ }
+}

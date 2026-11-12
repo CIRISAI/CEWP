@@ -18,6 +18,13 @@
 //! dwelling building's units) with `LeafLayout::build` and `MicroWorld::from_leaf`, and compares:
 //! every household's persons must agree leaf by leaf (exit 1 otherwise); leaves whose building
 //! split differs are listed and counted beside it.
+//!
+//! `--crosscheck-layout F` does the same for the layouts of `node docs/geo/building_hist.js --sample F`
+//! (one line per leaf: set (0 synthetic, 1 real), packed id, the 33-slot context, the building count,
+//! then per building cx cy w d angle floors units street (-1 for none)): it rebuilds each leaf with
+//! `LeafLayout::build` and counts, per set and class, the leaves whose buildings differ from the
+//! kernel's at all, those whose building count or dwellings per building differ, and the leaves the
+//! native layout marks `unplaced`. It reports; it does not fail on a difference.
 #![allow(dead_code)]
 use cewp_sim::micro::{Building, DensityClass, MicroParams, MicroWorld, NO_STREET};
 use cewp_sim::tiling::{HolonId, LeafContext, LeafLayout};
@@ -167,8 +174,75 @@ fn crosscheck(file: &str) -> (u64, u64, u64, u64) {
     (leaves, households, bad, layout)
 }
 
+/// Native rebuild of the page's layouts (see the module doc).
+fn crosscheck_layout(file: &str) {
+    let text = std::fs::read_to_string(file).expect("read the sample");
+    // (set, class) -> [leaves, any difference, count or units differ, floors differ, unplaced]
+    let mut tally: std::collections::BTreeMap<(u8, &'static str), [u64; 5]> = std::collections::BTreeMap::new();
+    let mut max_dev = 0.0f64;
+    for line in text.lines().filter(|l| !l.trim().is_empty()) {
+        let v: Vec<f64> = line.split_whitespace().map(|x| x.parse().expect("a number")).collect();
+        let set = v[0] as u8;
+        let id = HolonId::unpack(v[1] as u64).expect("a packed id");
+        let ctx = &v[2..35];
+        let m = v[35] as usize;
+        let theirs: Vec<&[f64]> = v[36..36 + 8 * m].chunks(8).collect();
+        let l = LeafLayout::build(id, &LeafContext::from_f64(ctx), &MicroParams::default());
+        let class = match l.class {
+            DensityClass::UrbanCore if l.density_km2 >= cewp_sim::tiling::DENSE_FABRIC_KM2 => "dense fabric",
+            DensityClass::UrbanCore => "apartment blocks",
+            DensityClass::Urban => "terraced streets",
+            DensityClass::Suburban => "suburban streets",
+            DensityClass::Village => "village",
+        };
+        let mine: Vec<[f64; 8]> = l
+            .buildings
+            .iter()
+            .map(|b| [b.cx, b.cy, b.w, b.d, b.angle, f64::from(b.floors), f64::from(b.units), if b.street == NO_STREET { -1.0 } else { f64::from(b.street) }])
+            .collect();
+        let t = tally.entry((set, class)).or_insert([0; 5]);
+        t[0] += 1;
+        let same = mine.len() == theirs.len() && mine.iter().zip(&theirs).all(|(a, b)| a.iter().zip(b.iter()).all(|(x, y)| x.to_bits() == y.to_bits()));
+        if !same {
+            t[1] += 1;
+            let mut mu: Vec<u64> = mine.iter().map(|b| b[6] as u64).filter(|&u| u > 0).collect();
+            let mut tu: Vec<u64> = theirs.iter().map(|b| b[6] as u64).filter(|&u| u > 0).collect();
+            mu.sort_unstable();
+            tu.sort_unstable();
+            if mine.len() != theirs.len() || mu != tu {
+                t[2] += 1;
+            } else {
+                let mut mf: Vec<u64> = mine.iter().map(|b| b[5] as u64).collect();
+                let mut tf: Vec<u64> = theirs.iter().map(|b| b[5] as u64).collect();
+                mf.sort_unstable();
+                tf.sort_unstable();
+                if mf != tf {
+                    t[3] += 1;
+                }
+                for (a, b) in mine.iter().zip(&theirs) {
+                    for k in 0..4 {
+                        max_dev = max_dev.max((a[k] - b[k]).abs());
+                    }
+                }
+            }
+        }
+        if l.unplaced {
+            t[4] += 1;
+        }
+    }
+    println!("crosscheck-layout: set class leaves differ count_or_units_differ floors_differ unplaced");
+    for ((set, class), t) in &tally {
+        println!("{} {class}: {} {} {} {} {}", if *set == 0 { "synthetic" } else { "real" }, t[0], t[1], t[2], t[3], t[4]);
+    }
+    println!("largest position/size difference where only geometry differs: {max_dev:e} m");
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if let Some(k) = args.iter().position(|a| a == "--crosscheck-layout") {
+        crosscheck_layout(args.get(k + 1).expect("--crosscheck-layout FILE"));
+        return;
+    }
     if let Some(k) = args.iter().position(|a| a == "--crosscheck") {
         let (leaves, households, bad, layout) = crosscheck(args.get(k + 1).expect("--crosscheck FILE"));
         println!("crosscheck: {leaves} leaves, {households} households; persons differ on {bad} leaves, the building split on {layout}");
