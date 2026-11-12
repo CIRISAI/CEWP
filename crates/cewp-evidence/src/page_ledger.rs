@@ -612,7 +612,11 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         shows: "The street tile as a holon: its people (apportioned from the GHS total), its households, and its device population (every device drawn, adopting or not); the nodes on screen are a display sample of it, at most 1,000.",
         source: "crates/cewp-sim/src/micro.rs: MicroWorld::populate (device_population, household_devices; R5_MAX_NODES 1,000); crates/cewp-sim/src/popchain.rs (the leaf's people); kernel-wasm micro_population",
         param: "persons_per_household 2.5 (drawn round(2.5 + 1.1 N), 1..6), phones_per_person 1, laptops_per_person 0.5, home_node_household_share 0.6, adoption 0.62, R5_MAX_NODES 1,000",
-        failure: &["People and households are exact to the GHS apportionment; persons per household and devices per person are MODEL draws with no reference."],
+        failure: &[
+            "People and households are exact to the GHS apportionment; persons per household and devices per person are MODEL draws with no reference, and so is the router class.",
+            "Inside a 1/8-degree cell people are spread evenly over its tiles until CIRISHolon's in-cell table (UNEVEN-0) is consumed.",
+            "Where the view centre is on water or an empty tile of a peopled cell, the patch is the nearest settled land leaf in the same 1/8-degree cell (a MODEL display rule), and the chip gives the distance.",
+        ],
         reproduce: "node --test docs/geo/popcond.test.js",
         ..BASE
     },

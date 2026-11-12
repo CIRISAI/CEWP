@@ -1027,19 +1027,35 @@ impl LeafLayout {
                 && !l.roads.iter().any(|r| footprint_meets_road(b, r, 0.5))
                 && !l.buildings.iter().any(|o| rects_overlap(b, o, 0.6))
         };
+        // a plot that meets a lane slides on a metre and tries again, and a row that held none moves
+        // up a metre, so the plots pack up to every lane rather than skipping the strip beside it
+        // (Dhaka's centre leaf held one building when a miss skipped a whole plot)
+        // and a plot or row that does not fit at its drawn size tries the smallest size first
         let mut y = y0;
         while y < y1 {
-            let d = rng.range(8.0, 12.0);
-            let mut x = x0;
-            while x < x1 {
-                let w = rng.range(8.0, 13.0);
-                let b = Building { cx: x + w / 2.0, cy: y + d / 2.0, w, d, angle: 0.0, floors: DENSE_MIN_FLOORS, units: 1, street: NO_STREET };
-                if fits(self, &b) {
-                    self.buildings.push(b);
+            let drawn = rng.range(8.0, 12.0);
+            let mut placed = false;
+            let mut row_d = drawn;
+            for d in [drawn, 8.0] {
+                let mut x = x0;
+                while x < x1 {
+                    let drawn_w = rng.range(8.0, 13.0);
+                    let at = |w: f64| Building { cx: x + w / 2.0, cy: y + d / 2.0, w, d, angle: 0.0, floors: DENSE_MIN_FLOORS, units: 1, street: NO_STREET };
+                    let hit = [drawn_w, 8.0].into_iter().map(at).find(|b| fits(self, b));
+                    if let Some(b) = hit {
+                        x += b.w + rng.range(1.0, 2.5);
+                        self.buildings.push(b);
+                        placed = true;
+                    } else {
+                        x += 1.0;
+                    }
                 }
-                x += w + rng.range(1.0, 2.5);
+                row_d = d;
+                if placed {
+                    break;
+                }
             }
-            y += d + rng.range(1.0, 2.5);
+            y += if placed { row_d + rng.range(1.0, 2.5) } else { 1.0 };
         }
         if self.buildings.is_empty() {
             return; // fit_households places one block on the first free spot

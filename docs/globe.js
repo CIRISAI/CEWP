@@ -394,7 +394,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=29"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=30"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2123,15 +2123,40 @@ function microFreeRoam(){
   if (tiled){
     const T = tlTree(), leaf = T.leafAt(lat, lon), id = HOLON.pack(leaf), key = "h" + id + ":" + paramKey();
     if (M && M.key === key) return;
-    const b = HOLON.boundsDeg(leaf);
-    // no households here (GHS-POP reads under the floor in this cell): no streets, no devices, and the chip says why
-    if (!T.budget(leaf)){ const r = pcCellAt(tlPop(), lat, lon), L = typeof geoLandcoverAt === "function" ? geoLandcoverAt(lat, lon) : null; microEmpty = r ? { people: r.people, perKm2: r.perKm2, lc: L ? L.name : "" } : null; microNoLand = true; M = null; return; }
-    microEmpty = null;
-    if (!landFine(lat, lon).squareOnLand(b[0], b[1], b[2] - b[0])){ microNoLand = true; M = null; return; }
-    microNoLand = false; microBuildLeaf(leaf, adoption, key); microGlide = 1; return;
+    const b = HOLON.boundsDeg(leaf), settled = (lf, bb) => T.budget(lf) > 0 && landFine(bb[0], bb[1]).squareOnLand(bb[0], bb[1], bb[2] - bb[0]);
+    microSnapKm = 0;
+    if (!settled(leaf, b)){
+      // the point is in water (a lagoon, a creek) or in an empty tile of a peopled cell: snap the focal patch to the
+      // nearest settled land leaf in the same 1/8° cell (MODEL display rule), else say why there is none
+      const snap = microSnap(T, lat, lon, settled);
+      if (snap){ const key2 = "h" + HOLON.pack(snap.leaf) + ":" + paramKey(); microEmpty = null; microNoLand = false; microSnapKm = snap.km; if (M && M.key === key2) return; microBuildLeaf(snap.leaf, adoption, key2); microGlide = 1; return; }
+      if (!T.budget(leaf)){ const r = pcCellAt(tlPop(), lat, lon), L = typeof geoLandcoverAt === "function" ? geoLandcoverAt(lat, lon) : null; microEmpty = r ? { people: r.people, perKm2: r.perKm2, lc: L ? L.name : "" } : null; microNoLand = true; M = null; return; }
+      microEmpty = null; microNoLand = true; M = null; return;
+    }
+    microEmpty = null; microNoLand = false; microBuildLeaf(leaf, adoption, key); microGlide = 1; return;
   }
   // until GHS-POP and the tiling are in, no street is generated: every street is conditioned on the people under it
   microNoLand = false; microEmpty = null; M = null;
+}
+// the nearest settled land leaf to (lat, lon) inside the same 1/8° GHS-POP cell: rings of sample points about 450 m
+// apart, nearest ring first; null when the cell holds none (or the 10 m coast has not loaded)
+let microSnapKm = 0;
+function microSnap(T, lat, lon, settled){
+  const c0 = Math.floor(lat * 8) / 8, c1 = Math.floor(lon * 8) / 8, st = 0.004, seen = new Set();
+  for (let ring = 1; ring <= 32; ring++){
+    let best = null;
+    for (let i = -ring; i <= ring; i++) for (let j = -ring; j <= ring; j++){
+      if (Math.max(Math.abs(i), Math.abs(j)) !== ring) continue;
+      const la = lat + i * st, lo = lon + j * st;
+      if (la < c0 || la >= c0 + 0.125 || lo < c1 || lo >= c1 + 0.125) continue;
+      const lf = T.leafAt(la, lo), id = HOLON.pack(lf); if (seen.has(id)) continue; seen.add(id);
+      const bb = HOLON.boundsDeg(lf); if (!settled(lf, bb)) continue;
+      const km = kmf(lat, lon, (bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2);
+      if (!best || km < best.km) best = { leaf: lf, km };
+    }
+    if (best) return best;
+  }
+  return null;
 }
 // the land test under a point: the Natural Earth 10 m tile there once it is loaded (the 50 m mask
 // puts Kowloon, Macau and Lagos Island in the sea), else the 50 m mask the tiling stands on
@@ -2524,7 +2549,7 @@ function updateFocalChip(F){
   chip.innerHTML = `<b>R5 focal 1:1</b> · ${dclass} · ` +
     `${fig("micro-generated", Math.round(m[4]).toLocaleString() + " people/km² · " + Math.round(2 * m[3]) + " m patch · " + kinds[0] + " phones, " + kinds[1] + " home nodes, " + kinds[2] + " laptops, " + kinds[3] + " hosted servers, " + kinds[4] + " seats" + (kinds[5] ? ", " + kinds[5] + " CI" : ""))} · ` +
     `local ${hm} · sim ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · ${scale} scale` +
-    `<div class="chip-sub">${fig("micro-population", "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000")}</div>` +
+    `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people are spread evenly inside a 1/8° cell until CIRISHolon's in-cell table is consumed")}</div>` +
     `<div class="chip-sub">rows: ${fig("micro-activity", m[10] + " sent · " + m[11] + " direct (" + m[12] + " shaped) · " + m[13] + " relayed · " + m[15] + " held at a mailbox · " + m[16] + " handed over · punches " + m[20] + "/" + m[19] + " up")} · tap a device</div>` +
     `<div class="chip-sub">model's reading: replication rounds ${fig("micro-activity", (m[37] | 0) + " served · " + (m[38] | 0) + " cadences where an unclaimed device announced with no seat as peer")} · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +
     (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? '<span class="inp">design case: 3, k=2</span>' : '<span class="inp">production: 1</span>'}</button>`) + `</div>`;

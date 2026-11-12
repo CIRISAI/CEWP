@@ -801,7 +801,7 @@ window.CEWP_LEDGER = {
       "reproduce": "node --test docs/geo/popcond.test.js",
       "correction": "",
       "interval": null,
-      "failure": ["People and households are exact to the GHS apportionment; persons per household and devices per person are MODEL draws with no reference."]
+      "failure": ["People and households are exact to the GHS apportionment; persons per household and devices per person are MODEL draws with no reference, and so is the router class.", "Inside a 1/8-degree cell people are spread evenly over its tiles until CIRISHolon's in-cell table (UNEVEN-0) is consumed.", "Where the view centre is on water or an empty tile of a peopled cell, the patch is the nearest settled land leaf in the same 1/8-degree cell (a MODEL display rule), and the chip gives the distance."]
     },
     {
       "id": "micro-generated",

@@ -372,8 +372,18 @@ level + 1 from the 1.5° root to the street tile). Mesh readouts at this density
 MODEL); both are per patch of at most 60 households, so the seat's load at a city's density is the
 seat card's fleet rows, not this patch's.
 
-Lagos Island and Mumbai's eastern cell (19.06 N 72.94 E) still show no street: the Natural Earth
-10 m coast puts that point in the water (lagoon and creek), and the street tier is built only on land.
+Lagos Island and Mumbai's eastern cell (19.06 N 72.94 E) showed no street: the Natural Earth 10 m
+coast puts those points in the water (lagoon and creek). Now, where the view centre's leaf is water or
+empty but its 1/8° cell is peopled, the focal patch is the nearest settled land leaf in the same cell
+(rings of samples about 450 m apart; a MODEL display rule), and the chip gives the distance: Lagos
+Island 0.9 km, the Mumbai creek point snaps onto dense fabric. Before the 10 m coast loads, the 50 m
+mask stands in and the snap can be farther (Lagos Island 1.6 km on a cold load).
+
+Dhaka's centre leaf (32 x 35 m, two 4 m lanes) held one building: the dense-fabric scan stepped a
+whole plot past every plot that met a lane, so the strip beside each lane was skipped. A plot that
+does not fit now tries the smallest plot (8 m), then slides on a metre, and a row that holds none
+tries an 8 m row, then moves up a metre. Probe leaves now: Dhaka 3 buildings (was 1), Karachi 4,
+Giza 4, Kowloon 12, Delhi 16, Mumbai 12. Storeys fall to match.
 
 ## The Zurich path without loading (Eric: "pre-cache all the Zurich tiles")
 
