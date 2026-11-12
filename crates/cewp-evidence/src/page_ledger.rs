@@ -500,6 +500,15 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ..BASE
     },
     PageClaim {
+        id: "holon-verdict-count",
+        class: Derived,
+        live: true,
+        shows: "The focal chip's badge line: how many of CIRISHolon's verdicts on this tile's lines are certified, refused, unresolved or outside the envelope, and how many lines run the twin's legacy rule (no certificate); each verdict, its reason and its notice are in the 'where this comes from' panel.",
+        source: "docs/globe.js updateFocalChip: counted from the panel's own verdict marks (holVd)",
+        failure: &["A count of verdicts, not a score: one certified and one refused line are not an average."],
+        ..BASE
+    },
+    PageClaim {
         id: "holon-uneven0",
         class: Model,
         shows: "How a 1/8-degree cell's people divide over tiles of each density class (about 0.9 km): CIRISHolon's UNEVEN-0 reading of GHS-POP at its native 30 arc-seconds, world and by the twin's nine regions; verdict unresolved (a reading of the reference, no generator scored).",

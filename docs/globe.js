@@ -45,7 +45,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
   </div>
 </div>
 
-<div id="focal-chip" class="panel-hidden"></div>
+<div id="focal-chip" class="panel-hidden"></div><div id="focal-detail" class="panel-hidden" role="dialog" aria-label="Where this street's figures come from"></div>
 <div id="node-card" class="panel-hidden"></div>
 <div id="hud" class="panel-hidden">
   <div class="panel-head">
@@ -2611,7 +2611,7 @@ function holUnevenLine(cls, lat, lon){
 function updateFocalChip(F){
   const chip = $("focal-chip"); if (!chip) return;
   const show = zoom * Math.min(1, Math.min(cv.clientWidth || 900, cv.clientHeight || 900) / 900) >= FOCAL_ZOOM * 0.6; // same scale rule as microVisible
-  chip.classList.toggle("panel-hidden", !show); if (!show) return;
+  chip.classList.toggle("panel-hidden", !show); { const d = $("focal-detail"); if (d && (!show || !M)) d.classList.add("panel-hidden"); } if (!show) return;
   if (!microOk()){ chip.innerHTML = "<b>R5 focal tier</b> needs WebAssembly: not available in this browser"; return; }
   if (!M){ chip.innerHTML = microEmpty ? `<b>No one lives here in the model</b> · ${fig("pop-grid-source", "GHS-POP 2020 reads " + (microEmpty.people < 10 ? microEmpty.people.toFixed(1) : Math.round(microEmpty.people).toLocaleString()) + " people in this 1/8° cell (" + (microEmpty.perKm2 < 0.1 ? microEmpty.perKm2.toFixed(3) : microEmpty.perKm2.toFixed(1)) + " per km²)")} · ${fig("land-cover-source", microEmpty.lc ? "land cover: " + microEmpty.lc.toLowerCase() : "no land-cover reading")} · ${fig("street-floor", "no streets or devices below one person per km²")}`
     : microNoLand ? "<b>R5 focal tier</b> · this tile is not wholly settled land (sea, coast or empty): streets are built only on whole land tiles"
@@ -2627,19 +2627,31 @@ function updateFocalChip(F){
   const P = M.popn || { hh: 0, persons: 0, dev: 0, nodes: 0 };
   // the top of the apartment class is laid out as dense fabric (tiling.rs DENSE_FABRIC_KM2, MODEL): name it, with its mean storeys
   let dclass = MDCLASS[m[2] | 0];
-  if ((m[2] | 0) === 0 && m[4] >= 12000 && M.bld && M.bld.length){ let fl = 0, nb = 0; for (let b = 0; b < M.bld.length; b += 8) if (M.bld[b + 6] > 0){ fl += M.bld[b + 5]; nb++; } dclass = "dense fabric · " + fig("dense-fabric", (nb ? Math.round(fl / nb) : "?") + " storeys on average; the density is a 1/8° cell average, and wards inside it are denser"); }
+  if ((m[2] | 0) === 0 && m[4] >= 12000 && M.bld && M.bld.length){ let fl = 0, nb = 0; for (let b = 0; b < M.bld.length; b += 8) if (M.bld[b + 6] > 0){ fl += M.bld[b + 5]; nb++; } dclass = "dense fabric · " + fig("dense-fabric", (nb ? Math.round(fl / nb) : "?") + " storeys"); M.denseNote = true; } else M.denseNote = false;
   const ppm = F.k / EARTH_M; const scale = ppm > 1.5 ? "street" : ppm > 0.25 ? "neighbourhood" : ppm > 0.02 ? "district" : "region";
-  if (F.w < 800){
-    chip.innerHTML = `<b>R5 1:1</b> · ${dclass} · ${fig("micro-generated", Math.round(m[4]).toLocaleString() + "/km² · " + kinds.reduce((a, b) => a + b, 0) + " devices")} · ${hm} ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · bootstrap <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_SHORT[microBootstrap]}</button> · tap a device<div class="chip-sub">${fig("holon-housegen1", holGenShort())}</div>`;
-  } else
-  chip.innerHTML = `<b>R5 focal 1:1</b> · ${dclass} · ` +
-    `${fig("micro-generated", Math.round(m[4]).toLocaleString() + " people/km² · " + Math.round(2 * m[3]) + " m patch · " + kinds[0] + " phones, " + kinds[1] + " home nodes, " + kinds[2] + " laptops, " + kinds[3] + " hosted servers, " + kinds[4] + " seats" + (kinds[5] ? ", " + kinds[5] + " CI" : ""))} · ` +
-    `local ${hm} · sim ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · ${scale} scale` +
+  // three lines by default (Eric: draw Holon's stats beautifully, not as a wall of caveats); everything else, word for word, in
+  // the "where this comes from" panel (left side on a desktop, a bottom sheet on a phone, closed by default)
+  const narrow = F.w < 800, det = $("focal-detail");
+  const head = narrow
+    ? `<b>R5 1:1</b> · ${dclass} · ${fig("micro-generated", Math.round(m[4]).toLocaleString() + "/km² · " + kinds.reduce((a, b) => a + b, 0) + " devices")} · ${hm} ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button>`
+    : `<b>R5 focal 1:1</b> · ${dclass} · ` +
+      `${fig("micro-generated", Math.round(m[4]).toLocaleString() + " people/km² · " + Math.round(2 * m[3]) + " m patch · " + kinds[0] + " phones, " + kinds[1] + " home nodes, " + kinds[2] + " laptops, " + kinds[3] + " hosted servers, " + kinds[4] + " seats" + (kinds[5] ? ", " + kinds[5] + " CI" : ""))} · ` +
+      `local ${hm} · sim ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · ${scale} scale`;
+  const tileLine = `<div class="chip-line">${fig("micro-population", "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households, " + P.dev.toLocaleString() + " devices")}</div>`;
+  const detail = `<div class="fd-head"><b>Where this street's figures come from</b> <button class="chip-btn" id="fd-close" type="button" aria-label="Close">×</button></div>` +
+    (M.denseNote ? `<div class="chip-sub">${fig("dense-fabric", "dense fabric: storeys are the leaf's households over its plots; the density is a 1/8° cell average, and wards inside it are denser")}</div>` : "") +
     `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people inside a 1/8° cell follow CIRISHolon's in-cell table (UNEVEN-0, unresolved)")}</div>` +
     `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
     `<div class="chip-sub">rows: ${fig("micro-activity", m[10] + " sent · " + m[11] + " direct (" + m[12] + " shaped) · " + m[13] + " relayed · " + m[15] + " held at a mailbox · " + m[16] + " handed over · punches " + m[20] + "/" + m[19] + " up")} · tap a device</div>` +
     `<div class="chip-sub">model's reading: replication rounds ${fig("micro-activity", (m[37] | 0) + " served · " + (m[38] | 0) + " cadences where an unclaimed device announced with no seat as peer")} · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +
     (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? '<span class="inp">design case: 3, k=2</span>' : '<span class="inp">production: 1</span>'}</button>`) + `</div>`;
+  // the verdict badges: CIRISHolon's verdicts counted from the panel's own lines
+  const cnt = (k) => (detail.match(new RegExp('class="vd vd-' + k + '"', "g")) || []).length;
+  const badges = `<div class="chip-line">Holon: ${fig("holon-verdict-count", '<span class="vd vd-cert" title="certified by CIRISHolon against a reference">' + cnt("cert") + ' certified</span> · <span class="vd vd-ref" title="refused against a reference">' + cnt("ref") + ' refused</span> · <span class="vd vd-unres" title="unresolved, or outside the reference\'s envelope">' + cnt("unres") + ' unresolved</span> · <span class="vd vd-leg" title="the twin\'s legacy rule, no certificate">' + cnt("leg") + ' legacy</span>')} <button class="chip-btn" id="fd-open" type="button" aria-expanded="${!!(det && det.classList.contains("open"))}" aria-controls="focal-detail">where this comes from</button></div>`;
+  chip.innerHTML = head + tileLine + badges;
+  if (det && !det.contains(document.activeElement)){ det.innerHTML = detail; det.classList.toggle("panel-hidden", false); }
+  $("fd-open").onclick = () => { det.classList.toggle("open"); chip._t = 0; };
+  const fc = $("fd-close"); if (fc) fc.onclick = () => { det.classList.remove("open"); chip._t = 0; };
   $("ts-dn").onclick = () => { microTimeScale = Math.max(1, Math.round(microTimeScale / 2)); chip._t = 0; };
   $("ts-up").onclick = () => { microTimeScale = Math.min(480, microTimeScale * 2); chip._t = 0; };
   const bs = $("bs-tg"); if (bs) bs.onclick = () => { microBootstrap = [2, 0, 1][microBootstrap]; wasm.micro_cmd(10, 0, microBootstrap ? 1 : 0); chip._t = 0; renderNodeCard(); };

@@ -623,6 +623,24 @@
       "failure": ["Priors, nothing scored."]
     },
     {
+      "id": "holon-verdict-count",
+      "class": "DERIVED",
+      "code": "DE",
+      "status": "stated",
+      "live": true,
+      "shows": "The focal chip's badge line: how many of CIRISHolon's verdicts on this tile's lines are certified, refused, unresolved or outside the envelope, and how many lines run the twin's legacy rule (no certificate); each verdict, its reason and its notice are in the 'where this comes from' panel.",
+      "source": "docs/globe.js updateFocalChip: counted from the panel's own verdict marks (holVd)",
+      "commit": "f73b918",
+      "window": "",
+      "param": "",
+      "dataset": "",
+      "blocker": "",
+      "reproduce": "",
+      "correction": "",
+      "interval": null,
+      "failure": ["A count of verdicts, not a score: one certified and one refused line are not an average."]
+    },
+    {
       "id": "holon-uneven0",
       "class": "MODEL",
       "code": "MO",
