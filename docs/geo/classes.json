@@ -5,7 +5,7 @@
   "density_is": "people per km2 of a street leaf: the leaf's households x 2.5 persons per household / the leaf's area (the leaf's households are its share of GHS-POP 2020 people, popcond.js)",
   "floor": { "people_per_km2": 1, "applies_to": "each 1/8-degree GHS-POP cell, people over the cell's whole area (not land area)", "below": "the cell contributes no people: no households, no streets, no devices" },
   "persons_per_household": 2.5,
-  "region_rule": "a 1/8-degree cell belongs to the region of the 1.5-degree GHS-POP grid cell holding it; each grid cell belongs to one of 181 localities and each locality to one of 9 regions (N. America, Latin America, Europe, MENA, Sub-Saharan Africa, South Asia, East Asia, SE Asia & Oceania, Russia & C. Asia), a partition inherited from the old grid by nearest old cell (MODEL, docs/geo/popgrid_ghs.js)",
+  "region_rule": "a 1/8-degree cell belongs to the region of the 1.5-degree GHS-POP grid cell holding it; each grid cell belongs to one of 181 localities and each locality to one of 9 regions (N. America, Latin America, Europe, MENA, Sub-Saharan Africa, South Asia, East Asia, SE Asia & Oceania, Russia & C. Asia), a partition inherited from the old grid by nearest old cell (MODEL, docs/geo/popgrid_ghs.js); the assignment itself, cell by cell, is docs/geo/regions.json",
   "classes": [
     { "name": "village", "lower_people_per_km2": 0, "generates": "houses of 1-2 storeys, a fifth of plots empty, 5 m streets, 14-50 m between houses, yards and trees" },
     { "name": "suburban streets", "lower_people_per_km2": 250, "generates": "detached houses of 1-2 storeys, 6 m streets, 9-15 m gaps, 7-11 m setbacks, yards and trees" },
