@@ -75,10 +75,12 @@ function zpStory(){
       if (seen.has(id)) continue; seen.add(id); const b = HOLON.boundsDeg(leaf); if (T.budget(leaf) && L.squareOnLand(b[0], b[1], b[2] - b[0])) ZP.cand.push({ leaf, d: Math.hypot(a, q) }); }
     ZP.cand.sort((x, y) => x.d - y.d); zpNote("story search " + ZP.cand.length); }
   const c = ZP.cand.shift(); if (!c){ M = null; return; }
-  microBuildLeaf(c.leaf, 0.62, "h" + HOLON.pack(c.leaf) + ":story");
+  // built at the hour the street act opens with, so the act adopts this world as it is instead of building it again
+  const actOf = (typeof STORY_ACTS !== "undefined") ? STORY_ACTS.findIndex((x) => x.micro) : -1;
+  microBuildLeaf(c.leaf, 0.62, "h" + HOLON.pack(c.leaf) + ":story", actOf >= 0 ? storyUtcAt(actOf, 0) : undefined);
   const cls = M.meta[2] | 0, a = (cls === 1 || cls === 2) && wasm.micro_cmd(6, 0, 0) === 1 ? new Uint32Array(mem.buffer, wasm.micro_buf_ptr(10) >>> 0, 4).slice() : null;
   let ok = false; if (a){ storyPinStart(...a); const [ax, ay] = actorXY(a[1]), [bx, by] = actorXY(a[3]); if (Math.hypot(bx - ax, by - ay) >= 40 && wasm.micro_cmd(8, a[0], a[2]) === 1) ok = true; else if (!ZP.fallback) ZP.fallback = c.leaf; }
-  if (ok || !ZP.cand.length){ MSTORY.leaf = ok ? c.leaf : (ZP.fallback || null); M = null; zpNote("story leaf ready"); return; }
+  if (ok || !ZP.cand.length){ MSTORY.leaf = ok ? c.leaf : (ZP.fallback || null); if (ok && MICRO_LEAF) MICRO_LEAF.fresh = true; M = null; zpNote("story leaf ready"); return; }
   M = null; zpIdle(zpStory, 1500);
 }
 function zpStart(){

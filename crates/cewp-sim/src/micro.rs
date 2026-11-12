@@ -945,6 +945,15 @@ fn rect_corners(b: &Building, margin: f64) -> [(f64, f64); 4] {
 
 /// Separating-axis test for two building footprints (with a gap of `margin` metres).
 pub(crate) fn rects_overlap(a: &Building, b: &Building, margin: f64) -> bool {
+    // two footprints whose circumscribed circles (the margin included) are apart cannot overlap: decided without
+    // the corners' cos and sin, which made a leaf's layout O(buildings^2) trigonometry (a street tile's longest task
+    // on a throttled phone). The circle holds the inflated rectangle, so this only ever skips a pair the axes
+    // would separate; the slack keeps a rounding at the boundary on the side of running the full test.
+    let r = |x: &Building| 0.5 * ((x.w + margin) * (x.w + margin) + (x.d + margin) * (x.d + margin)).sqrt() + 1e-6;
+    let (dx, dy, rr) = (a.cx - b.cx, a.cy - b.cy, r(a) + r(b));
+    if dx * dx + dy * dy > rr * rr {
+        return false;
+    }
     let ca = rect_corners(a, margin / 2.0);
     let cb = rect_corners(b, margin / 2.0);
     for ang in [a.angle, a.angle + std::f64::consts::FRAC_PI_2, b.angle, b.angle + std::f64::consts::FRAC_PI_2] {

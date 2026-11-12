@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=45"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=46"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -642,18 +642,21 @@ function densify(a,b,out){ const m=Math.max(1,Math.ceil(Math.max(Math.abs(b[0]-a
 // fan triangle cut into strips of at most 6° so it stays near the sphere. Inverting the stencil
 // per triangle leaves it odd exactly inside an odd number of rings (lakes and inland seas are holes).
 // Adjacent fan triangles share their long edges point for point, so only the ring's own edges show.
-function landFan(rings){
-  const V=[], STEP=6;
-  const zipper=(A,B)=>{ let a=0,b=0; const na=A.length-1, nb=B.length-1;
-    while (a<na || b<nb){ if (a<na && (b>=nb || (a+1)/na <= (b+1)/nb)){ V.push(...A[a],...A[a+1],...B[b]); a++; } else { V.push(...A[a],...B[b],...B[b+1]); b++; } } };
-  for (const r of rings){
-    let ay=0, ax=0; for (const p of r){ ay+=p[0]; ax+=p[1]; } ay/=r.length; ax/=r.length;
-    const spoke=(p)=>{ const K=Math.max(1,Math.ceil(Math.max(Math.abs(p[0]-ay),Math.abs(p[1]-ax))/STEP)); const o=[]; for (let k=0;k<=K;k++) o.push(xyz(ay+(p[0]-ay)*k/K, ax+(p[1]-ax)*k/K)); return o; };
-    const first=spoke(r[0]); let E0=first;
-    for (let i=0;i<r.length;i++){ const E1=(i+1<r.length)?spoke(r[i+1]):first; zipper(E0,E1); E0=E1; }
-  }
-  return new Float32Array(V);
+// fan triangles go straight into a growing Float32Array (no spread pushes, no per-triangle arrays): the 50 m set's
+// fan was a 1.2 s task on a phone at 4x CPU throttle, mostly garbage
+function fanNew(){ return { a: new Float32Array(1 << 16), n: 0 }; }
+function fanGrow(B, k){ if (B.n + k <= B.a.length) return; const a = new Float32Array(Math.max(B.a.length * 2, B.n + k)); a.set(B.a.subarray(0, B.n)); B.a = a; }
+function fanRing(r, B){
+  const STEP=6;
+  let ay=0, ax=0; for (const p of r){ ay+=p[0]; ax+=p[1]; } ay/=r.length; ax/=r.length;
+  const spoke=(p)=>{ const K=Math.max(1,Math.ceil(Math.max(Math.abs(p[0]-ay),Math.abs(p[1]-ax))/STEP)); const o=new Float32Array(3*(K+1)); for (let k=0;k<=K;k++){ const q=xyz(ay+(p[0]-ay)*k/K, ax+(p[1]-ax)*k/K); o[3*k]=q[0]; o[3*k+1]=q[1]; o[3*k+2]=q[2]; } return o; };
+  const tri=(P,i,Q,j,R,k)=>{ const a=B.a; let n=B.n; a[n++]=P[3*i]; a[n++]=P[3*i+1]; a[n++]=P[3*i+2]; a[n++]=Q[3*j]; a[n++]=Q[3*j+1]; a[n++]=Q[3*j+2]; a[n++]=R[3*k]; a[n++]=R[3*k+1]; a[n++]=R[3*k+2]; B.n=n; };
+  const zipper=(A,Bp)=>{ let a=0,b=0; const na=A.length/3-1, nb=Bp.length/3-1; fanGrow(B, 9*(na+nb));
+    while (a<na || b<nb){ if (a<na && (b>=nb || (a+1)/na <= (b+1)/nb)){ tri(A,a,A,a+1,Bp,b); a++; } else { tri(A,a,Bp,b,Bp,b+1); b++; } } };
+  const first=spoke(r[0]); let E0=first;
+  for (let i=0;i<r.length;i++){ const E1=(i+1<r.length)?spoke(r[i+1]):first; zipper(E0,E1); E0=E1; }
 }
+function landFan(rings){ const B=fanNew(); for (const r of rings) fanRing(r, B); return B.a.slice(0, B.n); }
 // The same rings, for questions asked of a point: inside = an odd number of ring edges crossed on a
 // ray due north (rings never cross the antimeridian, so a ray along a meridian sees every edge once).
 function landTest(rings){
@@ -716,7 +719,9 @@ function geoUpload(L, step, K){
   // a long straight edge in lat/lon (a 10-degree tile's clip box runs along a parallel) is split every 0.1 degree: drawn as one
   // chord it bows poleward by up to a quarter degree, and the land stencil then dropped a strip of land along every tile's
   // southern edge (Columbus, 40.06 N, lost its ground at street zoom)
-  const split = (pl) => { const o = []; for (let j = 0; j + 1 < pl.length; j++){ const a = pl[j], b = pl[j + 1], n = Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])) / 0.1);
+  // only an edge ALONG a parallel bows (a meridian edge is a great circle): split just those, so a coastline's
+  // thousands of short edges are untouched (splitting every long edge tripled the land fan, a 1.9 s task at load)
+  const split = (pl) => { const o = []; for (let j = 0; j + 1 < pl.length; j++){ const a = pl[j], b = pl[j + 1], n = a[0] === b[0] ? Math.ceil(Math.abs(b[1] - a[1]) / 0.1) : 1;
     for (let k = 0; k < n; k++) o.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); } o.push(pl[pl.length - 1]); return o; };
   const ring = (r) => { const c = (r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]) ? r.slice(0, -1) : r; return split(dens(c.concat([c[0]]), true)); };
   const rings = L[1].map(ring);
@@ -726,6 +731,32 @@ function geoUpload(L, step, K){
   if (K && K.rings.length){ const kr = K.rings.map(ring); S.fanK = mk(landFan(rings.concat(kr))); S.shoreK = mk(seg(K.shores)); }
   S.bytes = S.fan.bytes + S.lines.reduce((a, l) => a + l.bytes, 0) + (S.fanK ? S.fanK.bytes + S.shoreK.bytes : 0);
   return S;
+}
+// geoUpload's work in slices of at most 6 ms (idle callbacks, or 0 ms timeouts), then `done(S)`: the 50 m set and the
+// 10 m tiles arrive while the Story plays, and one synchronous upload was the longest task of its first act
+function geoUploadSliced(L, step, K, done){
+  const dens = (pl, closed) => { if (!step) return pl; const d = []; for (let j = 0; j + 1 < pl.length; j++) densify(pl[j], pl[j + 1], d); if (!closed) d.push(pl[pl.length - 1]); return d; };
+  const split = (pl) => { const o = []; for (let j = 0; j + 1 < pl.length; j++){ const a = pl[j], b = pl[j + 1], n = a[0] === b[0] ? Math.ceil(Math.abs(b[1] - a[1]) / 0.1) : 1;
+    for (let k = 0; k < n; k++) o.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); } o.push(pl[pl.length - 1]); return o; };
+  const ring = (r) => { const c = (r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]) ? r.slice(0, -1) : r; return split(dens(c.concat([c[0]]), true)); };
+  const segInto = (pl0, v) => { const pl = dens(pl0, false); for (let j = 0; j + 1 < pl.length; j++){ const a = xyz(pl[j][0], pl[j][1]), b = xyz(pl[j + 1][0], pl[j + 1][1]); v.push(a[0] * 1.001, a[1] * 1.001, a[2] * 1.001, b[0] * 1.001, b[1] * 1.001, b[2] * 1.001); } };
+  const mk = (data) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); return { b, n: data.length / 3, bytes: data.byteLength }; };
+  const rings = L[1].map(ring), kr = K && K.rings.length ? K.rings.map(ring) : [];
+  // steps: each ring of the fan, each ring of the lakes (appended to a copy for fanK), each polyline of each line kind
+  const B = fanNew(); let BK = null; const lines = [[], [], []], shoreK = [];
+  const steps = [];
+  for (const r of rings) steps.push(() => fanRing(r, B));
+  if (kr.length){ steps.push(() => { BK = { a: B.a.slice(0, Math.max(B.n, 1 << 16)), n: B.n }; }); for (const r of kr) steps.push(() => fanRing(r, BK)); for (const pl of K.shores) steps.push(() => segInto(pl, shoreK)); }
+  for (let t = 0; t < 3; t++) for (const pl of L[t + 2]) steps.push(() => segInto(pl, lines[t]));
+  let i = 0;
+  const run = (dl) => { const t0 = performance.now();
+    while (i < steps.length && (performance.now() - t0 < 6)) steps[i++]();
+    if (i < steps.length){ (typeof requestIdleCallback === "function" ? requestIdleCallback(run, { timeout: 200 }) : setTimeout(run, 0)); return; }
+    const S = { fan: mk(B.a.slice(0, B.n)), lines: lines.map((v) => mk(new Float32Array(v))), rings };
+    if (BK){ S.fanK = mk(BK.a.slice(0, BK.n)); S.shoreK = mk(new Float32Array(shoreK)); }
+    S.bytes = S.fan.bytes + S.lines.reduce((a, l) => a + l.bytes, 0) + (S.fanK ? S.fanK.bytes + S.shoreK.bytes : 0);
+    done(S); };
+  run();
 }
 function geoFree(S){ gl.deleteBuffer(S.fan.b); S.lines.forEach(l => gl.deleteBuffer(l.b)); if (S.fanK){ gl.deleteBuffer(S.fanK.b); gl.deleteBuffer(S.shoreK.b); } }
 function geoFetch(path){ return fetch(path).then(r => { if (!r.ok) throw new Error(path + " " + r.status); return r.arrayBuffer(); }); }
@@ -749,13 +780,13 @@ function geoVisibleTiles(w, h, mpp){
 function geoLoad50(){ if (GEO.p50) return; GEO.p50 = true;
   Promise.all([geoFetch("geo/ne50.bin?v=1"), geoFetch("geo/lakes.bin?v=1")]).then(([b, k]) => {
     const L = geoDecode(b), K = geoDecode(k); GEO.lakes = K;
-    L[1] = L[1].concat(K[1], K[5]); L[2] = L[2].concat(K[2]); GEO.l50 = geoUpload(L, 0); }).catch(e => console.warn(e.message)); }
+    L[1] = L[1].concat(K[1], K[5]); L[2] = L[2].concat(K[2]); geoUploadSliced(L, 0, null, (S) => { GEO.l50 = S; if (typeof gfxDirty === "function") gfxDirty(400); }); }).catch(e => console.warn(e.message)); }
 function geoLoadPlaces(){ if (GEO.pPlaces) return; GEO.pPlaces = true; geoFetch("geo/places.bin?v=1").then(b => { GEO.places = geoPlaces(b); }).catch(e => console.warn(e.message)); }
 // one ne10 tile: keep it most recent, or fetch, decode and upload it (also used by preload.js)
 function geoWant10(k, keep){ const t = GEO.t10.get(k);
   if (t){ GEO.t10.delete(k); GEO.t10.set(k, t); return; } // most recent last
   GEO.t10.set(k, { pending: true, bytes: 0 });
-  geoFetch("geo/ne10/" + k + ".bin?v=1").then(b => { const e = GEO.t10.get(k); if (!e) return; const L = geoDecode(b), K = geoAddLakes(k); const S = geoUpload(L, 0, K); S.pending = false; GEO.t10.set(k, S); if (keep) geoEvict(keep); })
+  geoFetch("geo/ne10/" + k + ".bin?v=1").then(b => { const e = GEO.t10.get(k); if (!e) return; const L = geoDecode(b), K = geoAddLakes(k); geoUploadSliced(L, 0, K, (S) => { if (!GEO.t10.has(k)){ geoFree(S); return; } S.pending = false; GEO.t10.set(k, S); if (keep) geoEvict(keep); if (typeof gfxDirty === "function") gfxDirty(400); }); })
     .catch(e => { console.warn(e.message); GEO.t10.delete(k); }); }
 function geoSets(w, h, mpp){
   GEO.mpp = mpp;
@@ -899,15 +930,18 @@ function pruneAndPackArcs(nowSec){
     arcsNeedUpload=false;
   }
 }
+// the Story's UTC hour at act `act`, `el` seconds in (also asked ahead of time: preload.js builds the street act's
+// world at the hour the act will open with)
+function storyUtcAt(act, el){
+  if (act === 0 && typeof SIM_T0 !== "undefined") return SIM_T0 / 3600; // the opening: lit as it is now
+  const oa = Math.max(0, act - 1 - STORY_LEAD);
+  const d = Math.max(1, STORY_ACTS[act].duration);
+  if (oa < 3) return 7.2 + oa * 0.7 + Math.min(1, el / d) * 0.7;
+  if (oa === 3) return 9.3 + (el / d) * 3.2;
+  return (8.5 + el * 0.85) % 24.0;
+}
 function getSimUtcHours(nowSec){
-  if (storyActive) {
-    if (storyCurrentAct === 0 && typeof SIM_T0 !== "undefined") return SIM_T0 / 3600; // the opening: lit as it is now
-    const oa = Math.max(0, storyCurrentAct - 1 - STORY_LEAD);
-    const d = Math.max(1, STORY_ACTS[storyCurrentAct].duration);
-    if (oa < 3) return 7.2 + oa * 0.7 + Math.min(1, storyActElapsed / d) * 0.7;
-    if (oa === 3) return 9.3 + (storyActElapsed / d) * 3.2;
-    return (8.5 + storyActElapsed * 0.85) % 24.0;
-  }
+  if (storyActive) return storyUtcAt(storyCurrentAct, storyActElapsed);
   if (typeof SIM!=="undefined") return ((SIM.t/3600)%24+24)%24; // the sim's clock (gfx.js): it stops when the sim is paused
   return (8.5 + nowSec * 0.85) % 24.0;
 }
@@ -2009,7 +2043,7 @@ function cellDensity(c){
   const area = (2 * r * 111.32) * (2 * r * 111.32 * Math.cos(G.cellLat[c] * Math.PI / 180));
   return share * 8.05e9 / Math.max(1, area); // the grid is real population density; the page's adoption is a separate parameter
 }
-function microSetParams(adoption, lon){
+function microSetParams(adoption, lon, utcH){
   wasm.micro_params_reset();
   const p = new Float64Array(mem.buffer, wasm.micro_params_ptr() >>> 0, MP_COUNT);
   const v = (id) => +$(id).value / 100;
@@ -2023,12 +2057,12 @@ function microSetParams(adoption, lon){
   p[MP.adoption] = adoption;
   p[MP.bundle_bootstrap] = microBootstrap ? 1 : 0; // the world rounds the same for 1 and 2; the shape is costed in capacity
   if (microDesign){ p[MP.serve_seats] = 3; p[MP.homing_k] = 2; p[MP.seat_km_min] = 120; p[MP.seat_km_max] = 650; }
-  p[MP.start_local_hour] = ((getSimUtcHours(getTime()) + lon / 15) % 24 + 24) % 24;
+  p[MP.start_local_hour] = (((utcH === undefined ? getSimUtcHours(getTime()) : utcH) + lon / 15) % 24 + 24) % 24;
 }
 function microBuf(i, T){ return new T(mem.buffer, wasm.micro_buf_ptr(i) >>> 0, wasm.micro_buf_len(i) >>> 0).slice(); }
 function microBuild(lat, lon, density, exact, seedLo, seedHi, adoption, key){
   microSetParams(adoption, lon);
-  wasm.micro_build(lat, lon, density, seedLo >>> 0, seedHi >>> 0, exact ? 1 : 0);
+  wasm.micro_build(lat, lon, density, seedLo >>> 0, seedHi >>> 0, exact ? 1 : 0); MICRO_GEN++; MICRO_LEAF = null;
   M = { key, lat0: lat, lon0: lon, roads: microBuf(4, Float64Array), sites: microBuf(7, Float64Array) };
   microRead();
   const a = lat * Math.PI / 180, o = lon * Math.PI / 180;
@@ -2037,10 +2071,18 @@ function microBuild(lat, lon, density, exact, seedLo, seedHi, adoption, key){
   M.N = [-Math.sin(a) * Math.sin(o), Math.cos(a), -Math.sin(a) * Math.cos(o)];
   microSel = -1; renderNodeCard();
 }
-function microBuildLeaf(leaf, adoption, key){
-  microSetParams(adoption, tlCentre(leaf)[1]);
+// MICRO_GEN counts every change to the kernel's street world (a build, a seam switch): a world built in an idle
+// slice ahead of time (the Story's street, preload.js zpStory) is adopted without a rebuild only while it is unchanged
+let MICRO_GEN = 0, MICRO_LEAF = null, STORY_ADOPTED = 0;
+function microBuildLeaf(leaf, adoption, key, utcH){
+  microSetParams(adoption, tlCentre(leaf)[1], utcH);
   const ctx = tlContext(leaf), cp = wasm.holon_ctx_ptr(); new Float64Array(mem.buffer, cp, 33).set(ctx);
-  const id = HOLON.pack(leaf); wasm.micro_build_leaf(id);
+  const id = HOLON.pack(leaf); wasm.micro_build_leaf(id); MICRO_GEN++; MICRO_LEAF = { id, adoption, gen: MICRO_GEN, utc: utcH === undefined ? null : utcH, fresh: false };
+  microAdoptLeaf(leaf, key);
+}
+// the kernel's current world as the page's M (no wasm build): its buffers, its centre and frame
+function microAdoptLeaf(leaf, key){
+  const id = HOLON.pack(leaf);
   M = { key, leaf: id, lat0: 0, lon0: 0, roads: microBuf(4, Float64Array), sites: microBuf(7, Float64Array) };
   microRead(); M.lat0 = M.meta[35]; M.lon0 = M.meta[36];
   const st = HOLON.STEP[leaf.level] / HOLON.UPD * 111320; M.leafHW = st * Math.cos(M.lat0 * Math.PI / 180) / 2; M.leafHH = st / 2; // the leaf, not a square
@@ -2894,7 +2936,7 @@ function updateFocalChip(F){
   chip.innerHTML = head + tileLine + dmv + badges;
   if (det && !det.contains(document.activeElement)){ det.innerHTML = detail; det.classList.toggle("panel-hidden", false); }
   $("fd-open").onclick = () => { det.classList.toggle("open"); chip._t = 0; };
-  for (const bt of det.querySelectorAll("[data-hw]")) bt.onclick = () => { homeWhere = +bt.dataset.hw; if (wasm.micro_device_rule) wasm.micro_device_rule(TL.devicegen === false ? 0 : 1, homeWhere); M = null; chip._t = 0; };
+  for (const bt of det.querySelectorAll("[data-hw]")) bt.onclick = () => { homeWhere = +bt.dataset.hw; MICRO_GEN++; if (wasm.micro_device_rule) wasm.micro_device_rule(TL.devicegen === false ? 0 : 1, homeWhere); M = null; chip._t = 0; };
   const fc = $("fd-close"); if (fc) fc.onclick = () => { det.classList.remove("open"); chip._t = 0; };
   $("ts-dn").onclick = () => { microTimeScale = Math.max(1, Math.round(microTimeScale / 2)); chip._t = 0; };
   $("ts-up").onclick = () => { microTimeScale = Math.min(480, microTimeScale * 2); chip._t = 0; };
@@ -3035,7 +3077,13 @@ function storyMicroWorld(){
 function storyMicroLeaf(){
   const pin = () => { if (wasm.micro_cmd(6, 0, 0) !== 1) return null; const a = new Uint32Array(mem.buffer, wasm.micro_buf_ptr(10) >>> 0, 4).slice(); storyPinStart(...a); return a; };
   const build = (leaf) => microBuildLeaf(leaf, 0.62, "h" + HOLON.pack(leaf) + ":story");
-  if (MSTORY.leaf){ build(MSTORY.leaf); pin(); return true; }
+  if (MSTORY.leaf){
+    // the idle search (preload.js zpStory) left this very world in the kernel: adopt it instead of building it again on
+    // the act change (a 1.3 s task at 4x CPU throttle on a phone was the Story's freeze)
+    const k = "h" + HOLON.pack(MSTORY.leaf) + ":story";
+    if (MICRO_LEAF && MICRO_LEAF.id === HOLON.pack(MSTORY.leaf) && MICRO_LEAF.adoption === 0.62 && MICRO_LEAF.gen === MICRO_GEN && MICRO_LEAF.fresh && MICRO_LEAF.utc !== null && Math.abs(MICRO_LEAF.utc - getSimUtcHours(getTime())) < 0.02){ MICRO_LEAF.fresh = false; microAdoptLeaf(MSTORY.leaf, k); STORY_ADOPTED++; }
+    else build(MSTORY.leaf);
+    pin(); return true; }
   // candidates: the distinct land leaves under a 9 by 9 lattice around the city centre, nearest first
   const T = tlTree(), L = tlLand(), lat0 = 47.3769, lon0 = 8.5417, l0 = T.leafAt(lat0, lon0);
   const st = HOLON.STEP[l0.level] / HOLON.UPD, seen = new Set(), cand = [];

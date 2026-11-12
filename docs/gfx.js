@@ -177,9 +177,13 @@ function gfxGlowInit(){
     for (let y = Math.max(0, y0); y < Math.min(H2, y1); y++) for (let x = x0; x < x1; x++){ const xx = ((x % W2) + W2) % W2; img[y * W2 + xx] = Math.max(img[y * W2 + xx], d); }
   }
   const tmp = new Float32Array(W2 * H2), R = 3;
+  // the same two box passes as running sums (each pixel adds one and drops one), not 7 reads a pixel a pass: this
+  // init was the page's longest task at load on a phone at 4x CPU throttle
   for (let pass = 0; pass < 2; pass++){
-    for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++){ let s = 0; for (let k = -R; k <= R; k++) s += img[y * W2 + ((x + k + W2) % W2)]; tmp[y * W2 + x] = s / (2 * R + 1); }
-    for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++){ let s = 0, n = 0; for (let k = -R; k <= R; k++){ const yy = y + k; if (yy < 0 || yy >= H2) continue; s += tmp[yy * W2 + x]; n++; } img[y * W2 + x] = s / n; }
+    for (let y = 0; y < H2; y++){ const o = y * W2; let s = 0; for (let k = -R; k <= R; k++) s += img[o + ((k + W2) % W2)];
+      for (let x = 0; x < W2; x++){ tmp[o + x] = s / (2 * R + 1); s += img[o + ((x + R + 1) % W2)] - img[o + ((x - R + W2) % W2)]; } }
+    for (let x = 0; x < W2; x++){ let s = 0, n = 0; for (let k = 0; k <= R && k < H2; k++){ s += tmp[k * W2 + x]; n++; }
+      for (let y = 0; y < H2; y++){ img[y * W2 + x] = s / n; const add = y + R + 1, drop = y - R; if (add < H2){ s += tmp[add * W2 + x]; n++; } if (drop >= 0){ s -= tmp[drop * W2 + x]; n--; } } }
   }
   // scale: the 99th percentile of lit pixels is full brightness (one extreme cell would otherwise dim every other)
   const nzv = []; for (let i = 0; i < img.length; i += 7) if (img[i] > 0) nzv.push(img[i]); nzv.sort((a, b) => a - b);
@@ -190,16 +194,17 @@ function gfxGlowInit(){
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W2, H2, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
   gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  const V = [], st = 2, at = (la, lo) => [...xyz(la, lo), (lo + 180) / 360, (90 - la) / 180];
-  for (let la = 90; la > -90; la -= st) for (let lo = -180; lo < 180; lo += st){ const a = at(la, lo), b = at(la, lo + st), c = at(la - st, lo + st), d = at(la - st, lo); for (const q of [a, b, c, a, c, d]) V.push(...q); }
-  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(V), gl.STATIC_DRAW);
+  const st = 2, V = new Float32Array((180 / st) * (360 / st) * 6 * 5); let vn = 0; const put = (la, lo) => { const q = xyz(la, lo); V[vn++] = q[0]; V[vn++] = q[1]; V[vn++] = q[2]; V[vn++] = (lo + 180) / 360; V[vn++] = (90 - la) / 180; };
+  for (let la = 90; la > -90; la -= st) for (let lo = -180; lo < 180; lo += st){ put(la, lo); put(la, lo + st); put(la - st, lo + st); put(la, lo); put(la - st, lo + st); put(la - st, lo); }
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, V, gl.STATIC_DRAW);
   gfxGlow = { tex, buf, n: V.length / 5, u8, W2, H2 };
 }
 const NGV = `attribute vec3 p;attribute vec2 uv;uniform mat3 R;uniform float S;uniform vec2 asp;uniform vec3 uSun;varying vec2 vUv;varying float vz;varying float vSun;void main(){vec3 q=R*p;vz=q.z;vSun=dot(p,uSun);vUv=uv;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
 const NGF = `${FP}uniform sampler2D T;uniform float uA;varying vec2 vUv;varying float vz;varying float vSun;void main(){if(vz<0.0)discard;float d=texture2D(T,vUv).r;float night=1.0-smoothstep(-0.14,0.03,vSun);
 float g=pow(d,1.6)*night*uA;vec3 c=vec3(1.0,0.58,0.24)*g*0.62+vec3(1.0,0.84,0.60)*pow(d,5.0)*night*uA*0.55;gl_FragColor=vec4(c*smoothstep(0.0,0.08,vz),1.0);}`;
 function gfxNightGlow(R, S, asp, mpp, a){
-  if (a <= 0.004) return; if (!gfxGlow) gfxGlowInit();
+  // the glow image is built in an idle slice, not inside the first frame (it fades in when ready)
+  if (a <= 0.004) return; if (!gfxGlow){ if (!GFX.glowSoon){ GFX.glowSoon = true; (window.requestIdleCallback || ((f) => setTimeout(f, 30)))(() => { gfxGlowInit(); gfxDirty(600); }, { timeout: 2000 }); } return; }
   const L = gfxProg("glow", NGV, NGF); gfxCommon(L, R, S, asp);
   // a 0.35° texel says nothing below region scale: the glow is gone by 500 m a pixel
   gl.uniform1f(L.u.uA, a * sstep(500, 4000, mpp)); gl.uniform1i(L.u.T, 0); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, gfxGlow.tex);

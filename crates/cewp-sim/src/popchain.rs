@@ -226,8 +226,11 @@ pub mod incell {
             }
             s
         };
+        // each pixel's score once (the comparator used to recompute both sides: about 3,600 field evaluations a cell,
+        // the street tiling's longest task at a phone's 4x CPU throttle); the same order
+        let sc: Vec<f64> = (0..N).map(score).collect();
         let mut order: Vec<usize> = (0..N).collect();
-        order.sort_by(|&a, &b| score(b).total_cmp(&score(a)).then(a.cmp(&b)));
+        order.sort_by(|&a, &b| sc[b].total_cmp(&sc[a]).then(a.cmp(&b)));
         // densest class first takes the nearest pixels; empty tiles last
         let mut at = 0;
         for k in (0..6u8).rev() {

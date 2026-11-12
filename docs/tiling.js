@@ -58,16 +58,16 @@ function tlTree(){ if (!TL.T) TL.T = HOLON.tree(tlRoot, tlExt, tlSplit, TL_TARGE
 // the in-cell seam's switch (kernel pop_incell): CIRISHolon's UNEVEN-0 inside a cell (on, the default) or the legacy
 // even spread; every budget below the cell changes, so the tree, its people and the leaf geometry are rebuilt
 function tlIncell(on){
-  if (typeof wasm === "undefined" || !wasm || !wasm.pop_incell) return; wasm.pop_incell(on ? 1 : 0); TL.incell = !!on; tlRebuild();
+  if (typeof wasm === "undefined" || !wasm || !wasm.pop_incell) return; MICRO_GEN++; wasm.pop_incell(on ? 1 : 0); TL.incell = !!on; tlRebuild();
 }
 // the household seam's switch (kernel pop_households): CIRISHolon's generator per L4 tile (on, the default) or the
 // legacy rule ("no certificate"); every leaf's households and layout change, so the same rebuild
 function tlHouseholds(on){
-  if (typeof wasm === "undefined" || !wasm || !wasm.pop_households) return; wasm.pop_households(on ? 1 : 0); TL.housegen = !!on; tlRebuild();
+  if (typeof wasm === "undefined" || !wasm || !wasm.pop_households) return; MICRO_GEN++; wasm.pop_households(on ? 1 : 0); TL.housegen = !!on; tlRebuild();
 }
 // the device seam's switch (kernel micro_device_rule): CIRISHolon's DEVICEGEN-1 per household or the legacy draw
 function tlDevices(on){
-  if (typeof wasm === "undefined" || !wasm || !wasm.micro_device_rule) return; wasm.micro_device_rule(on ? 1 : 0, typeof homeWhere === "number" ? homeWhere : 0); TL.devicegen = !!on;
+  if (typeof wasm === "undefined" || !wasm || !wasm.micro_device_rule) return; MICRO_GEN++; wasm.micro_device_rule(on ? 1 : 0, typeof homeWhere === "number" ? homeWhere : 0); TL.devicegen = !!on;
   if (typeof M !== "undefined") M = null; if (typeof gfxDirty === "function") gfxDirty(800);
 }
 function tlRebuild(){
@@ -281,7 +281,11 @@ function tlJitter(v){ let x = Math.imul((v % 4294967296) >>> 0, 0x9e3779b1) ^ Ma
   x ^= x >>> 15; x = Math.imul(x, 0x2c1b3c6d); x ^= x >>> 12; return 1 + 0.08 * (((x >>> 0) / 4294967296) - 0.5); }
 function tlDraw(w, h, mpp, sun){
   sun = sun || [0, 0, 1];
-  TL.on = !TL.disabled && tlReady() && !(microStory && !(M && M.leaf !== undefined)) && mpp < 400 && zoom >= 8; // the story's street is a leaf, tiled like any other
+  // the kernel's population chain (pop_load, a few hundred ms on a throttled phone) is loaded in an idle slice as soon as
+  // the grid is in, never inside a frame: the frame only asks whether it is there
+  if (!TL.popOk && !TL.popSoon && tlPop() && wasm && wasm.pop_load){ TL.popSoon = true;
+    (window.requestIdleCallback || ((f) => setTimeout(f, 30)))(() => { tlPopKernel(); TL.popSoon = false; if (typeof gfxDirty === "function") gfxDirty(300); }, { timeout: 3000 }); }
+  TL.on = !TL.disabled && mpp < 400 && zoom >= 8 && !!TL.popOk && tlReady() && !(microStory && !(M && M.leaf !== undefined)); // the story's street is a leaf, tiled like any other
   if (TL.on && !TL.lc1 && typeof geoLoad === "function"){ TL.lc1 = true; geoLoad("lc", 1); } // the 1/8-degree land cover, once streets are near
   if (!TL.on){ TL.drawn = TL.agg = TL.pending = 0; return; }
   tlGL(); const F = camFrame(), T = tlTree();

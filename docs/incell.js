@@ -267,3 +267,6 @@ function incellDraw(R, S, asp, w, h, mpp, a){
   gl.disableVertexAttribArray(au);
   INCELL.frameMs = performance.now() - t0;
 }
+// the data maps' programs compiled ahead, in an idle slice after load (a first use compiled them inside a frame: a 140 ms
+// task on a throttled phone when the Story first reached region zoom)
+(window.requestIdleCallback || ((f) => setTimeout(f, 3000)))(() => { try { if (!pIncell) pIncell = prog(ICV, ICF); incellRampTex(); } catch (e) { console.warn("incell prewarm", e); } }, { timeout: 6000 });
