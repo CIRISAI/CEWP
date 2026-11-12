@@ -286,3 +286,83 @@ What it does not capture:
   mean household size by country from censuses and surveys; licence and size to be read from its
   page before approval; it would replace the single 2.5 with a per-country value at the
   locality's country. Not fetched.
+
+Probe (headless, street zoom 0.6 m/px and block zoom 4 m/px, both widths, a fresh page per place;
+devices are the focal patch's own plus its off-patch seat and servers; households, devices and
+classes are identical at 1440 and 390; frame time at 390 × 844 without CPU throttle):
+
+| place | GHS-POP 1/8° cell, people / per km² | class drawn | patch | households | devices (phone/home/laptop/hosted/seat) | buildings, mean storeys | share needing a relay | devices rounding with the seat | tile sums | frame p50/p95 ms, 390, street / block |
+|---|---|---|---|---|---|---|---|---|---|---|
+| dhaka | 6,165,561 / 34,850 | dense fabric | 35 m | 15 | 36 (21/2/10/2/1) | 1, 8 | 0.82 | 24 | holds | [16.7, 16.8] / [16.7, 33.4] |
+| manila | 1,369,421 / 7,324 | apartment blocks | 139 m | 55 | 150 (80/20/41/8/1) | 10, 5.7 | 0.59 | 104 | holds | [16.7, 16.7] / [16.7, 16.7] |
+| mumbai | 3,288,120 / 18,007 | dense fabric | 70 m | 33 | 96 (50/15/27/3/1) | 7, 3.6 | 0.68 | 74 | holds | [16.7, 16.8] / [16.7, 33.3] |
+| kolkata | 4,374,412 / 24,519 | dense fabric | 70 m | 44 | 135 (69/14/37/14/1) | 17, 3 | 0.63 | 104 | holds | [16.7, 16.8] / [16.7, 33.4] |
+| karachi | 4,433,619 / 25,283 | dense fabric | 70 m | 44 | 147 (80/18/42/6/1) | 15, 3 | 0.62 | 113 | holds | [16.7, 16.8] / [16.7, 16.8] |
+| delhi | 4,413,550 / 26,042 | dense fabric | 70 m | 44 | 130 (67/17/36/9/1) | 15, 3 | 0.6 | 96 | holds | [16.7, 16.7] / [16.7, 33.3] |
+| kowloon | 3,813,322 / 21,336 | dense fabric | 70 m | 38 | 129 (68/18/34/8/1) | 13, 3 | 0.78 | 94 | holds | [16.7, 16.8] / [16.7, 16.8] |
+| macau | 1,044,436 / 5,839 | terraced streets | 139 m | 42 | 98 (50/16/24/7/1) | 23, 2.6 | 0.53 | 74 | holds | [16.7, 16.7] / [16.7, 16.8] |
+| lagos-island | 405,015 / 2,110 | none: not on the 10 m land | - | 16 | 0 (0/0/0/0/0) | -, - | - | - | holds | [16.7, 16.7] / [16.7, 16.7] |
+| cairo | 6,200,206 / 37,082 | dense fabric | 35 m | 16 | 43 (25/3/13/1/1) | 3, 3 | 0.46 | 36 | holds | [16.7, 16.8] / [16.7, 16.8] |
+| tokyo | 2,626,666 / 16,740 | dense fabric | 70 m | 26 | 103 (56/8/30/7/1) | 16, 3 | 0.56 | 74 | holds | [16.7, 16.7] / [16.7, 16.8] |
+| paris | 1,830,895 / 14,391 | dense fabric | 70 m | 18 | 35 (17/9/5/3/1) | 15, 3 | 0.68 | 32 | holds | [16.7, 16.8] / [16.7, 33.3] |
+| manhattan | 2,271,707 / 15,536 | dense fabric | 70 m | 23 | 77 (41/11/17/7/1) | 19, 3 | 0.88 | 61 | holds | [16.7, 16.8] / [16.7, 33.3] |
+| top01-karachi | 7,351,335 / 41,964 | dense fabric | 35 m | 19 | 80 (44/7/22/5/1) | 4, 3 | 0.59 | 59 | holds | [16.7, 16.7] / [16.7, 16.7] |
+| top02-karachi | 4,433,619 / 25,283 | dense fabric | 70 m | 45 | 180 (95/21/48/15/1) | 12, 3.3 | 0.5 | 137 | holds | [16.7, 16.7] / [16.7, 33.3] |
+| top03-mumbai | 4,389,730 / 24,059 | dense fabric | 70 m | 44 | 146 (75/20/36/14/1) | 10, 3.4 | 0.6 | 110 | holds | [16.7, 16.7] / [16.7, 33.3] |
+| top04-mumbai | 3,058,969 / 16,752 | none: not on the 10 m land | - | 31 | 0 (0/0/0/0/0) | -, - | - | - | holds | [16.7, 16.7] / [16.7, 16.7] |
+| top05-giza | 6,200,206 / 37,082 | dense fabric | 35 m | 16 | 34 (15/5/11/2/1) | 3, 4.3 | 0.84 | 22 | holds | [16.7, 16.8] / [16.7, 33.3] |
+| top06-dhaka | 6,165,561 / 34,850 | dense fabric | 35 m | 16 | 45 (25/3/13/3/1) | 1, 8 | 0.78 | 31 | holds | [16.7, 16.7] / [16.7, 33.4] |
+| top07-mumbai | 3,288,120 / 18,007 | dense fabric | 70 m | 33 | 116 (62/16/27/10/1) | 23, 3 | 0.44 | 85 | holds | [16.7, 16.8] / [16.7, 16.8] |
+| top08-hong-kong | 3,813,322 / 21,336 | dense fabric | 70 m | 39 | 108 (58/14/27/8/1) | 4, 5 | 0.68 | 76 | holds | [16.7, 16.8] / [16.7, 16.7] |
+| top09-delhi | 5,481,580 / 32,344 | dense fabric | 70 m | 55 | 175 (93/20/47/14/1) | 10, 3.8 | 0.68 | 124 | holds | [16.7, 16.7] / [16.7, 33.3] |
+| top10-shanghai | 5,093,367 / 30,818 | dense fabric | 70 m | 51 | 134 (73/15/38/7/1) | 12, 3.1 | 0.6 | 99 | holds | [16.7, 16.8] / [16.7, 33.3] |
+| top11-bengaluru | 5,349,957 / 28,428 | dense fabric | 70 m | 54 | 140 (76/17/41/5/1) | 17, 3.1 | 0.57 | 102 | holds | [16.7, 16.7] / [16.7, 33.3] |
+| top12-cairo | 4,644,254 / 27,776 | dense fabric | 70 m | 47 | 95 (50/13/24/7/1) | 13, 3.2 | 0.56 | 63 | holds | [16.7, 16.7] / [16.7, 16.7] |
+| top13-new-york | 2,271,707 / 15,536 | dense fabric | 70 m | 23 | 50 (30/5/13/1/1) | 17, 3 | 0.54 | 34 | holds | [16.7, 16.7] / [16.7, 16.7] |
+| top14-surat | 4,879,417 / 27,088 | dense fabric | 70 m | 49 | 134 (79/18/30/6/1) | 20, 3 | 0.6 | 100 | holds | [16.7, 16.7] / [16.7, 33.4] |
+| top15-wuhan | 3,526,333 / 21,198 | dense fabric | 70 m | 36 | 101 (56/11/24/9/1) | 10, 3.1 | 0.71 | 69 | holds | [16.7, 16.8] / [16.7, 33.3] |
+| top16-ho-chi-minh-city | 5,069,351 / 26,714 | dense fabric | 70 m | 51 | 152 (75/20/44/12/1) | 11, 3.2 | 0.78 | 112 | holds | [16.7, 16.7] / [16.7, 33.4] |
+| top17-shanghai | 4,408,185 / 26,708 | dense fabric | 70 m | 45 | 105 (52/17/30/5/1) | 21, 3 | 0.64 | 76 | holds | [16.7, 16.8] / [16.7, 33.4] |
+| top18-lahore | 4,319,303 / 26,239 | dense fabric | 70 m | 43 | 100 (57/13/24/5/1) | 9, 3.2 | 0.68 | 74 | holds | [16.7, 16.7] / [16.7, 33.3] |
+| top19-delhi | 4,413,550 / 26,042 | dense fabric | 70 m | 44 | 81 (46/9/18/7/1) | 13, 3.1 | 0.77 | 60 | holds | [16.7, 16.7] / [16.7, 33.3] |
+| top20-istanbul | 3,260,521 / 22,384 | dense fabric | 70 m | 33 | 91 (48/12/25/5/1) | 17, 3 | 0.73 | 68 | holds | [16.7, 16.7] / [16.7, 33.4] |
+
+The densest cell (Karachi, 41,964 per km²) at 390: frame p50 16.7 ms street and block; JS heap
+121 MB; wasm memory 31.9 MB. The tile-sums-to-parent check holds at every probed place (|b - E| <=
+level + 1 from the 1.5° root to the street tile). Mesh readouts at this density: a seat serves 22 to
+137 of the patch's devices, and 44 to 88 % of devices need a relay (hard NAT shares from micro.rs,
+MODEL); both are per patch of at most 60 households, so the seat's load at a city's density is the
+seat card's fleet rows, not this patch's.
+
+Lagos Island and Mumbai's eastern cell (19.06 N 72.94 E) still show no street: the Natural Earth
+10 m coast puts that point in the water (lagoon and creek), and the street tier is built only on land.
+
+## The Zurich path without loading (Eric: "pre-cache all the Zurich tiles")
+
+`docs/preload.js`, at idle after first paint, asks once for what the Story's and the default zoom's
+path to Zurich draws, through the page's own loaders so everything is decoded and on the GPU: the 50 m
+coast, lakes and places, GHS-POP and land cover at 1/8°, relief levels 1 and 2 over the Zurich
+corridor (1.6 × the view's half-width at level 2, because the camera is still settling when it starts
+to draw) and the ne10 tiles geoSets will ask for from 2,400 m a pixel. Then, in idle slices under
+8 ms, it builds the Zurich street tiling (leaf layouts and arterials within 0.018° of the centre;
+240 leaves, about 13 MB) and runs the Story's street search (the leaf whose two homes a punch can
+join) one candidate world per idle callback, dropping the world afterwards. The Story now finishes
+turning to Zurich before it dives (no zoom in while more than about 3° off), so the dive comes
+straight down and needs only the Zurich tiles. `docs/sw.js` serves versioned and geo/kernel files
+from its cache on a return visit (return visit measured: 0 network responses, 78 from the service
+worker). A precomputed Zurich asset (option c) was not needed.
+
+Measured from first load on a cold cache, 10 Mbit/s and 40 ms, following the Story (times from the
+start of the dive):
+
+| | region tier complete | city tiling complete | street complete | requests during the dive | long tasks during the dive |
+|---|---|---|---|---|---|
+| 1440, before | +3.25 s (relief and coast still loading) | +1.5 s | +3.25 s | 43 (3.05 MB) | 1 (70 ms) |
+| 1440, after | +1.5 s (on arrival) | +1.75 s | +3.0 s (street reached at +2.75 s) | 0 | 1 (68 ms) |
+| 390 with 4x CPU, before | +2.68 s | +1.95 s | +3.68 s | 25 (1.83 MB) | 7 (393 ms) |
+| 390 with 4x CPU, after | +1.5 s (on arrival) | +1.78 s | +3.0 s (on arrival) | 0 | 2 (106 ms) |
+
+What remains: during the half second the camera passes block zoom (15 to 4 m a pixel), the leaves of
+that wider view (several hundred to a few thousand) are laid out at 5 ms a frame; until each is built
+its holon shows the density mosaic, not a blank. Bytes: the preload moves about 2.3 MB (390) to 4.3 MB
+(1440) ahead of the dive, all but 0.35 MB (390) and 1.22 MB (1440) of which the path loaded anyway.

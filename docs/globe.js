@@ -2829,7 +2829,10 @@ function loop(){
       }
     }
     storyCamDist += (storyTargetCamDist - storyCamDist) * 0.05;
-    if (!storyUserCam) targetZoom = storyTargetZoom;
+    // the Story turns to its target before it dives: no zoom in while the camera is more than ~3° off in
+    // longitude or latitude, so the dive comes straight down on Zurich (and only the Zurich path's tiles are needed)
+    if (!storyUserCam){ let off = storyTargetYaw - yaw; while (off < -Math.PI) off += 2 * Math.PI; while (off > Math.PI) off -= 2 * Math.PI;
+      targetZoom = ((Math.abs(off) > 0.05 || Math.abs(storyTargetPitch - pitch) > 0.05) && storyTargetZoom > zoom * 1.5) ? zoom : storyTargetZoom; }
     if (!storyPaused) {
       const prevSub = storySubIx(STORY_ACTS[storyCurrentAct], storyActElapsed);
       storyActElapsed += storyDt;

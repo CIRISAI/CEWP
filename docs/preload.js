@@ -7,11 +7,11 @@
 "use strict";
 const ZP = { lat: 47.3769, lon: 8.5417, started: false, net: false, built: 0, leaves: 0, done: false, t0: 0, log: [], bytes: 0 };
 const ZP_SLICE_MS = 8;       // longest idle slice of wasm work
-const ZP_RADIUS_DEG = 0.012; // street tiling prebuilt around the centre (about 1.3 km across)
+const ZP_RADIUS_DEG = 0.018; // street tiling prebuilt around the centre (about 2 km across)
 const zpIdle = (fn, timeout) => (typeof requestIdleCallback === "function") ? requestIdleCallback(fn, { timeout: timeout || 2000 }) : setTimeout(() => fn({ timeRemaining: () => ZP_SLICE_MS, didTimeout: true }), 50);
 function zpNote(what){ ZP.log.push([Math.round(performance.now()), what]); }
 
-// ne10 tiles the zoom shows at and below GEO_MPP_10 * 2 around Zurich, for this viewport
+// ne10 tiles the zoom shows around Zurich from GEO_MPP_10 * 2 (where geoSets starts loading them), for this viewport
 function zpNe10Keys(){
   const w = cv.clientWidth || 1440, h = cv.clientHeight || 900, mpp = GEO_MPP_10 * 2;
   const ext = Math.min(60, 1.25 * Math.max(w, h) / 2 * mpp / 111000), lx = Math.min(180, ext / Math.max(0.15, Math.cos(ZP.lat * Math.PI / 180)));
@@ -24,7 +24,8 @@ function zpNe10Keys(){
 // coarsest metres a pixel the level is drawn at)
 function zpReliefKeys(z){
   const w = cv.clientWidth || 1440, h = cv.clientHeight || 900, mpp = z === 1 ? 6000 : 1500, deg = z === 1 ? 45 : 15;
-  const ext = Math.min(90, 1.25 * Math.max(w, h) / 2 * mpp / 111000), lx = Math.min(180, ext / Math.max(0.15, Math.cos(ZP.lat * Math.PI / 180)));
+  // 1.6x the view's half-width: the Story's camera is still settling on Zurich when level 2 starts to draw
+  const ext = Math.min(90, 1.6 * 1.25 * Math.max(w, h) / 2 * mpp / 111000), lx = Math.min(180, ext / Math.max(0.15, Math.cos(ZP.lat * Math.PI / 180)));
   const out = new Set();
   for (let a = ZP.lat - ext; a < ZP.lat + ext + deg; a += deg){ const r = Math.floor((90 - Math.max(-89.999, Math.min(89.999, a))) / deg);
     for (let o = ZP.lon - lx; o < ZP.lon + lx + deg; o += deg) out.add(r + "_" + Math.floor((((o + 180) % 360 + 360) % 360) / deg)); }
@@ -37,13 +38,12 @@ function zpNetwork(){
   if (typeof geoLoad === "function"){ geoLoad("pop", 0); geoLoad("pop", 1); geoLoad("lc", 1); } // people and land cover at 1/8°
   if (typeof reliefBoot === "function") reliefBoot();
   if (!GEO.pIdx){ GEO.pIdx = true; fetch("geo/ne10/index.json?v=1").then(r => r.json()).then(j => { GEO.idx10 = new Set(j.map(t => t[0] + "_" + t[1])); }).catch(e => console.warn(e.message)); }
-  const later = () => {
-    if (!(GEO.idx10 && GEO.lakes && RELIEF.idx)){ setTimeout(later, 400); return; }
-    for (const k of zpNe10Keys()) if (GEO.idx10.has(k) && typeof geoWant10 === "function") geoWant10(k);
-    for (const z of [1, 2]) for (const [r, c] of zpReliefKeys(z)) if (RELIEF.idx[z].has(r + "_" + c)) reliefLoad(z, r, c);
-    zpNote("net asked");
-  };
-  later();
+  // relief needs only its index; the ne10 tiles wait for the lakes (geoWant10 cuts lakes into each tile)
+  const relief = () => { if (!RELIEF.idx){ setTimeout(relief, 300); return; }
+    for (const z of [1, 2]) for (const [r, c] of zpReliefKeys(z)) if (RELIEF.idx[z].has(r + "_" + c)) reliefLoad(z, r, c); zpNote("relief asked"); };
+  const ne10 = () => { if (!(GEO.idx10 && GEO.lakes)){ setTimeout(ne10, 300); return; }
+    for (const k of zpNe10Keys()) if (GEO.idx10.has(k) && typeof geoWant10 === "function") geoWant10(k); zpNote("ne10 asked"); };
+  relief(); ne10();
 }
 // CPU: the Zurich street tiling (tree budgets, leaf layouts, arterials) in idle slices
 function zpBuild(dl){
@@ -62,6 +62,24 @@ function zpBuild(dl){
   }
   if (ZP.queue.length){ zpIdle(zpBuild, 1000); return; }
   ZP.done = true; zpNote("build done " + ZP.built + " leaves");
+  zpIdle(zpStory, 2000);
+}
+// the Story's street: the same search storyMicroLeaf runs when its street act starts (nearest leaf
+// with two homes a punch can join), one candidate world per idle callback, so the act finds
+// MSTORY.leaf chosen and builds that one world only. The search's world is dropped afterwards (M = null)
+// so nothing is drawn at orbit.
+function zpStory(){
+  if (typeof storyActive === "undefined" || !storyActive || MSTORY.leaf || !microOk() || microStory || storyCurrentAct > 0) return;
+  if (!ZP.cand){ const T = tlTree(), L = tlLand(), lat0 = 47.3769, lon0 = 8.5417, l0 = T.leafAt(lat0, lon0), st = HOLON.STEP[l0.level] / HOLON.UPD, seen = new Set(); ZP.cand = [];
+    for (let r = 0; r < 81; r++){ const a = (r % 9) - 4, q = Math.floor(r / 9) - 4, leaf = T.leafAt(lat0 + a * st, lon0 + q * st / Math.cos(lat0 * Math.PI / 180)), id = HOLON.pack(leaf);
+      if (seen.has(id)) continue; seen.add(id); const b = HOLON.boundsDeg(leaf); if (T.budget(leaf) && L.squareOnLand(b[0], b[1], b[2] - b[0])) ZP.cand.push({ leaf, d: Math.hypot(a, q) }); }
+    ZP.cand.sort((x, y) => x.d - y.d); zpNote("story search " + ZP.cand.length); }
+  const c = ZP.cand.shift(); if (!c){ M = null; return; }
+  microBuildLeaf(c.leaf, 0.62, "h" + HOLON.pack(c.leaf) + ":story");
+  const cls = M.meta[2] | 0, a = (cls === 1 || cls === 2) && wasm.micro_cmd(6, 0, 0) === 1 ? new Uint32Array(mem.buffer, wasm.micro_buf_ptr(10) >>> 0, 4).slice() : null;
+  let ok = false; if (a){ storyPinStart(...a); const [ax, ay] = actorXY(a[1]), [bx, by] = actorXY(a[3]); if (Math.hypot(bx - ax, by - ay) >= 40 && wasm.micro_cmd(8, a[0], a[2]) === 1) ok = true; else if (!ZP.fallback) ZP.fallback = c.leaf; }
+  if (ok || !ZP.cand.length){ MSTORY.leaf = ok ? c.leaf : (ZP.fallback || null); M = null; zpNote("story leaf ready"); return; }
+  M = null; zpIdle(zpStory, 1500);
 }
 function zpStart(){
   if (ZP.started) return; ZP.started = true; ZP.t0 = performance.now();

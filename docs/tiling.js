@@ -79,7 +79,10 @@ function tlTerrain(la, lo){
   // the class's ground colour (a display choice, MODEL) replaces the latitude / elevation rule, which still
   // holds where there is no land-cover data (Antarctica, no input) and still gives the roofs
   const L = typeof geoLandcoverAt === "function" ? geoLandcoverAt(la, lo) : null;
-  if (L && L.ground){ const b = L.ground.map((v) => v / 255); g0 = b.map((v) => v * 0.42); g1 = b.map((v) => v * 0.8); }
+  // the sparse end of the density tone is the cell's class colour; the dense end is built-up ground
+  // (the urban class's colour), so a dense leaf in a cell whose majority class is forest (Kowloon's
+  // hills) is not drawn on green
+  if (L && L.ground){ const b = L.ground.map((v) => v / 255), u = ((GEO_LC_LEGEND[50] && GEO_LC_LEGEND[50][2]) || [128, 124, 120]).map((v) => v / 255); g0 = b.map((v) => v * 0.42); g1 = u.map((v) => v * 0.8); }
   const lit = Math.max(0.62, Math.min(1.32, 1 + (sh - 1) * 1.5));
   return { g0: g0.map(v => v * lit), g1: g1.map(v => v * lit), roof, warm, m, lit, z: r ? r[2] : -1, lc: L ? L.code : -1 };
 }
