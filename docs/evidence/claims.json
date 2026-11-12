@@ -587,6 +587,24 @@
       "failure": ["Inside a 1/8-degree cell people are spread evenly by area: a town and the fields around it within one cell get the same density.", "The floor is per cell: a cell just over one person per km2 gets a few village households even if they really live in one hamlet.", "GHS-POP is a published estimate (pop-grid-source), not a census of each street."]
     },
     {
+      "id": "pop-cuts",
+      "class": "DERIVED",
+      "code": "DE",
+      "status": "stated",
+      "live": false,
+      "shows": "Two cuts of one GHS-POP total: the cohort tier keeps 1.5-degree cells of at least 20,000 people, 4,559 cells holding 7,830,639,988 people; the street tier apportions the same 7,830,639,988 over the 355,434 cells of 1/8 degree above one person per km2, which hold 7,834,012,940 before the apportionment.",
+      "source": "docs/geo/popgrid_ghs.js header (the cohort tier's total); crates/cewp-sim/src/popchain.rs World::new (the street tier's cells and apportionment), counts printed by node --test docs/geo/popcond.test.js",
+      "commit": "twin/globe (popchain.rs)",
+      "window": "",
+      "param": "",
+      "dataset": "",
+      "blocker": "",
+      "reproduce": "node --test docs/geo/popcond.test.js",
+      "correction": "",
+      "interval": null,
+      "failure": ["The two cuts differ by 3,372,952 people (0.04 %): the street tier rescales its cells to the cohort total, so a cell's street people are its GHS people times 0.99957."]
+    },
+    {
       "id": "pop-grid-cells",
       "class": "DERIVED",
       "code": "DE",

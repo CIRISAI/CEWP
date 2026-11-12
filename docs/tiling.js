@@ -20,27 +20,37 @@ let TL_LAND = null;
 const tlLand = () => TL_LAND || (GEO.l50 ? (TL_LAND = landTest(GEO.l50.rings)) : null);
 // the tree also waits for GHS-POP at 1/8 degree: every budget is conditioned on it (popcond.js)
 const tlPop = () => (typeof GEODATA !== "undefined" && GEODATA.pop[1]) || null;
-const tlReady = () => !!(wasm && wasm.holon_split && wasm.holon_arterials && wasm.micro_build_leaf && GEO.places && tlLand() && tlPop());
+// the kernel holds the population chain (cewp_sim::popchain): hand it the 1/8-degree grid once, with
+// the cohort tier's GHS total (POP_GRID_PEOPLE), so the street tier apportions the same people
+function tlPopKernel(){
+  if (TL.popOk) return true; const P = tlPop(); if (!P || !wasm || !wasm.pop_load) return false;
+  const n = P.length, ptr = wasm.alloc(n * 4) >>> 0; new Float32Array(mem.buffer, ptr, n).set(P);
+  wasm.pop_load(ptr, n, typeof POP_GRID_PEOPLE === "number" ? POP_GRID_PEOPLE : 0);
+  TL.popTotals = Array.from(new Float64Array(mem.buffer, wasm.holon_buf_ptr(0) >>> 0, 4)); TL.popOk = true; return true;
+}
+const tlReady = () => !!(wasm && wasm.holon_split && wasm.holon_arterials && wasm.micro_build_leaf && GEO.places && tlLand() && tlPopKernel());
 
 // ---- inputs: households per L0 cell, a weight per child
 function tlCentre(c){ const b = HOLON.boundsDeg(c); return [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]; }
-function tlRoot(c){ // households in an L0 cell: GHS-POP 2020 people in it (1/8-degree cells under the floor count zero) / persons per household
+// people per holon, beside the tree's households (HOLON.tree memoises households only)
+const tlPP = new Map();
+const tlOut = (n) => new Float64Array(mem.buffer, wasm.holon_buf_ptr(0) >>> 0, n);
+function tlRoot(c){ // a level-0 holon's households from the kernel's world apportionment (popchain::World)
   const key = HOLON.pack(c); let v = TL.l0.get(key); if (v !== undefined) return v;
-  const b = HOLON.boundsDeg(c);
-  // The f73b918 place fallback (a city's Natural Earth population where the old grid had no cell
-  // near it) is gone: GHS-POP holds people wherever a place has them, and nothing is added where it
-  // reads none.
-  v = pcHouseholds(pcPeople(tlPop(), b[0], b[1], b[2], b[3]) || 0); TL.l0.set(key, v); return v;
+  v = wasm.pop_root(key); tlPP.set(key, tlOut(2)[0]); TL.l0.set(key, v); return v;
 }
-function tlExt(c){ // a child's weight in its parent's split: its GHS-POP people (x 16, an integer), so households follow people
-  const b = HOLON.boundsDeg(c);
-  return pcWeight(pcPeople(tlPop(), b[0], b[1], b[2], b[3]) || 0);
+function tlExt(c){ return 0; } // weights come from the kernel's own split (pop_split)
+function tlSplit(p, pb){ // people and households of p's children, apportioned in the kernel (popchain::split)
+  const k = HOLON.pack(p); let pp = tlPP.get(k);
+  if (pp === undefined){ wasm.pop_of(k); pp = tlOut(2)[0]; tlPP.set(k, pp); }
+  const n = wasm.pop_split(k, pp, pb), o = tlOut(2 * n), kids = HOLON.children(p), hh = [];
+  for (let q = 0; q < n; q++){ tlPP.set(HOLON.pack(kids[q]), o[q]); hh.push(o[n + q]); }
+  if (tlPP.size > 400000) tlPP.clear();
+  return hh;
 }
-function tlSplit(p, pb, ext){
-  const ep = wasm.holon_ext_ptr(); new Uint32Array(mem.buffer, ep, 25).set(ext);
-  const n = (wasm.holon_split_exact || wasm.holon_split)(HOLON.pack(p), pb); const op = wasm.holon_buf_ptr(0); // exact: the weights are GHS-POP people (popcond.js)
-  return Array.from(new Float64Array(mem.buffer, op, n));
-}
+// a leaf's context with its people (the kernel apportions them over the leaf's households)
+function tlContext(leaf){ const ctx = tlTree().context(leaf), k = HOLON.pack(leaf); let pp = tlPP.get(k);
+  if (pp === undefined){ wasm.pop_of(k); pp = tlOut(2)[0]; } ctx[32] = pp; return ctx; }
 function tlTree(){ if (!TL.T) TL.T = HOLON.tree(tlRoot, tlExt, tlSplit, TL_TARGET); return TL.T; }
 
 // one density tone for the mosaic and the leaves' ground: households per km², 10 → 0, ~3,000 → 1.
@@ -90,8 +100,8 @@ const tlGround = (T, t) => tlMix3(T.g0, T.g1, t);
 // A leaf's geometry, in the metres of its L3 tile's frame (one affine per tile, one draw per tile).
 // Each vertex: position, normal, half width, colour, kind (0 ground, 1 casing, 2 road, 3 building).
 function tlBuildLeaf(leaf){
-  const T = tlTree(), ctx = T.context(leaf);
-  const cp = wasm.holon_ctx_ptr(); new Float64Array(mem.buffer, cp, 32).set(ctx);
+  const T = tlTree(), ctx = tlContext(leaf);
+  const cp = wasm.holon_ctx_ptr(); new Float64Array(mem.buffer, cp, 33).set(ctx);
   const id = HOLON.pack(leaf); wasm.holon_layout(id);
   const buf = (i) => { const p = wasm.holon_buf_ptr(i), n = wasm.holon_buf_len(i); return new Float64Array(mem.buffer, p, n).slice(); };
   const R = buf(1), B = buf(2), meta = buf(4), w = meta[0], h = meta[1], cls = meta[3] | 0;

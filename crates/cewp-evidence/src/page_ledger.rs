@@ -483,6 +483,16 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ..BASE
     },
     PageClaim {
+        id: "pop-cuts",
+        class: Derived,
+        shows: "Two cuts of one GHS-POP total: the cohort tier keeps 1.5-degree cells of at least 20,000 people, 4,559 cells holding 7,830,639,988 people; the street tier apportions the same 7,830,639,988 over the 355,434 cells of 1/8 degree above one person per km2, which hold 7,834,012,940 before the apportionment.",
+        source: "docs/geo/popgrid_ghs.js header (the cohort tier's total); crates/cewp-sim/src/popchain.rs World::new (the street tier's cells and apportionment), counts printed by node --test docs/geo/popcond.test.js",
+        commit: "twin/globe (popchain.rs)",
+        failure: &["The two cuts differ by 3,372,952 people (0.04 %): the street tier rescales its cells to the cohort total, so a cell's street people are its GHS people times 0.99957."],
+        reproduce: "node --test docs/geo/popcond.test.js",
+        ..BASE
+    },
+    PageClaim {
         id: "pop-grid-cells",
         class: Derived,
         shows: "4,559 populated land cells in 181 localities and 9 regions.",

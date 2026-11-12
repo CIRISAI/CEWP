@@ -567,7 +567,7 @@ use cewp_sim::tiling::{self, HolonId, LeafContext, LeafLayout};
 struct HolonDoor {
     ext: Vec<u32>,
     out: Vec<f64>,
-    ctx: [f64; 32],
+    ctx: [f64; 33],
     roads: Vec<f64>,
     buildings: Vec<f64>,
     ports: Vec<f64>,
@@ -581,7 +581,7 @@ fn holon() -> &'static mut HolonDoor {
     // SAFETY: one thread, the page calls in turn (as `micro`).
     unsafe {
         let h = &mut *std::ptr::addr_of_mut!(HOLON);
-        h.get_or_insert_with(|| HolonDoor { ext: vec![0; 25], out: Vec::new(), ctx: [0.0; 32], roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), meta: Vec::new(), mains: Vec::new() })
+        h.get_or_insert_with(|| HolonDoor { ext: vec![0; 25], out: Vec::new(), ctx: [0.0; 33], roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), meta: Vec::new(), mains: Vec::new() })
     }
 }
 
@@ -674,6 +674,78 @@ pub extern "C" fn holon_buf_len(which: u32) -> u32 {
     (match which { 0 => h.out.len(), 1 => h.roads.len(), 2 => h.buildings.len(), 3 => h.ports.len(), 5 => h.mains.len(), _ => h.meta.len() }) as u32
 }
 
+// ------------------------------------------------------------------ the population chain (cewp_sim::popchain)
+// The page hands the kernel GHS-POP at 1/8 degree once (`pop_load`); from then on every street-tier
+// budget comes from Rust: `pop_root` for a 1.5-degree holon, `pop_split` for a holon's children,
+// people and households both, apportioned so children sum to the parent exactly.
+struct PtrCells { ptr: *const u32 }
+impl cewp_sim::popchain::Cells for PtrCells {
+    fn people(&self, r: usize, c: usize) -> u32 {
+        // SAFETY: `pop_load` converted NX * NY cells in place and the page never frees the buffer.
+        unsafe { *self.ptr.add(r * cewp_sim::popchain::NX + c % cewp_sim::popchain::NX) }
+    }
+}
+static mut POP: Option<(PtrCells, cewp_sim::popchain::World)> = None;
+fn pop_state() -> Option<&'static (PtrCells, cewp_sim::popchain::World)> {
+    // SAFETY: one thread, the page calls in turn.
+    unsafe { (*std::ptr::addr_of!(POP)).as_ref() }
+}
+
+/// Take the level-1 GHS-POP grid (f32 people, `NX * NY`, row 0 north) at `ptr` (from `alloc`),
+/// round and floor it IN PLACE into u32 people, and apportion `world_people` (the cohort tier's GHS
+/// total; 0 = the floored cell total) over the level-0 holons. The buffer must stay alive. Fills
+/// holon buffer 0 with [world people, world households, floored cell total, cells above the floor]
+/// and returns the cells above the floor.
+#[no_mangle]
+pub extern "C" fn pop_load(ptr: *mut f32, len: u32, world_people: f64) -> u32 {
+    use cewp_sim::popchain::{cell_people, World, NX, NY};
+    if (len as usize) < NX * NY { return 0; }
+    // SAFETY: the page allocated `len` f32 at `ptr` and keeps it; f32 and u32 have the same size.
+    unsafe {
+        let f = std::slice::from_raw_parts_mut(ptr, NX * NY);
+        let u = ptr as *mut u32;
+        for i in 0..NX * NY { let v = cell_people(f[i], i / NX); *u.add(i) = v; }
+    }
+    let cells = PtrCells { ptr: ptr as *const u32 };
+    let w = World::new(&cells, 0..NY, world_people.max(0.0) as u64);
+    let h = holon();
+    h.out = vec![w.total.people as f64, w.total.households as f64, w.cells_total as f64, w.cells_peopled as f64];
+    let n = w.cells_peopled as u32;
+    unsafe { *std::ptr::addr_of_mut!(POP) = Some((cells, w)); }
+    n
+}
+
+/// A level-0 holon's [people, households] in holon buffer 0; returns its households (0 before `pop_load`).
+#[no_mangle]
+pub extern "C" fn pop_root(id: f64) -> f64 {
+    let (Some((_, w)), Some(c)) = (pop_state(), HolonId::unpack(id as u64)) else { return 0.0 };
+    let p = w.root(c);
+    holon().out = vec![p.people as f64, p.households as f64];
+    p.households as f64
+}
+
+/// The children of holon `id` holding `people` and `households`: holon buffer 0 gets, in
+/// `children()` order, each child's people then (after all of them) each child's households.
+/// Returns the child count.
+#[no_mangle]
+pub extern "C" fn pop_split(id: f64, people: f64, households: f64) -> u32 {
+    let (Some((cells, _)), Some(c)) = (pop_state(), HolonId::unpack(id as u64)) else { return 0 };
+    let kids = cewp_sim::popchain::split(cells, c, cewp_sim::popchain::Pop { people: people.max(0.0) as u64, households: households.max(0.0) as u64 });
+    let h = holon();
+    h.out = kids.iter().map(|k| k.1.people as f64).chain(kids.iter().map(|k| k.1.households as f64)).collect();
+    kids.len() as u32
+}
+
+/// Any holon's [people, households] by descending from its level-0 ancestor (random access);
+/// returns its households.
+#[no_mangle]
+pub extern "C" fn pop_of(id: f64) -> f64 {
+    let (Some((cells, w)), Some(c)) = (pop_state(), HolonId::unpack(id as u64)) else { return 0.0 };
+    let p = cewp_sim::popchain::pop_of(cells, w, c);
+    holon().out = vec![p.people as f64, p.households as f64];
+    p.households as f64
+}
+
 /// Build the focal world on leaf `id` (context at `holon_ctx_ptr`): the leaf's own streets and
 /// dwellings, populated by `MicroWorld::from_leaf`. Returns the node count, or 0 for a bad id.
 #[no_mangle]
@@ -686,6 +758,22 @@ pub extern "C" fn micro_build_leaf(id: f64) -> u32 {
     m.sites = w.sites.iter().flat_map(|s| [s.lat, s.lon, s.km, s.kind as u8 as f64]).collect();
     m.world = Some(w);
     micro_export();
+    n
+}
+
+/// The focal world's population as a holon: holon buffer 0 gets [households, persons, device
+/// population (every device drawn, adopting or not, in the node cap or beyond it), nodes (the display
+/// sample, at most R5_MAX_NODES)], then per household its persons, then per household its devices.
+/// Returns the household count.
+#[no_mangle]
+pub extern "C" fn micro_population() -> u32 {
+    let Some(w) = micro().world.as_ref() else { return 0 };
+    let persons: Vec<f64> = w.households.iter().map(|h| f64::from(h.persons)).collect();
+    let mut out = vec![w.households.len() as f64, persons.iter().sum(), w.device_population as f64, w.nodes.len() as f64];
+    out.extend(persons);
+    out.extend(w.household_devices.iter().map(|&d| f64::from(d)));
+    let n = w.households.len() as u32;
+    holon().out = out;
     n
 }
 

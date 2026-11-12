@@ -413,7 +413,7 @@ impl<R: Fn(HolonId) -> u64, W: Fn(HolonId) -> u32> HolonTree<R, W> {
         for l in 2..=leaf.level {
             chain[(l - 2) as usize] = self.budget(leaf.ancestor(l));
         }
-        LeafContext { budget, l2_nb, edges, chain }
+        LeafContext { budget, l2_nb, edges, chain, people: 0 }
     }
 }
 
@@ -441,14 +441,16 @@ pub struct LeafContext {
     pub edges: [EdgeCtx; 4],
     /// Households in the leaf's ancestors from L2 down to the leaf (`chain[k]` is level 2 + k).
     pub chain: [u64; 11],
+    /// People in the leaf (popchain), so its households' persons sum to them; 0 = not given.
+    pub people: u64,
 }
 
 impl LeafContext {
-    /// Flat form for the kernel door (32 numbers): budget, 4 L2 neighbours, per side level, own
-    /// budget, other budget, present, then the 11 chain budgets.
+    /// Flat form for the kernel door (33 numbers): budget, 4 L2 neighbours, per side level, own
+    /// budget, other budget, present, then the 11 chain budgets, then the leaf's people.
     #[must_use]
-    pub fn to_f64(&self) -> [f64; 32] {
-        let mut v = [0.0; 32];
+    pub fn to_f64(&self) -> [f64; 33] {
+        let mut v = [0.0; 33];
         v[0] = self.budget as f64;
         for k in 0..4 {
             v[1 + k] = self.l2_nb[k] as f64;
@@ -461,6 +463,7 @@ impl LeafContext {
         for k in 0..11 {
             v[21 + k] = self.chain[k] as f64;
         }
+        v[32] = self.people as f64;
         v
     }
     /// Inverse of [`LeafContext::to_f64`].
@@ -475,6 +478,7 @@ impl LeafContext {
         for k in 0..11 {
             c.chain[k] = g(21 + k);
         }
+        c.people = g(32);
         c
     }
 }
@@ -672,6 +676,8 @@ pub struct LeafLayout {
     pub h: f64,
     /// Households (the leaf's budget, exactly).
     pub households: u64,
+    /// People (from the context; 0 = not given): the focal world apportions them over the households.
+    pub people: u64,
     /// People per km² the layout was classed at.
     pub density_km2: f64,
     /// Its street class.
@@ -736,7 +742,7 @@ impl LeafLayout {
         let density_km2 = ctx.budget as f64 * pph / area;
         let class = DensityClass::of(density_km2, params);
         let rng = Rng::new(id.seed());
-        let mut out = Self { id, w, h, households: ctx.budget, density_km2, class, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), unplaced: false };
+        let mut out = Self { id, w, h, households: ctx.budget, people: ctx.people, density_km2, class, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), unplaced: false };
         let (hw, hh) = (w / 2.0, h / 2.0);
 
         // ports: where streets cross each side (the shallower side's rule; see side_crossings)

@@ -57,7 +57,7 @@ const HOLON = (() => {
       // LeafContext::to_f64: budget, 4 L2 neighbours, per side (level, own, other, present), then
       // the budgets from L2 down to the leaf
       context(leaf){
-        const v = new Float64Array(32), a2 = ancestor(leaf, 2);
+        const v = new Float64Array(33), a2 = ancestor(leaf, 2); // v[32]: the leaf's people, set by the caller (tlContext)
         v[0] = T.budget(leaf);
         for (let d = 0; d < 4; d++){
           const n2 = neighbour(a2, d); v[1 + d] = n2 ? T.budget(n2) : 0;

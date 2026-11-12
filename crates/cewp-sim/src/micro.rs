@@ -788,6 +788,13 @@ struct Held {
 pub struct MicroWorld {
     /// Parameters it was built with.
     pub params: MicroParams,
+    /// People the world's households must hold (a leaf's popchain people; 0 = drawn sizes as they are).
+    pub target_people: u64,
+    /// Devices drawn for every household, adopting or not, inside the node cap or beyond it: the
+    /// holon's device population. The nodes are a display sample of it (at most R5_MAX_NODES).
+    pub device_population: u64,
+    /// Devices drawn per household, in household order (its children, for the summing test).
+    pub household_devices: Vec<u32>,
     /// Seed (from the tile).
     pub seed: u64,
     rng: Rng,
@@ -946,6 +953,7 @@ impl MicroWorld {
         let mut w = Self::empty(lat0, lon0, leaf.density_km2, leaf.class, half, leaf.id.seed(), params);
         w.roads = leaf.roads.clone();
         w.buildings = leaf.buildings.clone();
+        w.target_people = leaf.people;
         w.place_sites();
         w.populate();
         w.assign_claims();
@@ -978,6 +986,9 @@ impl MicroWorld {
             link_index: BTreeMap::new(),
             qa_peer: NONE,
             runs: 0,
+            target_people: 0,
+            device_population: 0,
+            household_devices: Vec::new(),
         }
     }
 
@@ -1304,6 +1315,20 @@ impl MicroWorld {
         let hosting: Vec<usize> = (0..self.sites.len()).filter(|&i| self.sites[i].kind != SiteKind::Ci).collect();
         let budget = R5_MAX_NODES - CI_SLOTS - self.nodes.len();
         let mut used = 0usize;
+        // persons: each dwelling's drawn size (round(2.5 + 1.1 N), 1..6), then, for a leaf of the
+        // population chain, the leaf's people apportioned over the dwellings with those sizes as
+        // weights, so the leaf's persons are exactly its people (popchain::persons_per_household)
+        let dwellings: usize = self.buildings.iter().map(|b| usize::from(b.units)).sum();
+        let drawn: Vec<u64> = (0..dwellings)
+            .map(|hi| {
+                let mut hr = Rng::new(self.seed ^ (hi as u64 + 1).wrapping_mul(0xA24B_AED4_963E_E407));
+                let _ = hr.f();
+                (p.get(P::PersonsPerHousehold) + 1.1 * hr.gauss()).round().clamp(1.0, 6.0) as u64
+            })
+            .collect();
+        let sizes = if self.target_people > 0 { crate::popchain::persons_per_household(self.target_people, &drawn) } else { drawn };
+        self.device_population = 0;
+        self.household_devices.clear();
         // Every draw for a dwelling comes from that dwelling's own stream, in a fixed order, and
         // each share is a threshold on a uniform: raising adoption or reach adds households and
         // routers without reshuffling the ones already there.
@@ -1313,7 +1338,8 @@ impl MicroWorld {
                 let hi = self.households.len();
                 let mut hr = Rng::new(self.seed ^ (hi as u64 + 1).wrapping_mul(0xA24B_AED4_963E_E407));
                 let u_adopt = hr.f();
-                let persons = (p.get(P::PersonsPerHousehold) + 1.1 * hr.gauss()).round().clamp(1.0, 6.0) as u8;
+                let _drawn_size = hr.gauss(); // the stream keeps its order; the size is sizes[hi]
+                let persons = sizes[hi].min(255) as u8;
                 let (u_reach, u_public, u_comm) = (hr.f(), hr.f(), hr.f());
                 let router = if u_reach < p.share(P::ReachHomeShare) {
                     if u_public < p.share(P::PublicListenerShare) {
@@ -1360,6 +1386,8 @@ impl MicroWorld {
                 if u_srv < server_p {
                     kinds.push((HostKind::HostedServer, 0));
                 }
+                self.device_population += kinds.len() as u64;
+                self.household_devices.push(kinds.len() as u32);
                 if !hh.adopting || used + kinds.len() > budget {
                     hh.adopting = false;
                     hh.in_community = false;
