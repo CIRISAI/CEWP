@@ -26,8 +26,7 @@ ESTATE-0 is `conformance/scene/tables/estate0/estate_table.json`, 58 rows, read 
   2024 internet users to 5.8 bn. Together: **71.7 kWh per user-year** (rows 0-5), not 75.5.
 * **Stay share** (now a share of the whole estate, AI carved out after it): **0.6, range 0.45-0.75**
   (row 13, the scout's estimate; enterprise alone is 25% and stays). This is partly a definition of
-  "replace the internet entirely". Lower values are shown separately below, labelled **awaiting
-  Eric's answer**.
+  "replace the internet entirely". See the two business cases below.
 * **Vanish share** of the consumer non-AI part: 0.5 (0.3-0.7), unsourced (row 23). It is not
   weighted by traffic bytes: video is 54-57% of downstream bytes but about 1.3 Wh per viewing hour
   at the data centre.
@@ -70,15 +69,48 @@ devices no longer pay for themselves on inference.
 sends calls to dearer local tiers. With the forced-local share at 0 the mix equals all-hosted
 (−14.3). At 0.5 it is −3.3 to −4.6.
 
-**Stay share, including the values awaiting Eric's answer** (net at the defaults):
+**The stay share as two business cases** (ESTATE-0 v2, CIRISHolon 8e95fef, "businesses" block,
+and `conformance/scene/TWIN_THEORY_INPUTS.md`). The rows "awaiting Eric's answer" are dropped.
+Eric's answer, relayed via Holon and not said in this session, was "whatever is defensible, do
+some web searches and look at how CC models businesses". CC 4.4.3.2.8 treats a business as an
+affiliation, "a room that acts as one voice", running nodes it owns ("a node is a device or
+server you own"). The Constitution bans dependence, not scale.
 
-| stay share | tiered mix | all hosted | all on devices | no AI |
+* **CASE A (the central case): the market keeps servers where they are cheapest.**
+  * Enterprise-owned work (0.255 of the estate, IEA, read at source) is already a node its owner
+    runs. It is inside the scenario and unchanged.
+  * Rented business work stays on servers at about today's efficiency.
+  * The stay share is 0.45-0.75, centre 0.6. The split inside the bracket is unsourced.
+  * What is in play is consumer work, about 29 kWh per user-year (18-40). **The saving is a share
+    of 29, not of 72.**
+* **CASE B (a labelled counterfactual): no large facilities at all.**
+  * Rented business work (the stay share minus enterprise, about 25 kWh per user-year at the
+    centres) moves to organisations' own premises.
+  * There it costs 1.4-4 times today's energy: 1.4 is overhead alone (PUE 1.54 against about
+    1.1), 4 is a vendor-commissioned claim, and best-practice premises are near 1. These figures
+    are **by search result**, not read at source.
+  * That turns about 25 kWh into 35-100, which alone can exceed the whole saving.
+  * It prices "no massive datacenters" read as a ban on scale, where the Constitution only bans
+    dependence.
+
+Net at 10 interactions a day, no new boxes (kWh per person-year, model output):
+
+| AI case | CASE A (central) | CASE B, on premises at 2.0× (counterfactual) |
+|---|---|---|
+| tiered mix (the design) | **−10.2** | +14.6 |
+| all hosted, zero retention (bound) | −14.3 | +10.4 |
+| all on devices (bound) | +6.3 | +31.1 |
+| no AI in scope | −17.0 | +7.8 |
+
+CASE B adds 24.7 kWh per person-year at its centre.
+
+The tiered mix across the stay bracket (CASE A) and across CASE B's on-premises ratio:
+
+| stay share | CASE A | CASE B at 1.4× | CASE B at 2.0× | CASE B at 4.0× |
 |---|---|---|---|---|
-| 0.75 (sourced) | −1.3 | −5.5 | +15.2 | −9.6 |
-| 0.6 (sourced centre) | −10.2 | −14.3 | +6.3 | −17.0 |
-| 0.45 (sourced) | −19.0 | −23.1 | −2.5 | −24.4 |
-| 0.2 (awaiting Eric's answer) | −33.7 | −37.9 | −17.2 | −36.7 |
-| 0.0 (awaiting Eric's answer) | −45.5 | −49.7 | −29.0 | −46.6 |
+| 0.45 | −19.0 | −13.4 | −5.0 | +22.9 |
+| 0.6 | −10.2 | −0.3 | +14.6 | +64.1 |
+| 0.75 | −1.3 | +12.9 | +34.2 | +105.2 |
 
 **Break-even for the mix** (one input, others at default). The saving vanishes if any one of these
 holds:
@@ -198,7 +230,9 @@ data. ZDR removes retention and training on the conversation, not inference ener
 | `estate.all_data_centres_twh_per_year` | TWh/year | 380 / 416 / 460 | MODEL | 2024 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 0 and 5: IEA Energy and AI 2025 Annex A.1, 416 TWh in 2024 (hyperscale 166, colocation 144, enterprise 106; modelled; excludes crypto, networks and devices); interval ours |
 | `estate.internet_users_billion` | billion | 5.5 / 5.8 / 6 | MODEL | 2024 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 2-3: ITU revised 2024 to 5.8 bn (first published 5.5; 6.0 in 2025); 416 / 5.8 = 71.7 kWh per user-year (row 4) |
 | `estate.ai_share` | share | 0.15 / 0.19 / 0.32 | MODEL | 2026 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 41-44: 0.15 is the IEA 2024 proxy without cooling overhead; 17-21% with it; about 19% in 2026 and 32% in 2030 at the IEA's rates (the scout's arithmetic); the default is the 2026 scenario year |
-| `estate.stays_share` | share of the estate | 0.45 / 0.6 / 0.75 | MODEL | 2024 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 13: AUTHOR'S ESTIMATE from two derivations, 0.45-0.75, centre 0.6 (enterprise alone is 25% and stays; no source splits consumer from business); partly a DEFINITION of 'replace the internet entirely': lower values are reported separately as awaiting Eric's answer |
+| `estate.stays_share` | share of the estate | 0.45 / 0.6 / 0.75 | MODEL | 2024 | ESTATE-0 v2 (CIRISHolon 8e95fef, conformance/scene/tables/estate0, businesses block), CASE A: organisations' work stays on servers, owned or rented, placed by the market at about today's efficiency; enterprise-owned is 0.25 (IEA 2025, read at source), the rest of the bracket is the scout's, unsourced (CC 4.4.3.2.8: a business is an affiliation, 'a room that acts as one voice', running nodes it owns) |
+| `estate.enterprise_owned_share` | share of the estate | 0.255 / 0.255 / 0.255 | MODEL | 2024 | ESTATE-0 row 5: enterprise 106 of 416 TWh (IEA Energy and AI 2025, Table A.1, read at source): already 'a node you own', inside the scenario and unchanged |
+| `estate.case_b_on_premises_ratio` | x today's energy | 1.4 / 2 / 4 | FRONTIER | 2025 | ESTATE-0 v2 (CIRISHolon 8e95fef, conformance/scene/tables/estate0, businesses block), CASE B only: rented business work moved to organisations' own premises: 1.4 (overhead alone, PUE 1.54 against about 1.1) to about 4 (a vendor-commissioned claim of 3.2-4.1), near 1 for best practice; BY SEARCH RESULT, not read at source; 2.0 is my centre |
 | `estate.vanish_share` | share of the consumer non-AI part | 0.3 / 0.5 / 0.7 | FRONTIER | 2024 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 23: 0.5 stands (0.3-0.7), AUTHOR'S ESTIMATE, unsourceable; NOT weighted by traffic bytes (on-demand video is 54-57% of downstream bytes but about 1.3 Wh per viewing hour at the data centre, rows 14-19) |
 | `edge.marginal_ratio_already_on` | x data-centre energy per unit of work | 0.1 / 0.3 / 1 | MODEL | 2024 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 40: on devices ALREADY ON, 0.1-1 (media delivery from a gateway already on about 0.1, row 32); the fixed draw of anything ADDED is the new-box term (a two-bay home storage box 39-129 kWh a year, row 36; energy.rs home_node.added_box.w) |
 | `ai.wanted_inference_share` | share of the consumer AI energy | 0.1 / 0.21 / 0.35 | MODEL | 2019 | accounting only (it splits the removed consumer AI into what vanishes and the wanted inference the mesh's own replaces; it does not move the net): ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 22: recommendation was over 79% of one operator's AI inference cycles in 2019 |
@@ -264,15 +298,29 @@ AI cases: the **tiered mix (the design)**, Eric: "a hybrid means a mixture of on
 | no AI in scope | - | 0 | 23.2 (11.6) | 3.5 | 0.0 | 2.77 | 0.000 | 0.00 | 0.00 | -17.0 | [-37.6, 9.5] | open: the box spans zero |
 | no AI in scope | - | 1 | 23.2 (11.6) | 3.5 | 0.0 | 22.03 | 0.000 | 0.00 | 0.00 | 2.3 | [-26.6, 52.0] | open: the box spans zero |
 
-**The stay share awaiting Eric's answer.** ESTATE-0 brackets it at 0.45-0.75 (centre 0.6), but it is partly a definition of 'replace the internet entirely': if enterprise, government and science computing also go, it is near zero. Net at the defaults, 10 interactions a day, no new boxes:
+### The two business cases (CIRISHolon 8e95fef5715ffaf3bb8f1df9984d107113da752c conformance/scene/tables/estate0/estate_table.json v2 sha256 68fe7f825b690bcbfed45dd6b4061a6910a29e164b5fa25452ed4caccc6e2b58; conformance/scene/TWIN_THEORY_INPUTS.md)
 
-| stay share | tiered mix | all hosted | all on devices | no AI |
+Eric's answer on the stay share, relayed via Holon (not said in this session): "whatever is defensible, do some web searches and look at how CC models businesses". CC 4.4.3.2.8: a business is an affiliation, "a room that acts as one voice", running nodes it owns ("a node is a device or server you own"). The Constitution bans dependence, not scale.
+
+- **CASE A (central): the market keeps servers where they are cheapest.** Enterprise-owned work (0.255 of the estate, read at source) is already a node its owner runs: inside the scenario, unchanged. Rented business work stays on servers at about today's efficiency. Stay share 0.45-0.75, centre 0.6 (the split inside the bracket is unsourced). What is in play is consumer work, about 29 kWh per user-year (18-40): the saving is a share of 29, not of 72.
+- **CASE B (labelled counterfactual): no large facilities at all.** Rented business work (stay share minus enterprise) moves to organisations' own premises at 1.4-4 times today's energy (by search result). It prices "no massive datacenters" read as a ban on scale, where the Constitution only bans dependence.
+
+Net at 10 interactions a day, no new boxes (kWh per person-year):
+
+| AI case | CASE A net | CASE A bounds | CASE B net (on-premises x2.0) | CASE B extra | CASE B bounds |
+|---|---|---|---|---|---|
+| tiered mix (the design) | -10.2 | [-43.1, 10501.4] | 14.6 | 24.7 | [-36.6, 10623.9] |
+| all hosted, zero retention (bound) | -14.3 | [-43.1, 8660.2] | 10.4 | 24.7 | [-36.6, 8782.8] |
+| all on devices (bound) | 6.3 | [-43.1, 17866.1] | 31.1 | 24.7 | [-36.6, 17988.6] |
+| no AI in scope | -17.0 | [-37.6, 9.5] | 7.8 | 24.7 | [-31.1, 132.7] |
+
+CASE A across the sourced stay bracket, and CASE B across its on-premises ratio (tiered mix, net):
+
+| stay share | CASE A | CASE B at 1.4 | CASE B at 2.0 | CASE B at 4.0 |
 |---|---|---|---|---|
-| 0.75 (sourced bracket) | -1.3 | -5.5 | 15.2 | -9.6 |
-| 0.6 (sourced bracket) | -10.2 | -14.3 | 6.3 | -17.0 |
-| 0.45 (sourced bracket) | -19.0 | -23.1 | -2.5 | -24.4 |
-| 0.2 (awaiting Eric's answer) | -33.7 | -37.9 | -17.2 | -36.7 |
-| 0 (awaiting Eric's answer) | -45.5 | -49.7 | -29.0 | -46.6 |
+| 0.45 | -19.0 | -13.4 | -5.0 | 22.9 |
+| 0.6 | -10.2 | -0.3 | 14.6 | 64.1 |
+| 0.75 | -1.3 | 12.9 | 34.2 | 105.2 |
 
 **The AI term by case** (interactions per day x 365.25 x LLM calls per interaction x tokens per call, placed over the tiers; kWh per person-year at the defaults) and where the calls go:
 

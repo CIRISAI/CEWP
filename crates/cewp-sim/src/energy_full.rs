@@ -29,6 +29,9 @@
 use crate::energy::{self, Class, Counters, EnergyParams, Run, Scenario};
 use crate::workload::ParameterRegime;
 
+/// Where ESTATE-0 version 2 (with its "businesses" block) was read.
+pub const ESTATE0_V2_PIN: &str = "CIRISHolon 8e95fef5715ffaf3bb8f1df9984d107113da752c conformance/scene/tables/estate0/estate_table.json v2 sha256 68fe7f825b690bcbfed45dd6b4061a6910a29e164b5fa25452ed4caccc6e2b58; conformance/scene/TWIN_THEORY_INPUTS.md";
+
 /// One input row.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FullSpec {
@@ -74,7 +77,11 @@ full_rows! {
     AiShare = "estate.ai_share", "share", [0.15, 0.19, 0.32], Model, 2026,
         "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 41-44: 0.15 is the IEA 2024 proxy without cooling overhead; 17-21% with it; about 19% in 2026 and 32% in 2030 at the IEA's rates (the scout's arithmetic); the default is the 2026 scenario year";
     StaysShare = "estate.stays_share", "share of the estate", [0.45, 0.6, 0.75], Model, 2024,
-        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 13: AUTHOR'S ESTIMATE from two derivations, 0.45-0.75, centre 0.6 (enterprise alone is 25% and stays; no source splits consumer from business); partly a DEFINITION of 'replace the internet entirely': lower values are reported separately as awaiting Eric's answer";
+        "ESTATE-0 v2 (CIRISHolon 8e95fef, conformance/scene/tables/estate0, businesses block), CASE A: organisations' work stays on servers, owned or rented, placed by the market at about today's efficiency; enterprise-owned is 0.25 (IEA 2025, read at source), the rest of the bracket is the scout's, unsourced (CC 4.4.3.2.8: a business is an affiliation, 'a room that acts as one voice', running nodes it owns)";
+    EnterpriseShare = "estate.enterprise_owned_share", "share of the estate", [0.255, 0.255, 0.255], Model, 2024,
+        "ESTATE-0 row 5: enterprise 106 of 416 TWh (IEA Energy and AI 2025, Table A.1, read at source): already 'a node you own', inside the scenario and unchanged";
+    OnPremRatio = "estate.case_b_on_premises_ratio", "x today's energy", [1.4, 2.0, 4.0], Frontier, 2025,
+        "ESTATE-0 v2 (CIRISHolon 8e95fef, conformance/scene/tables/estate0, businesses block), CASE B only: rented business work moved to organisations' own premises: 1.4 (overhead alone, PUE 1.54 against about 1.1) to about 4 (a vendor-commissioned claim of 3.2-4.1), near 1 for best practice; BY SEARCH RESULT, not read at source; 2.0 is my centre";
     VanishShare = "estate.vanish_share", "share of the consumer non-AI part", [0.3, 0.5, 0.7], Frontier, 2024,
         "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 23: 0.5 stands (0.3-0.7), AUTHOR'S ESTIMATE, unsourceable; NOT weighted by traffic bytes (on-demand video is 54-57% of downstream bytes but about 1.3 Wh per viewing hour at the data centre, rows 14-19)";
     EdgeRatio = "edge.marginal_ratio_already_on", "x data-centre energy per unit of work", [0.1, 0.3, 1.0], Model, 2024,
@@ -330,13 +337,16 @@ pub struct FullParams {
     pub new_box_share: f64,
     /// How AI is treated.
     pub case: AiCase,
+    /// Case B (counterfactual, "no large facilities at all"): rented business work moves to
+    /// organisations' own premises. Case A (false, the central case): it stays on servers.
+    pub case_b: bool,
 }
 
 impl FullParams {
     /// Defaults with the household pass's additions.
     #[must_use]
     pub fn defaults(a: &Additions, case: AiCase) -> Self {
-        Self { v: FULL_SPECS.iter().map(|s| s.mid).collect(), add_gateway: a.gateway[1], add_box: a.new_box[1], new_box_share: 0.0, case }
+        Self { v: FULL_SPECS.iter().map(|s| s.mid).collect(), add_gateway: a.gateway[1], add_box: a.new_box[1], new_box_share: 0.0, case, case_b: false }
     }
     /// Value.
     #[must_use]
@@ -371,6 +381,8 @@ pub struct Full {
     pub pob: f64,
     /// Self-aware agents' continuous self-observation outside interactions (unknown).
     pub observation: f64,
+    /// Case B only: the extra energy of rented business work moved on-premises.
+    pub case_b_extra: f64,
     /// `additions + relocated_at_edge - removed`: negative is a saving.
     pub net: f64,
 }
@@ -413,7 +425,8 @@ pub fn eval(p: &FullParams) -> Full {
         let (pe, ph, _) = place_ktokens(p, p.case, [0.0, pob_ktokens(p), 0.0]);
         (record_kwh(p), pe + ph, p.get(F::SelfAwareObservationKwh) * p.get(F::ShareSelfAware) / 0.05)
     };
-    Full { estate_per_user: e, removed, vanished, relocated_at_edge: at_edge, inference_kept: kept, additions, record, pob, observation, net: additions + at_edge + kept + record + pob + observation - removed }
+    let case_b_extra = if p.case_b { e * (p.get(F::StaysShare) - p.get(F::EnterpriseShare)).max(0.0) * (p.get(F::OnPremRatio) - 1.0) } else { 0.0 };
+    Full { estate_per_user: e, removed, vanished, relocated_at_edge: at_edge, inference_kept: kept, additions, record, pob, observation, case_b_extra, net: additions + at_edge + kept + record + pob + observation + case_b_extra - removed }
 }
 
 /// Extremes of `net` over every corner of the free rows' intervals and the additions'
@@ -422,7 +435,7 @@ pub fn eval(p: &FullParams) -> Full {
 /// extreme.
 #[must_use]
 pub fn corners(a: &Additions, case: AiCase, new_box_share: f64) -> (f64, f64, Vec<(&'static str, f64)>) {
-    corners_fixed(a, case, new_box_share, None)
+    corners_fixed(a, case, new_box_share, None, false)
 }
 
 /// [`corners`] with interactions per person per day fixed at `m` (excluded from the corners).
@@ -431,13 +444,14 @@ pub fn corners_at(a: &Additions, case: AiCase, new_box_share: f64, m: f64) -> (f
     if case == AiCase::NoAi {
         return corners(a, case, new_box_share);
     }
-    corners_fixed(a, case, new_box_share, Some(m))
+    corners_fixed(a, case, new_box_share, Some(m), false)
 }
 
-fn corners_fixed(a: &Additions, case: AiCase, new_box_share: f64, m: Option<f64>) -> (f64, f64, Vec<(&'static str, f64)>) {
+fn corners_fixed(a: &Additions, case: AiCase, new_box_share: f64, m: Option<f64>, case_b: bool) -> (f64, f64, Vec<(&'static str, f64)>) {
     let used = |f: F| match f {
         F::InteractionsPerPersonDay => case != AiCase::NoAi && m.is_none(),
-        F::EstateTwh | F::InternetUsers | F::AiShare | F::StaysShare | F::VanishShare | F::EdgeRatio | F::PersonsPerHousehold => true,
+        F::EstateTwh | F::InternetUsers | F::AiShare | F::StaysShare | F::VanishShare | F::EdgeRatio | F::PersonsPerHousehold | F::EnterpriseShare => true,
+        F::OnPremRatio => case_b,
         // AI rows: only where AI is in scope; the shares and the hosted factors also matter to
         // every AI case, the tier energies only where the case can place a call there
         F::WhPer1kTokens => matches!(case, AiCase::Mix | AiCase::AllHosted),
@@ -452,6 +466,7 @@ fn corners_fixed(a: &Additions, case: AiCase, new_box_share: f64, m: Option<f64>
     // bound is attained by a real combination of input ends
     let mut d = FullParams::defaults(a, case);
     d.new_box_share = new_box_share;
+    d.case_b = case_b;
     if let Some(m) = m {
         d.set(F::InteractionsPerPersonDay, m);
     }
@@ -502,6 +517,12 @@ fn corners_fixed(a: &Additions, case: AiCase, new_box_share: f64, m: Option<f64>
     arg.push(("mesh additions, gateway mix (kWh/person-year)", xh.add_gateway));
     arg.push(("mesh additions, new-box mix (kWh/person-year)", xh.add_box));
     (lo.min(dn), hi.max(dn), arg)
+}
+
+/// [`corners`] under Case B (rented business work on-premises).
+#[must_use]
+pub fn corners_case_b(a: &Additions, case: AiCase, new_box_share: f64) -> (f64, f64, Vec<(&'static str, f64)>) {
+    corners_fixed(a, case, new_box_share, None, true)
 }
 
 /// Value of one input (others at default) where the net is zero, if any in [0, 100 x hi].
@@ -572,13 +593,27 @@ pub fn report(seed: u64) -> String {
             }
         }
     }
-    s.push_str("\n**The stay share awaiting Eric's answer.** ESTATE-0 brackets it at 0.45-0.75 (centre 0.6), but it is partly a definition of 'replace the internet entirely': if enterprise, government and science computing also go, it is near zero. Net at the defaults, 10 interactions a day, no new boxes:\n\n| stay share | tiered mix | all hosted | all on devices | no AI |\n|---|---|---|---|---|\n");
-    for st in [0.75, 0.6, 0.45, 0.2, 0.0] {
-        s.push_str(&format!("| {st}{} |", if st < 0.45 { " (awaiting Eric's answer)" } else { " (sourced bracket)" }));
-        for c in AiCase::ALL {
-            let mut p = FullParams::defaults(&a, c);
-            p.set(F::StaysShare, st);
-            s.push_str(&format!(" {:.1} |", eval(&p).net));
+    s.push_str(&format!("\n## The two business cases ({})\n\nEric's answer on the stay share, relayed via Holon (not said in this session): \"whatever is defensible, do some web searches and look at how CC models businesses\". CC 4.4.3.2.8: a business is an affiliation, \"a room that acts as one voice\", running nodes it owns (\"a node is a device or server you own\"). The Constitution bans dependence, not scale.\n\n- **CASE A (central): the market keeps servers where they are cheapest.** Enterprise-owned work (0.255 of the estate, read at source) is already a node its owner runs: inside the scenario, unchanged. Rented business work stays on servers at about today's efficiency. Stay share 0.45-0.75, centre 0.6 (the split inside the bracket is unsourced). What is in play is consumer work, about 29 kWh per user-year (18-40): the saving is a share of 29, not of 72.\n- **CASE B (labelled counterfactual): no large facilities at all.** Rented business work (stay share minus enterprise) moves to organisations' own premises at 1.4-4 times today's energy (by search result). It prices \"no massive datacenters\" read as a ban on scale, where the Constitution only bans dependence.\n\nNet at 10 interactions a day, no new boxes (kWh per person-year):\n\n| AI case | CASE A net | CASE A bounds | CASE B net (on-premises x2.0) | CASE B extra | CASE B bounds |\n|---|---|---|---|---|---|\n", ESTATE0_V2_PIN));
+    for c in AiCase::ALL {
+        let pa = FullParams::defaults(&a, c);
+        let ra = eval(&pa);
+        let (la, ha, _) = corners(&a, c, 0.0);
+        let mut pb = pa.clone();
+        pb.case_b = true;
+        let rb = eval(&pb);
+        let (lb, hb, _) = corners_case_b(&a, c, 0.0);
+        s.push_str(&format!("| {} | {:.1} | [{:.1}, {:.1}] | {:.1} | {:.1} | [{:.1}, {:.1}] |\n", c.as_str(), ra.net, la, ha, rb.net, rb.case_b_extra, lb, hb));
+    }
+    s.push_str("\nCASE A across the sourced stay bracket, and CASE B across its on-premises ratio (tiered mix, net):\n\n| stay share | CASE A | CASE B at 1.4 | CASE B at 2.0 | CASE B at 4.0 |\n|---|---|---|---|---|\n");
+    for st in [0.45, 0.6, 0.75] {
+        let mut p = FullParams::defaults(&a, AiCase::Mix);
+        p.set(F::StaysShare, st);
+        s.push_str(&format!("| {st} | {:.1} |", eval(&p).net));
+        for r in [1.4, 2.0, 4.0] {
+            let mut q = p.clone();
+            q.case_b = true;
+            q.set(F::OnPremRatio, r);
+            s.push_str(&format!(" {:.1} |", eval(&q).net));
         }
         s.push('\n');
     }
@@ -728,6 +763,19 @@ mod tests {
             x.set(F::InteractionsPerPersonDay, 30.0);
             assert!(eval(&x).net > n0);
         }
+    }
+
+    #[test]
+    fn case_b_adds_the_on_premises_penalty() {
+        let a = adds();
+        let pa = FullParams::defaults(&a, AiCase::Mix);
+        let mut pb = pa.clone();
+        pb.case_b = true;
+        let (ra, rb) = (eval(&pa), eval(&pb));
+        assert!(ra.case_b_extra == 0.0);
+        // 71.7 x (0.6 - 0.255) x (2.0 - 1) = 24.7 kWh per user-year
+        assert!((rb.case_b_extra - ra.estate_per_user * (0.6 - 0.255)).abs() < 1e-9);
+        assert!((rb.net - ra.net - rb.case_b_extra).abs() < 1e-9);
     }
 
     #[test]

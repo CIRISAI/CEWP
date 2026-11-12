@@ -23,6 +23,8 @@
 //! point, so the bounds enclose every combination of input ends (and are wider than the true
 //! range where an input appears in more than one term).
 
+#![allow(clippy::needless_range_loop, clippy::field_reassign_with_default)]
+
 use core::ops::{Add, Mul, Neg, Sub};
 
 use crate::capacity::CostParams;
@@ -565,7 +567,7 @@ fn nearest_content(g: &NetGraph, m: netgraph::MetroId) -> Option<(netgraph::Asn,
         let mc = mc as netgraph::MetroId;
         let Some(&(asn, _)) = g.content_market(mc).first() else { continue };
         let km = g.backbone_km(m, mc);
-        if best.map_or(true, |b| km < b.0) {
+        if best.is_none_or(|b| km < b.0) {
             best = Some((km, asn, mc));
         }
     }
@@ -898,6 +900,7 @@ struct Ledger<T> {
 }
 
 impl<T: Q> Ledger<T> {
+    #[allow(clippy::too_many_arguments)]
     fn put(&mut self, term: Term, dev: Dev, row: E, what: &'static str, count: T, value: T, sign: f64) {
         let part = if term == Term::AvoidedUpstream { if sign < 0.0 { Part::MeshUpstream } else { self.part } } else { Part::Device };
         self.v.push(Contribution { term, dev, row, what, count, value, joules: count * value, sign, part });
@@ -966,7 +969,7 @@ enum Home {
 
 /// One household-hour. `cell_only`: the home has no fixed line. `village`: behind one thin
 /// uplink.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)]
 fn household<T: Q>(l: &mut Ledger<T>, val: &dyn Fn(E) -> T, k: &Counters, r: ParameterRegime, run: Run, home: Home, cell_only: bool, village: bool) {
     use Dev as D;
     use Term::{AddedDevices as B, AddedOnExisting as A, AvoidedUpstream as C};
@@ -1598,7 +1601,7 @@ pub fn report(seed: u64) -> String {
     for sc in [Scenario::MixGateway, Scenario::MixComputer, Scenario::MixBox, Scenario::MixNone] {
         let a = delta(&p, &k, sc, ParameterRegime::Expected, Run::Short);
         let b = delta(&p, &k, sc, ParameterRegime::Expected, Run::Long);
-        s.push_str(&format!("| {} | {} | {} [{}, {}] {} | {} [{}, {}] {} |\n", sc.as_str(), format!("{:.1}%", 100.0 * host_reach(&p, sc)), j(a.net), j(a.net_bounds.lo), j(a.net_bounds.hi), sign_word(&a), j(b.net), j(b.net_bounds.lo), j(b.net_bounds.hi), sign_word(&b)));
+        s.push_str(&format!("| {} | {} | {} [{}, {}] {} | {} [{}, {}] {} |\n", sc.as_str(), format_args!("{:.1}%", 100.0 * host_reach(&p, sc)), j(a.net), j(a.net_bounds.lo), j(a.net_bounds.hi), sign_word(&a), j(b.net), j(b.net_bounds.lo), j(b.net_bounds.hi), sign_word(&b)));
     }
     // term C by component and the substitution share
     // headline first: the sign inside the substitution prior, and its two levers

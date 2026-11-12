@@ -17,6 +17,8 @@
 //! the verdict of its inputs with its number ([`Verdict`]): a figure computed from the
 //! generated, uncertified tie table says so.
 
+#![allow(clippy::needless_range_loop, clippy::field_reassign_with_default)]
+
 use std::collections::BTreeMap;
 
 use crate::activity::{Act, ActivityParams, Generator};
@@ -523,7 +525,7 @@ impl PathModel {
                 let mc = mc as netgraph::MetroId;
                 if let Some(&(c, _)) = g.content_market(mc).first() {
                     let km = g.backbone_km(m, mc);
-                    if best.map_or(true, |b| km < b.0) {
+                    if best.is_none_or(|b| km < b.0) {
                         best = Some((km, c, mc));
                     }
                 }
@@ -745,7 +747,7 @@ pub fn measure(w: &SocialWorld, ap: &ActivityParams, lp: &Loc2Params, pm: &PathM
     g.run(horizon_s, seed, &[], &mut sink);
     // the three added kinds: expected acts per local hour (the diurnal shape), so only the
     // friend draw is random
-    let mut r = Rng::new(seed ^ 0xF12E_7D5);
+    let mut r = Rng::new(seed ^ 0x0F12_E7D5);
     let mut by_tile: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
     let mut by_loc: BTreeMap<u16, Vec<u32>> = BTreeMap::new();
     let mut by_country: BTreeMap<u16, Vec<u32>> = BTreeMap::new();
