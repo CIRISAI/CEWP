@@ -445,6 +445,25 @@ sooner. No frame's brightness jumped by more than
 within the run-to-run spread of this shared machine; the largest outliers (2.7 s and 5.3 s) held 6 ms of
 script and fell on both sides.
 
+The witness also looks at the picture: while the camera sits on the street, every 2 s, the lit roofs of the leaves
+the tiling says it drew, outside the generated street's square, must show on screen (the pixel at each differs in
+colour from the ground around it). Normal runs show at least 0.59 of them (1440 px) and 0.77 (390 px); with the
+tiling's draws emptied while its leaves stay counted (--break-detail, the check's own calibration) 0.0 to 0.105;
+below 0.35 fails. It also records WebGL context loss, the GL error state at the end and the console's errors. A
+flat neighbourhood was seen once, on the tree before the change above, at 1440 px, 1x, cold
+(FSD/twin/frames/flat-neighbourhood-1440-x1-cold.jpg): the leaves around the street counted as drawn but showed as
+bare ground with only the arterials for the whole step. Ten runs of the same case on the tree after the change found
+no flat frame (270 checks of the ground's share of pixels away from its most common brightness: 0.24 to 0.32 against
+0.06 to 0.11 in the flat run), no context loss, no GL error and no console error. Cause unknown; left as recorded.
+
+During the dive (120 to 20 m a pixel) the ground is the street tiling's mosaic, one quad per holon. Its colour came
+from the land cover of the 1/8° cell under the holon's centre, so it stepped in 14 km blocks at cell edges; it
+is now blended bilinearly between the four nearest cells' class colours at each quad's corner (tiling.js
+tlLcGround, sea cells left out, cached by corner), and each holon keeps its own density tone. Relief was never
+the cause: its tiles are filtered linearly and the level drawn is the finest loaded. What still steps is data and
+a display rule: the holons' household densities, and land with nobody on it drawn 1.6 times brighter so it stays
+readable at night.
+
 ## Street classes, the floor and the region rule (one table; machine-readable: docs/geo/classes.json)
 
 Density is people per km² of a street leaf: its households × 2.5 / its area, its households being its

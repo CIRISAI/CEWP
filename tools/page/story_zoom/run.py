@@ -12,7 +12,11 @@
 # With --assert (the witness; it holds on cold runs too): inside the street steps, zero tiles fetched on demand and no frame
 # with unloaded ground under the focal point (relief level wanted but not held, coast tiles missing, the street tiling off
 # at street zoom, the leaf under the centre not laid out, a street step at street zoom with no street); and, while the
-# camera is on the street (from settling until the last step's pull-back), zero street-tiling leaves built on demand.
+# camera is on the street (from settling until the last step's pull-back), zero street-tiling leaves built on demand, and
+# the buildings the tiling says it drew show on screen (every 2 s, the lit roof halves of its drawn leaves outside the
+# generated street's square differ in colour from the ground around them in at least PAINTED_MIN of the points); WebGL
+# context loss, the GL error state and console errors are recorded. --break-detail is the check's own calibration: the
+# leaves stay counted as drawn and paint nothing, and the witness must fail.
 # Leaves the dive and the pull-back pass over are still laid out as they come into view (counted, not asserted): the
 # detail is drawn as a disc of laid-out leaves (tiling.js), so they appear at its faded edge, not as holes.
 # Usage: python3 tools/page/story_zoom/run.py [--port 8732] [--w 390 --h 844 --mob 1] [--throttle 1] [--cache warm]
@@ -23,7 +27,7 @@ from playwright.async_api import async_playwright
 ap = argparse.ArgumentParser()
 ap.add_argument("--port", default="8732"); ap.add_argument("--w", type=int, default=390); ap.add_argument("--h", type=int, default=844)
 ap.add_argument("--mob", type=int, default=1); ap.add_argument("--throttle", type=float, default=1); ap.add_argument("--cache", default="warm")
-ap.add_argument("--out", default=""); ap.add_argument("--assert", dest="check", action="store_true"); ap.add_argument("--max-s", type=float, default=240)
+ap.add_argument("--out", default=""); ap.add_argument("--break-detail", action="store_true"); ap.add_argument("--assert", dest="check", action="store_true"); ap.add_argument("--max-s", type=float, default=240)
 A = ap.parse_args()
 URL = f"http://127.0.0.1:{A.port}/index.html"
 
@@ -41,6 +45,8 @@ INIT = r"""(() => {
   const ctx = () => ({ t: Math.round(performance.now()), act: typeof storyCurrentAct !== "undefined" ? storyCurrentAct : -1, mpp: (typeof GEO !== "undefined" && GEO.mpp) ? Math.round(GEO.mpp) : null });
   const wrap = (name, pre) => { const f = window[name]; if (typeof f !== "function") return; window[name] = function(){ try { pre.apply(this, arguments); } catch (e) {} return f.apply(this, arguments); }; };
   document.addEventListener("DOMContentLoaded", () => {
+    Z.gl = { lost: 0, restored: 0 };
+    try { cv.addEventListener("webglcontextlost", () => { Z.gl.lost++; }); cv.addEventListener("webglcontextrestored", () => { Z.gl.restored++; }); } catch (e) {}
     wrap("reliefLoad", (z, r, c) => { const k = z + "/" + r + "_" + c; if (!RELIEF.tiles.has(k)) ask({ kind: "relief", key: k, url: "geo/relief/" + k + ".jpg", origin: who(), by: by(), ...ctx() }, k); });
     wrap("geoWant10", (k) => { if (!GEO.t10.has(k)) ask({ kind: "ne10", key: k, url: "geo/ne10/" + k + ".bin", origin: who(), by: by(), ...ctx() }, "ne10:" + k); });
     wrap("geoLoad", (key, level) => { if (!GEODATA.pending.has(key + level)) Z.req.push({ ready: null, first_drawn: null, kind: "grid", key: key + level, url: "geo/gd/" + key + level + ".bin.gz", origin: who(), by: by(), ...ctx() }); });
@@ -74,6 +80,20 @@ INIT = r"""(() => {
     f.tl = { on: !!TL.on, pending: TL.pending | 0, drawn: TL.drawn | 0, ring: Math.round(TL.ringEff || TL.ring.ring), gov: Math.round(TL.ring.ring), ema: Math.round(TL.ring.ema || 0), cut: Math.round(TL.cut || 0) };
     if (TL.on && mpp < 26){ try { const T = tlTree(), leaf = T.leafAt(la, lo), k = HOLON.pack(leaf); f.tl.focal = T.budget(leaf) > 0 ? (TL.lay.has(k) ? "ok" : "none") : "empty"; } catch (e) { f.tl.focal = "err"; } }
     f.micro = { story: !!microStory, M: !!M, actors: !!(MSTORY && MSTORY.actors), wait: !!(MSTORY && (MSTORY.waitSearch || MSTORY.waitTiled)), beat: MSTORY && MSTORY.beat !== undefined ? MSTORY.beat : null };
+    // the generated street's square on screen (CSS px: centre and half-width), so the pixel check samples around it
+    if (M && M.half){ const q = projLL(camFrame(), M.lat0, M.lon0); f.micro.box = [Math.round(q[0]), Math.round(q[1]), Math.round(M.half / mpp)]; }
+    // calibration only (--break-detail): the tiling's leaves stay counted as drawn but paint nothing, as in the one flat run
+    if (window.__breakDetail && TL.batch) for (const bt of TL.batch.values()) bt.n = 0;
+    // painted buildings: on the street, every 15th sampled frame, the screen points (CSS px) of up to 80 lit roof halves of
+    // the leaves the tiling drew, outside the generated street's square; the analysis checks those pixels are not ground
+    if (TL.on && mpp < 2 && TL.live && f.micro.box && (Z.frames.length % 15) === 0){
+      const F = camFrame(), [bx, by, bh] = f.micro.box, pts = [];
+      for (const e of TL.live){ if (pts.length >= 80) break; const A = tlAffine(F, tlFrameOf(...tlCentre(e.t))), d = e.data; let k = 0;
+        for (let v = 0; v + 30 <= d.length && k < 6; v += 30){ if (d[v + 9] !== 3 || d[v + 5] < 0.35) continue;
+          const xm = (d[v] + d[v + 10] + d[v + 20]) / 3, ym = (d[v + 1] + d[v + 11] + d[v + 21]) / 3, x = A.a * xm + A.c * ym + A.e, y = A.b * xm + A.d * ym + A.f;
+          if (x < 4 || y < 4 || x > F.w - 4 || y > F.h - 4 || (Math.abs(x - bx) < bh + 6 && Math.abs(y - by) < bh + 6)) continue;
+          pts.push([Math.round(x), Math.round(y)]); k++; } }
+      f.bpts = pts; }
     Z.frames.push(f);
   }
 })()"""
@@ -104,6 +124,10 @@ async def play(pg, cdp, rec, stop_act, max_s):
     if rec:
         await cdp.send("Page.stopScreencast")
     return frames, t0
+
+# below this share of drawn lit roofs that show on screen, the tiling's detail was counted as drawn but not painted:
+# with --break-detail (leaves counted, nothing painted) 0.0 to 0.105; normal runs at least 0.59 (1440) and 0.77 (390)
+PAINTED_MIN = 0.35
 
 def classify(f):
     """Defects under the focal point in one frame (inside the street steps)."""
@@ -160,7 +184,9 @@ async def main():
             await pg0.wait_for_timeout(1500); await pg0.close()
         pg = await ctx.new_page(); cdp = await ctx.new_cdp_session(pg)
         pg.on("pageerror", lambda e: errs.append(str(e)))
+        cons = []; pg.on("console", lambda m: cons.append(f"[{m.type}] {m.text}"[:300]) if m.type in ("error", "warning") else None)
         await pg.add_init_script(INIT)
+        if A.break_detail: await pg.add_init_script("window.__breakDetail = true;")
         src = {}
         await cdp.send("Network.enable")
         cdp.on("Network.responseReceived", lambda ev: src.__setitem__(ev["response"]["url"].split("?")[0].split(f":{A.port}/")[-1],
@@ -168,7 +194,7 @@ async def main():
         if A.throttle != 1: await cdp.send("Emulation.setCPUThrottlingRate", {"rate": A.throttle})
         frames, t_nav = await play(pg, cdp, True, 3, A.max_s)
         Z = await pg.evaluate("""() => { const Z = window.__Z; const rt = {}; for (const e of performance.getEntriesByType('resource')) { const u = e.name.split('?')[0].replace(location.origin + '/', ''); if (!(u in rt)) rt[u] = { start: Math.round(e.startTime), end: Math.round(e.responseEnd), size: e.transferSize }; }
-          return { req: Z.req, builds: Z.builds, frames: Z.frames, origin0: Z.origin0, rt, err: Z.err || null,
+          return { req: Z.req, builds: Z.builds, frames: Z.frames, origin0: Z.origin0, rt, err: Z.err || null, gl: Z.gl || null, glErr: (typeof gl !== 'undefined' && gl) ? gl.getError() : null, ctxLost: (typeof gl !== 'undefined' && gl) ? gl.isContextLost() : null,
             zp: typeof ZP !== 'undefined' ? { log: ZP.log, built: ZP.built, leaves: ZP.leaves, done: ZP.done } : null, acts: STORY_ACTS.map(a => a.title) }; }""")
         await b.close()
     if out:  # the raw record first, so an analysis error never costs the run
@@ -198,6 +224,35 @@ async def main():
             if (prev.get("micro") or {}).get("M") and not (f.get("micro") or {}).get("M") and f["act"] == prev["act"]: back.append((f["t"], "street lost"))
         if d: bad.append((f["t"], f["act"], f["mpp"], d))
         prev = f
+    # the painted-buildings check: while the camera is on the street, every 2 s, the lit roof halves the tiling says it drew
+    # outside the generated street's square must show on screen: the pixel at each differs in colour from the ground around
+    # it (the median of eight pixels 12 px away). "Counted as drawn but nothing painted" leaves them all ground.
+    ring = []
+    try:
+        from PIL import Image
+        withpts = [f for f in fr if f.get("bpts")]
+        cur = arrive + 1000
+        while cur < pull - 500 and withpts:
+            f = min(withpts, key=lambda x: abs(x["t"] - cur))
+            near = min(frames, key=lambda x: abs((x[0] - Z["origin0"] / 1000.0) * 1000.0 - f["t"])) if frames else None
+            if abs(f["t"] - cur) < 1000 and near:
+                img = Image.open(io.BytesIO(base64.b64decode(near[1]))).convert("RGB"); sc = img.width / A.w; px = img.load(); W, H = img.size
+                top, bot, right = int(0.14 * H), int(0.22 * H), int(70 * sc)
+                n = hit = 0
+                for (x, y) in f["bpts"]:
+                    X, Y = int(x * sc), int(y * sc)
+                    if Y < top or Y > H - bot or X > W - right or X < 13 or Y < 13 or X > W - 14 or Y > H - 14: continue
+                    ring_px = sorted([px[X + dx, Y + dy] for dx, dy in [(-12, 0), (12, 0), (0, -12), (0, 12), (-9, -9), (9, 9), (-9, 9), (9, -9)]], key=lambda c: sum(c))
+                    g = ring_px[4]; c = px[X, Y]; n += 1; hit += sum((a - b) ** 2 for a, b in zip(c, g)) ** 0.5 > 18
+                if n >= 12: ring.append((f["t"], round(hit / n, 3), n))
+            cur += 2000
+    except ImportError:
+        pass
+    flat = [r for r in ring if r[1] < PAINTED_MIN]
+    if out and flat:  # the frames themselves, for a closer look
+        for tms, *_ in flat:
+            near = min(frames, key=lambda x: abs((x[0] - Z["origin0"] / 1000.0) * 1000.0 - tms))
+            open(os.path.join(out, f"painted_low_{tms / 1000:07.2f}.jpg"), "wb").write(base64.b64decode(near[1]))
     # tiles: asked, arrived, first drawn, origin, source
     tiles = []
     for r in Z["req"]:
@@ -217,9 +272,9 @@ async def main():
                         "demand_in_steps_at_detail": sum(x["origin"] == "demand" and (x["mpp"] or 99) < 12 for x in b_in),
                         "demand_on_street": sum(x["origin"] == "demand" and onstreet(x["t"]) for x in builds),
                         "demand_in_steps_nearest_m": min([x["m_from_centre"] for x in b_in if x["origin"] == "demand" and x["m_from_centre"] is not None] or [None], key=lambda v: 1e18 if v is None else v)},
-        "bad_frames": len(bad), "bad_kinds": sorted({k for _, _, _, d in bad for k in [x.split(":")[0].split(" under")[0] for x in d]}),
+        "painted_checks": len(ring), "painted_low": flat, "painted_min": min([r[1] for r in ring] or [None], key=lambda v: 9 if v is None else v), "painted_points": sum(r[2] for r in ring), "bad_frames": len(bad), "bad_kinds": sorted({k for _, _, _, d in bad for k in [x.split(":")[0].split(" under")[0] for x in d]}),
         "bad_first": [(t, a, m, d) for t, a, m, d in bad[:12]], "backwards": back[:20], "n_backwards": len(back),
-        "zp": Z["zp"], "errors": errs + ([Z["err"]] if Z["err"] else []),
+        "zp": Z["zp"], "errors": errs + ([Z["err"]] if Z["err"] else []), "gl": {"events": Z.get("gl"), "error_at_end": Z.get("glErr"), "context_lost": Z.get("ctxLost")}, "console": cons[:20],
     }
     if out:
         json.dump({"summary": summ, "tiles": tiles, "builds": builds, "frames": fr}, open(os.path.join(out, "log.json"), "w"), indent=0)
@@ -241,7 +296,7 @@ async def main():
         os.remove(os.path.join(out, "frames.pkl"))  # the sheet and the dive frames hold what the strip shows; the raw frames are large
     print(json.dumps(summ, indent=1))
     if A.check:
-        ok = not demand_in and not bad and not summ["errors"] and summ["leaf_builds"]["demand_on_street"] == 0
+        ok = not demand_in and not bad and not summ["errors"] and summ["leaf_builds"]["demand_on_street"] == 0 and ring and not flat
         print("OK" if ok else "FAIL"); sys.exit(0 if ok else 1)
 
 asyncio.run(main())

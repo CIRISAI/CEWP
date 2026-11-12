@@ -122,6 +122,22 @@ function tlTerrain(la, lo){
   return { g0: g0.map(v => v * lit), g1: g1.map(v => v * lit), roof, warm, m, lit, z: r ? r[2] : -1, lc: L ? L.code : -1 };
 }
 const tlGround = (T, t) => tlMix3(T.g0, T.g1, t);
+// The land cover's ground colour at a point, blended bilinearly between the four nearest cells' class colours (the
+// class is a 1/8 or 1/2 degree cell's majority, MEASURED; its colour a display choice), sea cells left out: the mosaic's
+// corners take it, so the colour runs across a cell's edge instead of stepping there (a film strip of the Story's dive
+// showed 14 km blocks of flat colour at 20 to 120 m a pixel). Cached by corner: corners are exact grid values.
+const TL_LCG = new Map();
+function tlLcGround(la, lo){
+  const key = la.toFixed(6) + "," + lo.toFixed(6); let v = TL_LCG.get(key); if (v !== undefined) return v;
+  v = null; const L = typeof geoLandcoverAt === "function" ? geoLandcoverAt(la, lo) : null;
+  if (L){ const st = GEODATA.STEP[L.level], fx = (lo + 180) / st - 0.5, fy = (90 - la) / st - 0.5, c0 = Math.floor(fx), r0 = Math.floor(fy), ax = fx - c0, ay = fy - r0;
+    const acc = [0, 0, 0]; let wsum = 0;
+    for (const [dr, dc, w] of [[0, 0, (1 - ax) * (1 - ay)], [0, 1, ax * (1 - ay)], [1, 0, (1 - ax) * ay], [1, 1, ax * ay]]){
+      if (w <= 0) continue; const e = geoLandcoverAt(90 - (r0 + dr + 0.5) * st, -180 + (c0 + dc + 0.5) * st, L.level);
+      if (!e || !e.ground || e.code === 200) continue; for (let k = 0; k < 3; k++) acc[k] += w * e.ground[k] / 255; wsum += w; }
+    if (wsum > 0) v = acc.map((x) => x / wsum); }
+  if (TL_LCG.size > 60000) TL_LCG.clear(); TL_LCG.set(key, v); return v;
+}
 // A leaf's geometry, in the metres of its L3 tile's frame (one affine per tile, one draw per tile).
 // Each vertex: position, normal, half width, colour, kind (0 ground, 1 casing, 2 road, 3 building).
 function tlBuildLeaf(leaf){
@@ -309,7 +325,13 @@ function tlDraw(w, h, mpp, sun){
     const empty = !b, f = empty ? Math.max(0.85, tlNight(sun, bx.la, bx.lo)) * (relA > 0.01 ? 1 : T0.lit) * 1.6 : tlNight(sun, bx.la, bx.lo) / (relA > 0.01 ? T0.lit : 1), col = [col0[0] * f, col0[1] * f, col0[2] * f];
     const ins = bx.hw >= 20 ? 0.3 : 0; // the tiling reads by tone; a fine seam only once a holon is 40 px wide
     const P = [[bx.x - bx.hw + ins, bx.y - bx.hh + ins], [bx.x + bx.hw - ins, bx.y - bx.hh + ins], [bx.x + bx.hw - ins, bx.y + bx.hh - ins], [bx.x - bx.hw + ins, bx.y + bx.hh - ins]];
-    for (const k of [0, 1, 2, 0, 2, 3]){ Q[o++] = P[k][0]; Q[o++] = P[k][1]; Q[o++] = 0; Q[o++] = 0; Q[o++] = 0; Q[o++] = col[0]; Q[o++] = col[1]; Q[o++] = col[2]; Q[o++] = 0.9; Q[o++] = 0; }
+    // where land cover answers, each corner takes the blended class colour there (north-west, north-east, south-east,
+    // south-west, as P runs); the holon's own tone, lighting and night stay the holon's
+    let C = null;
+    if (T0.lc >= 0){ const bd = HOLON.boundsDeg(c), tn = tlTone(b / Math.max(1e-6, km2)), lit = relA > 0.01 ? 1 : T0.lit;
+      C = [[bd[2], bd[1]], [bd[2], bd[3]], [bd[0], bd[3]], [bd[0], bd[1]]].map(([la, lo]) => { const g = tlLcGround(la, lo); if (!g) return col;
+        const g0 = g.map((v) => v * 0.42 * T0.lit), m = tlMix3(g0, T0.g1, tn), q = empty ? Math.max(0.85, tlNight(sun, bx.la, bx.lo)) * lit * 1.6 : tlNight(sun, bx.la, bx.lo) / lit; return [m[0] * q, m[1] * q, m[2] * q]; }); }
+    for (const k of [0, 1, 2, 0, 2, 3]){ const cc = C ? C[k] : col; Q[o++] = P[k][0]; Q[o++] = P[k][1]; Q[o++] = 0; Q[o++] = 0; Q[o++] = 0; Q[o++] = cc[0]; Q[o++] = cc[1]; Q[o++] = cc[2]; Q[o++] = 0.9; Q[o++] = 0; }
   }
   tlScreen(Q, aggA);
   // the terrain over the mosaic, as on the land below it (relief.js multiply, inside the land stencil)
@@ -350,6 +372,7 @@ function tlDraw(w, h, mpp, sun){
   const live = new Set(), byTile = new Map();
   for (let i = 0; i < cut; i++){ const d = detail[i], k = HOLON.pack(d.c), e = TL.lay.get(k);
     TL.lay.delete(k); TL.lay.set(k, e); live.add(e); if (!byTile.has(e.tile)) byTile.set(e.tile, []); byTile.get(e.tile).push(e); }
+  TL.live = live; // the leaves this frame draws in detail (read by tools/page/story_zoom's painted-buildings check)
   const homePx = 10 * F.k / EARTH_M, dpr = window.devicePixelRatio || 1, mh = 0.55 / Math.min(2, dpr);
   const Re = TL.cut ? Math.min(TL.ringEff || TL.ring.ring, TL.cut) : (TL.ringEff || TL.ring.ring), edge = Re < Math.hypot(F.w, F.h) / 2;
   if (detA > 0.01 && byTile.size){
