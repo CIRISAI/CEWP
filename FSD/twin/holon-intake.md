@@ -308,3 +308,13 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   estimate. Under the presence tint the engine moves the same total (it changes whose devices send), so the map is
   what the engine moves; one signing device per person, background sync (76 kB per device-hour, flat) not drawn.
   Ledger data-activity.
+- **GRID-0 version 3** (CIRISHolon d71d610: 700 rows from Ember's yearly electricity data, CC BY 4.0, no version-2 value
+  changed). Version-3 rows join the admin-0 mask on ISO alpha-3 (docs/geo/country_iso.json now carries alpha-3 from the
+  same Natural Earth file); GLP, GUF, MTQ, REU (inside France's shape) and XKX (no numeric code) have no shape and are
+  listed, not drawn. Ember's kind is drawn for ONE year at a time; the table holds 2014, 2019 and each place's latest
+  year, so 2024 has 111 countries (Germany, the UK, France and 77 others have 2025 instead and no 2024 row), 2019 has
+  204, 2025 has 93: all three are offered, 2024 by default. Rows superseded by a version-3 row are skipped; within a
+  place and year the publisher's dataset row is shown and any page row named. The scale runs to 900 g per kWh (2024:
+  10th percentile 117, 90th 681); above it is drawn at the top and named as published (Turkmenistan 1,306, unchecked).
+  Small systems (under 1 TWh) are dotted. Ember's credit and the licence link stay on the Power legend whenever an
+  Ember year is shown, worded from the sidecar's attribution block.

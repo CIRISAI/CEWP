@@ -176,17 +176,28 @@ def grid(t):
     """GRID-0: every row kept as published (value, unit, year, kind, trust, source, licence, how it was read),
     with the ISO 3166-1 numeric code of a country row from docs/geo/country_iso.json (the Natural Earth names the
     country mask is built from); a country row whose name is not there is refused, never guessed."""
-    names = json.load(open(os.path.join(ROOT, "docs", "geo", "country_iso.json")))["names"]
-    keep = ("id", "place", "place_kind", "parent", "year", "value", "unit", "kind", "trust", "source", "licence", "read", "original_value")
-    rows = []
+    ci = json.load(open(os.path.join(ROOT, "docs", "geo", "country_iso.json")))
+    names, iso3 = ci["names"], ci.get("iso3", {})
+    keep = ("id", "place", "place_kind", "parent", "year", "value", "unit", "kind", "trust", "source", "licence", "read", "original_value",
+            "iso3", "place_as_published", "latest_for_place", "year_lag", "small_system", "provisional", "grouping", "superseded_by", "map_alternative",
+            "same_series_as", "disagrees_with")
+    rows, unmapped = [], []
     for r in t["rows"]:
-        e = {k: r.get(k) for k in keep}
+        e = {k: r.get(k) for k in keep if r.get(k) is not None}
         if r["place_kind"] == "country":
-            if r["place"] not in names:
+            if r.get("iso3"):
+                # version 3's rows join on alpha-3; a code the admin-0 mask has no feature for (a territory drawn inside its
+                # country there, or an entity with no numeric code) is kept and listed, never drawn under another's code
+                if r["iso3"] in iso3:
+                    e["iso"] = iso3[r["iso3"]]
+                else:
+                    unmapped.append(r["iso3"])
+            elif r["place"] in names:
+                e["iso"] = names[r["place"]]
+            else:
                 raise SystemExit(f"refused: country {r['place']!r} has no ISO code in docs/geo/country_iso.json")
-            e["iso"] = names[r["place"]]
         rows.append(e)
-    return {"conventions": t.get("conventions"), "rows": rows}
+    return {"conventions": t.get("conventions"), "rows": rows, "not_in_mask": sorted(set(unmapped))}
 
 
 def main():

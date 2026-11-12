@@ -2577,7 +2577,7 @@ function drawScaleBar(g, F, ppm){
 const pad2 = (n) => String(n).padStart(2, "0"); // the street clock's two-digit fields
 // ---- CIRISHolon's tables on the page (FSD/twin/holon-intake.md): loaded lazily, never at first paint
 const HOLT = { want: false, idx: null, t: {}, reg: null, regAt: null };
-const HOL_V = 4; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
+const HOL_V = 5; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
 function holLoad(){
   if (HOLT.want) return; HOLT.want = true;
   const j = (u) => fetch(u + "?v=" + HOL_V).then((r) => r.json());
@@ -2783,30 +2783,44 @@ const DM_TOP = [0, 1, 2, 6, 4, 5], DM_ADV = [3], DM_ADV_OPEN = { open: false };
 // ---- Power: CIRISHolon GRID-0 (grid carbon intensity priors) by COUNTRY on the Natural Earth admin-0 mask. GRID-0's rules:
 // one kind per map (never two), the year on the legend, trust C hatched, no averaging of disagreeing rows (the higher-trust row
 // shown, the other named), a country with no row is "no reference" (no inherited region value). Each choice is one exact kind.
+// GRID-0 version 3: Ember's yearly data gives most countries a row of one kind (generation average, life-cycle), so that kind
+// is drawn for ONE YEAR at a time (2024, the year half the file's countries have; 2025 sparser and possibly estimated), never
+// "each place's latest". The other kinds keep their own rows.
+const GRID_EMBER = "generation average, life-cycle (Ember:";
 const GRID_KINDS = [
-  { key: "ember", label: "generation average, life-cycle (Ember)", reading: "the long-run reading: an average, location-based rate", pre: "generation average, life-cycle (Ember:" },
+  { key: "ember2024", label: "Ember, 2024 (life-cycle average)", reading: "the long-run reading: an average, location-based rate, every country in one year", pre: GRID_EMBER, year: 2024 },
+  { key: "ember2019", label: "Ember, 2019 (every country, older)", reading: "the same kind for 2019, the most recent year the table holds for every country (it keeps 2014, 2019 and each place's latest year)", pre: GRID_EMBER, year: 2019 },
+  { key: "ember2025", label: "Ember, 2025 (fewer countries; may be estimates)", reading: "the same kind for 2025: fewer countries, and the file does not mark which 2025 figures are estimates", pre: GRID_EMBER, year: 2025 },
   { key: "lcp", label: "consumption-mix average (third party)", reading: "the long-run reading: an average rate of the consumption mix", pre: "consumption mix average (domestic generation plus net imports)" },
   { key: "nbl", label: "non-baseload (US eGRID)", reading: "the short-run reading: a non-baseload rate, EPA's proxy for a marginal rate", pre: "NON-BASELOAD output emission rate" },
   { key: "om", label: "operating margin (India CEA)", reading: "the short-run reading: a simple operating margin, a marginal proxy", pre: "simple OPERATING MARGIN" },
 ];
 const GRID = { kind: 0, sel: null, key: "" };
 const GRID_TRUST = { A: 3, B: 2, C: 1 };
-// the rows the map shows for the chosen kind: per country its latest year; within that year the higher-trust row, the others named
+const GRID_SCALE = 900; // g per kWh at the top of the bar: the 2024 map's 90th percentile is 681, its 10th 117; above 900 is "900+", drawn at the top
+// the rows the map shows for the chosen kind: for Ember the chosen year, otherwise each country's latest year (never a row
+// labelled 2026 when the place has an earlier one); rows superseded by a version-3 row are skipped; within a year the row read
+// from the publisher's dataset, then the higher-trust row, is shown and the others named (never averaged)
 function gridSel(){
   const t = HOLT.t.grid0; if (!t) return null; const K = GRID_KINDS[GRID.kind]; if (GRID.sel && GRID.key === K.key) return GRID.sel;
   const by = new Map();
-  for (const r of t.data.rows){ if (r.place_kind !== "country" || !r.kind.startsWith(K.pre)) continue; const b = by.get(r.iso) || []; b.push(r); by.set(r.iso, b); }
+  for (const r of t.data.rows){ if (r.place_kind !== "country" || r.iso === undefined || !r.kind.startsWith(K.pre) || r.superseded_by) continue; if (K.year && r.year !== K.year) continue;
+    const b = by.get(r.iso) || []; b.push(r); by.set(r.iso, b); }
+  const rank = (r) => (r.read === "dataset" ? 10 : 0) + GRID_TRUST[r.trust];
   const rows = [];
-  for (const [iso, b] of by){ const yr = Math.max(...b.map((r) => r.year)), same = b.filter((r) => r.year === yr).sort((x, y) => GRID_TRUST[y.trust] - GRID_TRUST[x.trust]);
+  for (const [iso, b] of by){ const early = b.filter((r) => r.year <= 2025), pool = early.length ? early : b, yr = Math.max(...pool.map((r) => r.year)), same = pool.filter((r) => r.year === yr).sort((x, y) => rank(y) - rank(x));
     rows.push({ iso, row: same[0], others: same.slice(1) }); }
   rows.sort((a, b) => b.row.value - a.row.value);
   const years = [...new Set(rows.map((r) => r.row.year))].sort(), units = [...new Set(rows.map((r) => r.row.unit))];
   // the US subregion span behind the country value (eGRID 2023, the mainland: Alaska, Hawaii and Puerto Rico apart)
   const sub = (pre) => { const v = t.data.rows.filter((r) => r.place_kind === "subregion" && r.parent === "United States" && r.year === 2023 && r.kind.startsWith(pre) && !/^(AK|HI|PR)/.test(r.place)).map((r) => r.value); return v.length ? [Math.min(...v), Math.max(...v)] : null; };
-  GRID.sel = { rows, years, units, kind: rows.length ? rows[0].row.kind : K.pre, us: { avg: sub("generation average (eGRID"), nbl: sub("NON-BASELOAD") } }; GRID.key = K.key;
+  GRID.sel = { rows, years, units, kind: rows.length ? rows[0].row.kind : K.pre, ember: K.pre === GRID_EMBER, us: { avg: sub("generation average (eGRID"), nbl: sub("NON-BASELOAD") } }; GRID.key = K.key;
   if (typeof incellPowerReset === "function") incellPowerReset();
   return GRID.sel;
 }
+// the credit GRID-0 v3's Ember rows carry (CC BY): shown with the Power layer whenever an Ember kind is drawn, worded from the
+// sidecar's attribution block; the licence's version is in the link
+const GRID_CREDIT = `<span class="dm-credit">data: <a href="https://ember-energy.org/data/yearly-electricity-data/" target="_blank" rel="noopener">Ember, Yearly electricity data</a>, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY licence</a>; a selection of years and areas, two names reconciled, values not altered; no endorsement by Ember is implied</span>`;
 function gridName(iso){ const t = HOLT.t.grid0, r = t && t.data.rows.find((x) => x.iso === iso); return r ? r.place : holCountryName(iso); }
 // HOUSEGEN-1's rows as people per household (kernel pop_household_means): German 2022 classes 1..5, US 2024 classes 1..5,
 // then the classes' lower bounds in people per km2; read once, for the Households map and its chip line
@@ -2836,8 +2850,9 @@ function dmLegend(){
     const yr = g.years.length ? (g.years.length === 1 ? String(g.years[0]) : g.years[0] + "–" + g.years[g.years.length - 1]) : "no row", unit = g.units.join(" / ") || "gCO2/kWh";
     const sel = `<select class="dm-kind" data-grid-kind aria-label="which kind of rate">${GRID_KINDS.map((k, i) => `<option value="${i}"${i === GRID.kind ? " selected" : ""}>${k.label}</option>`).join("")}</select>`;
     const list = g.rows.map((r) => `${r.row.place} ${r.row.value} (${r.row.year}, trust ${r.row.trust}${r.others.length ? "; also " + r.others.map((o) => o.value + " trust " + o.trust + ", " + o.source).join("; ") : ""})`).join(", ");
+    const small = g.rows.filter((r) => r.row.small_system).length, nim = (HOLT.t.grid0.data.not_in_mask || []).join(", ");
     return `<div class="dm-l1 dm-wrap"><b>Power</b> ${fig("holon-grid0", "how clean the electricity is: grid carbon intensity, " + unit + ", by country, " + yr)}</div>` +
-      `<div class="dm-l2 dm-wrap">${fig("holon-grid0", dmBar("dm-power", [[0, "0"], [0.25, "250"], [0.5, "500"], [0.75, "750"], [1, "1000"]]))} ${sel} ${more("Table: " + holVd("unresolved", "CIRISHolon GRID-0 v" + (HOLT.t.grid0 ? HOLT.t.grid0.version : "?") + ", every row an unresolved prior") + " · " + fig("holon-grid0", "kind shown: " + g.kind + " — " + K.reading + ". One kind per map; another kind is another map. Countries (" + g.rows.length + "): " + (list || "none") +
+      `<div class="dm-l2 dm-wrap">${fig("holon-grid0", dmBar("dm-power", [[0, "0"], [1 / 3, "300"], [2 / 3, "600"], [1, "900+"]]))} ${sel} <span class="vd dm-small">small system</span> ${g.ember ? GRID_CREDIT : ""} ${more((g.ember ? fig("holon-grid0", "Ember's rows: " + g.rows.length + " countries in " + yr + "; " + small + " are small systems (under 1 TWh a year, dotted); a figure above 900 is drawn at the top of the scale and named here as published, not checked against another source (" + (g.rows.filter((r) => r.row.value > GRID_SCALE).map((r) => r.row.place + " " + Math.round(r.row.value).toLocaleString()).join(", ") || "none this year") + "). Territories appear under the publisher's names; " + (nim || "none") + " have no shape of their own in the admin-0 mask (the French overseas departments are inside France's shape, so France's colour is drawn there), and are not drawn. A country's official direct rate and this life-cycle rate are both kept; neither is reliably the higher (South Africa 2024: 994 official direct against 717 here). ") + " " : "") + "Table: " + holVd("unresolved", "CIRISHolon GRID-0 v" + (HOLT.t.grid0 ? HOLT.t.grid0.version : "?") + ", every row an unresolved prior") + " · " + fig("holon-grid0", "kind shown: " + g.kind + " — " + K.reading + ". One kind per map; another kind is another map. Countries (" + g.rows.length + "): " + (list || "none") +
         ". Trust C rows (secondhand pages) are hatched; where two rows disagree for one place and year the higher-trust row is shown and the other named, never averaged. A country with no row of this kind is 'no reference' (hatched). Colour fills the Natural Earth admin-0 mask (de facto, simplified), not a claim about borders. A country value hides its grid regions: the US mainland eGRID 2023 subregions run " +
         (g.us.avg ? g.us.avg[0].toFixed(0) + " to " + g.us.avg[1].toFixed(0) : "?") + " gCO2/kWh on average and " + (g.us.nbl ? g.us.nbl[0].toFixed(0) + " to " + g.us.nbl[1].toFixed(0) : "?") + " non-baseload (subregion boundaries are not in the twin). An average rate times a change in load is an attribution, never 'emissions avoided'."))}</div>`; }
   if (id === 6){ const lg = (x) => (Math.log10(x) - 2.5) / 3.2 * 0.94 + 0.06, rate = typeof dataRate === "function" ? dataRate() : 0;
@@ -2883,7 +2898,7 @@ function dmValue(){
     return `data moving here now: about ${Math.round(d * r * h).toLocaleString()} messages an hour per km² (the model's estimate at ${Math.floor(dataHour(M.lon0))}:00 local)`; }
   if (id === 5){ const g = gridSel(), iso = HOLT.countries ? countryNear(HOLT.countries, M.lat0, M.lon0) : null; if (!g) return "grid here: loading…";
     const r = g.rows.find((x) => x.iso === iso);
-    return r ? `electricity here: ${r.row.place}, ${r.row.value} ${r.row.unit.replace("/kWh", " per kWh")} (${r.row.year})` : `electricity here: no figure for ${holCountryName(iso)} in this reading`; }
+    return r ? `electricity here: ${r.row.place}, ${Math.round(r.row.value)} ${r.row.unit.replace("/kWh", " per kWh")} (${r.row.year}${r.row.small_system ? ", a small system" : ""})` : `electricity here: no figure for ${holCountryName(iso)} in this reading`; }
   if (id === 2 && c === 840){ const d = typeof rhyData === "function" ? rhyData() : null, k = typeof rhyClock === "function" ? rhyClock() : null;
     if (d && k){ const s0 = Math.min(23, Math.floor(k.s)), row = d.counts[s0], home = row.slice(0, d.H).reduce((a, b) => a + b, 0), aw = d.awake[s0].reduce((a, b) => a + b, 0), out = row[d.H] + row[d.H + 1] + row[d.H + 2];
       // away: work or school, elsewhere (awake or asleep) and travelling; the asleep-elsewhere few are counted with the away, a bracket

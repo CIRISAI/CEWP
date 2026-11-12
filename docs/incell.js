@@ -198,15 +198,17 @@ const PWR = { tex: null, mesh: null, W: 2048, H: 1024 };
 const PWF = `precision mediump float;uniform sampler2D T;uniform sampler2D Rp;uniform float uA;varying vec2 vLL;varying float vz;
 void main(){if(vz<0.0)discard;vec4 a=texture2D(T,vec2((vLL.y+180.0)/360.0,(90.0-vLL.x)/180.0));float hatch=step(0.5,fract((gl_FragCoord.x+gl_FragCoord.y)/6.0));
 if(a.g<0.5){gl_FragColor=vec4(0.36,0.38,0.44,uA*0.55*hatch);return;}
-vec3 c=texture2D(Rp,vec2(a.r*0.992+0.004,0.4375)).rgb;gl_FragColor=a.b>0.5?vec4(c,uA*0.85*(0.30+0.70*hatch)):vec4(c,uA*0.88);}`;
+vec3 c=texture2D(Rp,vec2(a.r*0.992+0.004,0.4375)).rgb;float dots=step(0.6,fract(gl_FragCoord.x/4.0))*step(0.6,fract(gl_FragCoord.y/4.0));
+gl_FragColor=a.b>0.75?vec4(c,uA*0.85*(0.30+0.70*hatch)):a.b>0.25?vec4(mix(c,vec3(0.05),dots*0.7),uA*0.88):vec4(c,uA*0.88);}`;
 let pPwr = null;
 function incellPowerReset(){ if (PWR.tex){ gl.deleteTexture(PWR.tex); PWR.tex = null; } }
 function incellPowerTex(){
   if (PWR.tex) return PWR.tex; const g = typeof gridSel === "function" ? gridSel() : null; if (!g || typeof HOLT === "undefined" || !HOLT.countries) return null;
   const cv2 = document.createElement("canvas"); cv2.width = PWR.W; cv2.height = PWR.H; const c = cv2.getContext("2d"); c.imageSmoothingEnabled = false;
   const X = (lo) => (lo / 100 + 180) / 360 * PWR.W, Y = (la) => (90 - la / 100) / 180 * PWR.H;
-  for (const s of g.rows){ const v = Math.max(0, Math.min(255, Math.round(s.row.value / 1000 * 255)));
-    c.fillStyle = `rgb(${v},255,${s.row.trust === "C" ? 255 : 0})`; c.beginPath();
+  // r: the value over GRID_SCALE (900 g/kWh; above it, the top); b: 255 trust C (hatched), 128 a small system (dotted)
+  for (const s of g.rows){ const v = Math.max(0, Math.min(255, Math.round(s.row.value / GRID_SCALE * 255)));
+    c.fillStyle = `rgb(${v},255,${s.row.trust === "C" ? 255 : s.row.small_system ? 128 : 0})`; c.beginPath();
     for (const r of HOLT.countries.rings){ if (r.iso !== s.iso) continue; const P = r.P; c.moveTo(X(P[1]), Y(P[0])); for (let i = 1; i < P.length / 2; i++) c.lineTo(X(P[2 * i + 1]), Y(P[2 * i])); c.closePath(); }
     c.fill("evenodd"); }
   const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv2);

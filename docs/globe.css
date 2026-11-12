@@ -404,6 +404,8 @@ table.cap .nw{white-space:nowrap}
 #data-map::-webkit-scrollbar{display:none}
 #data-map .dm-b{flex:none;font:11px var(--mono);color:#cfd6e0;background:rgba(10,14,22,.6);border:1px solid rgba(108,182,255,.28);border-radius:14px;padding:3px 9px;cursor:pointer}
 #data-map .dm-b.dm-adv{border-style:dashed;color:#9aa4b4}
+.dm-small{padding:0 5px;border-radius:8px;border:1px solid rgba(160,160,170,.6);background:radial-gradient(circle,rgba(10,10,12,.85) 1px,transparent 1.4px) 0 0/4px 4px}
+.dm-credit{display:inline-block;font-size:9.5px;color:#9aa4b4}.dm-credit a{color:#8ec5ff}
 .dm-gloss{color:#8e98a8;font-size:9.5px}
 #focal-detail .fd-checks{margin-top:4px}
 #data-map .dm-b.on{background:rgba(108,182,255,.22);border-color:#6cb6ff;color:#fff}

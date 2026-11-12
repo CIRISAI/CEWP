@@ -38,14 +38,14 @@
   },
   "grid0": {
    "asset": "docs/geo/holon/grid0.json",
-   "asset_bytes": 151090,
-   "asset_sha256": "7efdd5b6120356ebe95332abb50977ad8bfe32129ff145d66bb365f95806edce",
+   "asset_bytes": 578217,
+   "asset_sha256": "6b86b7f4108836d2ca0b771f0cdc2b7c2a01e7507b649566ab081c668995f3ea",
    "class": "MODEL",
    "dataset": "documents gathered by CIRISHolon's scout via CIRISHolon",
    "envelope": null,
-   "holon_commit": "2e3f077eb3167c7e51823b53d560103478dafdd6",
+   "holon_commit": "d71d610d514eeeffded3820ba9a9f17088975470",
    "ledger": "holon-grid0",
-   "notice": "values are facts quoted with their sources; each row carries the licence as read, and the report lists the licences that could not be read",
+   "notice": "rows read from documents are facts quoted with their sources, each with its licence as read. The 700 rows with read = dataset are an extract of Ember's database under CC BY 4.0 and are covered by the attribution block, not by 'facts quoted'",
    "reference": "GRID-0 (a table of priors)",
    "renormalised_vectors": 0,
    "serves_registry_rows": [
@@ -53,16 +53,16 @@
    ],
    "source_files": {
     "grid_table.json": {
-     "bytes": 266963,
+     "bytes": 1178832,
      "path": "conformance/scene/tables/grid0/grid_table.json",
-     "sha256": "e960afcd9382cfd7e2c7adf95d0dc5fec5d335d723a12206c0a14a65293a9d86"
+     "sha256": "818fb0ab99ee8b2aa6b10566fea4cf1bd35910525182c1dbc492e326151198c0"
     }
    },
    "verdict": {
     "all_rows": "unresolved",
     "reason": "priors gathered from documents; nothing scored. Web pages were read through a fetch tool's extraction, not raw; 52 US state rows were transcribed by eye and are rated B for it"
    },
-   "version": 2
+   "version": 3
   },
   "household0_de": {
    "asset": "docs/geo/holon/household0_de.json",
