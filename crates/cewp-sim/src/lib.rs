@@ -86,6 +86,10 @@ pub mod popchain;
 pub mod street_rhythm;
 pub mod regions_table;
 pub mod couplings;
+pub mod energy;
+pub mod energy_full;
+pub mod locality2;
+pub mod presence0;
 
 pub use transport::*;
 pub use alm::*;

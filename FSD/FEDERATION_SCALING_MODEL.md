@@ -60,8 +60,10 @@ cohort_scope ∈ {self, family}  ⇒  no holds_bytes emission
                                 ⇒  ZERO inter-host cost
 ```
 
-The 65% local-only fraction in the default cohort distribution
-disappears from every inter-host bandwidth, storage, and CPU column
+The 65% local-only fraction in the default cohort distribution (an
+assumed act mix, MODEL; how local real activity is, and how local it is
+by delivered byte and by who is awake, is measured in
+`FSD/twin/locality.md`, not asserted here) disappears from every inter-host bandwidth, storage, and CPU column
 because the wire format will not carry it. Privacy and scale share
 the same load-bearing primitive.
 
@@ -352,7 +354,23 @@ Iceland or Norway has near-zero CO2 cost; sub-Saharan Africa's home-
 server capability is real but small (12%), so substrate participation
 there is dominated by the phone-class client tier at first.
 
-### 3.6 Environmental footprint (v0.4)
+### 3.6 Environmental footprint (v0.4): the full-replacement comparison
+
+> **Status (2026-11-12): the full-replacement comparison; the ratio
+> below predates its recomputation.** The theory is that CEWP replaces
+> the internet entirely, so the **baseline** side of this table is the
+> right one: the data-centre estate that would no longer be needed. The
+> mismatch is on the **mesh** side: it counted whole devices (users ×
+> device shares × idle watts × an assumed marginal share,
+> `examples/scale_model.rs`) instead of what the mesh *adds* to devices
+> people run anyway, and it left out the work that relocates onto
+> members' devices and the networks that stay either way. The mesh side
+> is being recomputed as additions plus relocated work in
+> `FSD/twin/energy.md` (TEST 1, `crates/cewp-sim/src/energy_full.rs`).
+> Test 1 (full replacement, `cewp-cli energy-full`), in the CIRIS design's tiered mix (each model call placed over on-device, prosumer, appliance, edge-server and zero-retention hosted tiers; the harvesting, ranking and advertising AI vanishes): on CIRISHolon's ESTATE-0 inputs (416 TWh over 5.8 bn users, 72 kWh per user-year) in its central case, where businesses keep their servers where the market puts them and about 29 kWh per user-year of consumer work is in play, about 13 kWh per person-year saved at the defaults (10 agent interactions a day, most of them simple agents, placed by the market: light work on devices already awake, heavy work on shared batched servers, small jobs on small models; Proof of Benefit included at about 1 kWh), against about 14 if every call were hosted on right-sized models and a large cost if every call ran on members' devices (the same model at home is 18-46 times a batched data centre); it turns to a cost above about 33 agent interactions per person per day, a self-aware share above about 25%, or a stay share above about 0.82; read as a ban on large facilities (a labelled counterfactual: rented business work moved on premises at 1.4-4x), it becomes a cost of about 12 kWh, where the Constitution bans dependence, not scale or if the edge is more than about twice as wasteful as a data centre at the work that relocates; over the whole input box the sign is open (MODEL/FRONTIER).
+> The arithmetic below is kept; every row is MODEL. The adoption path
+> (one household joining while the platforms still run) is TEST 2, in the
+> same file.
 
 Two perspectives in parallel:
 
@@ -366,13 +384,13 @@ Two perspectives in parallel:
 
 At the `full_internet_v1` scenario (5 B users):
 
-| Posture | Power | Electricity | CO2 | vs Internet |
+| Posture | Power (MODEL, mesh side as whole devices) | Electricity | CO2 | ratio (predates the recomputed mesh side) |
 |---|---|---|---|---|
 | Internet substrate (today) | 50 GW | 438 TWh/yr | 175 Mt/yr | baseline |
-| CEWP PhoneFirst | 5.3 GW | 47 TWh/yr | 18.6 Mt/yr | **9.4× less** |
-| CEWP Realistic 2026 | 10.3 GW | 90 TWh/yr | 36.2 Mt/yr | **4.8× less** |
-| CEWP Homelab | 16.9 GW | 148 TWh/yr | 59.3 Mt/yr | 3.0× less |
-| CEWP Regional Realism (Realistic 2026, per-region grid CO2) | 14.3 GW | 125 TWh/yr | 61.4 Mt/yr | 3.5× less power, 2.9× less CO2 |
+| CEWP PhoneFirst | 5.3 GW | 47 TWh/yr | 18.6 Mt/yr | 9.4 (gross) |
+| CEWP Realistic 2026 | 10.3 GW | 90 TWh/yr | 36.2 Mt/yr | 4.8 (gross) |
+| CEWP Homelab | 16.9 GW | 148 TWh/yr | 59.3 Mt/yr | 3.0 (gross) |
+| CEWP Regional Realism (Realistic 2026, per-region grid CO2) | 14.3 GW | 125 TWh/yr | 61.4 Mt/yr | 3.5 power, 2.9 CO2 (gross) |
 
 The marginal vs new-buildout split shows where the joules actually
 come from: at Realistic 2026, ~47% is marginal (rides phones /
