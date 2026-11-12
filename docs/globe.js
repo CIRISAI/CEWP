@@ -2511,6 +2511,9 @@ function updateFocalChip(F){
   chip._t = performance.now();
   const m = M.meta, hh = m[1], hm = pad2(Math.floor(hh)) + ":" + pad2(Math.floor((hh % 1) * 60));
   const kinds = [27, 28, 29, 30, 31, 32].map(k => m[k]);
+  // the leaf as a holon (micro_population): people, households and device population; the nodes drawn are a display sample of it
+  if (!M.popn && wasm.micro_population){ wasm.micro_population(); const o = new Float64Array(wasm.memory.buffer, wasm.holon_buf_ptr(0) >>> 0, 4); M.popn = { hh: o[0], persons: o[1], dev: o[2], nodes: o[3] }; }
+  const P = M.popn || { hh: 0, persons: 0, dev: 0, nodes: 0 };
   // the top of the apartment class is laid out as dense fabric (tiling.rs DENSE_FABRIC_KM2, MODEL): name it, with its mean storeys
   let dclass = MDCLASS[m[2] | 0];
   if ((m[2] | 0) === 0 && m[4] >= 12000 && M.bld && M.bld.length){ let fl = 0, nb = 0; for (let b = 0; b < M.bld.length; b += 8) if (M.bld[b + 6] > 0){ fl += M.bld[b + 5]; nb++; } dclass = "dense fabric · " + fig("dense-fabric", (nb ? Math.round(fl / nb) : "?") + " storeys on average; the density is a 1/8° cell average, and wards inside it are denser"); }
@@ -2521,6 +2524,7 @@ function updateFocalChip(F){
   chip.innerHTML = `<b>R5 focal 1:1</b> · ${dclass} · ` +
     `${fig("micro-generated", Math.round(m[4]).toLocaleString() + " people/km² · " + Math.round(2 * m[3]) + " m patch · " + kinds[0] + " phones, " + kinds[1] + " home nodes, " + kinds[2] + " laptops, " + kinds[3] + " hosted servers, " + kinds[4] + " seats" + (kinds[5] ? ", " + kinds[5] + " CI" : ""))} · ` +
     `local ${hm} · sim ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · ${scale} scale` +
+    `<div class="chip-sub">${fig("micro-population", "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000")}</div>` +
     `<div class="chip-sub">rows: ${fig("micro-activity", m[10] + " sent · " + m[11] + " direct (" + m[12] + " shaped) · " + m[13] + " relayed · " + m[15] + " held at a mailbox · " + m[16] + " handed over · punches " + m[20] + "/" + m[19] + " up")} · tap a device</div>` +
     `<div class="chip-sub">model's reading: replication rounds ${fig("micro-activity", (m[37] | 0) + " served · " + (m[38] | 0) + " cadences where an unclaimed device announced with no seat as peer")} · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +
     (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? '<span class="inp">design case: 3, k=2</span>' : '<span class="inp">production: 1</span>'}</button>`) + `</div>`;

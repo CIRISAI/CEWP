@@ -225,27 +225,41 @@ samples × (40 + a populated-place kernel), so every land holon got a share of i
 however empty it was. A place fallback added a city's Natural Earth population where the old grid had
 no cell near it.
 
-Now (docs/geo/popcond.js, docs/tiling.js tlRoot / tlExt, all MODEL rules over GHS-POP 2020):
-* A holon's households are the GHS-POP people inside its rectangle (each 1/8° cell's people times the
-  overlapped share, uniform within a cell) divided by 2.5 persons a household. Child weights are the
-  same people (× 16, an integer) and the split is `holon_split_exact` (kernel-wasm; `tiling::apportion`
-  with no `child_noise`), so a tile holds its own people, within the largest-remainder rounding.
-* A 1/8° cell under 1 person per km² of cell area counts zero (`POPCOND.FLOOR_KM2`, MODEL). Empty land
-  (forest, bare ground, snow and ice, wetland, water: wherever GHS-POP reads under the floor) gets no
-  households, so no streets and no devices; the focal chip says "No one lives here in the model" with
-  the people GHS-POP reads in that 1/8° cell, its land-cover class and the floor.
-* Density class follows the tile's people per km² through micro.rs's existing thresholds (MODEL):
-  apartment blocks from 6,000, terraced from 1,500, suburban from 250, village below. There is no
-  separate "scattered farms" class; the village layout covers it.
-* The place fallback is gone, and no street is generated before GHS-POP at 1/8° (about 0.8 MB, fetched
-  1.5 s after load) and the tiling are in.
-* Inside a 1/8° cell people are spread evenly by area: real data stops at that cell.
+Now (crates/cewp-sim/src/popchain.rs, called by the page through kernel-wasm `pop_load`, `pop_root`,
+`pop_split`, `pop_of` from docs/tiling.js tlRoot / tlSplit; MODEL rules over GHS-POP):
+* One total, two cuts. The cohort tier keeps the 4,559 cells of 1.5° holding at least 20,000 people
+  (7,830,639,988 people). The street tier takes every 1/8° cell at or above 1 person per km² of cell
+  area (`popchain::FLOOR_KM2`, MODEL): 355,434 cells holding 7,834,012,940 people, each rounded to
+  whole people, then apportions the cohort total over them, so both tiers hold 7,830,639,988 people
+  and nobody is dropped or counted twice. Under the floor (forest, bare ground, snow and ice,
+  wetland, water) a cell holds nobody: no streets, no devices; the focal chip says "No one lives
+  here in the model" with the people GHS-POP reads there, its land-cover class and the floor.
+* People are apportioned at every split (largest remainder, ties to the lower index, zero weight
+  gets zero: the rule of CIRISHolon's `apportion.rs`), with the children's overlap of each 1/8° cell
+  as weights. Households are round(people / 2.5) for the world, apportioned over the L0 holons by
+  their people and at every split by the children's people, so both sum exactly at every level.
+* At the leaf, every dwelling draws a size round(2.5 + 1.1 N) clamped 1..6 on its own stream; the
+  leaf's people are then apportioned over the dwellings with those sizes as weights
+  (`popchain::persons_per_household`), so the leaf's persons are exactly its people. Devices per
+  person are drawn (MODEL); the leaf's total, adopting or not, is its **device population**
+  (`MicroWorld::device_population`, per household in `household_devices`).
+* **The 1,000-node cap is a display sample.** The focal world draws at most `R5_MAX_NODES` = 1,000
+  nodes (adopting households' devices in building order, plus the seat, hosted servers and 6 CI
+  slots); it never changes the people, households or device population the holon reports, which the
+  chip states beside the sample.
+* Density class follows the tile's people per km² through `micro.rs` thresholds (docs/geo/classes.json).
+* Inside a 1/8° cell people are spread evenly by area: real data stops at that cell (in-cell
+  land-cover weighting needs a fractional built-up layer; the shipped LC100 asset has one class per
+  cell).
 
 Check (`node --test docs/geo/popcond.test.js`, the first instance of CIRISHolon#3's conditional
-consistency): from the 1.5° root down to the street tile, every holon's households are within
-level + 1 of its rectangle's people / 2.5 (one household of rounding per apportionment step), at
-Zurich, Cairo, Lagos, a Maryland suburb, a rural village in the Cher and five empty places; the
-empty places' street tiles hold none.
+consistency): at 27 places (the ten probe places and 17 dense ones), every split from the 1.5° root
+to the street tile sums exactly in people and households; each holon's people are its GHS overlap
+scaled to the cohort total within the stated rounding bound (cross-checked against popcond.js in
+JavaScript); at the leaf, persons sum to people and household devices to the device population; the
+empty places hold nobody. The test writes CIRISHolon's sums format (one line per holon and kind,
+seed 0: the twin's tree takes no seed) to /tmp/cewp-popchain-sums.jsonl, which
+`cargo run -p holon-scene --example check_sums` accepts; a sample is docs/geo/sums.sample.jsonl.
 
 Probe (headless, both widths, street and block zoom; devices = the focal patch's devices including
 its off-patch seat and servers):

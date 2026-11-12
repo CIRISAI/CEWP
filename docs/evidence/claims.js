@@ -786,6 +786,24 @@ window.CEWP_LEDGER = {
       "failure": ["One fixed size; no measured trace-size distribution."]
     },
     {
+      "id": "micro-population",
+      "class": "MODEL",
+      "code": "MO",
+      "status": "stated",
+      "live": true,
+      "shows": "The street tile as a holon: its people (apportioned from the GHS total), its households, and its device population (every device drawn, adopting or not); the nodes on screen are a display sample of it, at most 1,000.",
+      "source": "crates/cewp-sim/src/micro.rs: MicroWorld::populate (device_population, household_devices; R5_MAX_NODES 1,000); crates/cewp-sim/src/popchain.rs (the leaf's people); kernel-wasm micro_population",
+      "commit": "f73b918",
+      "window": "",
+      "param": "persons_per_household 2.5 (drawn round(2.5 + 1.1 N), 1..6), phones_per_person 1, laptops_per_person 0.5, home_node_household_share 0.6, adoption 0.62, R5_MAX_NODES 1,000",
+      "dataset": "",
+      "blocker": "",
+      "reproduce": "node --test docs/geo/popcond.test.js",
+      "correction": "",
+      "interval": null,
+      "failure": ["People and households are exact to the GHS apportionment; persons per household and devices per person are MODEL draws with no reference."]
+    },
+    {
       "id": "micro-generated",
       "class": "MODEL",
       "code": "MO",
