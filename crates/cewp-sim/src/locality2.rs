@@ -68,10 +68,11 @@ loc2_params! {
         "the twin has no country layer: localities of one world region are chunked in index order into countries of this many";
     CloseFriendsPerPerson = "close_friends.per_person", 4.0, Frontier, "person.tie",
         "a small inner circle (of the order of the 3 to 5 of the support-clique literature, quoted from memory)";
-    CloseFriendsTile = "close_friends.tile_share", 0.30, Frontier, "person.tie", "share of close friends in the person's own tile";
-    CloseFriendsLocality = "close_friends.locality_share", 0.35, Frontier, "person.tie", "share in the locality outside the tile";
-    CloseFriendsCountry = "close_friends.country_share", 0.15, Frontier, "person.tie", "share in the country outside the locality";
-    CloseFriendsRegion = "close_friends.world_region_share", 0.10, Frontier, "person.tie", "share abroad in the same world region; the rest abroad elsewhere";
+    CloseFriendsTile = "close_friends.tile_share", 0.149, Model, "person.tie",
+        "CIRISHolon TIES-1 (US 2008, closest ties, non-kin): same house 0.036 + same block 0.052 + under 1 mile 0.0605; the one measured sub-district anchor, for close ties only; swept";
+    CloseFriendsLocality = "close_friends.locality_share", 0.678, Model, "person.tie", "TIES-1 non-kin 1 to 100 miles (0.167 + 0.4585 + 0.0524): inside the twin's locality (half-width ~300 km)";
+    CloseFriendsCountry = "close_friends.country_share", 0.0715, Model, "person.tie", "TIES-1 non-kin 100 to 500 miles";
+    CloseFriendsRegion = "close_friends.world_region_share", 0.0741, Model, "person.tie", "TIES-1 non-kin 500 to 3,000 miles; the rest (0.028, 3,000 miles or more) abroad elsewhere";
     CloseFriendsActsPerDay = "close_friends.acts_per_person_day", 15.0, Frontier, "activity.message.direct.weekly", "acts a person sends the close-friends group a day";
     OwnDevicesPerPerson = "own_devices.other_devices_per_person", 1.25, Model, "household.devices",
         "11.25 B devices over 5 B people (FSD) less the phone: the person's other devices (home node, laptop) sit in the household";
@@ -948,6 +949,71 @@ pub fn tie_bands(w: &SocialWorld, geo: &Geography, k: f64, seed: u64) -> [f64; 5
 }
 
 // ---------------------------------------------------------------------------
+// Closest ties by kind: CIRISHolon TIES-1 (United States, 2008)
+// ---------------------------------------------------------------------------
+
+/// Where TIES-1 was read.
+pub const TIES1_PIN: &str = "CIRISHolon 1ba48eac69aae8126d1200f1b0b4371fa341db3e conformance/scene/tables/ties1_us/ties_by_kind_table.json v1 sha256 64aeb4ceefffa317a7833cca3bb21caab8d8b91974ca3bc83f6f86479267b376 (2,512 respondents, 7,059 closest ties)";
+/// TIES-1 distance bands.
+pub const TIES1_BANDS: [&str; 9] = ["same house", "same block", "under 1 mile", "1-5 miles", "5-50 miles", "50-100 miles", "100-500 miles", "500-3,000 miles", "3,000+ miles"];
+/// All closest ties by band.
+pub const TIES1_ALL: [f64; 9] = [0.2367, 0.0330, 0.0396, 0.1233, 0.3166, 0.0483, 0.0890, 0.0867, 0.0266];
+/// By relation (partner, child, parent, sibling, other family, non-kin): (share of ties, bands).
+pub const TIES1_RELATIONS: [(&str, f64, [f64; 9]); 6] = [
+    ("partner", 0.1517, [0.8215, 0.0039, 0.0103, 0.0240, 0.0792, 0.0069, 0.0166, 0.0207, 0.0169]),
+    ("child", 0.1864, [0.2878, 0.0217, 0.0359, 0.1081, 0.2709, 0.0463, 0.1154, 0.0906, 0.0235]),
+    ("parent", 0.1081, [0.1932, 0.0504, 0.0419, 0.1060, 0.2614, 0.0512, 0.1173, 0.1380, 0.0407]),
+    ("sibling", 0.1088, [0.0716, 0.0352, 0.0297, 0.1413, 0.3086, 0.0836, 0.1403, 0.1625, 0.0272]),
+    ("other family", 0.1240, [0.1480, 0.0196, 0.0339, 0.1533, 0.3638, 0.0579, 0.1136, 0.0831, 0.0268]),
+    ("non-kin", 0.3211, [0.0356, 0.0520, 0.0605, 0.1673, 0.4585, 0.0524, 0.0715, 0.0741, 0.0281]),
+];
+/// Overlapping flags among closest ties (floors for the twin's kinds): co-worker, neighbour,
+/// group member.
+pub const TIES1_FLAGS: [(&str, [f64; 9]); 3] = [
+    ("co-worker", [0.0903, 0.0078, 0.0370, 0.1524, 0.5614, 0.0541, 0.0610, 0.0224, 0.0137]),
+    ("neighbour", [0.0278, 0.5506, 0.2090, 0.0669, 0.0859, 0.0061, 0.0124, 0.0379, 0.0034]),
+    ("group member", [0.2339, 0.0311, 0.0555, 0.1792, 0.3696, 0.0188, 0.0461, 0.0551, 0.0107]),
+];
+/// The household's share of electronic contact with closest ties: floor as named, central
+/// (correcting for unnamed co-residents), ceiling (top answer 30 a day). A bracket, not a point.
+pub const TIES1_HOUSEHOLD_ELECTRONIC: (f64, f64, f64) = (0.29, 0.52, 0.61);
+/// Of closest ties outside the house and within 50 miles, the share on the block or under a
+/// mile (se 0.0074); an evenly spread distance law gives 0.02.
+pub const TIES1_SUBDISTRICT_ANCHOR: f64 = 0.142;
+
+/// TIES-1's reference for a twin kind: `(label, bands)`; `None` where the survey has none.
+/// Household = same house; Kin = family elsewhere (child, parent, sibling, other family
+/// outside the house, tie-weighted); CloseFriends = non-kin; Work, Neighbourhood and Interest
+/// get floors (their closest members: co-worker, neighbour, group member flags).
+#[must_use]
+pub fn ties1_reference(k: GroupKind) -> Option<(&'static str, [f64; 9])> {
+    match k {
+        GroupKind::Household => Some(("same house by definition", [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])),
+        GroupKind::Kin => {
+            let mut b = [0.0; 9];
+            for (_, w, v) in &TIES1_RELATIONS[1..5] {
+                for i in 1..9 {
+                    b[i] += w * v[i];
+                }
+            }
+            Some(("family elsewhere (outside the house)", norm(b)))
+        }
+        GroupKind::CloseFriends => Some(("non-kin closest ties", TIES1_RELATIONS[5].2)),
+        GroupKind::Work => Some(("floor: co-worker closest ties", TIES1_FLAGS[0].1)),
+        GroupKind::Neighbourhood => Some(("floor: neighbour closest ties", TIES1_FLAGS[1].1)),
+        GroupKind::Interest => Some(("floor: group-member closest ties", TIES1_FLAGS[2].1)),
+        _ => None,
+    }
+}
+
+/// Cumulative share of a TIES-1 band vector within 100 miles (bands 0..=5) and within 500
+/// miles (0..=6): the twin's locality half-width (~300 km, 190 miles) lies between them.
+#[must_use]
+pub fn ties1_within(v: &[f64; 9]) -> (f64, f64) {
+    (v[..6].iter().sum(), v[..7].iter().sum())
+}
+
+// ---------------------------------------------------------------------------
 // The sweep over room placement
 // ---------------------------------------------------------------------------
 
@@ -1044,12 +1110,13 @@ pub fn sweep(geo: &Geography, persons: usize, horizon_s: f64, seed: u64) -> Vec<
             push(format!("{name} = {x} (sub-kilometre, FRONTIER)"), run(&base, Placement::Placed, &l3));
         }
     }
-    // TIES-0 gives no licence below a district: the close friends' within-1-km share swept over
-    // the whole bracket (own-district share held at tile + locality = 0.65)
-    for x in [0.35 * TIES0_WITHIN_1KM_BRACKET.0, 0.35 * TIES0_WITHIN_1KM_BRACKET.1] {
+    // close friends: TIES-1's anchor is the default; the share within the tile is swept over
+    // TIES-0's no-licence bracket (tile + locality held at the default's sum)
+    let own = lp.get(L::CloseFriendsTile) + lp.get(L::CloseFriendsLocality);
+    for x in [own * TIES0_WITHIN_1KM_BRACKET.0, own * TIES0_WITHIN_1KM_BRACKET.1] {
         let mut l4 = lp.clone();
         l4.set(L::CloseFriendsTile, x);
-        l4.set(L::CloseFriendsLocality, 0.65 - x);
+        l4.set(L::CloseFriendsLocality, own - x);
         push(format!("close_friends.tile_share = {x:.4} (TIES-0 below-district bracket, FRONTIER)"), run(&base, Placement::Placed, &l4));
     }
     push("placeless null model (every non-household room ignores place)".to_string(), run(&base, Placement::Placeless, &lp));
@@ -1126,6 +1193,30 @@ pub fn report(geo: &Geography, geo_name: &str, persons: usize, days: f64, seed: 
     row(&mut s, "twin, ties weighted flat (k = 0)", &tie_bands(&w, geo, 0.0, seed));
     row(&mut s, "twin, strong ties talk more (k = 1, MODEL)", &tie_bands(&w, geo, 1.0, seed));
     s.push_str(&format!("\nBelow a district TIES-0 gives no licence: the share of own-district links within 1 km lies anywhere in [{:.1}%, {:.1}%] for the median district (a bracket, not a measurement). The household, building, tile and close-friends placements stay FRONTIER and are swept below; a distance law carried down one scale failed at Holon (2.8% of the population within 0.05, against 53.5% for a density-fifth mean), so no kernel is used.\n", 100.0 * TIES0_WITHIN_1KM_BRACKET.0, 100.0 * TIES0_WITHIN_1KM_BRACKET.1));
+    s.push_str(&format!("\n## Audience locality three ways, side by side\n\n1. **Legacy inputs (by construction, MODEL)**: the page draws families 100% in the signer's locality and community rooms 90/9/1; act mix 65/30/4/1. Nothing measured.\n2. **Weak-tie outer envelope at district grain (TIES-0, Germany, one platform's links)**: 74.9% within 300 km; no licence below a district.\n3. **Closest ties by kind (TIES-1, United States 2008, adults, up to ten closest ties; {TIES1_PIN})**: shares within 100 miles and within 500 miles (the twin's locality half-width, ~300 km, lies between). Work, Neighbourhood and Interest get floors only (their closest members); School, Public, Own devices and Own agents have no reference and stay FRONTIER. Close-tie distance is not keyed on density (TIES-1 shows no rise with it).\n\nThe twin's own column is (a) above: the share of each kind's deliveries inside the locality, and, for kin and close friends, the same outside the household.\n\n| kind | legacy (page, by construction) | TIES-1 reference | TIES-1 within 100 mi / 500 mi | twin (a) within locality | twin (a) within locality, outside the household | verdict |\n|---|---|---|---|---|---|---|\n"));
+    for k in &l.kinds {
+        let legacy = match k.kind {
+            GroupKind::Household | GroupKind::Kin => "100% (family)",
+            GroupKind::Work | GroupKind::School | GroupKind::Neighbourhood | GroupKind::Interest | GroupKind::CloseFriends => "90% (community)",
+            GroupKind::Public => "1% public rooms are world rooms",
+            _ => "not on the page",
+        };
+        let within = k.delivery_band[..=LOCALITY_BAND].iter().sum::<f64>();
+        let outside_hh = if k.delivery_band[0] < 1.0 { (within - k.delivery_band[0]) / (1.0 - k.delivery_band[0]) } else { f64::NAN };
+        let (lab, w100, w500, verdict) = match ties1_reference(k.kind) {
+            Some((lab, v)) => {
+                let (a, b) = ties1_within(&v);
+                (lab, pct(a), pct(b), if lab.starts_with("floor") { "MODEL floor (US 2008 close members only)" } else { "MODEL reference (US 2008, closest ties)" })
+            }
+            None => ("none", "-".to_string(), "-".to_string(), "FRONTIER: no reference"),
+        };
+        s.push_str(&format!("| {} | {legacy} | {lab} | {w100} / {w500} | {} | {} | {verdict} |\n", k.kind.as_str(), pct(within), if outside_hh.is_nan() { "-".to_string() } else { pct(outside_hh) }));
+    }
+    let close = [GroupKind::Household, GroupKind::Kin, GroupKind::CloseFriends];
+    let d: f64 = close.iter().map(|&g| l.kinds[g as usize].deliveries).sum();
+    let hh = l.kinds[GroupKind::Household as usize].deliveries;
+    let (f, c, h) = TIES1_HOUSEHOLD_ELECTRONIC;
+    s.push_str(&format!("\n**Audience locality at household grain is a bracket, not a point.** TIES-1: the household carries at least {:.0}% of electronic contact with closest ties, {:.0}% correcting for unnamed co-residents, up to {:.0}% (a 2008 price; written contact follows ties band for band within 0.03, so ties stand in for written messages with no extra weight on near ties; voice leans to the house at 0.325, in person 0.437). The twin's household share of its close-tie kinds' deliveries (household, kin, close friends) is {} ({}).\n\nSub-district: of closest ties outside the house and within 50 miles, {:.1}% are on the block or under a mile (an evenly spread distance law gives 2%); the close-friends tile share takes TIES-1's non-kin value ({:.1}%) as its central value, swept below. Weak ties below a district still have no licence.\n", 100.0 * f, 100.0 * c, 100.0 * h, pct(hh / d.max(1e-12)), if hh / d > h { "above the bracket" } else if hh / d < f { "below the bracket" } else { "inside the bracket" }, 100.0 * TIES1_SUBDISTRICT_ANCHOR, 100.0 * Loc2Params::default().get(L::CloseFriendsTile)));
     if with_sweep {
         s.push_str("\n## Sweep: the headline as a function of the room-placement inputs\n\nAct and delivery locality at the locality band (the page's definition) over social.rs's seven kinds, then over all ten, and the share of delivered bytes that leave the metro. Inputs one at a time from the defaults, then jointly, then the placeless null.\n");
         let rows = sweep(geo, persons, horizon, seed);
@@ -1137,7 +1228,7 @@ pub fn report(geo: &Geography, geo_name: &str, persons: usize, days: f64, seed: 
         let verdict = if hi - lo > 0.05 {
             "it swings by more than 5 points: **the model cannot state a sub-district locality yet**"
         } else if !bands_moved {
-            "the building and tile inputs do not move it at all: at this world size a grid cell holds fewer households than one building or tile chunk, so those bands are not resolved and what lies 'within the tile' is the household and same-cell placement. **The model cannot state a sub-district locality yet**; it needs a world placed at street grain (the micro tier) and a sub-district tie reference, which TIES-0 says does not exist"
+            "the building and tile inputs do not move it at all: at this world size a grid cell holds fewer households than one building or tile chunk, so those bands are not resolved and what lies 'within the tile' is the household and same-cell placement. **The model cannot state a sub-district locality yet**; it needs a world placed at street grain (the micro tier); for close ties TIES-1 now gives one anchor (14.2% of close ties outside the house within 50 miles are on the block or under a mile), for weak ties below a district there is still no reference"
         } else {
             "it moves by under 5 points at this world's placement"
         };
@@ -1281,6 +1372,21 @@ mod tests {
         assert_eq!(l.audience.class, Class::Frontier, "an uncertified tie table says so");
         assert!(l.audience.note.contains("uncertified"));
         assert!(!l.presence.reads.is_empty() && l.presence.reads.contains(&"presence.people"));
+    }
+
+    #[test]
+    fn ties1_tables_are_shares() {
+        assert!((TIES1_ALL.iter().sum::<f64>() - 1.0).abs() < 2e-3);
+        for (_, _, v) in &TIES1_RELATIONS {
+            assert!((v.iter().sum::<f64>() - 1.0).abs() < 2e-3);
+        }
+        let (k100, k500) = ties1_within(&ties1_reference(GroupKind::Kin).unwrap().1);
+        // TIES-1 T4: kin ties elsewhere 0.68 within 100 miles, 0.82 within 500
+        assert!((k100 - 0.68).abs() < 0.03 && (k500 - 0.82).abs() < 0.03, "{k100} {k500}");
+        let lp = Loc2Params::default();
+        let cf: f64 = [L::CloseFriendsTile, L::CloseFriendsLocality, L::CloseFriendsCountry, L::CloseFriendsRegion].iter().map(|&x| lp.get(x)).sum();
+        assert!(cf <= 1.0 && cf > 0.95);
+        assert!(ties1_reference(GroupKind::School).is_none() && ties1_reference(GroupKind::OwnAgents).is_none());
     }
 
     #[test]
