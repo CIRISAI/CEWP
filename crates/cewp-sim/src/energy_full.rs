@@ -81,6 +81,10 @@ full_rows! {
         "(b) relocated non-AI work at the edge: storage and serving on devices already on cost only a marginal draw (below 1), compute on a phone or home node is less efficient per unit and has no PUE (above 1)";
     AiEdgeRatio = "edge.ai_efficiency_ratio", "x data-centre energy per unit of work", [1.0, 3.0, 10.0], Frontier, 2026,
         "AI the person still wants, run on their own devices: accelerators in a data centre are far more efficient per unit of inference";
+    AiWantedShare = "ai.wanted_inference_share", "share of the estate's AI energy", [0.2, 0.5, 0.8], Frontier, 2021,
+        "inference people actually ask for, against ranking, ads and training on harvested data: UPSTREAM-0 rows 18-25 (ML 10-15% of one operator's energy; 10:20:70 experimentation:training:inference for one fleet; the 0.5-5.5 kWh harvesting bracket); no published split";
+    InferenceDemand = "ai.inference_demand_multiple", "x today's inference per person", [1.0, 1.0, 5.0], Frontier, 2026,
+        "an agent-heavy mesh may call MORE inference per person than today's average user; the report shows 1x, 2x and 5x";
     PersonsPerHousehold = "household.persons", "persons", [2.5, 2.5, 2.5], Model, 2026,
         "the household pass's default (micro.rs); per person-year = household-hour figures x 8,766 / 2.5";
 }
@@ -113,6 +117,34 @@ impl Additions {
     }
 }
 
+/// How "entirely" treats AI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AiCase {
+    /// The CIRIS design (Eric: "a hybrid, we use openrouter with ZDR"): inference people ask for
+    /// stays in data centres at data-centre efficiency (neither removed nor relocated), scaled by
+    /// the demand multiple; the AI that exists to harvest, profile, rank and advertise, and
+    /// training on retained user data, vanishes (zero data retention removes that loop).
+    Hybrid,
+    /// Counterfactual: all AI relocates onto members' devices at the AI edge ratio.
+    AllOnDevices,
+    /// AI out of scope: the AI part of the estate is neither removed nor added.
+    NoAi,
+}
+
+impl AiCase {
+    /// All three, the design first.
+    pub const ALL: [Self; 3] = [Self::Hybrid, Self::AllOnDevices, Self::NoAi];
+    /// Name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Hybrid => "HYBRID (the design: hosted inference via a zero-retention router)",
+            Self::AllOnDevices => "all AI on devices (counterfactual)",
+            Self::NoAi => "no AI in scope",
+        }
+    }
+}
+
 /// Values of every row (plus the mesh additions and the new-box share of homes).
 #[derive(Debug, Clone, PartialEq)]
 pub struct FullParams {
@@ -123,15 +155,18 @@ pub struct FullParams {
     pub add_box: f64,
     /// Share of homes with a new always-on box (the host-choice lever, 0 to 1).
     pub new_box_share: f64,
-    /// Whether "entirely" includes AI.
-    pub ai_in: bool,
+    /// How AI is treated.
+    pub case: AiCase,
+    /// Hybrid only: share of the wanted inference served on members' devices (0 in the design;
+    /// small local models are plausible for some tasks).
+    pub on_device: f64,
 }
 
 impl FullParams {
     /// Defaults with the household pass's additions.
     #[must_use]
-    pub fn defaults(a: &Additions, ai_in: bool) -> Self {
-        Self { v: FULL_SPECS.iter().map(|s| s.mid).collect(), add_gateway: a.gateway[1], add_box: a.new_box[1], new_box_share: 0.0, ai_in }
+    pub fn defaults(a: &Additions, case: AiCase) -> Self {
+        Self { v: FULL_SPECS.iter().map(|s| s.mid).collect(), add_gateway: a.gateway[1], add_box: a.new_box[1], new_box_share: 0.0, case, on_device: 0.0 }
     }
     /// Value.
     #[must_use]
@@ -155,6 +190,8 @@ pub struct Full {
     pub vanished: f64,
     /// The relocated work's energy at the edge.
     pub relocated_at_edge: f64,
+    /// Hybrid: the wanted inference still served in data centres (at the demand multiple).
+    pub inference_kept: f64,
     /// What the mesh adds (A + B).
     pub additions: f64,
     /// `additions + relocated_at_edge - removed`: negative is a saving.
@@ -171,12 +208,27 @@ pub fn eval(p: &FullParams) -> Full {
     let relocated = consumer - vanished;
     let mut removed = consumer;
     let mut at_edge = relocated * p.get(F::EdgeRatio);
-    if p.ai_in {
-        removed += ai;
-        at_edge += ai * p.get(F::AiEdgeRatio);
+    let mut kept = 0.0;
+    let mut vanished = vanished;
+    match p.case {
+        AiCase::NoAi => {}
+        AiCase::AllOnDevices => {
+            removed += ai;
+            at_edge += ai * p.get(F::AiEdgeRatio);
+        }
+        AiCase::Hybrid => {
+            // all of today's AI leaves its current form: the harvesting part vanishes; the
+            // wanted inference comes back at the demand multiple, in data centres or (share
+            // `on_device`) on members' devices
+            removed += ai;
+            vanished += ai * (1.0 - p.get(F::AiWantedShare));
+            let wanted = ai * p.get(F::AiWantedShare) * p.get(F::InferenceDemand);
+            kept = wanted * (1.0 - p.on_device);
+            at_edge += wanted * p.on_device * p.get(F::AiEdgeRatio);
+        }
     }
     let additions = (1.0 - p.new_box_share) * p.add_gateway + p.new_box_share * p.add_box;
-    Full { estate_per_user: e, removed, vanished, relocated_at_edge: at_edge, additions, net: additions + at_edge - removed }
+    Full { estate_per_user: e, removed, vanished, relocated_at_edge: at_edge, inference_kept: kept, additions, net: additions + at_edge + kept - removed }
 }
 
 /// Extremes of `net` over every corner of the free rows' intervals and the additions'
@@ -184,14 +236,36 @@ pub fn eval(p: &FullParams) -> Full {
 /// multilinear in each input (InternetUsers enters as 1/x, monotone), so a corner holds each
 /// extreme.
 #[must_use]
-pub fn corners(a: &Additions, ai_in: bool, new_box_share: f64) -> (f64, f64, Vec<(&'static str, f64)>) {
-    let free: Vec<F> = F::ALL.iter().copied().filter(|&f| FULL_SPECS[f as usize].lo < FULL_SPECS[f as usize].hi && (ai_in || !matches!(f, F::AiEdgeRatio))).collect();
+pub fn corners(a: &Additions, case: AiCase, new_box_share: f64) -> (f64, f64, Vec<(&'static str, f64)>) {
+    corners_fixed(a, case, new_box_share, None)
+}
+
+/// [`corners`] with the inference demand fixed at `m` (it is excluded from the corners).
+#[must_use]
+pub fn corners_at(a: &Additions, case: AiCase, new_box_share: f64, m: f64) -> (f64, f64, Vec<(&'static str, f64)>) {
+    if case != AiCase::Hybrid {
+        return corners(a, case, new_box_share);
+    }
+    corners_fixed(a, case, new_box_share, Some(m))
+}
+
+fn corners_fixed(a: &Additions, case: AiCase, new_box_share: f64, m: Option<f64>) -> (f64, f64, Vec<(&'static str, f64)>) {
+    let used = |f: F| match f {
+        F::AiEdgeRatio => case == AiCase::AllOnDevices,
+        F::AiWantedShare => case == AiCase::Hybrid,
+        F::InferenceDemand => case == AiCase::Hybrid && m.is_none(),
+        _ => true,
+    };
+    let free: Vec<F> = F::ALL.iter().copied().filter(|&f| FULL_SPECS[f as usize].lo < FULL_SPECS[f as usize].hi && used(f)).collect();
     let n = free.len() + 2;
     let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
     let mut arg = Vec::new();
     for mask in 0u32..(1 << n) {
-        let mut p = FullParams::defaults(a, ai_in);
+        let mut p = FullParams::defaults(a, case);
         p.new_box_share = new_box_share;
+        if let Some(m) = m {
+            p.set(F::InferenceDemand, m);
+        }
         let mut set = Vec::new();
         for (i, &f) in free.iter().enumerate() {
             let s = &FULL_SPECS[f as usize];
@@ -199,12 +273,10 @@ pub fn corners(a: &Additions, ai_in: bool, new_box_share: f64) -> (f64, f64, Vec
             p.set(f, x);
             set.push((s.name, x));
         }
-        let ga = if mask >> free.len() & 1 == 1 { a.gateway[2] } else { a.gateway[0] };
-        let bx = if mask >> (free.len() + 1) & 1 == 1 { a.new_box[2] } else { a.new_box[0] };
-        p.add_gateway = ga;
-        p.add_box = bx;
-        set.push(("mesh additions, gateway mix (kWh/person-year)", ga));
-        set.push(("mesh additions, new-box mix (kWh/person-year)", bx));
+        p.add_gateway = if mask >> free.len() & 1 == 1 { a.gateway[2] } else { a.gateway[0] };
+        p.add_box = if mask >> (free.len() + 1) & 1 == 1 { a.new_box[2] } else { a.new_box[0] };
+        set.push(("mesh additions, gateway mix (kWh/person-year)", p.add_gateway));
+        set.push(("mesh additions, new-box mix (kWh/person-year)", p.add_box));
         let v = eval(&p).net;
         lo = lo.min(v);
         if v > hi {
@@ -217,12 +289,13 @@ pub fn corners(a: &Additions, ai_in: bool, new_box_share: f64) -> (f64, f64, Vec
 
 /// Value of one input (others at default) where the net is zero, if any in [0, 100 x hi].
 #[must_use]
-pub fn break_even(a: &Additions, ai_in: bool, which: &str) -> Option<f64> {
-    let base = FullParams::defaults(a, ai_in);
+pub fn break_even(a: &Additions, case: AiCase, which: &str) -> Option<f64> {
+    let base = FullParams::defaults(a, case);
     let f = |x: f64| {
         let mut p = base.clone();
         match which {
             "new_box_share" => p.new_box_share = x,
+            "on_device" => p.on_device = x,
             "additions" => {
                 p.add_gateway = x;
             }
@@ -234,7 +307,7 @@ pub fn break_even(a: &Additions, ai_in: bool, which: &str) -> Option<f64> {
         eval(&p).net
     };
     let hi = match which {
-        "new_box_share" => 1.0,
+        "new_box_share" | "on_device" => 1.0,
         "additions" => 1000.0,
         name => F::ALL.iter().map(|&r| &FULL_SPECS[r as usize]).find(|s| s.name == name).map_or(1.0, |s| s.hi * 100.0),
     };
@@ -268,33 +341,44 @@ pub fn report(seed: u64) -> String {
     }
     s.push_str(&format!("| mesh additions, gateway mix | kWh/person-year | {:.2} / {:.2} / {:.2} | FRONTIER | 2026 | the household pass (energy.rs), US 2020 mix, node on gateway, terms A + B, expected regime |\n", a.gateway[0], a.gateway[1], a.gateway[2]));
     s.push_str(&format!("| mesh additions, new-box mix | kWh/person-year | {:.2} / {:.2} / {:.2} | FRONTIER | 2026 | same, a new always-on box in every home that can take one |\n\n", a.new_box[0], a.new_box[1], a.new_box[2]));
-    s.push_str("## Result\n\n| AI | new-box share of homes | estate per user | removed (of which vanishes) | relocated at the edge | mesh additions | net (default) | net over every corner | sign |\n|---|---|---|---|---|---|---|---|---|\n");
-    for ai_in in [true, false] {
-        for nb in [0.0, 0.25, 1.0] {
-            let mut p = FullParams::defaults(&a, ai_in);
-            p.new_box_share = nb;
-            let r = eval(&p);
-            let (lo, hi, _) = corners(&a, ai_in, nb);
-            let sign = if hi < 0.0 { "SAVING over the whole input box" } else if lo > 0.0 { "COST over the whole input box" } else { "open: the box spans zero" };
-            s.push_str(&format!("| {} | {} | {:.1} | {:.1} ({:.1}) | {:.1} | {:.2} | {:.1} | [{:.1}, {:.1}] | {} |\n", if ai_in { "in" } else { "out" }, nb, r.estate_per_user, r.removed, r.vanished, r.relocated_at_edge, r.additions, r.net, lo, hi, sign));
+    s.push_str("## Result\n\n| AI case | inference demand | new-box share of homes | estate per user | removed (of which vanishes) | relocated at the edge | inference kept in data centres | mesh additions | net (default) | net over every corner | sign |\n|---|---|---|---|---|---|---|---|---|---|---|\n");
+    for case in AiCase::ALL {
+        let demands: &[f64] = if case == AiCase::Hybrid { &[1.0, 2.0, 5.0] } else { &[1.0] };
+        for &m in demands {
+            for nb in [0.0, 0.25, 1.0] {
+                let mut p = FullParams::defaults(&a, case);
+                p.new_box_share = nb;
+                p.set(F::InferenceDemand, m);
+                let r = eval(&p);
+                let (lo, hi, _) = corners_at(&a, case, nb, m);
+                let sign = if hi < 0.0 { "SAVING over the whole input box" } else if lo > 0.0 { "COST over the whole input box" } else { "open: the box spans zero" };
+                s.push_str(&format!("| {} | {}x | {} | {:.1} | {:.1} ({:.1}) | {:.1} | {:.1} | {:.2} | {:.1} | [{:.1}, {:.1}] | {} |\n", case.as_str(), m, nb, r.estate_per_user, r.removed, r.vanished, r.relocated_at_edge, r.inference_kept, r.additions, r.net, lo, hi, sign));
+            }
         }
     }
-    for ai_in in [true, false] {
-        let (_, hi, arg) = corners(&a, ai_in, 0.0);
-        s.push_str(&format!("\nThe worst corner (the highest net: farthest from a saving), AI {}, no new boxes: net {:.1} kWh per person-year at ", if ai_in { "in" } else { "out" }, hi));
+    s.push_str("\nUnder the hybrid the theory no longer turns on how efficient a device is at AI: the inference people want stays in data centres at data-centre efficiency (the AI edge ratio enters only through the on-device lever, 0 in the design).\n\nHybrid, the on-device lever (share of wanted inference served on members' devices, AI edge ratio 3, no new boxes):\n\n| on-device share | net (default) |\n|---|---|\n");
+    for d in [0.0, 0.1, 0.25, 0.5, 1.0] {
+        let mut p = FullParams::defaults(&a, AiCase::Hybrid);
+        p.on_device = d;
+        s.push_str(&format!("| {d} | {:.1} |\n", eval(&p).net));
+    }
+    for case in AiCase::ALL {
+        let (lo, hi, arg) = corners(&a, case, 0.0);
+        s.push_str(&format!("\n{}, no new boxes: best corner {:.1}; worst corner (nearest zero from the saving side when the default saves, else the farthest from a saving) {:.1} kWh per person-year at ", case.as_str(), lo, hi));
         s.push_str(&arg.iter().map(|(n, v)| format!("`{n}` = {v:.3}")).collect::<Vec<_>>().join(", "));
         s.push_str(".\n");
     }
-    s.push_str("\n## Break-even for this test (one input, others at default; no new boxes)\n\n| input | AI in | AI out |\n|---|---|---|\n");
-    let names: Vec<&str> = ["estate.vanish_share", "edge.efficiency_ratio", "edge.ai_efficiency_ratio", "estate.stays_share", "estate.ai_share", "estate.all_data_centres_twh_per_year", "new_box_share", "additions"].to_vec();
+    s.push_str("\n## Break-even for this test (one input, others at default; no new boxes)\n\n| input | HYBRID | all AI on devices | no AI |\n|---|---|---|---|\n");
+    let names: Vec<&str> = ["estate.vanish_share", "edge.efficiency_ratio", "estate.stays_share", "new_box_share", "ai.inference_demand_multiple", "ai.wanted_inference_share", "estate.ai_share", "on_device", "edge.ai_efficiency_ratio", "additions"].to_vec();
     for n in names {
-        let f = |ai| break_even(&a, ai, n).map_or("none in range".to_string(), |x| format!("{x:.3}"));
+        let f = |c| break_even(&a, c, n).map_or("none in range".to_string(), |x| format!("{x:.3}"));
         let label = match n {
             "new_box_share" => "share of homes with a new always-on box",
             "additions" => "mesh additions (kWh per person-year)",
+            "on_device" => "share of wanted inference served on devices",
             x => x,
         };
-        s.push_str(&format!("| `{label}` | {} | {} |\n", f(true), f(false)));
+        s.push_str(&format!("| `{label}` | {} | {} | {} |\n", f(AiCase::Hybrid), f(AiCase::AllOnDevices), f(AiCase::NoAi)));
     }
     s
 }
@@ -309,7 +393,7 @@ mod tests {
 
     #[test]
     fn holons_arithmetic_and_the_box() {
-        let p = FullParams::defaults(&adds(), true);
+        let p = FullParams::defaults(&adds(), AiCase::AllOnDevices);
         let r = eval(&p);
         // 415 TWh over 5.5 billion users: about 75 kWh per user-year (8.6 W)
         assert!((r.estate_per_user - 75.45).abs() < 0.1);
@@ -320,7 +404,7 @@ mod tests {
 
     #[test]
     fn corners_bracket_the_default_and_move_the_right_way() {
-        for ai in [true, false] {
+        for ai in AiCase::ALL {
             let a = adds();
             let (lo, hi, _) = corners(&a, ai, 0.0);
             let n = eval(&FullParams::defaults(&a, ai)).net;
@@ -335,17 +419,39 @@ mod tests {
             assert!(eval(&p).net < worse, "a more efficient edge saves more");
         }
         // AI in at a high edge ratio costs more than AI out
-        let mut p = FullParams::defaults(&adds(), true);
+        let mut p = FullParams::defaults(&adds(), AiCase::AllOnDevices);
         p.set(F::AiEdgeRatio, 10.0);
-        let q = FullParams::defaults(&adds(), false);
+        let q = FullParams::defaults(&adds(), AiCase::NoAi);
         assert!(eval(&p).net > eval(&q).net);
+    }
+
+    #[test]
+    fn the_hybrid_keeps_wanted_inference_in_data_centres() {
+        let a = adds();
+        let mut p = FullParams::defaults(&a, AiCase::Hybrid);
+        let r = eval(&p);
+        let ai = r.estate_per_user * p.get(F::AiShare);
+        assert!((r.inference_kept - ai * p.get(F::AiWantedShare)).abs() < 1e-9);
+        // the device AI ratio does not move the design (on-device share 0)
+        let n0 = r.net;
+        p.set(F::AiEdgeRatio, 10.0);
+        assert!((eval(&p).net - n0).abs() < 1e-12);
+        // more inference demand costs more
+        p.set(F::InferenceDemand, 5.0);
+        assert!(eval(&p).net > n0);
+        // ZDR: with all inference wanted and demand 1, the hybrid removes nothing of AI
+        let mut q = FullParams::defaults(&a, AiCase::Hybrid);
+        q.set(F::AiWantedShare, 1.0);
+        let nq = eval(&q).net;
+        let none = eval(&FullParams::defaults(&a, AiCase::NoAi)).net;
+        assert!((nq - none).abs() < 1e-9);
     }
 
     #[test]
     fn break_even_is_a_zero() {
         let a = adds();
-        if let Some(z) = break_even(&a, false, "edge.efficiency_ratio") {
-            let mut p = FullParams::defaults(&a, false);
+        if let Some(z) = break_even(&a, AiCase::NoAi, "edge.efficiency_ratio") {
+            let mut p = FullParams::defaults(&a, AiCase::NoAi);
             p.set(F::EdgeRatio, z);
             assert!(eval(&p).net.abs() < 1e-6);
         }

@@ -16,31 +16,54 @@ household joining cost or save while the platforms still run? Substitution runs 
 with a prior of 0.005 to 0.16. This is where the idle-cadence lever and "do not add a box"
 matter in the near term. Code: `energy.rs`; CLI: `cewp-cli energy`.
 
-### TEST 1 headline (verified from the model, kWh per person-year, no new boxes)
+### TEST 1 headline: the HYBRID (the design), kWh per person-year, no new boxes
 
-* **AI left in data centres** (out of "entirely"): removed 38.5 (of which 19.2 vanishes),
-  relocated at the edge 19.2, mesh additions 2.8 → **net −16.5, a saving at the defaults.**
-  Over every corner of the input box the net runs from −65.4 to +110.6, so the sign is open.
-* **AI moved onto members' devices**: removed 49.8, relocated at the edge 53.2, additions 2.8 →
-  **net +6.2, a cost at the defaults.** Over the box it runs from −65.4 to +333.
-* **A new always-on box in every home that can take one** adds 22 kWh per person-year and
-  erases the AI-out saving: +2.8 with AI out, +25.4 with AI in.
-* **What decides it:** whether "entirely" includes AI, the share of work that vanishes, and how
-  efficient the edge is at relocated work. The mesh's own additions are small against the
-  estate (75.5 kWh per user-year) unless every home adds a box.
-* **Break-even, AI out.** The saving vanishes if any one of these holds:
-  * the vanish share is below 0.072;
-  * the edge efficiency ratio is above 1.86;
-  * the stays share is above 0.91;
-  * the new-box share of homes is above 0.855;
-  * the mesh additions are above 19.2 kWh per person-year.
-* **Break-even, AI in.** It turns into a saving if any one of these holds:
-  * the vanish share is above 0.66;
-  * the edge ratio is below 0.68;
-  * the AI edge ratio is below 2.46;
-  * the AI share is below 0.115.
-* **Worst corner:** 5.0 bn users, 460 TWh, stays 0.2, vanish 0.2, edge ratio 3 (AI edge 10 and
-  AI share 0.30 when AI is in), and the highest mesh additions.
+Eric, on AI in the theory: "the obvious answer is a hybrid, we use openrouter with ZDR". Agents
+call hosted models through a router with zero data retention.
+
+* **What stays:** the inference people ask for stays in data centres at data-centre efficiency.
+  It is neither removed nor relocated.
+* **What vanishes:** the AI and analytics that exist to harvest, profile, rank and advertise,
+  including training on users' retained data. ZDR removes the retention and the
+  training-on-your-data loop, not the inference.
+* **Two new inputs, both FRONTIER:** the wanted share of the estate's AI energy (0.5, range 0.2
+  to 0.8, from UPSTREAM-0 rows 18-25), and inference demand per person relative to today (1×,
+  range 1 to 5×; an agent-heavy mesh may call more).
+
+Hybrid results at 1× inference demand:
+* **Default:** removed 49.8 (of which 24.9 vanishes), relocated at the edge 19.2, inference kept
+  in data centres 5.7, mesh additions 2.8 → **net −22.1**.
+* **Range over every corner of the input box:** −70.2 to +109.7, so the sign is open.
+
+| inference demand | no new boxes | a new box in every home that can take one |
+|---|---|---|
+| 1× | −22.1 | −2.9 |
+| 2× | −16.5 | +2.8 |
+| 5× | **+0.5** (break-even at 4.91×) | +19.8 |
+
+**Under the hybrid the theory no longer turns on device AI efficiency.** The AI edge ratio
+enters only through the on-device lever, which is 0 in the design. Serving all wanted inference
+on devices at 3× moves the net from −22.1 to −10.8.
+
+**Break-even for the hybrid** (one input, others at default, no boxes). The saving vanishes if
+any one of these holds:
+* the edge efficiency ratio for the non-AI relocated work is above 2.15;
+* inference demand is above 4.91×;
+* the mesh additions are above 24.9 kWh per person-year.
+
+No value in range flips the default on its own for the vanish share, the stays share, the
+wanted-inference share or the new-box share. Even at a vanish share of 0, the harvesting AI that
+vanishes keeps the default a saving.
+
+**Corners:**
+* **Worst (+167.7):** 5.0 bn users, 460 TWh, AI share 0.30, stays 0.2, vanish 0.2, edge ratio 3,
+  wanted inference 0.8 at 5× demand, and the highest mesh additions.
+* **Best:** −70.2.
+
+**Counterfactuals:**
+* **All AI on devices:** +6.2 at the defaults, ranging from −65.4 to +333. It turns on the AI
+  edge ratio, with break-even at 2.46.
+* **No AI in scope:** −16.5, ranging from −65.4 to +110.6.
 
 ### Inputs
 
@@ -53,37 +76,64 @@ matter in the near term. Code: `energy.rs`; CLI: `cewp-cli energy`.
 | `estate.vanish_share` | share of the consumer part | 0.2 / 0.5 / 0.8 | FRONTIER | 2024 | (a) harvesting, profiling, ranking, advertising and the duplication that serves them: UPSTREAM-0 row 25 puts them at 0.5 to 5.5 of one operator's 5.5 kWh per person (9% to 100%), rows 18-24 at 10% to over 40% of server energy; NOBODY PUBLISHES (a) against (b) |
 | `edge.efficiency_ratio` | x data-centre energy per unit of work | 0.3 / 1 / 3 | FRONTIER | 2026 | (b) relocated non-AI work at the edge: storage and serving on devices already on cost only a marginal draw (below 1), compute on a phone or home node is less efficient per unit and has no PUE (above 1) |
 | `edge.ai_efficiency_ratio` | x data-centre energy per unit of work | 1 / 3 / 10 | FRONTIER | 2026 | AI the person still wants, run on their own devices: accelerators in a data centre are far more efficient per unit of inference |
+| `ai.wanted_inference_share` | share of the estate's AI energy | 0.2 / 0.5 / 0.8 | FRONTIER | 2021 | inference people actually ask for, against ranking, ads and training on harvested data: UPSTREAM-0 rows 18-25 (ML 10-15% of one operator's energy; 10:20:70 experimentation:training:inference for one fleet; the 0.5-5.5 kWh harvesting bracket); no published split |
+| `ai.inference_demand_multiple` | x today's inference per person | 1 / 1 / 5 | FRONTIER | 2026 | an agent-heavy mesh may call MORE inference per person than today's average user; the report shows 1x, 2x and 5x |
 | `household.persons` | persons | 2.5 / 2.5 / 2.5 | MODEL | 2026 | the household pass's default (micro.rs); per person-year = household-hour figures x 8,766 / 2.5 |
 | mesh additions, gateway mix | kWh/person-year | 0.34 / 2.77 / 12.74 | FRONTIER | 2026 | the household pass (energy.rs), US 2020 mix, node on gateway, terms A + B, expected regime |
 | mesh additions, new-box mix | kWh/person-year | 11.30 / 22.03 / 55.22 | FRONTIER | 2026 | same, a new always-on box in every home that can take one |
 
 ### Result
 
-| AI | new-box share of homes | estate per user | removed (of which vanishes) | relocated at the edge | mesh additions | net (default) | net over every corner | sign |
-|---|---|---|---|---|---|---|---|---|
-| in | 0 | 75.5 | 49.8 (19.2) | 53.2 | 2.77 | 6.2 | [-65.4, 333.3] | open: the box spans zero |
-| in | 0.25 | 75.5 | 49.8 (19.2) | 53.2 | 7.58 | 11.0 | [-62.6, 343.9] | open: the box spans zero |
-| in | 1 | 75.5 | 49.8 (19.2) | 53.2 | 22.03 | 25.4 | [-54.4, 375.7] | open: the box spans zero |
-| out | 0 | 75.5 | 38.5 (19.2) | 19.2 | 2.77 | -16.5 | [-65.4, 110.6] | open: the box spans zero |
-| out | 0.25 | 75.5 | 38.5 (19.2) | 19.2 | 7.58 | -11.7 | [-62.6, 121.2] | open: the box spans zero |
-| out | 1 | 75.5 | 38.5 (19.2) | 19.2 | 22.03 | 2.8 | [-54.4, 153.1] | open: the box spans zero |
+| AI case | inference demand | new-box share of homes | estate per user | removed (of which vanishes) | relocated at the edge | inference kept in data centres | mesh additions | net (default) | net over every corner | sign |
+|---|---|---|---|---|---|---|---|---|---|---|
+| HYBRID (the design: hosted inference via a zero-retention router) | 1x | 0 | 75.5 | 49.8 (24.9) | 19.2 | 5.7 | 2.77 | -22.1 | [-70.2, 109.7] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 1x | 0.25 | 75.5 | 49.8 (24.9) | 19.2 | 5.7 | 7.58 | -17.3 | [-67.4, 120.3] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 1x | 1 | 75.5 | 49.8 (24.9) | 19.2 | 5.7 | 22.03 | -2.9 | [-59.2, 152.2] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 2x | 0 | 75.5 | 49.8 (24.9) | 19.2 | 11.3 | 2.77 | -16.5 | [-68.1, 113.4] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 2x | 0.25 | 75.5 | 49.8 (24.9) | 19.2 | 11.3 | 7.58 | -11.7 | [-65.4, 124.0] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 2x | 1 | 75.5 | 49.8 (24.9) | 19.2 | 11.3 | 22.03 | 2.8 | [-57.2, 155.9] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 5x | 0 | 75.5 | 49.8 (24.9) | 19.2 | 28.3 | 2.77 | 0.5 | [-65.4, 167.7] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 5x | 0.25 | 75.5 | 49.8 (24.9) | 19.2 | 28.3 | 7.58 | 5.3 | [-62.6, 178.3] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 5x | 1 | 75.5 | 49.8 (24.9) | 19.2 | 28.3 | 22.03 | 19.8 | [-54.4, 210.1] | open: the box spans zero |
+| all AI on devices (counterfactual) | 1x | 0 | 75.5 | 49.8 (19.2) | 53.2 | 0.0 | 2.77 | 6.2 | [-65.4, 333.3] | open: the box spans zero |
+| all AI on devices (counterfactual) | 1x | 0.25 | 75.5 | 49.8 (19.2) | 53.2 | 0.0 | 7.58 | 11.0 | [-62.6, 343.9] | open: the box spans zero |
+| all AI on devices (counterfactual) | 1x | 1 | 75.5 | 49.8 (19.2) | 53.2 | 0.0 | 22.03 | 25.4 | [-54.4, 375.7] | open: the box spans zero |
+| no AI in scope | 1x | 0 | 75.5 | 38.5 (19.2) | 19.2 | 0.0 | 2.77 | -16.5 | [-65.4, 110.6] | open: the box spans zero |
+| no AI in scope | 1x | 0.25 | 75.5 | 38.5 (19.2) | 19.2 | 0.0 | 7.58 | -11.7 | [-62.6, 121.2] | open: the box spans zero |
+| no AI in scope | 1x | 1 | 75.5 | 38.5 (19.2) | 19.2 | 0.0 | 22.03 | 2.8 | [-54.4, 153.1] | open: the box spans zero |
 
-The worst corner (the highest net: farthest from a saving), AI in, no new boxes: net 333.3 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.300, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `edge.ai_efficiency_ratio` = 10.000, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 11.305.
+Under the hybrid the theory no longer turns on how efficient a device is at AI: the inference people want stays in data centres at data-centre efficiency (the AI edge ratio enters only through the on-device lever, 0 in the design).
 
-The worst corner (the highest net: farthest from a saving), AI out, no new boxes: net 110.6 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.050, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 11.305.
+Hybrid, the on-device lever (share of wanted inference served on members' devices, AI edge ratio 3, no new boxes):
+
+| on-device share | net (default) |
+|---|---|
+| 0 | -22.1 |
+| 0.1 | -21.0 |
+| 0.25 | -19.3 |
+| 0.5 | -16.5 |
+| 1 | -10.8 |
+
+HYBRID (the design: hosted inference via a zero-retention router), no new boxes: best corner -70.2; worst corner (nearest zero from the saving side when the default saves, else the farthest from a saving) 167.7 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.300, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `ai.wanted_inference_share` = 0.800, `ai.inference_demand_multiple` = 5.000, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 11.305.
+
+all AI on devices (counterfactual), no new boxes: best corner -65.4; worst corner (nearest zero from the saving side when the default saves, else the farthest from a saving) 333.3 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.300, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `edge.ai_efficiency_ratio` = 10.000, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 11.305.
+
+no AI in scope, no new boxes: best corner -65.4; worst corner (nearest zero from the saving side when the default saves, else the farthest from a saving) 110.6 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.050, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 11.305.
 
 ### Break-even for this test (one input, others at default; no new boxes)
 
-| input | AI in | AI out |
-|---|---|---|
-| `estate.vanish_share` | 0.660 | 0.072 |
-| `edge.efficiency_ratio` | 0.680 | 1.856 |
-| `edge.ai_efficiency_ratio` | 2.456 | none in range |
-| `estate.stays_share` | 0.208 | 0.914 |
-| `estate.ai_share` | 0.115 | 0.878 |
-| `estate.all_data_centres_twh_per_year` | none in range | 59.642 |
-| `share of homes with a new always-on box` | none in range | 0.855 |
-| `mesh additions (kWh per person-year)` | none in range | 19.241 |
+| input | HYBRID | all AI on devices | no AI |
+|---|---|---|---|
+| `estate.vanish_share` | none in range | 0.660 | 0.072 |
+| `edge.efficiency_ratio` | 2.150 | 0.680 | 1.856 |
+| `estate.stays_share` | 1.090 | 0.208 | 0.914 |
+| `share of homes with a new always-on box` | none in range | none in range | 0.855 |
+| `ai.inference_demand_multiple` | 4.911 | none in range | none in range |
+| `ai.wanted_inference_share` | 2.456 | none in range | none in range |
+| `estate.ai_share` | none in range | 0.115 | 0.878 |
+| `share of wanted inference served on devices` | none in range | none in range | none in range |
+| `edge.ai_efficiency_ratio` | none in range | 2.456 | none in range |
+| `mesh additions (kWh per person-year)` | 24.900 | none in range | 19.241 |
 
 
 # TEST 2, THE ADOPTION PATH (substitution 0 to 1; prior 0.005 to 0.16)
