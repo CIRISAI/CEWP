@@ -58,46 +58,72 @@ fn cell_of(state: u8, home: usize, homes: usize) -> usize {
     }
 }
 
-/// The street's day number `day` (any integer; it seeds the day) of `day_type` (0 Monday to Thursday,
-/// 1 Friday, 2 Saturday, 3 Sunday). `in_country`: inside the United States (the diaries' country).
-/// None under the legacy device draw (no composition).
+/// One adult's generated day: their household, their index among its adults (18 to 64 first, then over 64),
+/// whether they were drawn employed, the 24 states, and the generator's verdict.
+#[derive(Clone, Debug)]
+pub struct PersonDay {
+    pub household: usize,
+    pub index: u8,
+    pub employed: bool,
+    pub states: [u8; 24],
+    pub verdict: (u8, &'static str),
+}
+
+/// Every adult's day on the street (the seeds `street_day` uses): None under the legacy device draw.
 #[must_use]
-pub fn street_day(w: &MicroWorld, day: u64, day_type: u8, in_country: bool) -> Option<StreetDay> {
+pub fn person_days(w: &MicroWorld, day: u64, day_type: u8, in_country: bool) -> Option<Vec<PersonDay>> {
     if w.household_groups.is_empty() || w.household_groups.iter().any(Option::is_none) {
         return None;
     }
-    let homes = w.household_groups.len();
-    let cells = homes + 3;
-    let mut counts = vec![vec![0i64; cells]; 24];
-    let mut home_awake = vec![vec![0u16; homes]; 24];
-    let mut moves: Vec<std::collections::BTreeMap<(usize, usize), i64>> = vec![std::collections::BTreeMap::new(); 23];
-    let (mut persons, mut children, mut employed) = (0u32, 0u32, 0u32);
-    let mut verdict = (2u8, "no person with a day");
-    let mut residents = vec![0u16; homes];
     let (p_adult, p_senior) = (u64::from(presence::employed_ppm(1)), u64::from(presence::employed_ppm(2)));
+    let mut out = Vec::new();
     for (hi, g) in w.household_groups.iter().enumerate() {
-        let [adults, seniors, kids] = g.unwrap_or([0, 0, 0]);
-        children += u32::from(kids);
+        let [adults, seniors, _] = g.unwrap_or([0, 0, 0]);
         for k in 0..u64::from(adults) + u64::from(seniors) {
             let key = (hi as u64) << 8 | k;
             let person = child_seed(w.seed ^ 0x9E5E_4CE0_0000_0003, key);
             let ppm = if k < u64::from(adults) { p_adult } else { p_senior };
             let emp = Stream::new(child_seed(person, 0xE4)).below(1_000_000) < ppm;
             let (d, call) = presence::day(Generator::Chain, child_seed(person, day), emp, day_type, person, false, in_country);
-            verdict = (crate::popchain::households::verdict_code(call.verdict), call.reason);
-            persons += 1;
-            residents[hi] += 1;
-            employed += u32::from(emp);
-            for s in 0..24 {
-                counts[s][cell_of(d.states[s], hi, homes)] += 1;
-                if d.states[s] == 1 {
-                    home_awake[s][hi] += 1;
-                }
-                if s < 23 {
-                    let (a, b) = (cell_of(d.states[s], hi, homes), cell_of(d.states[s + 1], hi, homes));
-                    if a != b {
-                        *moves[s].entry((a, b)).or_insert(0) += 1;
-                    }
+            out.push(PersonDay { household: hi, index: k as u8, employed: emp, states: d.states, verdict: (crate::popchain::households::verdict_code(call.verdict), call.reason) });
+        }
+    }
+    Some(out)
+}
+
+/// Awake in PRESENCE-0's sense (states 1, 2, 3 and 5: not asleep at home or elsewhere).
+#[must_use]
+pub const fn is_awake(state: u8) -> bool {
+    matches!(state, 1 | 2 | 3 | 5)
+}
+
+/// The street's day number `day` (any integer; it seeds the day) of `day_type` (0 Monday to Thursday,
+/// 1 Friday, 2 Saturday, 3 Sunday). `in_country`: inside the United States (the diaries' country).
+/// None under the legacy device draw (no composition).
+#[must_use]
+pub fn street_day(w: &MicroWorld, day: u64, day_type: u8, in_country: bool) -> Option<StreetDay> {
+    let days = person_days(w, day, day_type, in_country)?;
+    let homes = w.household_groups.len();
+    let cells = homes + 3;
+    let mut counts = vec![vec![0i64; cells]; 24];
+    let mut home_awake = vec![vec![0u16; homes]; 24];
+    let mut moves: Vec<std::collections::BTreeMap<(usize, usize), i64>> = vec![std::collections::BTreeMap::new(); 23];
+    let children: u32 = w.household_groups.iter().map(|g| u32::from(g.unwrap_or([0, 0, 0])[2])).sum();
+    let (persons, employed) = (days.len() as u32, days.iter().filter(|d| d.employed).count() as u32);
+    let verdict = days.last().map_or((2u8, "no person with a day"), |d| d.verdict);
+    let mut residents = vec![0u16; homes];
+    for d in &days {
+        let hi = d.household;
+        residents[hi] += 1;
+        for s in 0..24 {
+            counts[s][cell_of(d.states[s], hi, homes)] += 1;
+            if d.states[s] == 1 {
+                home_awake[s][hi] += 1;
+            }
+            if s < 23 {
+                let (a, b) = (cell_of(d.states[s], hi, homes), cell_of(d.states[s + 1], hi, homes));
+                if a != b {
+                    *moves[s].entry((a, b)).or_insert(0) += 1;
                 }
             }
         }
@@ -120,6 +146,30 @@ mod tests {
         let dwellings: usize = leaf.buildings.iter().map(|b| usize::from(b.units)).sum();
         let sizes: Vec<u8> = (0..dwellings).map(|i| 1 + (i % 4) as u8).collect();
         MicroWorld::from_leaf_with(&leaf, p, sizes, rule)
+    }
+
+    #[test]
+    fn devices_sleep_with_their_people_inside_the_country_only() {
+        use crate::micro::{Activity, HostKind, P};
+        let asleep_at = |hour: f64, in_country: bool| {
+            let p = { let mut p = MicroParams::default(); p.set(P::StartLocalHour, hour); p };
+            let leaf = LeafLayout::build(HolonId::at(8, 40.06, -83.05), &LeafContext { budget: 40, chain: [3_000; 11], ..LeafContext::default() }, &p);
+            let dwellings: usize = leaf.buildings.iter().map(|b| usize::from(b.units)).sum();
+            let sizes: Vec<u8> = (0..dwellings).map(|i| 1 + (i % 4) as u8).collect();
+            let mut w = MicroWorld::from_leaf_with(&leaf, p, sizes, Some(DeviceRule { home_node_where: HOME_ON_GATEWAY, in_country }));
+            w.set_presence(7, 1);
+            assert_eq!(w.presence.is_some(), in_country);
+            w.step(4.0);
+            let phones: Vec<_> = w.nodes.iter().filter(|n| n.kind == HostKind::Phone && n.household.is_some() && n.awake).collect();
+            (phones.iter().filter(|n| n.activity == Activity::Asleep).count(), phones.len())
+        };
+        let (night, n) = asleep_at(3.0, true);
+        let (noon, _) = asleep_at(13.0, true);
+        assert!(n > 10, "{n} phones");
+        assert!(night * 10 >= n * 7, "3 a.m.: {night} of {n} asleep");
+        assert!(noon * 10 <= n * 2, "1 p.m.: {noon} of {n} asleep");
+        // outside the country nothing changes: no presence, the stand-in alone
+        assert_eq!(asleep_at(3.0, false).0, 0);
     }
 
     /// CIRISHolon published PRESENCEGEN-2's digest (`PRESENCEGEN2_RESULTS.md`: one value native and wasm32);

@@ -251,3 +251,12 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   day is 0.05 to 0.15 ms in the page, once per generated day.
   Example (a Columbus suburb, Monday to Thursday, 40 adults and 8 children): 03:30, 39 at home; 08:30,
   18 at home, 11 at work or school, 7 travelling; 13:00, 13 at work or school; 17:30, 23 at home.
+- **Presence tint** (micro.rs `set_presence` / `person_awake`, kernel `micro_presence`; the page hands the generated
+  day whenever it changes). Inside the United States under CIRISHolon's device rule, the street's phones and
+  laptops follow their people: a device belongs to its household's person of the same index (adults first, as
+  DEVICEGEN-1 lists phones); while that person's generated state is awake (states 1, 2, 3, 5) it signs at the
+  stand-in's rate divided by the hour's PRESENCE-0 awake share (so the street's total stays the stand-in's), and
+  while they sleep it does not sign and shows asleep. A device with no person's day (a child's) is awake with
+  PRESENCE-0's share (twin/theory's presence0.rs, merged at 24c6fe0) by a fixed draw. Elsewhere, and under the
+  legacy device draw, the stand-in (model.diurnal.v1) runs alone. Test: at 3 a.m. at least 70 % of the street's
+  phones are asleep, at 1 p.m. at most 20 %; outside the country none change. Wasm 1,517,600 bytes.

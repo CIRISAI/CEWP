@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=42"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=43"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2333,7 +2333,7 @@ function microDraw(){
     }
     drawPulses(g, F, nodeA, dimOf);
   }
-  rhyDraw(g, A, F, Math.max(bldA, nodeA));
+  presenceSync(); rhyDraw(g, A, F, Math.max(bldA, nodeA));
   // nodes
   MTAGS.length = 0; MBOXES.length = 0;
   if (nodeA > 0){
@@ -2625,7 +2625,13 @@ function rhyClock(){
   if (typeof SIM === "undefined" || !M || M.lon0 === undefined || !M.meta) return null;
   if (M.rhyAbs0 === undefined){ const st = ((M.meta[1] - M.t / 3600) % 24 + 24) % 24, ap = SIM.t / 3600 + M.lon0 / 15 - M.t / 3600; M.rhyAbs0 = st + 24 * Math.round((ap - st) / 24); }
   const hl = M.rhyAbs0 + M.t / 3600 - 4, dn = Math.floor(hl / 24), dow = ((dn + 1) % 7 + 7) % 7;
-  return { dn, s: hl - dn * 24, dt: dow <= 3 ? 0 : dow === 4 ? 1 : dow === 5 ? 2 : 3 };
+  return { dn, dow, s: hl - dn * 24, dt: dow <= 3 ? 0 : dow === 4 ? 1 : dow === 5 ? 2 : 3 };
+}
+// the presence tint: the kernel's phones and laptops sleep and wake with their people's generated days (US, CIRISHolon's
+// device rule); handed the generated day whenever it changes or the street is rebuilt
+function presenceSync(){
+  if (!M || typeof wasm === "undefined" || !wasm || !wasm.micro_presence) return; const c = rhyClock(); if (!c || M.presDn === c.dn) return;
+  M.presDn = c.dn; M.presOn = wasm.micro_presence(c.dn + 100000, c.dow) === 1;
 }
 function rhyData(){
   if (!RHY.on || !M || typeof wasm === "undefined" || !wasm || !wasm.micro_rhythm) return null;
@@ -2685,7 +2691,7 @@ function rhyLine(){
   const d = rhyData(), c = rhyClock();
   if (!d || !c) return `street day: needs CIRISHolon's device rule (who lives in each household) ${holVd("legacy", "the legacy device draw has no composition")}`;
   const s0 = Math.min(23, Math.floor(c.s)), hr = (4 + s0) % 24, row = d.counts[s0], home = row.slice(0, d.H).reduce((a, b) => a + b, 0), aw = d.awake[s0].reduce((a, b) => a + b, 0);
-  return `street day (CIRISHolon PRESENCEGEN-2, the chain, one generated day per adult, ${RHY_DAYS[c.dt]}): ${String(hr).padStart(2, "0")}:${String(Math.floor((c.s - s0) * 60)).padStart(2, "0")} local, ${home} of ${d.persons} adults at home (${aw} awake), ${row[d.H]} at work or school, ${row[d.H + 1]} elsewhere, ${row[d.H + 2]} travelling · ${holVd(HOL_V3[d.verdict], HOL_V3[d.verdict] + ": " + d.why)} · ${d.viol === 0 ? "every hour holds every adult (the continuity law, source zero)" : d.viol + " continuity violations"} · ${d.children} children have no diary and are not drawn; employment drawn per adult (MODEL: 18 to 64 at the 25-to-64 share, ${d.employed} employed) · ${d.notice}`;
+  return `street day (CIRISHolon PRESENCEGEN-2, the chain, one generated day per adult, ${RHY_DAYS[c.dt]}): ${String(hr).padStart(2, "0")}:${String(Math.floor((c.s - s0) * 60)).padStart(2, "0")} local, ${home} of ${d.persons} adults at home (${aw} awake), ${row[d.H]} at work or school, ${row[d.H + 1]} elsewhere, ${row[d.H + 2]} travelling · ${holVd(HOL_V3[d.verdict], HOL_V3[d.verdict] + ": " + d.why)} · ${d.viol === 0 ? "every hour holds every adult (the continuity law, source zero)" : d.viol + " continuity violations"} · ${M.presOn ? "the street's phones and laptops sleep and wake with their people (a child's device by the diaries' share)" : "devices follow the twin's stand-in"} · ${d.children} children have no diary and are not drawn; employment drawn per adult (MODEL: 18 to 64 at the 25-to-64 share, ${d.employed} employed) · ${d.notice}`;
 }
 // ---- the data-map strip (Eric: "remember the simcity layer selector?"): one map at a time, each re-tinting the street tier by one
 // quantity from a CIRISHolon table, with a legend; "none" returns the normal view. Drawn by incell.js at region and city zoom.

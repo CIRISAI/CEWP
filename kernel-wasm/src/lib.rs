@@ -801,6 +801,16 @@ pub extern "C" fn micro_rhythm(day: f64, day_type: u32) -> u32 {
     n
 }
 
+/// The presence tint (`MicroWorld::set_presence`): the street's devices follow their people's generated days for
+/// generated day `day` (the page's local day number) of `weekday` (0 Monday). Inside the United States under
+/// CIRISHolon's device rule only; returns 1 when set, 0 when cleared (the twin's stand-in runs alone).
+#[no_mangle]
+pub extern "C" fn micro_presence(day: f64, weekday: u32) -> u32 {
+    let Some(w) = micro().world.as_mut() else { return 0 };
+    w.set_presence(day.max(0.0) as u64, weekday as usize);
+    u32::from(w.presence.is_some())
+}
+
 /// `cewp_sim::holon_scene::presence::digest()` (PRESENCEGEN-2's digest over fixed calls) as two u32 halves in holon
 /// buffer 0 (low, high).
 #[no_mangle]

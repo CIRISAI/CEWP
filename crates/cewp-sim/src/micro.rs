@@ -383,6 +383,15 @@ pub struct DeviceRule {
     pub in_country: bool,
 }
 
+/// The street's people by the hour for its devices' activity (the presence tint): each household's adults'
+/// generated days (PRESENCEGEN-2's chain, in household order, adults 18 to 64 first) and the weekday of the
+/// generated day (0 Monday), whose PRESENCE-0 share stands in for persons with no day (children).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StreetPresence {
+    pub weekday: usize,
+    pub days: Vec<Vec<[u8; 24]>>,
+}
+
 /// What the device generator gave a world: verdicts as returned (0 certified, 1 refused, 2 unresolved)
 /// with their reasons, and the counts behind the home-node scenario.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -854,6 +863,8 @@ pub struct MicroWorld {
     /// Who lives in each household, in household order, as the device generator drew it: adults 18 to 64,
     /// adults over 64, children (DEVICEGEN-1's composition); None under the legacy device draw.
     pub household_groups: Vec<Option<[u8; 3]>>,
+    /// Who is awake, per person, for the street's devices (the presence tint): set by [`MicroWorld::set_presence`].
+    pub presence: Option<StreetPresence>,
     /// Seed (from the tile).
     pub seed: u64,
     rng: Rng,
@@ -1076,6 +1087,7 @@ impl MicroWorld {
             device_population: 0,
             household_devices: Vec::new(),
             household_groups: Vec::new(),
+            presence: None,
         }
     }
 
@@ -2451,6 +2463,50 @@ impl MicroWorld {
         }
     }
 
+    /// Drive the street's devices from its people (the presence tint): only inside the United States under
+    /// CIRISHolon's device rule (the diaries' country, and the composition to draw adults from); elsewhere, or
+    /// under the legacy device draw, the presence is cleared and the twin's stand-in (diurnal_multiplier) runs
+    /// alone. `day` seeds the generated day (the page passes its local day number), `weekday` 0 is Monday.
+    pub fn set_presence(&mut self, day: u64, weekday: usize) {
+        let in_country = self.device_rule.is_some_and(|r| r.in_country);
+        self.presence = if in_country {
+            crate::street_rhythm::person_days(self, day, crate::presence0::day_type(weekday) as u8, true).map(|ds| {
+                let mut days = vec![Vec::new(); self.household_groups.len()];
+                for d in ds {
+                    days[d.household].push(d.states);
+                }
+                StreetPresence { weekday: weekday % 7, days }
+            })
+        } else {
+            None
+        };
+    }
+
+    /// Whether node `i`'s person is awake now, and the hour's PRESENCE-0 awake share, under the presence tint
+    /// (None without it, or for a node with no household). A device belongs to its household's person of the
+    /// same index (adults first, as the device generator lists phones); a person with no generated day (a
+    /// child) is awake with the share's probability, by a fixed draw per device.
+    #[must_use]
+    pub fn person_awake(&self, i: usize) -> Option<(bool, f64)> {
+        let pr = self.presence.as_ref()?;
+        let n = &self.nodes[i];
+        let hi = n.household?;
+        let hour = self.local_hour();
+        let slot = ((hour - 4.0).rem_euclid(24.0)) as usize % 24;
+        // the generated day runs 4 a.m. to 4 a.m.; its clock hours 0..3 belong to the next weekday
+        let how = (pr.weekday + usize::from(hour < 4.0)) % 7 * 24 + hour as usize % 24;
+        let share = crate::presence0::awake(how);
+        let days = pr.days.get(hi)?;
+        let awake = match days.get(usize::from(n.owner)) {
+            Some(st) => crate::street_rhythm::is_awake(st[slot]),
+            None => {
+                let u = holon_scene::seed::child_seed(self.seed ^ 0xA3A3_E000_0000_0005, i as u64) % 1_000_000;
+                (u as f64) < share * 1e6
+            }
+        };
+        Some((awake, share))
+    }
+
     /// Local hour at the patch now.
     #[must_use]
     pub fn local_hour(&self) -> f64 {
@@ -2470,8 +2526,17 @@ impl MicroWorld {
             if !n.online(t) || n.pinned {
                 continue;
             }
+            // the presence tint: a phone or laptop signs only while its person is awake, at the stand-in's
+            // rate scaled by the hour's awake share, so the street's total stays the stand-in's
+            let person = if matches!(n.kind, HostKind::Phone | HostKind::Laptop) { self.person_awake(i) } else { None };
+            if person.is_some_and(|p| !p.0) {
+                continue;
+            }
             let mean = match n.kind {
-                HostKind::Phone | HostKind::Laptop => human / mu,
+                HostKind::Phone | HostKind::Laptop => match person {
+                    Some((_, share)) => human * share.max(0.05) / mu,
+                    None => human / mu,
+                },
                 HostKind::HomeNode | HostKind::HostedServer => 2.0 * human / mu,
                 HostKind::CiRunner if n.activity == Activity::RunningJob => ci,
                 _ => continue,
@@ -2487,6 +2552,20 @@ impl MicroWorld {
     }
 
     fn expire_activity(&mut self) {
+        // the presence tint: an idle device of a sleeping person shows asleep, and wakes with them (a device
+        // switched off by its own draw, awake = false, stays asleep)
+        if self.presence.is_some() {
+            for i in 0..self.nodes.len() {
+                if let Some((awake, _)) = self.person_awake(i) {
+                    let n = &mut self.nodes[i];
+                    if !awake && n.activity == Activity::Idle {
+                        n.activity = Activity::Asleep;
+                    } else if awake && n.awake && n.activity == Activity::Asleep {
+                        n.activity = Activity::Idle;
+                    }
+                }
+            }
+        }
         let t = self.t;
         for n in &mut self.nodes {
             match n.activity {
