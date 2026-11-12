@@ -262,7 +262,7 @@ impl Rng {
     /// Standard normal.
     pub fn gauss(&mut self) -> f64 {
         let u = self.f().max(1e-12);
-        (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * self.f()).cos()
+        (-2.0 * crate::detmath::ln(u)).sqrt() * crate::detmath::cos(std::f64::consts::TAU * self.f())
     }
 }
 
@@ -272,7 +272,7 @@ pub fn leave_probability(dt: f64, mean_s: f64) -> f64 {
     if mean_s <= 0.0 {
         1.0
     } else {
-        1.0 - (-dt / mean_s).exp()
+        1.0 - crate::detmath::exp(-dt / mean_s)
     }
 }
 
@@ -874,7 +874,7 @@ pub(crate) fn seg_dist(px: f64, py: f64, r: &Road) -> f64 {
 }
 
 fn rect_corners(b: &Building, margin: f64) -> [(f64, f64); 4] {
-    let (c, s) = (b.angle.cos(), b.angle.sin());
+    let (c, s) = (crate::detmath::cos(b.angle), crate::detmath::sin(b.angle));
     let (hw, hd) = (b.w / 2.0 + margin, b.d / 2.0 + margin);
     [(-hw, -hd), (hw, -hd), (hw, hd), (-hw, hd)].map(|(u, v)| (b.cx + c * u - s * v, b.cy + s * u + c * v))
 }
@@ -884,7 +884,7 @@ pub(crate) fn rects_overlap(a: &Building, b: &Building, margin: f64) -> bool {
     let ca = rect_corners(a, margin / 2.0);
     let cb = rect_corners(b, margin / 2.0);
     for ang in [a.angle, a.angle + std::f64::consts::FRAC_PI_2, b.angle, b.angle + std::f64::consts::FRAC_PI_2] {
-        let (ax, ay) = (ang.cos(), ang.sin());
+        let (ax, ay) = (crate::detmath::cos(ang), crate::detmath::sin(ang));
         let proj = |pts: &[(f64, f64); 4]| {
             pts.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
                 let d = p.0 * ax + p.1 * ay;
@@ -930,7 +930,7 @@ impl MicroWorld {
     #[must_use]
     pub fn build(lat0: f64, lon0: f64, cell_density_km2: f64, seed: u64, params: MicroParams) -> Self {
         let mut rng = Rng::new(seed);
-        let spread = (params.get(P::DensitySigma) * rng.gauss()).exp();
+        let spread = crate::detmath::exp(params.get(P::DensitySigma) * rng.gauss());
         let density_km2 = (cell_density_km2 * spread).clamp(5.0, 60_000.0);
         Self::build_at_density(lat0, lon0, density_km2, seed, params)
     }

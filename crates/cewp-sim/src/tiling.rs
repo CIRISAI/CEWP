@@ -227,7 +227,7 @@ impl HolonId {
     pub fn size_m(self) -> (f64, f64) {
         let s = self.step() as f64 / UNITS_PER_DEG as f64;
         let (lat, _) = self.centre_deg();
-        (s * M_PER_DEG * lat.to_radians().cos().max(0.01), s * M_PER_DEG)
+        (s * M_PER_DEG * crate::detmath::cos_deg(lat).max(0.01), s * M_PER_DEG)
     }
     /// Area in km².
     #[must_use]
@@ -489,7 +489,7 @@ impl LeafContext {
 /// core, 230 m suburban, 1.4 km in open country. MODEL, a visual rule; no CIRIS source.
 #[must_use]
 pub fn street_spacing_m(hh_per_km2: f64) -> f64 {
-    (3400.0 / (hh_per_km2.max(0.01)).powf(0.4)).clamp(60.0, 3000.0)
+    (3400.0 / crate::detmath::pow(hh_per_km2.max(0.01), 0.4)).clamp(60.0, 3000.0)
 }
 
 /// A street crossing a side, at an absolute lattice position along it (longitude units for a
@@ -516,7 +516,7 @@ fn edge_span(a: HolonId, d: Dir) -> (f64, f64, f64) {
     let deg = s / UNITS_PER_DEG as f64;
     if d.horizontal() {
         let lat = if d == Dir::N { y1 } else { y0 } as f64 / UNITS_PER_DEG as f64;
-        (x0 as f64, s, deg * M_PER_DEG * lat.to_radians().cos().max(0.01))
+        (x0 as f64, s, deg * M_PER_DEG * crate::detmath::cos_deg(lat).max(0.01))
     } else {
         (y0 as f64, s, deg * M_PER_DEG)
     }
@@ -912,7 +912,7 @@ impl LeafLayout {
         let (xc, yc) = ((x0 + x1) as f64 / 2.0, (y0 + y1) as f64 / 2.0);
         let (lat, _) = id.centre_deg();
         let k = M_PER_DEG / UNITS_PER_DEG as f64;
-        ((x - xc) * k * lat.to_radians().cos().max(0.01), (y - yc) * k)
+        ((x - xc) * k * crate::detmath::cos_deg(lat).max(0.01), (y - yc) * k)
     }
 
     /// The street graph of the leaf: every pair of a north-south and an east-west road that meet
@@ -1177,7 +1177,7 @@ impl LeafLayout {
         // the footprint's corners stay SIDE_INSET inside the leaf: no building meets a neighbour's,
         // and none meets a street of the neighbour's that runs beside the shared side (a street
         // this leaf cannot see, whose paving reaches at most half a main road's width across)
-        let (ca, sa) = (b.angle.cos(), b.angle.sin());
+        let (ca, sa) = (crate::detmath::cos(b.angle), crate::detmath::sin(b.angle));
         for (u, v) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
             let (px, py) = (b.cx + ca * u * b.w / 2.0 - sa * v * b.d / 2.0, b.cy + sa * u * b.w / 2.0 + ca * v * b.d / 2.0);
             if px.abs() > self.w / 2.0 - SIDE_INSET || py.abs() > self.h / 2.0 - SIDE_INSET {
@@ -1747,7 +1747,7 @@ mod tests {
             let (y0, x0, y1, x1) = id.bounds_units();
             let (xc, yc) = ((x0 + x1) as f64 / 2.0, (y0 + y1) as f64 / 2.0);
             let (lat, _) = id.centre_deg();
-            (xc + x / (k * lat.to_radians().cos().max(0.01)), yc + y / k)
+            (xc + x / (k * crate::detmath::cos_deg(lat).max(0.01)), yc + y / k)
         };
         let (_, ax0, _, ax1) = a.bounds_units();
         let axc = (ax0 + ax1) as f64 / 2.0;

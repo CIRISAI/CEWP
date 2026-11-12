@@ -77,6 +77,7 @@ pub mod failure;
 pub mod durability;
 pub mod failure_view;
 pub mod seat_view;
+pub mod detmath;
 pub mod popchain;
 pub mod couplings;
 

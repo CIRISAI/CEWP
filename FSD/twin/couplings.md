@@ -82,6 +82,32 @@ Read from the code, not from memory.
   by the focal world's act rate (`MicroWorld::generate`).
 - **Land cover and relief** are decoration (ground tint and shading).
 
+## 3b. The legacy household and building rule: known faults (kept, not fixed)
+
+Holon's generators replace these rules; until they do, the rules are the labelled fallback ("no
+certificate") and are not tuned. From the twin's own layout code (FSD/twin/hhsize.md, twin/hhsize
+baae03a, merged):
+- Household size is flat across units per building (2.45 / 2.51 / 2.51 persons for 1 / 2-4 / 5+
+  units), where the US census moves 0.84 (single house 2.73, 2-4 units 2.28, 5 or more 1.89).
+- In dense fabric a building's unit count is the leaf's households shared evenly over the plots, not
+  a building type, so "units per building" is not a meaningful attribute at the dense end yet.
+- The size-7 households come from the missing clamp after apportionment (micro.rs populate,
+  `persons = sizes[hi].min(255)`); fixed with the new rule, not before, so the certificate keeps
+  describing what the page runs.
+- Seven layout faults: (1) village barns are never trimmed (houses are removed to the budget, barns
+  stay); (2) apartment blocks whittled to one or two flats on 4-7 storeys; (3) the top-up stacks
+  detached houses to 18-31 dwellings; (4) dense fabric keeps 3 storeys on one-dwelling plots;
+  (5) flats per floor are w/6 in dense fabric but w/9 in the top-up; (6) the unplaced fallback puts
+  every dwelling in one 6 x 5 m block (76 real dense leaves); (7) the caps (65,535 units, 60 storeys).
+- The twin's dwelling class (single house versus multi-unit, per building) is the natural key for
+  the next rule: HOUSEHOLD-0 reads building type moving persons per household by 0.84, density
+  class by only 0.08.
+- Page and source agree: the layout and the population chain use libm-free functions
+  (crates/cewp-sim/src/detmath.rs), and docs/geo/layout_xcheck.txt holds 2,000 real leaves whose
+  native digest the shipped wasm must reproduce (crates/cewp-sim/tests/layout_xcheck.rs and
+  docs/geo/layout_xcheck.test.js). Before, the platform cos differed by an ulp between glibc and the
+  libm wasm32 uses, and 543 of 28,426 sampled leaves (515 of 16,426 real) laid out differently.
+
 ## 4. Generators and their verdicts
 
 `crates/cewp-sim/src/workload.rs:diurnal_multiplier` was registered on Holon's side as generator

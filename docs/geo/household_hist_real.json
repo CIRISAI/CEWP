@@ -2,7 +2,7 @@
  "what": "household sizes (persons per household) over every street leaf the page builds inside each probe place's L3 street tile, from the page's own path (GHS-POP assets -> geodata.js geoPopFine -> kernel pop_load / pop_root / pop_split / pop_of -> HOLON.tree -> holon_layout -> micro_build_leaf -> micro_population), MODEL",
  "command": "node docs/geo/household_hist_real.js --write",
  "inputs": {
-  "docs/kernel/kernel_scale.wasm": "2c80ec452fc46dd72a8a6efd1d0633e1fede5a8760f11feca93073769cb64007",
+  "docs/kernel/kernel_scale.wasm": "770c7ddbc2d6de11bbb8eff17b573ea33c223683a1b08174f936e8ab368ee17d",
   "docs/geo/gd/pop0.bin.gz": "7711745ab49ecdd6ae0dac09f63c4bcf1d60aee91dd1ddc98426ce7223488dbb",
   "docs/geo/gd/pop1.bin.gz": "ce8ca1dc64950a8646cc04b7bf8ad621e6b1ad4e05b7dd56066aa08576dedf01",
   "docs/geo/geodata.js": "611401a1ee657243ff0427ad697680e36942edea30ed160ba2b5acf93b43234d",
@@ -235,24 +235,24 @@
    },
    "by_units_per_building": {
     "2-4": {
-     "leaves": 2268,
+     "leaves": 2269,
      "counts_by_size": [
       0,
-      6353,
-      11976,
-      11862,
-      3702,
-      1175,
-      203,
+      6358,
+      11979,
+      11866,
+      3703,
+      1176,
+      204,
       16
      ],
-     "households": 35287,
-     "persons": 87904,
+     "households": 35302,
+     "persons": 87942,
      "mean": {
-      "persons": 87904,
-      "households": 35287,
-      "reduced": "87904/35287",
-      "decimal": "2.491116"
+      "persons": 87942,
+      "households": 35302,
+      "reduced": "43971/17651",
+      "decimal": "2.491134"
      },
      "max_size": 7,
      "size_0_households": 0,
@@ -260,24 +260,24 @@
      "people_per_household": null
     },
     "5+": {
-     "leaves": 1828,
+     "leaves": 1827,
      "counts_by_size": [
       0,
-      5118,
-      9341,
-      9356,
-      3138,
-      1021,
-      186,
+      5113,
+      9338,
+      9352,
+      3137,
+      1020,
+      185,
       16
      ],
-     "households": 28176,
-     "persons": 70753,
+     "households": 28161,
+     "persons": 70715,
      "mean": {
-      "persons": 70753,
-      "households": 28176,
-      "reduced": "70753/28176",
-      "decimal": "2.511109"
+      "persons": 70715,
+      "households": 28161,
+      "reduced": "70715/28161",
+      "decimal": "2.511097"
      },
      "max_size": 7,
      "size_0_households": 0,
@@ -806,54 +806,54 @@
    },
    "by_units_per_building": {
     "2-4": {
-     "leaves": 2690,
+     "leaves": 2692,
      "counts_by_size": [
       0,
-      7580,
+      7588,
       13836,
-      13701,
-      4497,
-      1497,
+      13729,
+      4490,
+      1498,
       258,
-      17,
+      18,
       2
      ],
-     "households": 41388,
-     "persons": 103511,
+     "households": 41419,
+     "persons": 103587,
      "mean": {
-      "persons": 103511,
-      "households": 41388,
-      "reduced": "103511/41388",
-      "decimal": "2.500991"
+      "persons": 103587,
+      "households": 41419,
+      "reduced": "103587/41419",
+      "decimal": "2.500954"
      },
      "max_size": 8,
      "size_0_households": 0,
-     "over_6_households": 19,
+     "over_6_households": 20,
      "people_per_household": null
     },
     "5+": {
-     "leaves": 1406,
+     "leaves": 1404,
      "counts_by_size": [
       0,
-      3860,
+      3852,
       7357,
-      7337,
-      2281,
-      766,
+      7309,
+      2288,
+      765,
       112,
-      7
+      6
      ],
-     "households": 21720,
-     "persons": 54260,
+     "households": 21689,
+     "persons": 54184,
      "mean": {
-      "persons": 54260,
-      "households": 21720,
-      "reduced": "2713/1086",
-      "decimal": "2.498158"
+      "persons": 54184,
+      "households": 21689,
+      "reduced": "54184/21689",
+      "decimal": "2.498225"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 7,
+     "over_6_households": 6,
      "people_per_household": null
     }
    }
@@ -1101,23 +1101,23 @@
    },
    "by_units_per_building": {
     "1": {
-     "leaves": 82,
+     "leaves": 80,
      "counts_by_size": [
       0,
-      48,
-      93,
-      103,
-      23,
+      43,
+      88,
+      94,
+      24,
       4,
-      3
+      2
      ],
-     "households": 274,
-     "persons": 673,
+     "households": 255,
+     "persons": 629,
      "mean": {
-      "persons": 673,
-      "households": 274,
-      "reduced": "673/274",
-      "decimal": "2.456204"
+      "persons": 629,
+      "households": 255,
+      "reduced": "37/15",
+      "decimal": "2.466667"
      },
      "max_size": 6,
      "size_0_households": 0,
@@ -1125,24 +1125,24 @@
      "people_per_household": null
     },
     "2-4": {
-     "leaves": 1389,
+     "leaves": 1388,
      "counts_by_size": [
       0,
-      6859,
-      12501,
-      13525,
+      6866,
+      12509,
+      13535,
       3772,
-      1170,
-      267,
+      1169,
+      268,
       26
      ],
-     "households": 38120,
-     "persons": 95158,
+     "households": 38145,
+     "persons": 95212,
      "mean": {
-      "persons": 95158,
-      "households": 38120,
-      "reduced": "47579/19060",
-      "decimal": "2.496275"
+      "persons": 95212,
+      "households": 38145,
+      "reduced": "95212/38145",
+      "decimal": "2.496055"
      },
      "max_size": 7,
      "size_0_households": 0,
@@ -1150,24 +1150,24 @@
      "people_per_household": null
     },
     "5+": {
-     "leaves": 973,
+     "leaves": 972,
      "counts_by_size": [
       0,
-      2614,
-      4806,
-      4833,
-      1561,
-      526,
+      2612,
+      4803,
+      4832,
+      1560,
+      527,
       104,
       9
      ],
-     "households": 14453,
-     "persons": 36286,
+     "households": 14447,
+     "persons": 36276,
      "mean": {
-      "persons": 36286,
-      "households": 14453,
-      "reduced": "36286/14453",
-      "decimal": "2.510621"
+      "persons": 36276,
+      "households": 14447,
+      "reduced": "36276/14447",
+      "decimal": "2.510971"
      },
      "max_size": 7,
      "size_0_households": 0,
@@ -1424,21 +1424,21 @@
      "leaves": 947,
      "counts_by_size": [
       0,
-      1839,
-      3445,
-      3410,
-      867,
-      323,
-      63,
+      1836,
+      3446,
+      3414,
+      863,
+      327,
+      61,
       9
      ],
      "households": 9956,
-     "persons": 24483,
+     "persons": 24486,
      "mean": {
-      "persons": 24483,
+      "persons": 24486,
       "households": 9956,
-      "reduced": "24483/9956",
-      "decimal": "2.459120"
+      "reduced": "12243/4978",
+      "decimal": "2.459421"
      },
      "max_size": 7,
      "size_0_households": 0,
@@ -1446,24 +1446,24 @@
      "people_per_household": null
     },
     "2-4": {
-     "leaves": 1004,
+     "leaves": 1003,
      "counts_by_size": [
       0,
-      2451,
-      4128,
-      4611,
-      1527,
-      481,
-      91,
+      2454,
+      4127,
+      4607,
+      1531,
+      477,
+      93,
       7
      ],
      "households": 13296,
-     "persons": 33648,
+     "persons": 33645,
      "mean": {
-      "persons": 33648,
+      "persons": 33645,
       "households": 13296,
-      "reduced": "701/277",
-      "decimal": "2.530686"
+      "reduced": "11215/4432",
+      "decimal": "2.530460"
      },
      "max_size": 7,
      "size_0_households": 0,
@@ -1557,53 +1557,53 @@
    },
    "by_units_per_building": {
     "1": {
-     "leaves": 886,
+     "leaves": 885,
      "counts_by_size": [
       0,
-      1515,
-      3028,
-      2937,
-      770,
-      230,
-      58,
-      4
+      1520,
+      3018,
+      2920,
+      766,
+      232,
+      60,
+      5
      ],
-     "households": 8542,
-     "persons": 20988,
+     "households": 8521,
+     "persons": 20935,
      "mean": {
-      "persons": 20988,
-      "households": 8542,
-      "reduced": "10494/4271",
-      "decimal": "2.457036"
+      "persons": 20935,
+      "households": 8521,
+      "reduced": "20935/8521",
+      "decimal": "2.456871"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 4,
+     "over_6_households": 5,
      "people_per_household": null
     },
     "2-4": {
      "leaves": 1024,
      "counts_by_size": [
       0,
-      3221,
-      6014,
-      6378,
-      1908,
-      633,
-      145,
-      14
+      3216,
+      6024,
+      6395,
+      1912,
+      631,
+      143,
+      13
      ],
-     "households": 18313,
-     "persons": 46148,
+     "households": 18334,
+     "persons": 46201,
      "mean": {
-      "persons": 46148,
-      "households": 18313,
-      "reduced": "46148/18313",
-      "decimal": "2.519958"
+      "persons": 46201,
+      "households": 18334,
+      "reduced": "46201/18334",
+      "decimal": "2.519963"
      },
      "max_size": 7,
      "size_0_households": 0,
-     "over_6_households": 14,
+     "over_6_households": 13,
      "people_per_household": null
     },
     "5+": {
@@ -1718,21 +1718,21 @@
      "leaves": 943,
      "counts_by_size": [
       0,
-      1598,
-      3068,
-      3047,
-      795,
+      1592,
+      3071,
+      3040,
+      793,
       285,
       52,
       5
      ],
-     "households": 8850,
-     "persons": 21827,
+     "households": 8838,
+     "persons": 21798,
      "mean": {
-      "persons": 21827,
-      "households": 8850,
-      "reduced": "21827/8850",
-      "decimal": "2.466328"
+      "persons": 21798,
+      "households": 8838,
+      "reduced": "1211/491",
+      "decimal": "2.466395"
      },
      "max_size": 7,
      "size_0_households": 0,
@@ -1743,21 +1743,21 @@
      "leaves": 976,
      "counts_by_size": [
       0,
-      1790,
-      3149,
-      3389,
-      1115,
+      1796,
+      3146,
+      3396,
+      1117,
       383,
       61,
       4
      ],
-     "households": 9891,
-     "persons": 25024,
+     "households": 9903,
+     "persons": 25053,
      "mean": {
-      "persons": 25024,
-      "households": 9891,
-      "reduced": "25024/9891",
-      "decimal": "2.529977"
+      "persons": 25053,
+      "households": 9903,
+      "reduced": "8351/3301",
+      "decimal": "2.529839"
      },
      "max_size": 7,
      "size_0_households": 0,
@@ -1959,50 +1959,50 @@
   },
   "by_units_per_building": {
    "1": {
-    "leaves": 4930,
+    "leaves": 4927,
     "counts_by_size": [
      0,
-     8571,
-     16401,
-     16418,
-     4058,
-     1391,
-     283,
-     31
+     8562,
+     16390,
+     16389,
+     4049,
+     1397,
+     282,
+     32
     ],
-    "households": 47153,
-    "persons": 115729,
+    "households": 47101,
+    "persons": 115606,
     "mean": {
-     "persons": 115729,
-     "households": 47153,
-     "reduced": "115729/47153",
-     "decimal": "2.454330"
+     "persons": 115606,
+     "households": 47101,
+     "reduced": "115606/47101",
+     "decimal": "2.454428"
     },
     "max_size": 7,
     "size_0_households": 0,
-    "over_6_households": 31,
+    "over_6_households": 32,
     "people_per_household": null
    },
    "2-4": {
-    "leaves": 12305,
+    "leaves": 12306,
     "counts_by_size": [
      0,
-     44180,
-     80386,
-     84219,
-     25928,
-     8298,
-     1664,
+     44204,
+     80403,
+     84281,
+     25932,
+     8293,
+     1666,
      135,
      2
     ],
-    "households": 244812,
-    "persons": 613756,
+    "households": 244916,
+    "persons": 614003,
     "mean": {
-     "persons": 613756,
-     "households": 244812,
-     "reduced": "153439/61203",
-     "decimal": "2.507050"
+     "persons": 614003,
+     "households": 244916,
+     "reduced": "614003/244916",
+     "decimal": "2.506994"
     },
     "max_size": 8,
     "size_0_households": 0,
@@ -2010,28 +2010,28 @@
     "people_per_household": null
    },
    "5+": {
-    "leaves": 4222,
+    "leaves": 4218,
     "counts_by_size": [
      0,
-     11629,
-     21556,
-     21603,
-     7004,
-     2315,
-     403,
-     32
+     11614,
+     21550,
+     21570,
+     7009,
+     2314,
+     402,
+     31
     ],
-    "households": 64542,
-    "persons": 161783,
+    "households": 64490,
+    "persons": 161659,
     "mean": {
-     "persons": 161783,
-     "households": 64542,
-     "reduced": "161783/64542",
-     "decimal": "2.506631"
+     "persons": 161659,
+     "households": 64490,
+     "reduced": "161659/64490",
+     "decimal": "2.506730"
     },
     "max_size": 7,
     "size_0_households": 0,
-    "over_6_households": 32,
+    "over_6_households": 31,
     "people_per_household": null
    }
   }

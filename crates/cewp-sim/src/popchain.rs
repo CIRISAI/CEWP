@@ -47,7 +47,7 @@ pub fn cell_km2(r: usize) -> f64 {
     let (re, d) = (6_371.008_8_f64, std::f64::consts::PI / 180.0);
     let n = 90.0 - r as f64 * CELL_DEG;
     let s = 90.0 - (r + 1) as f64 * CELL_DEG;
-    re * re * CELL_DEG * d * ((n * d).sin() - (s * d).sin())
+    re * re * CELL_DEG * d * (crate::detmath::sin(n * d) - crate::detmath::sin(s * d))
 }
 
 /// A cell's people as the chain counts them: rounded, and zero under the floor.
