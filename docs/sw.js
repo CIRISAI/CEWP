@@ -9,7 +9,7 @@
 //   offline; anything else is network-first too. No cross-origin request is touched.
 // A visitor sees at most one load of the previous commit's assets after a deploy: the load during
 // which the new worker installs.
-const SW_STAMP = "98e62146778bb3e4c8aa5c35da8209ee9c5e1ed5";
+const SW_STAMP = "7351ec05acd8b984133fbb7080df05774d988b3c";
 const SW_CACHE = "cewp-twin-" + SW_STAMP;
 self.addEventListener("install", () => { self.skipWaiting(); });
 self.addEventListener("activate", (e) => {
