@@ -1,0 +1,31 @@
+{
+  "what": "household sizes (persons per household) of the CEWP twin's focal street leaf, from the twin's own code path (MicroWorld::from_leaf -> populate -> popchain::persons_per_household), MODEL",
+  "leaf_shape": { "leaves": 16667, "households_per_leaf": 60, "people_per_leaf": 150 },
+  "seed_scheme": "leaf k = 0..16666 is HolonId { level: 6, i: 0, j: k } (a synthetic id sequence); the world's seed is that id's HolonId::seed() as on the page; dwelling hi draws from Rng::new(seed ^ (hi + 1) * 0xA24B_AED4_963E_E407); MicroParams::default() (persons_per_household 2.5, the page never sets it)",
+  "conditioning": "none: one histogram; a household's size depends only on the leaf seed, its dwelling index, the leaf's people and its dwelling count (not density class, region or building type)",
+  "library_commit": "943ab2d8337b5dc07cbf9c5961837f4386e466d5",
+  "command": "cargo run --release -p cewp-sim --example household_hist -- --write",
+  "final": {
+    "counts_by_size": [0, 182423, 321136, 354758, 106254, 27337, 7404, 708],
+    "households": 1000020,
+    "persons": 2500050,
+    "mean": { "persons": 2500050, "households": 1000020, "reduced": "5/2", "decimal": "2.500000" },
+    "max_size": 7,
+    "size_0_households": 0,
+    "over_6_households": 708
+  },
+  "drawn": {
+    "counts_by_size": [0, 182423, 317191, 318740, 147015, 31401, 3250, 0],
+    "households": 1000020,
+    "persons": 2537590,
+    "mean": { "persons": 2537590, "households": 1000020, "reduced": "253759/100002", "decimal": "2.537539" },
+    "max_size": 6,
+    "size_0_households": 0,
+    "over_6_households": 0
+  },
+  "apportionment_effect": {
+    "final_minus_drawn_counts": { "-1": 75303, "0": 886954, "1": 37763 },
+    "households_changed": 113066,
+    "w1_drawn_final": { "numerator": 50276, "denominator": 1000020, "reduced": "12569/250005", "decimal": "0.050275" }
+  }
+}
