@@ -1029,7 +1029,7 @@ mod tests {
         let (w, h) = id.size_m();
         let area = w * h / 1e6;
         let pph = p.get(P::PersonsPerHousehold);
-        let mk = |dens: f64| { let mut ctx = LeafContext::default(); ctx.budget = (dens * area / pph).round() as u64; LeafLayout::build(id, &ctx, &p) };
+        let mk = |dens: f64| { let ctx = LeafContext { budget: (dens * area / pph).round() as u64, ..LeafContext::default() }; LeafLayout::build(id, &ctx, &p) };
         let dense = mk(80_000.0);
         assert!(dense.density_km2 >= DENSE_FABRIC_KM2, "{}", dense.density_km2);
         let units: u64 = dense.buildings.iter().map(|b| u64::from(b.units)).sum();

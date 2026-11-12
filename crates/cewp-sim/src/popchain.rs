@@ -54,7 +54,7 @@ pub fn cell_km2(r: usize) -> f64 {
 #[must_use]
 pub fn cell_people(p: f32, r: usize) -> u32 {
     let p = f64::from(p);
-    if !(p > 0.0) || p / cell_km2(r) < FLOOR_KM2 {
+    if p.is_nan() || p <= 0.0 || p / cell_km2(r) < FLOOR_KM2 {
         return 0;
     }
     p.round().min(f64::from(u32::MAX)) as u32
