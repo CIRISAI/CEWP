@@ -81,6 +81,10 @@ loc2_params! {
     AgentHostCountry = "own_agents.host_in_country_share", 0.5, Frontier, "", "of hosted agents, the share hosted in the person's country";
     AgentHostRegion = "own_agents.host_in_world_region_share", 0.3, Frontier, "", "abroad in the same world region; the rest abroad elsewhere";
     OwnAgentsActsPerDay = "own_agents.acts_per_person_day", 10.0, Frontier, "activity.agent.follow.weekly", "acts between a person and their agents a day";
+    CdnInIspShare = "baseline.cdn_inside_isp_share", 0.21, Model, "",
+        "status quo: share of traffic to customers served from CDN caches inside the ISP's own network (Arcep 2024 via CIRISHolon: 21%, 14 to 48% by ISP); applied to public-room deliveries (cacheable broadcast), not to messaging, which goes to the platform's data centre";
+    PublicIxpInboundShare = "baseline.public_ixp_inbound_share", 0.015, Model, "",
+        "status quo check: public IXP peering carries 1.5% of inbound traffic (Arcep via CIRISHolon); the netgraph stand-in's paths to a data centre cross an IXP far more often, so the stand-in overstates the IXP segment";
 }
 
 /// The measure's input values.
@@ -356,6 +360,9 @@ pub struct KindLocality {
     pub relayed: f64,
     /// Of relayed deliveries, the share on a neighbour's home node (the rest on a hosted relay).
     pub relayed_by_neighbour: f64,
+    /// (b) The status quo's segment shares for the same deliveries (platform data centre; CDN
+    /// inside the ISP for public rooms). Path locality is stated as `path_segment - this`.
+    pub path_baseline: [f64; 5],
     /// (c) Presence-weighted share of deliveries per band (weights: recipient awake).
     pub presence_band: [f64; 7],
     /// (c) Presence-weighted share per segment (at home and on Wi-Fi by hour).
@@ -550,9 +557,11 @@ impl PathModel {
                 s = self.cross[k];
             }
         }
-        // a relayed delivery goes through a neighbour (metro at least) or a hosted relay
+        // a relayed delivery goes through a neighbour (metro at least) or a hosted relay; a
+        // delivery on the home LAN needs no relay
         let mut out = [0.0; 5];
-        for (i, x) in s.iter().enumerate() {
+        out[0] = s[0];
+        for (i, x) in s.iter().enumerate().skip(1) {
             out[i] += (1.0 - relayed) * x;
             let via_n = i.max(2);
             out[via_n] += relayed * self.relay_offer * x;
@@ -560,7 +569,20 @@ impl PathModel {
                 out[i.max(j)] += relayed * (1.0 - self.relay_offer) * x * y;
             }
         }
-        (out, relayed)
+        (out, relayed * (1.0 - s[0]))
+    }
+
+    /// The status quo's segment distribution for one delivery of `kind`: up to the platform's
+    /// data centre and down again (the path to the nearest data centre), with public-room
+    /// deliveries served from a CDN inside the ISP `cdn` of the time.
+    #[must_use]
+    pub fn baseline(&self, kind: GroupKind, cdn: f64) -> [f64; 5] {
+        let mut b = self.to_dc;
+        if kind == GroupKind::Public {
+            b = b.map(|x| x * (1.0 - cdn));
+            b[1] += cdn;
+        }
+        b
     }
 }
 
@@ -643,6 +665,7 @@ impl Acc {
             path_segment: self.seg.map(|x| x / d),
             relayed: self.relayed / d,
             relayed_by_neighbour: if self.relayed > 0.0 { relay_offer } else { 0.0 },
+            path_baseline: [0.0; 5],
             presence_band: self.pres_band.map(|x| x / pw),
             presence_segment: self.pres_seg.map(|x| x / pw),
         }
@@ -754,16 +777,31 @@ pub fn measure(w: &SocialWorld, ap: &ActivityParams, lp: &Loc2Params, pm: &PathM
         }
     }
     let relay_offer = pm.relay_offer;
-    let kinds: Vec<KindLocality> = GroupKind::ALL.iter().map(|&k| acc[k as usize].finish(k, relay_offer)).collect();
+    let cdn = lp.get(L::CdnInIspShare);
+    let kinds: Vec<KindLocality> = GroupKind::ALL.iter().map(|&k| {
+        let mut x = acc[k as usize].finish(k, relay_offer);
+        x.path_baseline = pm.baseline(k, cdn);
+        x
+    }).collect();
     let mut all = Acc::default();
-    for a in &acc {
+    let mut base_all = [0.0; 5];
+    let mut d_all = 0.0;
+    for (a, k) in acc.iter().zip(&kinds) {
         all.add(a);
+        for i in 0..5 {
+            base_all[i] += a.deliveries * k.path_baseline[i];
+        }
+        d_all += a.deliveries;
     }
     let pv = pr.verdict();
     Localities {
         persons: w.persons.len(),
         kinds,
-        all: all.finish(GroupKind::Household, relay_offer),
+        all: {
+            let mut x = all.finish(GroupKind::Household, relay_offer);
+            x.path_baseline = base_all.map(|v| v / d_all.max(1e-12));
+            x
+        },
         audience: audience_verdict(),
         path: Verdict { class: Class::Frontier, reads: PATH_READS, note: "netgraph stand-in AS graph (MODEL) and reach outcomes (MODEL marginals, FRONTIER CGNAT and carrier punching); no country layer, so 'same country' is a same-region pair under 1,500 km; equal bytes per delivery".to_string() },
         presence: Verdict { class: pv.0.weaker(Class::Frontier), reads: PRESENCE_READS, note: format!("{}; on top of (a) and (b)", pv.1) },
@@ -805,6 +843,8 @@ pub struct SweepRow {
     pub delivery_local_all10: f64,
     /// Share of delivered bytes leaving the metro (IXP or long-haul), all ten kinds.
     pub bytes_leave_metro: f64,
+    /// Delivery share within the tile (~1 km), all ten kinds: the sub-kilometre bands.
+    pub delivery_within_tile: f64,
 }
 
 fn headline(l: &Localities) -> SweepRow {
@@ -825,6 +865,7 @@ fn headline(l: &Localities) -> SweepRow {
         act_local_all10: l.all.act_within[LOCALITY_BAND],
         delivery_local_all10: local_d(&l.all.delivery_band),
         bytes_leave_metro: l.all.path_segment[3] + l.all.path_segment[4],
+        delivery_within_tile: l.all.delivery_band[..3].iter().sum(),
     }
 }
 
@@ -873,6 +914,13 @@ pub fn sweep(geo: &Geography, persons: usize, horizon_s: f64, seed: u64) -> Vec<
     l2.set(L::CloseFriendsTile, 0.1);
     l2.set(L::CloseFriendsLocality, 0.2);
     push("close friends 30% local (tile + locality)".to_string(), run(&base, Placement::Placed, &l2));
+    for (name, row, vals) in [("band.households_per_building", L::HouseholdsPerBuilding, [1.0, 20.0]), ("band.households_per_tile", L::HouseholdsPerTile, [100.0, 2000.0])] {
+        for x in vals {
+            let mut l3 = lp.clone();
+            l3.set(row, x);
+            push(format!("{name} = {x} (sub-kilometre, FRONTIER)"), run(&base, Placement::Placed, &l3));
+        }
+    }
     push("placeless null model (every non-household room ignores place)".to_string(), run(&base, Placement::Placeless, &lp));
     rows
 }
@@ -907,18 +955,21 @@ pub fn report(geo: &Geography, geo_name: &str, persons: usize, days: f64, seed: 
         }
         s.push_str(&format!(" {} |\n", pct(k.act_within[LOCALITY_BAND])));
     }
-    s.push_str(&format!("\n## (b) Path locality: where the bytes go\n\nVerdict: **{}**. {}. Will read: {}.\n\nPath model: same-locality cross-network segments {:?}, one-network share {:.2}; cross-locality (same country / same world region / other) {:?}; relayed share of pairs fixed / Wi-Fi / cellular {:?}; path to the nearest data centre {:?}; relay offering {:.2} (expected regime).\n\n| kind |", l.path.class.as_str(), l.path.note, l.path.reads.join(", "), pm.same_metro.map(|x| (x * 1000.0).round() / 1000.0), pm.same_network, pm.cross.map(|v| v.map(|x| (x * 1000.0).round() / 1000.0)), pm.relayed.map(|x| (x * 1000.0).round() / 1000.0), pm.to_dc.map(|x| (x * 1000.0).round() / 1000.0), pm.relay_offer));
+    s.push_str(&format!("\n## (b) Path locality: where the bytes go\n\nVerdict: **{}**. {}. Will read: {}.\n\nPath model: same-locality cross-network segments {:?}, one-network share {:.2}; cross-locality (same country / same world region / other) {:?}; relayed share of pairs fixed / Wi-Fi / cellular {:?}; path to the nearest data centre {:?}; relay offering {:.2} (expected regime). Path locality is stated against the status quo (every delivery up to the platform's data centre and down, public rooms served from a CDN inside the ISP {:.0}% of the time, Arcep 2024); Arcep also reports public IXP peering at {:.1}% of inbound, far below the stand-in's IXP share on data-centre paths, so the IXP column is the stand-in's.\n\n| kind |", l.path.class.as_str(), l.path.note, l.path.reads.join(", "), pm.same_metro.map(|x| (x * 1000.0).round() / 1000.0), pm.same_network, pm.cross.map(|v| v.map(|x| (x * 1000.0).round() / 1000.0)), pm.relayed.map(|x| (x * 1000.0).round() / 1000.0), pm.to_dc.map(|x| (x * 1000.0).round() / 1000.0), pm.relay_offer, 100.0 * Loc2Params::default().get(L::CdnInIspShare), 100.0 * Loc2Params::default().get(L::PublicIxpInboundShare)));
     for g in SEGMENTS {
         s.push_str(&format!(" {g} |"));
     }
-    s.push_str(" relayed | relayed by a neighbour |\n|---|---|---|---|---|---|---|---|\n");
+    s.push_str(" relayed | relayed by a neighbour | status quo: in one network / leaves the metro | mesh minus status quo: in one network or LAN / leaves the metro |\n|---|---|---|---|---|---|---|---|---|---|\n");
     for k in l.kinds.iter().chain(core::iter::once(&l.all)) {
         let name = if core::ptr::eq(k, &l.all) { "all kinds" } else { k.kind.as_str() };
         s.push_str(&format!("| {name} |"));
         for x in k.path_segment {
             s.push_str(&format!(" {} |", pct(x)));
         }
-        s.push_str(&format!(" {} | {} |\n", pct(k.relayed), pct(k.relayed_by_neighbour)));
+        let b = &k.path_baseline;
+        let near = |v: &[f64; 5]| v[0] + v[1];
+        let leave = |v: &[f64; 5]| v[3] + v[4];
+        s.push_str(&format!(" {} | {} | {} / {} | {:+.1} pp / {:+.1} pp |\n", pct(k.relayed), pct(k.relayed_by_neighbour), pct(near(b)), pct(leave(b)), 100.0 * (near(&k.path_segment) - near(b)), 100.0 * (leave(&k.path_segment) - leave(b))));
     }
     s.push_str(&format!("\n## (c) Presence-weighted locality\n\nVerdict: **{}**. {}. Will read: {}.\n\nDeliveries weighted by the recipient being awake at the act's local hour; the path by who is at home and on Wi-Fi at that hour.\n\n| kind | within locality (a) | within locality (c) | home LAN (b) | home LAN (c) | leaves the metro (b) | leaves the metro (c) |\n|---|---|---|---|---|---|---|\n", l.presence.class.as_str(), l.presence.note, l.presence.reads.join(", ")));
     for k in l.kinds.iter().chain(core::iter::once(&l.all)) {
@@ -927,9 +978,9 @@ pub fn report(geo: &Geography, geo_name: &str, persons: usize, days: f64, seed: 
         s.push_str(&format!("| {name} | {} | {} | {} | {} | {} | {} |\n", pct(wl(&k.delivery_band)), pct(wl(&k.presence_band)), pct(k.path_segment[0]), pct(k.presence_segment[0]), pct(k.path_segment[3] + k.path_segment[4]), pct(k.presence_segment[3] + k.presence_segment[4])));
     }
     if with_sweep {
-        s.push_str("\n## Sweep: the headline as a function of the room-placement inputs\n\nAct and delivery locality at the locality band (the page's definition) over social.rs's seven kinds, then over all ten, and the share of delivered bytes that leave the metro. Inputs one at a time from the defaults, then jointly, then the placeless null.\n\n| setting | act locality (7 kinds) | delivery locality (7) | act locality (10) | delivery locality (10) | bytes leaving the metro |\n|---|---|---|---|---|---|\n");
+        s.push_str("\n## Sweep: the headline as a function of the room-placement inputs\n\nAct and delivery locality at the locality band (the page's definition) over social.rs's seven kinds, then over all ten, and the share of delivered bytes that leave the metro. Inputs one at a time from the defaults, then jointly, then the placeless null.\n\n| setting | act locality (7 kinds) | delivery locality (7) | act locality (10) | delivery locality (10) | delivery within the tile (10) | bytes leaving the metro |\n|---|---|---|---|---|---|---|\n");
         for r in sweep(geo, persons, horizon, seed) {
-            s.push_str(&format!("| {} | {} | {} | {} | {} | {} |\n", r.setting, pct(r.act_local), pct(r.delivery_local), pct(r.act_local_all10), pct(r.delivery_local_all10), pct(r.bytes_leave_metro)));
+            s.push_str(&format!("| {} | {} | {} | {} | {} | {} | {} |\n", r.setting, pct(r.act_local), pct(r.delivery_local), pct(r.act_local_all10), pct(r.delivery_local_all10), pct(r.delivery_within_tile), pct(r.bytes_leave_metro)));
         }
     }
     s
@@ -969,11 +1020,11 @@ pub fn cli(args: &[String]) -> Result<String, String> {
 // ---------------------------------------------------------------------------
 
 /// Floats per row of [`view_localities`].
-pub const VIEW_STRIDE: usize = 1 + 7 + 5 + 2 + 7 + 5 + 3;
+pub const VIEW_STRIDE: usize = 1 + 7 + 5 + 5 + 2 + 7 + 5 + 3;
 
 /// The three localities per group kind, `VIEW_STRIDE` f32 per row, kinds in
 /// [`GroupKind::ALL`] order then one "all kinds" row (kind = 10):
-/// `[kind, delivery_band[7], path_segment[5], relayed, relayed_by_neighbour,
+/// `[kind, delivery_band[7], path_segment[5], path_baseline[5], relayed, relayed_by_neighbour,
 ///   presence_band[7], presence_segment[5], class_a, class_b, class_c]`; bands in [`BANDS`]
 /// order, segments in [`SEGMENTS`] order, classes as `seat_hooks::class` codes.
 #[must_use]
@@ -987,6 +1038,7 @@ pub fn view_localities(seed: u64) -> Vec<f32> {
         v.push(i as f32);
         v.extend(k.delivery_band.iter().map(|&x| x as f32));
         v.extend(k.path_segment.iter().map(|&x| x as f32));
+        v.extend(k.path_baseline.iter().map(|&x| x as f32));
         v.extend_from_slice(&[k.relayed as f32, k.relayed_by_neighbour as f32]);
         v.extend(k.presence_band.iter().map(|&x| x as f32));
         v.extend(k.presence_segment.iter().map(|&x| x as f32));
@@ -1020,7 +1072,7 @@ mod tests {
             if k.deliveries <= 0.0 {
                 continue;
             }
-            for v in [k.delivery_band.iter().sum::<f64>(), k.path_segment.iter().sum::<f64>(), k.presence_band.iter().sum::<f64>(), k.presence_segment.iter().sum::<f64>()] {
+            for v in [k.path_baseline.iter().sum::<f64>(), k.delivery_band.iter().sum::<f64>(), k.path_segment.iter().sum::<f64>(), k.presence_band.iter().sum::<f64>(), k.presence_segment.iter().sum::<f64>()] {
                 assert!((v - 1.0).abs() < 1e-9, "{:?} {v}", k.kind);
             }
             for b in 1..7 {
