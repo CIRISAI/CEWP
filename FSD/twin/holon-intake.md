@@ -278,7 +278,7 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   centre -29.6 (-83.2 to +1,745.9), net -22.8 (-82.2 to +1,780.7), sign open. The pass's counters at seed 1 are
   baked too (`counters_seed1`, test against `Counters::from_hooks(1)`): read live they ran a stand-in day, a
   1.2 s task on a phone at 4x CPU throttle. A street costs 10 to 45 ms there. Wasm 1,591,135 bytes.
-- **Power map: GRID-0 by country** (CIRISHolon 0d38d4d `conformance/scene/tables/grid0`, imported as
+- **Power map: GRID-0 by country** (CIRISHolon 2e3f077, version 2: wording only, every value as version 1 at 0d38d4d; `conformance/scene/tables/grid0`, imported as
   docs/geo/holon/grid0.json; ledger holon-grid0). Country rows are matched to ISO codes through
   docs/geo/country_iso.json (NAME / ADMIN / NAME_LONG of the same Natural Earth admin-0 file the mask is built from;
   tools/geo/country_iso.py; a name not there is refused, never guessed). GRID-0's rules, all applied: one kind per

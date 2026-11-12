@@ -2535,7 +2535,7 @@ function drawScaleBar(g, F, ppm){
 const pad2 = (n) => String(n).padStart(2, "0"); // the street clock's two-digit fields
 // ---- CIRISHolon's tables on the page (FSD/twin/holon-intake.md): loaded lazily, never at first paint
 const HOLT = { want: false, idx: null, t: {}, reg: null, regAt: null };
-const HOL_V = 3; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
+const HOL_V = 4; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
 function holLoad(){
   if (HOLT.want) return; HOLT.want = true;
   const j = (u) => fetch(u + "?v=" + HOL_V).then((r) => r.json());
@@ -2783,7 +2783,7 @@ function dmLegend(){
     const sel = `<select class="dm-kind" data-grid-kind aria-label="kind of rate">${GRID_KINDS.map((k, i) => `<option value="${i}"${i === GRID.kind ? " selected" : ""}>${k.label}</option>`).join("")}</select>`;
     const list = g.rows.map((r) => `${r.row.place} ${r.row.value} (${r.row.year}, trust ${r.row.trust}${r.others.length ? "; also " + r.others.map((o) => o.value + " trust " + o.trust + ", " + o.source).join("; ") : ""})`).join(", ");
     return `<div class="dm-l1 dm-wrap"><b>Power</b> ${fig("holon-grid0", "grid carbon intensity, " + unit + ", " + yr)} ${sel}</div>` +
-      `<div class="dm-l2 dm-wrap">${fig("holon-grid0", dmBar("dm-power", [[0, "0"], [0.25, "250"], [0.5, "500"], [0.75, "750"], [1, "1000"]]))} <span class="dm-tb">CIRISHolon GRID-0 v1</span> ${holVd("unresolved", "unresolved")} <span class="vd dm-noref">no ref.</span> ${more(fig("holon-grid0", "kind shown: " + g.kind + " — " + K.reading + ". One kind per map; another kind is another map. Countries (" + g.rows.length + "): " + (list || "none") +
+      `<div class="dm-l2 dm-wrap">${fig("holon-grid0", dmBar("dm-power", [[0, "0"], [0.25, "250"], [0.5, "500"], [0.75, "750"], [1, "1000"]]))} <span class="dm-tb">CIRISHolon GRID-0 v${HOLT.t.grid0 ? HOLT.t.grid0.version : "?"}</span> ${holVd("unresolved", "unresolved")} <span class="vd dm-noref">no ref.</span> ${more(fig("holon-grid0", "kind shown: " + g.kind + " — " + K.reading + ". One kind per map; another kind is another map. Countries (" + g.rows.length + "): " + (list || "none") +
         ". Trust C rows (secondhand pages) are hatched; where two rows disagree for one place and year the higher-trust row is shown and the other named, never averaged. A country with no row of this kind is 'no reference'. Colour fills the Natural Earth admin-0 mask (de facto, simplified), not a claim about borders. A country value hides its grid regions: the US mainland eGRID 2023 subregions run " +
         (g.us.avg ? g.us.avg[0].toFixed(0) + " to " + g.us.avg[1].toFixed(0) : "?") + " gCO2/kWh on average and " + (g.us.nbl ? g.us.nbl[0].toFixed(0) + " to " + g.us.nbl[1].toFixed(0) : "?") + " non-baseload (subregion boundaries are not in the twin). An average rate times a change in load is an attribution, never 'emissions avoided'."))}</div>`; }
   if (id === 3) return `<div class="dm-l1"><b>Verdict</b> ${holVd("certified", "certified")} ${holVd("unresolved", "read, not certified")} <span class="vd dm-noref">no reference</span></div>` +
