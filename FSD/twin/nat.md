@@ -216,7 +216,7 @@ peer-reflexive punch (0.05: 0.575 -> 0.527). If those are right, the micro tier 
 of consumer routers generally report a majority as cone (EIM) NATs; if that holds for CIRIS
 homes, today's `reach_home_share` 0.40 is pessimistic. Only B1 with F1 of section 5 can settle it.
 
-## 5. Fleet-measurement request (for the lead to put to the server session)
+## 5. Fleet-measurement request (to be put to the server project)
 
 Goal: turn the MODEL shares above into MEASURED ones without any per-device row or identifier
 leaving production. Every item is a **count summed over the fleet per day**, keyed only by the
@@ -379,7 +379,7 @@ punch failed 871, LAN 1265. A phone on a carrier is an end of a relayed pair 56%
 (963 / 1717) and holds a mapping for every direct path it has (it never listens): that is the
 radio-awake cost the energy package will price.
 
-### 9.3 Globe view (`reach::hooks`, layout agreed with `twin-globe`)
+### 9.3 Globe view (`reach::hooks`, layout agreed with the globe package)
 Scenario: 3 streets x 12 households (about 130 devices), 4 ISPs (at most 2 per street), 3
 carriers, correlated; every family pair, 120 community pairs, 30 others. All MODEL.
 - `nat_view_nodes(seed) -> Vec<u32>`, stride 4: access class (0 fixed, 1 phone on Wi-Fi, 2 phone

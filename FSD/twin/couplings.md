@@ -106,7 +106,7 @@ baae03a, merged):
   independence gives), phones by adults and children (0.93 per adult 18-64, 0.67 per adult 65 and
   over, 0.52 per child), and fixed devices by household size and building type.
 - Presence (PRESENCE-0, US 2022-2024): the twin's awake 0.85 is refused (0.623, 15.0 h a day); the
-  globe's activity inside the United States moves to it through twin-theory's presence seam.
+  globe's activity inside the United States moves to it through the presence tint (each person's generated day, PRESENCE-0 as the fallback).
 - The twin's dwelling class (single house versus multi-unit, per building) is the natural key for
   the next rule: HOUSEHOLD-0 reads building type moving persons per household by 0.84, density
   class by only 0.08.

@@ -24,10 +24,10 @@ No item marked owed in their specs at the merged heads (3115c11's nat, 0f0aef4, 
 **Applied on twin/globe (the commit that adds this line):** §4.7.2 to §4.7.4 regenerated from
 `cargo run --release -p cewp-sim --example capacity_sweep` on the merged calibrated model (every
 knee an interval against g), the prose corrections below made in §4.7.1, the reading bullets and
-§4.7.5, and README :13. The `docs/` items were done by twin-globe (seat card on `view_seat_fleet`,
+§4.7.5, and README :13. The `docs/` items were done in the globe package (seat card on `view_seat_fleet`,
 knee from `calibration_view_knee`).
 
-> For the lead (this package does not edit the main FSD, README or `docs/`). Line numbers at
+> For integration (this package does not edit the main FSD, README or `docs/`). Line numbers at
 > f73b918.
 >
 > - `FSD/SIMULATION_ENGINE.md` :438 `bundle_bootstrap` source: "CIRISEdge#971 c580298" →

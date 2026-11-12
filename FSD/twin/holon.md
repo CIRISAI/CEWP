@@ -20,7 +20,7 @@ computes those norms from a fine and a coarse run:
   `shaping_pm`) and caps it at 0.20; its `K` is a formula (`1.012 + 0.045 × …`), not a measured
   Lipschitz constant; its witness-pair count is synthesised from the excess, not a found pair.
   These page numbers are not measured closure defects. This package does not change the wasm
-  (RULES 8); it is a finding for the lead.
+  (RULES 8); it is an open finding.
 
 So before this package there was no measured certificate of any CEWP tier, mean or otherwise.
 
@@ -254,7 +254,7 @@ failure regime (an outage moves phones to cellular, which is exactly the correla
 mean-field tier misses here); and per-class cells, so the trigger can send back the class that
 left, not the whole tier.
 
-**Globe view** (`holon_view.rs`, in the layout `twin-globe` asked for; strides, fields and a
+**Globe view** (`holon_view.rs`, in the layout the globe package uses; strides, fields and a
 class per field in the doc comments). `holon_view_cells(seed) -> Vec<f32>`, stride 8:
 `[lat, lon, half, level, state, bound, margin, defect]`. Record 0 is the coarse tier as a whole
 (the patch square); records 1.. are the coarse cells. `state` is 0 certified inside the

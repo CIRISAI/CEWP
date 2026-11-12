@@ -640,7 +640,7 @@ break-even table reports the value at which each lever would flip the sign.
 | `workload.bytes_per_act` | workload | wire bytes of one act's content copy | bytes | 1000.0 / 5000.0 / 50000.0 | MODEL | n/a | 2026 | - | ours | a signed text act with a thumbnail; media-heavy acts run higher |
 | `phone.mesh_extra_content_wakes` | workload | extra content wake-ups under the mesh, as a share of the status quo's push wake-ups | share | -0.3 / 0.0 / 0.3 | FRONTIER | n/a | 2026 | phone wake log under the mesh and under a push-notification app for one scripted day | ours | mesh content arrives on a live link, push on the OS channel; whether batching differs is unknown |
 | `phone.keepalive_bytes_per_mapping_hour` | workload | bytes to hold one NAT mapping for an hour | bytes | 0.0 / 2000.0 / 20000.0 | FRONTIER | n/a | 2026 | packet capture of a phone holding punched paths | ours | keepalives ride the 30 s round wake, so they add bytes, not wake-ups |
-| `mix.fixed_broadband_share` | workload | households with fixed broadband (a gateway) | share | 0.728 / 0.728 / 0.728 | MODEL | n/a | 2020 | - | DEVICES-0 (US 2020, RECS) via the lead: 72.8% | envelope: United States, 2020, a pandemic year |
+| `mix.fixed_broadband_share` | workload | households with fixed broadband (a gateway) | share | 0.728 / 0.728 / 0.728 | MODEL | n/a | 2020 | - | DEVICES-0 (US 2020, RECS): 72.8% | envelope: United States, 2020, a pandemic year |
 | `mix.cellular_only_share` | workload | households with cellular data only | share | 0.146 / 0.146 / 0.146 | MODEL | n/a | 2020 | - | DEVICES-0 (US 2020): 14.6% | for them an always-on node has no fixed line to sit behind |
 | `mix.nothing_to_host_share` | workload | households with no computer and no fixed line | share | 0.087 / 0.087 / 0.087 | MODEL | n/a | 2020 | - | DEVICEGEN-1 (CIRISHolon 33dc99f): CERTIFIED for the US 2020 (8.8% generated, 8.7% held out; clustering 2.92 against 2.85) | nothing to host a home node on |
 | `mix.no_computer_share` | workload | households with no laptop, desktop or tablet | share | 0.111 / 0.111 / 0.111 | MODEL | n/a | 2020 | - | DEVICES-0 / DEVICEGEN-1 (US 2020) | - |
@@ -916,7 +916,7 @@ homes with no internet are at zero. Household types come from a stated joint sta
 DEVICES-0 marginals, CIRISHolon DEVICEGEN-1's certified 8.7% of households with nothing to host
 on, and a desktop spread evenly over homes with a computer (MODEL). It sits behind the seam
 `holon_scene::world::devices::generate` will fill: the single holon-scene pin is CIRISHolon f07a5ee (twin/globe 6a71c08; it carries DEVICEGEN-1, devices.rs byte-identical to 33dc99f, and PRESENCEGEN-2). The rev was agreed
-with twin-globe2, who is wiring the same call into the kernel. DEVICEGEN-1 declares a gateway
+with the globe package, which wires the same call into the kernel. DEVICEGEN-1 declares a gateway
 present with a fixed line and a desktop able to host. Whether the gateway can host and whether
 the desktop is on all day are both unknown, so the shares reached are upper bounds. Envelope:
 United States, 2020. By 2024 set-top boxes are +76% and streaming devices −22%.

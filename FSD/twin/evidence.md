@@ -50,7 +50,7 @@ under correction reads "under correction" after the figure.
    A registered class that disagrees with the ledger is shown on the card as a mismatch.
    The layer entries (`layer-illustration` at `twin/globe b4cbfb9`, `layer-glow`, `layer-arcs`, `layer-flows`, `layer-alm`, `layer-custody`,
    `layer-reach`, `layer-seat`) were written from the globe package's registry at `twin/globe 07865ef`.
-   On the lead's ruling of 2026-11-11 (simulation output over MODEL inputs reads MODEL) `layer-arcs`,
+   On the project's ruling of 2026-11-11 (simulation output over MODEL inputs reads MODEL) `layer-arcs`,
    `layer-flows`, `layer-alm`, `layer-custody` and `layer-holon` are MODEL, each card still naming its
    inputs; `layer-failures` (MODEL) was added with the failures layer.
    The Phase 2 entries `layer-topology` (MODEL), `layer-nat` (MODEL), `layer-people` (MODEL) and
@@ -86,7 +86,7 @@ ledger:
   (FRONTIER). At twin/globe e42b504 the seat card reads them live through kernel-wasm
   `view_calibration_knee(0)` and `(4)` (`seat_hooks::calibration_view_knee`), lower and upper only;
   this tree still prints them as static text, and the integration keeps the globe package's table
-  (resolution sent to the lead). `layer-calibration` (MODEL) is the band, bracket and residual view.
+  (resolution requested). `layer-calibration` (MODEL) is the band, bracket and residual view.
 - `layer-media` is MODEL: FSD/twin/media.md (8e6c972, lines 11-12) says every result of the
   engine is MODEL output, and the page legend classes simulation output under stated inputs as
   MODEL. The globe registered it DERIVED at da31099; the scan reports that mismatch until the

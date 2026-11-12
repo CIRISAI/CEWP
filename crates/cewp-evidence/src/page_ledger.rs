@@ -512,7 +512,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         id: "energy-street",
         class: Model,
         live: true,
-        shows: "The focal street's mesh energy delta from the status quo, in kWh per household-year, short and long run: twin-theory's energy pass (delta = A + B - C, expected regime) with its household mix set from this street's own households as CIRISHolon's DEVICEGEN-1 drew them, under the home-node scenario chosen on the page; the point and the lowest and highest found over every input's interval, and the weakest class of any input priced.",
+        shows: "The focal street's mesh energy delta from the status quo, in kWh per household-year, short and long run: the energy pass (FSD/twin/energy.md) (delta = A + B - C, expected regime) with its household mix set from this street's own households as CIRISHolon's DEVICEGEN-1 drew them, under the home-node scenario chosen on the page; the point and the lowest and highest found over every input's interval, and the weakest class of any input priced.",
         source: "crates/cewp-sim/src/street_energy.rs street_energy (energy::with_mix_from_draws, energy::delta, energy::host_reach; counters at seed 1, the report's); micro.rs household_draws; kernel-wasm micro_energy",
         param: "the pass's mix rule (MODEL): a home node in EVERY household that can host it, not the street's drawn 60 %; the household mix from the street's draws (connection, desktop, any computer, persons, phones); every other input at the pass's defaults (FSD/twin/energy.md)",
         failure: &[
@@ -1050,7 +1050,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         shows: "Globe layer: a sample of deliveries crossing localities, coloured by tier (shaped hop, seat replication, relay tree or unshaped, onion).",
         source: "docs/layers/layers.js: CEWP_LAYERS arcs; kernel-wasm tick, arcs buffer (u32 x 2: signer, target | tier << 28)",
         commit: LAYERS_COMMIT,
-        param: "MODEL: simulation output over MODEL inputs reads MODEL (the lead's ruling, 2026-11-11); inputs: the kernel's generated world and traffic mix (kernel-traffic, kernel-locality), the 1-in-3 to 1-in-48 arc sample, at most 10 drawn a tick",
+        param: "MODEL: simulation output over MODEL inputs reads MODEL (the project's ruling, 2026-11-11); inputs: the kernel's generated world and traffic mix (kernel-traffic, kernel-locality), the 1-in-3 to 1-in-48 arc sample, at most 10 drawn a tick",
         failure: &[
             "A sample: the tick keeps up to 420 pairs (1 in 3 to 1 in 48 of its deliveries) and the page adds at most 2 a tick at orbit zoom (10 closer in), so arc density is not traffic volume.",
             "Computed from the kernel's MODEL world (kernel-traffic, kernel-locality); no real traffic.",
@@ -1065,7 +1065,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         shows: "Globe layer: exact counts of deliveries between localities over the last 25 ticks, the largest 60 pairs drawn.",
         source: "docs/layers/layers.js: CEWP_LAYERS flows; kernel-wasm tick (globe buffer 10, a 181 x 181 u32 matrix) and locality_centroids (buffer 2)",
         commit: LAYERS_COMMIT,
-        param: "MODEL: simulation output over MODEL inputs reads MODEL (the lead's ruling, 2026-11-11); inputs: the kernel's generated world and its 90/9/1 room mix (kernel-locality); a 25-tick window, the 60 largest pairs",
+        param: "MODEL: simulation output over MODEL inputs reads MODEL (the project's ruling, 2026-11-11); inputs: the kernel's generated world and its 90/9/1 room mix (kernel-locality); a 25-tick window, the 60 largest pairs",
         failure: &[
             "The counts are exact for the simulated world, which is a MODEL (kernel-locality: the 90/9/1 room mix largely sets them).",
             "The layer checks every tick that the matrix sums to out[6] + out[7]; a mismatch shows on its status line and as check_ok = 0 on this card.",
@@ -1080,7 +1080,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         shows: "Globe layer: the relay tree of one region's room (CC 6.1.6), its depth, busiest parent and fan-out bound.",
         source: "docs/layers/layers.js: CEWP_LAYERS alm; kernel-wasm alm_room, alm_bounds; crates/cewp-sim/src/alm.rs compute_alm_topology_verified_with_publisher",
         commit: LAYERS_COMMIT,
-        param: "MODEL: simulation output over MODEL inputs reads MODEL (the lead's ruling, 2026-11-11); inputs: device class shares 30/30/15/25 %, uplinks 2/8/12/20 Mbit/s, max subscribers 1/2/4/8, RTT = 10 ms + 2 x 1.6 x km / 200, trust depth 1 for every pair, first 64 members",
+        param: "MODEL: simulation output over MODEL inputs reads MODEL (the project's ruling, 2026-11-11); inputs: device class shares 30/30/15/25 %, uplinks 2/8/12/20 Mbit/s, max subscribers 1/2/4/8, RTT = 10 ms + 2 x 1.6 x km / 200, trust depth 1 for every pair, first 64 members",
         failure: &[
             "The tree is computed exactly, but over MODEL inputs: uplinks, class shares and the RTT formula are not measured.",
             "Trust depth 1 for all pairs removes the trust constraint the real tree builder applies.",
@@ -1094,7 +1094,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         shows: "Globe layer: which members of a room hold its sealed chunk, and whether custody is Full, Partial or envelope only.",
         source: "docs/layers/layers.js: CEWP_LAYERS custody; kernel-wasm custody_room (globe buffers 7 and 8); chunk_custody classify(present, 20, 6), effective_source_count",
         commit: LAYERS_COMMIT,
-        param: "MODEL: simulation output over MODEL inputs reads MODEL (the lead's ruling, 2026-11-11); inputs: present_pm (the slider): the share of holders reachable, drawn per holder; target 20, minimum viable 6",
+        param: "MODEL: simulation output over MODEL inputs reads MODEL (the project's ruling, 2026-11-11); inputs: present_pm (the slider): the share of holders reachable, drawn per holder; target 20, minimum viable 6",
         failure: &[
             "Who is reachable is a MODEL draw from the slider, a stand-in until the failures package supplies correlated outages.",
             "Holders are the room's members; no custody placement policy beyond that is modelled.",
@@ -1207,7 +1207,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         shows: "Globe layer: the coarse-tier cells of the R5 demonstration (host kind x access network, laid out as a patch near Zurich; not places), each certified, refused or not evaluated with its binding bound and margin, and the per-tier certificate table.",
         source: "docs/layers/layers.js: CEWP_LAYERS holon; kernel-wasm views.rs view_holon; crates/cewp-sim/src/holon_view.rs cells_of, certificates_of, holon_view_bounds over holon_demo::demonstration_seeded(VIEW_HORIZON_S, 43); FSD/twin/holon.md",
         commit: VIEWS_COMMIT,
-        param: "MODEL: simulation output over MODEL inputs reads MODEL (the lead's ruling, 2026-11-11); inputs: the micro world under the tier; seed 43",
+        param: "MODEL: simulation output over MODEL inputs reads MODEL (the project's ruling, 2026-11-11); inputs: the micro world under the tier; seed 43",
         failure: &[
             "A certificate here says the coarse tier matched the finer tier's distributions within budget over the twin's MODEL world; it certifies nothing about the real mesh.",
             "Refused cells are shown as refusals and sent back to the finer tier, not hidden.",

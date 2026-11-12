@@ -2685,7 +2685,7 @@ function rhyDraw(g, A, F, alpha){
       g.fillStyle = "rgba(220,226,236,0.9)"; g.fillText(t, x + 11, ly); x += 15 + g.measureText(t).width + 6; } }
   g.restore();
 }
-// ---- the street's mesh energy delta (kernel micro_energy: twin-theory's energy pass with the household mix from this street's own
+// ---- the street's mesh energy delta (kernel micro_energy: the energy pass (FSD/twin/energy.md) with the household mix from this street's own
 // DEVICEGEN-1 households, under the chosen home-node scenario). The pass's counters are read once (a stand-in day, about a
 // second), so the first street's line fills in an idle slice; afterwards each street is a few milliseconds.
 const EN_WHERE = ["a home node on the gateway in every household with a fixed line", "a home node on an existing computer in every household with a desktop on a fixed line (as the pass reads it)", "a home node on a new box in every household with internet at home", "no home node (phones only)"], EN_CLASS = ["MEASURED", "DERIVED", "MODEL", "PROJECTED", "FRONTIER"];
@@ -2701,7 +2701,7 @@ function energyLine(){
   if (e === undefined) return "mesh energy on this street: computing…";
   if (!e) return `mesh energy on this street: needs CIRISHolon's device rule (this street's households) ${holVd("legacy", "the legacy device draw has no household mix")}`;
   const f = (x) => { const r = Math.round(x * 10) / 10; return r === 0 ? "0.0" : (r > 0 ? "+" : "−") + Math.abs(r).toFixed(1); }, sign = (v) => v[1] > 0 ? "a cost over every input's range" : v[2] < 0 ? "a saving over every input's range" : "sign open over the inputs";
-  return `mesh energy on this street against the status quo (twin-theory's energy pass, expected regime, the household mix from this street's ${e.hh} households, ${EN_WHERE[e.where | 0]}${(e.where | 0) < 3 ? ", " + Math.round(e.reach * 100) + "% of them" : ""}): short run ${f(e.short[0])} kWh per household-year (${f(e.short[1])} to ${f(e.short[2])}, ${sign(e.short)}), long run ${f(e.long[0])} (${f(e.long[1])} to ${f(e.long[2])}, ${sign(e.long)}); weakest input ${EN_CLASS[e.cls | 0]}`;
+  return `mesh energy on this street against the status quo (the energy pass, expected regime, the household mix from this street's ${e.hh} households, ${EN_WHERE[e.where | 0]}${(e.where | 0) < 3 ? ", " + Math.round(e.reach * 100) + "% of them" : ""}): short run ${f(e.short[0])} kWh per household-year (${f(e.short[1])} to ${f(e.short[2])}, ${sign(e.short)}), long run ${f(e.long[0])} (${f(e.long[1])} to ${f(e.long[2])}, ${sign(e.long)}); weakest input ${EN_CLASS[e.cls | 0]}`;
 }
 // the chip line: who is where in this hour of the generated day, and what CIRISHolon said of the generator
 function rhyLine(){

@@ -6,7 +6,7 @@ propagation, residual decomposition, growth sweep), `crates/cewp-sim/src/seat_ho
 (HOOKS.md: energy counters and the globe views). Run: `cargo run --release -p cewp-sim
 --example capacity_sweep` prints the whole report, including the sections below.
 
-This file is the spec for the package. The lead folds pointers into
+This file is the spec for the package. Integration folds pointers into
 `FSD/SIMULATION_ENGINE.md` §4.7; the exact corrections owed there are listed at the end.
 
 ## 1. What is modelled
@@ -216,7 +216,7 @@ the same seat (section 8), and the server's publish-set rule.
 ## 8. Aggregate measurements that would make it sound
 
 Listed in `seat_calibration::MEASUREMENT_REQUESTS` (aggregates only; no identifier, no
-per-device row), for the lead to pass to the server session.
+per-device row), to be put to the server project.
 
 ## 9. Hooks (HOOKS.md)
 
@@ -250,7 +250,7 @@ The page must always draw the interval, never the central value alone.
 
 ## 10. Corrections owed in `FSD/SIMULATION_ENGINE.md` §4.7 and README
 
-For the lead (this package does not edit the main FSD, README or `docs/`). Line numbers at
+For integration (this package does not edit the main FSD, README or `docs/`). Line numbers at
 f73b918.
 
 - `FSD/SIMULATION_ENGINE.md` :438 `bundle_bootstrap` source: "CIRISEdge#971 c580298" →

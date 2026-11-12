@@ -1,6 +1,6 @@
 # FSD (twin package `media`): link contention and call quality
 
-Status: package draft on branch `twin/media`; the lead folds pointers into
+Status: package draft on branch `twin/media`; integration folds pointers into
 `FSD/SIMULATION_ENGINE.md` §3.1/§3.2. Code: `crates/cewp-sim/src/link.rs` (access links),
 `media.rs` (call traffic, controller, scenarios, report), `qoe.rs` (metrics). CLI:
 `cewp-cli media [SEEDS]`.
@@ -286,7 +286,7 @@ player, class sums = node sums.
 ## 10. The globe's view (`media_view.rs`, `HOOKS.md` §2)
 
 Plain functions returning flat `Vec<f32>` / `Vec<u32>` for `kernel-wasm` (owned by
-`twin-globe`); layouts are in each function's doc comment. Scenario: `scenario_view` = the
+the globe package); layouts are in each function's doc comment. Scenario: `scenario_view` = the
 churn room (4 homes, 6 phones, 2 phones behind hard NAT through a home relay that leaves with
 a signed end at 30 s), household traffic off, 60 one-second steps. `media_view(seed)` runs it
 once and returns every buffer; the per-buffer functions each run it again.

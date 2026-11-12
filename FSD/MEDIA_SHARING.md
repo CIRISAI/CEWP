@@ -1071,7 +1071,7 @@ already-shipped + this-FSD-extended primitives:
 
 | Knob | Wire-format primitive | Already shipped? |
 |---|---|---|
-| Trust depth (0/1/2/3) | `delegates_to` graph traversal via NodeCore trust-depth oracle | ✅ NodeCore#21 (this session) |
+| Trust depth (0/1/2/3) | `delegates_to` graph traversal via NodeCore trust-depth oracle | ✅ NodeCore#21 |
 | Cohort filter (local/community/global) | `cohort_scope` field at admission + UI feed selector | ✅ NodeCore Phase 2B compose surfaces |
 | Quality threshold | `compose_article_quality` aggregation thresholding | ✅ NodeCore #19 Phase 3 sub-1 |
 | Freshness decay | persist EvictionSweeper decay curve config | ✅ Persist v3.4.0 |
