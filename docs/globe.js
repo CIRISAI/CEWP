@@ -906,13 +906,16 @@ function getSimUtcHours(nowSec){
 // (the short way round the clock), so a Story act change or leaving the Story moves the terminator
 // over seconds instead of flipping the whole disc from day to night in one frame (WCAG 2.3.1).
 const SUN_SLEW_H_PER_S = 3;
-let drawnHour = null, drawnHourAt = 0;
+let drawnHour = null, drawnHourAt = 0, drawnSlewing = false;
 function drawnUtcHours(nowSec){
   const h = getSimUtcHours(nowSec), now = performance.now();
-  if (drawnHour === null || (typeof GFX !== "undefined" && GFX.reduced)){ drawnHour = h; drawnHourAt = now; return h; }
+  // only the Story slews (its act changes, and leaving it, jump the hour); at load, outside the Story
+  // once caught up, and under reduced motion the hour is shown as it is
+  if (storyActive) drawnSlewing = true;
+  if (drawnHour === null || !drawnSlewing || (typeof GFX !== "undefined" && GFX.reduced)){ drawnHour = h; drawnHourAt = now; return h; }
   const dt = Math.min(0.25, Math.max(0, (now - drawnHourAt) / 1000)); drawnHourAt = now;
   let d = ((h - drawnHour) % 24 + 36) % 24 - 12, m = SUN_SLEW_H_PER_S * dt;
-  drawnHour = (((drawnHour + Math.max(-m, Math.min(m, d))) % 24) + 24) % 24; return drawnHour;
+  drawnHour = (((drawnHour + Math.max(-m, Math.min(m, d))) % 24) + 24) % 24; if (!storyActive && Math.abs(d) <= m) drawnSlewing = false; return drawnHour;
 }
 const ARC_ADD_ORBIT = 2;
 function setArcs(arcs){

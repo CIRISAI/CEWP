@@ -45,7 +45,9 @@ const SIM_DOY = 314; // MODEL scenario parameter: 10 November (the day the page'
 // the sim's clock opens at the visitor's real UTC time of day, so the first view (their own longitude,
 // globe.js HOME_LON) shows their side of the world at their local hour, lit as it is now
 const SIM_T0 = (() => { try { return (Date.now() / 1000) % 86400; } catch (e) { return 8.5 * 3600; } })();
-const SIM = { t: SIM_T0, rate: 0.85 * 3600, tTick: SIM_T0, lastNow: performance.now(), diurnal: 1 }; // diurnal: who signs and who lights follow local time (workload.rs); 0 only for comparison runs
+// rate: sim seconds per real second. 1 = real time, so the lit side is where it is now and does not
+// sweep (it was 0.85 h a second, a whole day in 28 s); the Story's acts set their own hours
+const SIM = { t: SIM_T0, rate: 1, tTick: SIM_T0, lastNow: performance.now(), diurnal: 1 }; // diurnal: who signs and who lights follow local time (workload.rs); 0 only for comparison runs
 function simClockAdvance(now){
   const dt = Math.min(0.25, Math.max(0, (now - SIM.lastNow) / 1000)); SIM.lastNow = now;
   if (typeof playing !== "undefined" && playing && !(typeof storyActive !== "undefined" && storyActive)) SIM.t += dt * SIM.rate;
