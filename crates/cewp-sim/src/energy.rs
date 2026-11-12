@@ -1092,6 +1092,74 @@ fn mix_parts<T: Q>(val: &dyn Fn(E) -> T, s: Scenario) -> Vec<(Scenario, T)> {
     }
 }
 
+/// One generated household, as the energy pass needs it. The seam for CIRISHolon DEVICEGEN-1:
+/// after the theory merge (holon-scene pinned at 33dc99f in cewp-sim), each draw is
+/// `holon_scene::world::devices::generate(seed, persons, building, true).0` mapped as
+/// `connection = hd.connection` (0 fixed line, 1 mobile data only, 2 none),
+/// `has_desktop = hd.has_desktop()`, `has_computer = hd.counts[0] + hd.counts[1] + hd.counts[2] > 0`
+/// (KINDS: laptop, desktop, tablet), `persons = hd.persons()`, `phones = hd.phones.iter().sum()`.
+/// Do not key on age (the generator's age split is unchecked against the census).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HouseholdDraw {
+    /// 0 a fixed line (a gateway DECLARED present), 1 mobile data only, 2 no internet.
+    pub connection: u8,
+    /// A desktop (DECLARED able to host; on all day: unknown).
+    pub has_desktop: bool,
+    /// Any laptop, desktop or tablet.
+    pub has_computer: bool,
+    /// Persons.
+    pub persons: u32,
+    /// Smartphones.
+    pub phones: u32,
+}
+
+/// The household-mix rows set from a sample of generated households (DERIVED from the draws;
+/// the generator's own verdicts apply: "nothing to host on" certified for the US 2020, counts
+/// unresolved). Returns `base` unchanged for an empty sample.
+#[must_use]
+pub fn with_mix_from_draws(base: &EnergyParams, draws: impl IntoIterator<Item = HouseholdDraw>) -> EnergyParams {
+    let (mut n, mut fixed, mut cell, mut none, mut desk_fixed, mut nocomp, mut nothing, mut persons, mut phones) = (0.0f64, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    for d in draws {
+        n += 1.0;
+        match d.connection {
+            0 => fixed += 1.0,
+            1 => cell += 1.0,
+            _ => none += 1.0,
+        }
+        if d.connection == 0 && d.has_desktop {
+            desk_fixed += 1.0;
+        }
+        if !d.has_computer {
+            nocomp += 1.0;
+            if d.connection != 0 {
+                nothing += 1.0;
+            }
+        }
+        persons += f64::from(d.persons);
+        phones += f64::from(d.phones);
+    }
+    if n == 0.0 || fixed == 0.0 {
+        return base.clone();
+    }
+    let mut p = base.clone();
+    let (fb, nc, nt) = (fixed / n, nocomp / n, nothing / n);
+    p.set(E::ShareFixedBroadband, fb);
+    p.set(E::ShareCellOnly, cell / n);
+    p.set(E::ShareNoInternet, none / n);
+    p.set(E::ShareNoComputer, nc);
+    p.set(E::ShareNothingToHost, nt);
+    // mix_parts reads P(desktop | fixed) as desktop x fixed-with-computer / (computer x fixed):
+    // set the desktop share so that it returns the draws' own joint
+    let dgf = desk_fixed / fixed;
+    let fixed_with_computer = (fb - (nc - nt)).max(1e-12);
+    p.set(E::ShareDesktop, dgf * fb * (1.0 - nc) / fixed_with_computer);
+    p.set(E::PersonsPerHousehold, persons / n);
+    if persons > 0.0 {
+        p.set(E::PhonesPerPerson, phones / persons);
+    }
+    p
+}
+
 /// Share of ALL households (US 2020) whose home node runs where the scenario says.
 #[must_use]
 pub fn host_reach(p: &EnergyParams, s: Scenario) -> f64 {
@@ -1526,7 +1594,7 @@ pub fn report(seed: u64) -> String {
         }
         s.push('\n');
     }
-    s.push_str("\n## Where the home node runs (US 2020 household mix, expected regime, substitution 0.05)\n\nThe host choice is applied only to households that can host it; the rest run phones only, and homes with no internet are at zero. Household types are a stated joint stand-in (DEVICES-0 marginals with DEVICEGEN-1's certified 8.7% that have nothing to host on), to be replaced by `holon_scene::world::devices::generate` (CIRISHolon 33dc99f) through the same seam. Envelope: United States, 2020 (set-top boxes +76% and streaming devices -22% by 2024: the always-on boxes move fastest).\n\n| host | households it reaches | delta short run | delta long run |\n|---|---|---|---|\n");
+    s.push_str("\n## Where the home node runs (US 2020 household mix, expected regime, substitution 0.05)\n\nThe host choice is applied only to households that can host it; the rest run phones only, and homes with no internet are at zero. Household types are a stated joint stand-in (DEVICES-0 marginals with DEVICEGEN-1's certified 8.7% that have nothing to host on), to be replaced through `energy::with_mix_from_draws` by draws from `holon_scene::world::devices::generate` (CIRISHolon 33dc99f, pinned in cewp-sim by twin-globe2). Envelope: United States, 2020 (set-top boxes +76% and streaming devices -22% by 2024: the always-on boxes move fastest).\n\n| host | households it reaches | delta short run | delta long run |\n|---|---|---|---|\n");
     for sc in [Scenario::MixGateway, Scenario::MixComputer, Scenario::MixBox, Scenario::MixNone] {
         let a = delta(&p, &k, sc, ParameterRegime::Expected, Run::Short);
         let b = delta(&p, &k, sc, ParameterRegime::Expected, Run::Long);
@@ -1950,6 +2018,22 @@ mod tests {
             let s = by_part(&p, &k, sc, r, Run::Short);
             assert!(s[2].abs() < 1e-12 && s[3].abs() < 1e-12 && s[4].abs() < 1e-12, "C2-C4 are zero in the short run");
         }
+    }
+
+    #[test]
+    fn mix_from_draws_reproduces_its_joint() {
+        // 10 households: 7 fixed (3 with a desktop), 2 mobile only, 1 none; 1 fixed and 2 others
+        // with no computer
+        let mut v = Vec::new();
+        for i in 0..10u8 {
+            let connection = if i < 7 { 0 } else if i < 9 { 1 } else { 2 };
+            v.push(HouseholdDraw { connection, has_desktop: i < 3, has_computer: !(i == 6 || i >= 8), persons: 2, phones: 2 });
+        }
+        let p = with_mix_from_draws(&EnergyParams::default(), v);
+        assert!((p.get(E::ShareFixedBroadband) - 0.7).abs() < 1e-12);
+        assert!((p.get(E::ShareNothingToHost) - 0.2).abs() < 1e-12);
+        assert!((host_reach(&p, Scenario::MixComputer) - 0.3).abs() < 1e-9, "the desktop-on-a-line share comes back exactly");
+        assert!((p.get(E::PhonesPerPerson) - 1.0).abs() < 1e-12);
     }
 
     #[test]
