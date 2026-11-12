@@ -32,6 +32,9 @@ use crate::workload::ParameterRegime;
 /// Where ESTATE-0 version 2 (with its "businesses" block) was read.
 pub const ESTATE0_V2_PIN: &str = "CIRISHolon 8e95fef5715ffaf3bb8f1df9984d107113da752c conformance/scene/tables/estate0/estate_table.json v2 sha256 68fe7f825b690bcbfed45dd6b4061a6910a29e164b5fa25452ed4caccc6e2b58; conformance/scene/TWIN_THEORY_INPUTS.md";
 
+/// Where ESTATE-0 version 4 (AI as a mix across tiers, idle draw by tier, trust per row) was read.
+pub const ESTATE0_V4_PIN: &str = "CIRISHolon 818449a38767d0cbe319211d9101674e02728813 conformance/scene/tables/estate0/estate_table.json v4 sha256 0c5e8aae9a445f476d8e0c382d0c3079b2ca8969abc8914b0ed92331a854ab60";
+
 /// One input row.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FullSpec {
@@ -86,10 +89,6 @@ full_rows! {
         "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 23: 0.5 stands (0.3-0.7), AUTHOR'S ESTIMATE, unsourceable; NOT weighted by traffic bytes (on-demand video is 54-57% of downstream bytes but about 1.3 Wh per viewing hour at the data centre, rows 14-19)";
     EdgeRatio = "edge.marginal_ratio_already_on", "x data-centre energy per unit of work", [0.1, 0.3, 1.0], Model, 2024,
         "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 40: on devices ALREADY ON, 0.1-1 (media delivery from a gateway already on about 0.1, row 32); the fixed draw of anything ADDED is the new-box term (a two-bay home storage box 39-129 kWh a year, row 36; energy.rs home_node.added_box.w)";
-    AiWantedShare = "ai.wanted_inference_share", "share of the consumer AI energy", [0.1, 0.21, 0.35], Model, 2019,
-        "accounting only (it splits the removed consumer AI into what vanishes and the wanted inference the mesh's own replaces; it does not move the net): ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 22: recommendation was over 79% of one operator's AI inference cycles in 2019";
-    AiStaysShare = "ai.frontier_and_training_stays_share", "share of the consumer AI energy", [0.2, 0.3, 0.5], Frontier, 2021,
-        "frontier models and training are a third category that stays hosted (ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1), the scout's note); 10:20:70 experimentation:training:inference for one fleet (UPSTREAM-0 row 20)";
     InteractionsPerPersonDay = "ai.interactions_per_person_day", "agent interactions (all kinds)", [1.0, 10.0, 100.0], Frontier, 2026,
         "how often a person asks their agent for something; no figure (CIRISProxy's aggregate counters could measure it: see the measurement request)";
     CallsPerInteraction = "ai.ethical.llm_calls_per_interaction", "LLM calls", [12.0, 30.0, 70.0], Derived, 2026,
@@ -130,20 +129,36 @@ full_rows! {
         "the ethical-reasoning agent a member node runs to earn and keep standing: interactions a day";
     TokensPerCall = "ai.tokens_per_call", "tokens (prompt + completion)", [500.0, 2000.0, 6000.0], Frontier, 2026,
         "agent calls carry long prompts (context, constitution, history) and short completions; CIRISProxy's litellm_config disables reasoning on DeepInfra Qwen (measured there: 1,193 tokens to 29 for one answer)";
-    WhPer1kTokens = "ai.tier.hosted.wh_per_1k_tokens.mid", "Wh per 1,000 tokens", [0.03, 0.05, 0.15], Model, 2025,
-        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 47 and 50: batched data-centre GPUs 0.15-0.21 J/token for a 32 bn open model (0.042-0.058 Wh per 1,000 tokens); 0.24 Wh per median hosted prompt; the high end allows reasoning (1.3 Wh per reply)";
-    HostedSmallFactor = "ai.tier.hosted.small_class_factor", "x the mid class", [0.3, 1.0, 1.0], Model, 2025,
-        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 57, 'as served': a job a small local model can do is served hosted by the hosted model, so the device-to-data-centre ratio for it is 0.3-5 as served; default 1 (the hosted model serves it)";
+    AiVanishShare = "ai.vanish_share", "share of the consumer AI electricity", [0.2, 0.4, 0.6], Frontier, 2025,
+        "ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers): the scout's estimate, unsourceable: ranking, advertising and training on harvested data vanish (the often-quoted 'inference is 60-90%' figures are 2019-21 and mostly ranking inference). TRUST none";
+    AiRequestedShare = "ai.requested_inference_share", "share of the consumer AI electricity", [0.05, 0.12, 0.2], Frontier, 2025,
+        "ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers): requested generative inference is about 5-20% of AI electricity (the scout's bound from operators' own figures); it is replaced by the mesh's own demand; the rest of consumer AI (frontier, training, business) stays. TRUST low";
+    HostedJPerToken = "ai.hosted.j_per_token.mid", "J per token", [0.15, 0.18, 0.21], Model, 2025,
+        "ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers): hosted, batched, about 32 bn parameters, measured (Chung et al., arXiv 2601.22076); 0.24 Wh per median hosted prompt (one operator, 2025, fell 33 times in a year). TRUST high";
+    HostedIdleReserve = "ai.hosted.idle_reserve", "share added", [0.05, 0.10, 0.15], Model, 2025,
+        "ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers): hosted idle reserve is about 10% of 0.24 Wh per prompt (one operator's disclosure). TRUST high";
+    RightSizeSaving = "ai.right_size_saving", "share saved", [0.48, 0.65, 0.80], Model, 2025,
+        "ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers): routing easy queries to small models saves 48-80% against sending everything to a frontier model; the saving comes from MODEL SIZE, not hardware; applied to a hosted small model and to the mix. TRUST medium";
+    PhoneJPerToken = "ai.device.phone.j_per_token", "J per token (marginal: on anyway)", [0.58, 0.67, 0.76], Model, 2024,
+        "ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers): about 3 bn parameters, measured, whole phone (Laskaridis et al., MobiCom 2024). TRUST medium";
+    LaptopJPerToken = "ai.device.laptop.j_per_token", "J per token (marginal: in use)", [0.09, 0.17, 0.25], Model, 2025,
+        "ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers): 3-9 bn parameters, power ASSUMED, not measured. TRUST low";
+    PhoneShareOfLocal = "ai.device.phone_share_of_local", "share", [0.3, 0.5, 0.7], Frontier, 2026,
+        "of the local small-model work, the share on phones (the rest on laptops in use); no figure. TRUST none";
+    ConsumerGpuJPerToken = "ai.prosumer_gpu.j_per_token", "J per token", [0.27, 0.30, 0.32], Model, 2025,
+        "ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers): consumer graphics card, about 1 bn parameters, card only. TRUST low";
+    ConsumerGpuIdleW = "ai.prosumer_gpu.idle_w", "W", [22.0, 26.0, 30.0], Model, 2025,
+        "ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers): consumer graphics card alone at idle, forum posts only. TRUST low";
+    SameModelRatio = "ai.same_model_ratio_vs_batched_dc", "x the batched data centre per token", [18.0, 30.0, 46.0], Model, 2025,
+        "ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers): the same model on a laptop one request at a time: the data centre is 1.6-2.3x better per joule, batching 64 a further 11-20x, so 18-46x against a batched data centre (Saad-Falcon et al., arXiv 2511.07885, read by the scout; the scout's arithmetic on the two factors). Efficiency is decided by model size and how full the machine is; an office box or on-prem server at low load cannot batch and sits near the laptop. TRUST high";
+    BoxIdleW = "ai.box.idle_w", "W", [4.0, 7.0, 15.0], Frontier, 2025,
+        "ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers): no idle figure is published for a small inference appliance or an on-premises GPU server (a 240 W supply; 10.2 kW maximum); small desktop 4-7 W and workstation with integrated accelerator 6-13 W (vendor-measured, TRUST high) as the proxy. TRUST none for the appliance itself";
+    LocalShare = "ai.alloc.local_share", "share of small-model work", [0.4, 0.4, 0.4], Frontier, 2025,
+        "the market rule's lever: the share of small-model work done on devices already awake (phones, laptops in use); swept 0 to 0.8 in the report; local models answer 71-89% of single-turn queries correctly (ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers), routing). TRUST none";
+    PrefillRatio = "ai.agent.prefill_energy_ratio", "x a generated token", [0.1, 0.25, 0.5], Frontier, 2025,
+        "ESTATE-0 v4 (CIRISHolon 818449a, ai_as_a_mix_across_tiers): agent traffic is mostly input, so energy rises less than tokens; an input token's energy against an output token's (no figure). TRUST none";
     HostedLargeFactor = "ai.tier.hosted.large_class_factor", "x the mid class", [2.0, 4.0, 8.0], Model, 2026,
         "a large (70B dense and up) model per token against the mid class, hosted";
-    PhoneWhPer1k = "ai.tier.device.wh_per_1k_tokens.small", "Wh per 1,000 tokens (ADDED draw)", [0.025, 0.12, 0.21], Model, 2025,
-        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 53-54: phones 0.58-0.76 J/token measured at the battery (3 bn model, 0.16-0.21 Wh per 1,000); laptops 0.09-0.25 J/token (0.025-0.07; power assumed); hardware already on, added draw on the mesh side";
-    ProsumerWhPer1k = "ai.tier.prosumer.wh_per_1k_tokens.mid", "Wh per 1,000 tokens (ADDED draw)", [0.15, 0.3, 0.6], Model, 2025,
-        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 56, 'same model': a device runs the same model at 3-10x the data centre (laptop class); applied to the hosted mid class";
-    ApplianceWhPer1k = "ai.tier.appliance.wh_per_1k_tokens.mid", "Wh per 1,000 tokens (ADDED draw)", [0.15, 0.25, 0.5], Model, 2025,
-        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 56, 'same model' 3-10x the data centre, an accelerator box on all day";
-    EdgeServerWhPer1k = "ai.tier.edge_server.wh_per_1k_tokens.large", "Wh per 1,000 tokens", [0.6, 1.0, 2.0], Model, 2025,
-        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 56, 'same model' 3-10x the data centre's large class (0.2 Wh per 1,000 at the default), at low utilisation";
     SmallJobShare = "ai.jobs.small_share", "share of calls", [0.2, 0.5, 0.8], Frontier, 2026,
         "share of model calls a small on-device model can serve; no figure";
     LargeJobShare = "ai.jobs.large_share", "share of calls", [0.0, 0.05, 0.2], Frontier, 2026,
@@ -186,67 +201,134 @@ impl Additions {
 /// office appliance, servers, etc... - the market optimizes".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AiCase {
-    /// The design: each model call goes to a tier (phone/laptop, prosumer machine, office or
-    /// home appliance, edge or on-premises server, hosted with zero retention) by the
-    /// allocation rule.
+    /// The design, by the market rule (ESTATE-0 v4): light work on devices already awake (only
+    /// their marginal energy), heavy work on shared batched servers, small jobs right-sized; a
+    /// dedicated box only where its utilisation pays for its idle draw (reported, not chosen at
+    /// the defaults).
     Mix,
-    /// Bound: every call hosted with zero retention (CIRISProxy today).
+    /// Bound: every call hosted with zero retention, small jobs on a small hosted model.
+    AllHostedRightSized,
+    /// Bound: every call hosted with zero retention on one mid-size model (CIRISProxy today).
     AllHosted,
-    /// Bound: every call on the most local tier able to run it.
+    /// Bound: every call on the most local tier able to run it, a dedicated box per home for
+    /// mid and large jobs (idle draw included).
     AllOnDevices,
+    /// Comparison: the earlier rule (a forced-local share to the most local tier, the rest to
+    /// the lowest-energy tier per token, idle not charged).
+    OldRule,
     /// AI out of scope.
     NoAi,
 }
 
 impl AiCase {
-    /// All four, the design first.
-    pub const ALL: [Self; 4] = [Self::Mix, Self::AllHosted, Self::AllOnDevices, Self::NoAi];
+    /// All six, the design first.
+    pub const ALL: [Self; 6] = [Self::Mix, Self::AllHostedRightSized, Self::AllHosted, Self::AllOnDevices, Self::OldRule, Self::NoAi];
     /// Name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Mix => "tiered mix (the design)",
-            Self::AllHosted => "all hosted, zero retention (bound)",
+            Self::Mix => "tiered mix, market rule (the design)",
+            Self::AllHostedRightSized => "all hosted, right-sized, zero retention (bound)",
+            Self::AllHosted => "all hosted, one mid-size model, zero retention (bound)",
             Self::AllOnDevices => "all on devices (bound)",
+            Self::OldRule => "earlier rule: forced-local share, then lowest energy per token (comparison)",
             Self::NoAi => "no AI in scope",
         }
     }
 }
 
 /// The tiers.
-pub const TIERS: [&str; 5] = ["phone/laptop on-device", "prosumer machine", "office or home appliance", "edge or on-premises server", "hosted, zero retention"];
+pub const TIERS: [&str; 5] = ["phone/laptop already on", "prosumer GPU", "office or home appliance", "edge or on-premises server", "hosted, zero retention"];
 
-/// Energy per 1,000 tokens of a job class (0 small, 1 mid, 2 large) at a tier, or `None` when the
-/// tier cannot run it.
-fn tier_wh(p: &FullParams, tier: usize, class: usize) -> Option<f64> {
-    let mid = p.get(F::WhPer1kTokens);
+/// Hosted energy per token of the mid class, idle reserve included (J).
+fn hosted_mid(p: &FullParams) -> f64 {
+    p.get(F::HostedJPerToken) * (1.0 + p.get(F::HostedIdleReserve))
+}
+
+/// Marginal energy per token (J) of a job class (0 small, 1 mid, 2 large) at a tier, or `None`
+/// when the tier cannot run it; `right_sized` serves small jobs hosted on a small model. Idle
+/// draw is NOT in these figures: [`box_idle_kwh`] adds it where a box is on for inference.
+fn tier_j(p: &FullParams, tier: usize, class: usize, right_sized: bool) -> Option<f64> {
+    let h = hosted_mid(p);
+    let small_hosted = if right_sized { h * (1.0 - p.get(F::RightSizeSaving)) } else { h };
+    let ph = p.get(F::PhoneShareOfLocal);
     match (tier, class) {
-        (0, 0) => Some(p.get(F::PhoneWhPer1k)),
-        (1, 0 | 1) => Some(p.get(F::ProsumerWhPer1k) * if class == 0 { p.get(F::HostedSmallFactor) } else { 1.0 }),
-        (2, 0 | 1) => Some(p.get(F::ApplianceWhPer1k) * if class == 0 { p.get(F::HostedSmallFactor) } else { 1.0 }),
-        (3, _) => Some(p.get(F::EdgeServerWhPer1k) * [p.get(F::HostedSmallFactor) / p.get(F::HostedLargeFactor), 1.0 / p.get(F::HostedLargeFactor), 1.0][class]),
-        (4, _) => Some(mid * [p.get(F::HostedSmallFactor), 1.0, p.get(F::HostedLargeFactor)][class]),
+        (0, 0) => Some(ph * p.get(F::PhoneJPerToken) + (1.0 - ph) * p.get(F::LaptopJPerToken)),
+        (1, 0) => Some(p.get(F::ConsumerGpuJPerToken)),
+        (1 | 2, 1) => Some(h * p.get(F::SameModelRatio)),
+        (2, 0) => Some(p.get(F::LaptopJPerToken)),
+        (3, 1) => Some(h * p.get(F::SameModelRatio)),
+        (3, 2) => Some(h * p.get(F::HostedLargeFactor) * p.get(F::SameModelRatio)),
+        (4, 0) => Some(small_hosted),
+        (4, 1) => Some(h),
+        (4, 2) => Some(h * p.get(F::HostedLargeFactor)),
         _ => None,
     }
 }
 
-/// Where a call of `class` goes under `case`: the tier.
-fn place(p: &FullParams, case: AiCase, class: usize, forced: bool) -> usize {
-    let local = |c: usize| -> usize {
-        // the most local able tier: the phone for small, the cheaper of prosumer and appliance
-        // for mid, the edge server for large
-        match c {
-            0 => 0,
-            1 => if tier_wh(p, 1, 1) <= tier_wh(p, 2, 1) { 1 } else { 2 },
-            _ => 3,
+/// Place thousands of tokens by class: (edge kWh, hosted kWh, share by tier).
+#[allow(clippy::needless_range_loop)]
+fn place_ktokens(p: &FullParams, case: AiCase, ktok: [f64; 3]) -> (f64, f64, [f64; 5]) {
+    let total: f64 = ktok.iter().sum();
+    let (mut edge, mut hosted, mut share) = (0.0, 0.0, [0.0; 5]);
+    let mut put = |t: usize, c: usize, kt: f64, right: bool| {
+        let kwh = kt * 1000.0 * tier_j(p, t, c, right).unwrap_or(0.0) / 3.6e6;
+        if total > 0.0 {
+            share[t] += kt / total;
         }
+        if t == 4 { hosted += kwh } else { edge += kwh }
     };
+    let local = |c: usize| match c { 0 => 0, 1 => 2, _ => 3 };
     match case {
-        AiCase::AllHosted => 4,
-        AiCase::AllOnDevices => local(class),
-        _ if forced => local(class),
-        _ => (0..5).filter_map(|t| tier_wh(p, t, class).map(|w| (t, w))).min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(core::cmp::Ordering::Equal)).map_or(4, |x| x.0),
+        AiCase::NoAi => {}
+        AiCase::Mix => {
+            // light work on devices already awake, the rest right-sized on shared servers
+            let l = p.get(F::LocalShare);
+            put(0, 0, ktok[0] * l, true);
+            put(4, 0, ktok[0] * (1.0 - l), true);
+            put(4, 1, ktok[1], true);
+            put(4, 2, ktok[2], true);
+        }
+        AiCase::AllHostedRightSized | AiCase::AllHosted => {
+            let right = case == AiCase::AllHostedRightSized;
+            for c in 0..3 {
+                put(4, c, ktok[c], right);
+            }
+        }
+        AiCase::AllOnDevices => {
+            for c in 0..3 {
+                put(local(c), c, ktok[c], true);
+            }
+        }
+        AiCase::OldRule => {
+            let f = p.get(F::ForcedLocalShare);
+            for c in 0..3 {
+                put(local(c), c, ktok[c] * f, true);
+                let best = (0..5).filter_map(|t| tier_j(p, t, c, true).map(|w| (t, w))).min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(core::cmp::Ordering::Equal)).map_or(4, |x| x.0);
+                put(best, c, ktok[c] * (1.0 - f), true);
+            }
+        }
     }
+    (edge, hosted, share)
+}
+
+/// The idle draw of boxes on FOR inference, kWh per person-year: one appliance per household
+/// when the case puts mid or large work on one (all on devices).
+fn box_idle_kwh(p: &FullParams, case: AiCase) -> f64 {
+    if case == AiCase::AllOnDevices { p.get(F::BoxIdleW) * 8766.0 / 1000.0 / p.get(F::PersonsPerHousehold) } else { 0.0 }
+}
+
+/// Queries a day at which a dedicated box running a small model breaks even with hosted, on
+/// energy: idle W x 86,400 s / ((hosted J - box J) per token x tokens per query); `None` when the
+/// box's marginal energy per token is not below the hosted figure (it never pays).
+#[must_use]
+pub fn box_breakeven_queries_per_day(p: &FullParams, right_sized_hosted: bool, gpu: bool) -> Option<f64> {
+    let hosted = tier_j(p, 4, 0, right_sized_hosted)?;
+    let (marg, idle) = if gpu { (p.get(F::ConsumerGpuJPerToken), p.get(F::ConsumerGpuIdleW)) } else { (p.get(F::LaptopJPerToken), p.get(F::BoxIdleW)) };
+    if marg >= hosted {
+        return None;
+    }
+    Some(idle * 86_400.0 / ((hosted - marg) * p.get(F::TokensPerCall)))
 }
 
 /// The AI term split: (energy at the edge tiers, the mesh side; energy at the hosted tier, kept
@@ -256,8 +338,8 @@ pub fn ai_split(p: &FullParams, case: AiCase) -> (f64, f64, [f64; 5]) {
     if case == AiCase::NoAi {
         return (0.0, 0.0, [0.0; 5]);
     }
-    let ktok = class_ktokens(p);
-    place_ktokens(p, case, ktok)
+    let (e, h, sh) = place_ktokens(p, case, class_ktokens(p));
+    (e + box_idle_kwh(p, case), h, sh)
 }
 
 /// Thousands of tokens a year per person by model class (small, mid, large), over the agent
@@ -290,24 +372,6 @@ pub fn class_ktokens(p: &FullParams) -> [f64; 3] {
 #[must_use]
 pub fn pob_ktokens(p: &FullParams) -> f64 {
     p.get(F::PobMembersPerPerson) * p.get(F::PobInteractionsPerDay) * 365.25 * p.get(F::CallsPerInteraction) * p.get(F::TokensPerCall) / 1000.0
-}
-
-/// Place thousands of tokens by class over the tiers: (edge kWh, hosted kWh, share by tier).
-fn place_ktokens(p: &FullParams, case: AiCase, ktok: [f64; 3]) -> (f64, f64, [f64; 5]) {
-    let f = p.get(F::ForcedLocalShare);
-    let total: f64 = ktok.iter().sum();
-    let (mut edge, mut hosted, mut share) = (0.0, 0.0, [0.0; 5]);
-    for (c, &kt) in ktok.iter().enumerate() {
-        for (forced, part) in [(true, f), (false, 1.0 - f)] {
-            let t = place(p, case, c, forced);
-            let kwh = kt * part * tier_wh(p, t, c).unwrap_or(0.0) / 1000.0;
-            if total > 0.0 {
-                share[t] += kt * part / total;
-            }
-            if t == 4 { hosted += kwh } else { edge += kwh }
-        }
-    }
-    (edge, hosted, share)
 }
 
 /// The signed record of every agent choice, kWh per person-year: signs and verifies, network
@@ -400,7 +464,10 @@ pub fn eval(p: &FullParams) -> Full {
     let e = p.get(F::EstateTwh) * 1e9 / (p.get(F::InternetUsers) * 1e9); // kWh per user-year
     // the stay share is of the whole estate; AI is carved out of the consumer part first
     let consumer_all = e * (1.0 - p.get(F::StaysShare));
-    let ai = consumer_all * p.get(F::AiShare) * (1.0 - p.get(F::AiStaysShare));
+    // of consumer AI: ranking, advertising and training on harvested data vanish; requested
+    // inference is replaced by the mesh's own; the rest (frontier, training, business) stays
+    let ai_all = consumer_all * p.get(F::AiShare);
+    let ai = ai_all * (p.get(F::AiVanishShare) + p.get(F::AiRequestedShare));
     let consumer = consumer_all * (1.0 - p.get(F::AiShare));
     let vanished = consumer * p.get(F::VanishShare);
     let relocated = consumer - vanished;
@@ -413,7 +480,7 @@ pub fn eval(p: &FullParams) -> Full {
         // advertising part (and training on retained data) vanishes; today's wanted inference is
         // replaced by the mesh's own, placed over the tiers
         removed += ai;
-        vanished += ai * (1.0 - p.get(F::AiWantedShare));
+        vanished += ai_all * p.get(F::AiVanishShare);
         let (edge, hosted, _) = ai_split(p, p.case);
         kept = hosted;
         at_edge += edge;
@@ -452,12 +519,11 @@ fn corners_fixed(a: &Additions, case: AiCase, new_box_share: f64, m: Option<f64>
         F::InteractionsPerPersonDay => case != AiCase::NoAi && m.is_none(),
         F::EstateTwh | F::InternetUsers | F::AiShare | F::StaysShare | F::VanishShare | F::EdgeRatio | F::PersonsPerHousehold | F::EnterpriseShare => true,
         F::OnPremRatio => case_b,
-        // AI rows: only where AI is in scope; the shares and the hosted factors also matter to
-        // every AI case, the tier energies only where the case can place a call there
-        F::WhPer1kTokens => matches!(case, AiCase::Mix | AiCase::AllHosted),
-        F::PhoneWhPer1k | F::ProsumerWhPer1k | F::ApplianceWhPer1k | F::EdgeServerWhPer1k => matches!(case, AiCase::Mix | AiCase::AllOnDevices),
-        // accounting only: it does not move the net
-        F::AiWantedShare => false,
+        F::LocalShare => case == AiCase::Mix,
+        F::ForcedLocalShare => case == AiCase::OldRule,
+        F::BoxIdleW => case == AiCase::AllOnDevices,
+        F::ConsumerGpuJPerToken | F::ConsumerGpuIdleW => case == AiCase::OldRule,
+        F::PrefillRatio => false,
         _ => case != AiCase::NoAi,
     };
     let free: Vec<F> = F::ALL.iter().copied().filter(|&f| FULL_SPECS[f as usize].lo < FULL_SPECS[f as usize].hi && used(f)).collect();
@@ -572,13 +638,15 @@ pub fn report(seed: u64) -> String {
     let k = Counters::from_hooks(seed);
     let a = Additions::from_household_pass(&k);
     let mut s = String::from("# TEST 1, THE THEORY: full replacement of the internet (substitution = 1)\n\nPer person-year, kWh. Baseline: the whole data-centre estate per internet user. Its work vanishes (a), relocates to members' devices at an edge efficiency ratio (b), or stays (c: non-consumer data-centre work; networks are baseload on both sides and do not enter). The mesh side is only what the mesh adds (the household pass's terms A + B) plus the relocated work. Every split input is FRONTIER: nobody publishes (a) against (b). Bounds: a vertex search over every input's interval (each bound attained by a real combination of input ends).\n\n");
-    s.push_str("## Inputs\n\n| row | unit | lo / default / hi | class | year | source and basis |\n|---|---|---|---|---|---|\n");
+    s.push_str(&format!("Tables: {ESTATE0_V2_PIN}; {ESTATE0_V4_PIN}.\n\n"));
+    s.push_str("## Inputs\n\n| row | unit | lo / default / hi | class | year | trust | source and basis |\n|---|---|---|---|---|---|---|\n");
     for r in FULL_SPECS {
-        s.push_str(&format!("| `{}` | {} | {} / {} / {} | {} | {} | {} |\n", r.name, r.unit, r.lo, r.mid, r.hi, r.class.as_str(), r.year, r.source));
+        let trust = r.source.rsplit("TRUST ").next().filter(|_| r.source.contains("TRUST ")).unwrap_or("-");
+        s.push_str(&format!("| `{}` | {} | {} / {} / {} | {} | {} | {} | {} |\n", r.name, r.unit, r.lo, r.mid, r.hi, r.class.as_str(), r.year, trust, r.source));
     }
-    s.push_str(&format!("| mesh additions, gateway mix | kWh/person-year | {:.2} / {:.2} / {:.2} | FRONTIER | 2026 | the household pass (energy.rs), US 2020 mix, node on gateway, terms A + B, expected regime |\n", a.gateway[0], a.gateway[1], a.gateway[2]));
-    s.push_str(&format!("| mesh additions, new-box mix | kWh/person-year | {:.2} / {:.2} / {:.2} | FRONTIER | 2026 | same, a new always-on box in every home that can take one |\n\n", a.new_box[0], a.new_box[1], a.new_box[2]));
-    s.push_str("## Result\n\nAI cases: the **tiered mix (the design)**, Eric: \"a hybrid means a mixture of on-device, edge, prosumer, office appliance, servers, etc... - the market optimizes\". Each model call goes to a tier by an explicit allocation rule: a forced-local share (privacy, offline) to the most local tier able to run it, the rest to the lowest-energy able tier. A cost-minimising market is not the same as an energy-minimising one (cost also prices privacy, latency and hardware already owned), so the energy result can sit a little either side of the lowest-energy placement. Beside it, two labelled BOUNDS: all hosted with zero retention (CIRISProxy today) and all on devices. What vanishes is the same in every AI case: retention, and training, ranking and advertising on harvested data. ZDR removes retention and training on the conversation; it does not remove inference energy.\n\n| AI case | agent interactions per person-day | new-box share of homes | removed (of which vanishes) | relocated at the edge (AI on edge tiers included) | inference kept in data centres | mesh additions | signed records | Proof of Benefit | self-observation | net (default) | net bounds | sign |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");
+    s.push_str(&format!("| mesh additions, gateway mix | kWh/person-year | {:.2} / {:.2} / {:.2} | FRONTIER | 2026 | - | the household pass (energy.rs), US 2020 mix, node on gateway, terms A + B, expected regime |\n", a.gateway[0], a.gateway[1], a.gateway[2]));
+    s.push_str(&format!("| mesh additions, new-box mix | kWh/person-year | {:.2} / {:.2} / {:.2} | FRONTIER | 2026 | - | same, a new always-on box in every home that can take one |\n\n", a.new_box[0], a.new_box[1], a.new_box[2]));
+    s.push_str("## Result\n\nAI cases (ESTATE-0 v4, ai_as_a_mix_across_tiers): the **tiered mix by the market rule (the design)**, Eric: \"a hybrid means a mixture of on-device, edge, prosumer, office appliance, servers, etc... - the market optimizes\". A tier that is ON ANYWAY (a phone, a laptop in use) carries only its marginal energy per token; a tier on FOR inference carries its idle draw too, over its utilisation. So light, private work goes to devices already awake, heavy work to shared batched servers, small jobs to small models (right-sizing saves 48-80% from MODEL SIZE, not hardware), and a dedicated box only where its utilisation pays for its idle (the break-even is reported; it is not chosen at the defaults). Efficiency is decided by model size and how full the machine is, not by where it sits: the same model on a laptop is 18-46x a batched data centre. A cost-minimising market is not the same as an energy-minimising one (cost also prices privacy, latency and hardware already owned). Bounds: all hosted right-sized, all hosted on one mid-size model (like for like with CIRISProxy today), and all on devices; the earlier rule is kept as a comparison. What vanishes: ranking, advertising and training on harvested data; ZDR removes retention and training on the conversation and almost no energy on the hosted tier.\n\n| AI case | agent interactions per person-day | new-box share of homes | removed (of which vanishes) | relocated at the edge (AI on edge tiers included) | inference kept in data centres | mesh additions | signed records | Proof of Benefit | self-observation | net (default) | net bounds | sign |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");
     for case in AiCase::ALL {
         let demands: &[f64] = if case == AiCase::NoAi { &[10.0] } else { &[1.0, 10.0, 100.0] };
         for &m in demands {
@@ -622,7 +690,7 @@ pub fn report(seed: u64) -> String {
         s.push_str(&format!(" {t} |"));
     }
     s.push_str("\n|---|---|---|---|---|---|---|---|---|\n");
-    for case in [AiCase::Mix, AiCase::AllHosted, AiCase::AllOnDevices] {
+    for case in [AiCase::Mix, AiCase::AllHostedRightSized, AiCase::AllHosted, AiCase::AllOnDevices, AiCase::OldRule] {
         let p = FullParams::defaults(&a, case);
         let (e, h, sh) = ai_split(&p, case);
         s.push_str(&format!("| {} | {:.2} | {:.2} | {:.2} |", case.as_str(), e + h, e, h));
@@ -644,19 +712,38 @@ pub fn report(seed: u64) -> String {
         s.push('\n');
     }
     s.push_str("\n**How many agent interactions per person per day the saving can carry** (others at default, no new boxes):\n\n| AI case | interactions per day at zero |\n|---|---|\n");
-    for case in [AiCase::Mix, AiCase::AllHosted, AiCase::AllOnDevices] {
+    for case in [AiCase::Mix, AiCase::AllHostedRightSized, AiCase::AllHosted, AiCase::AllOnDevices, AiCase::OldRule] {
         s.push_str(&format!("| {} | {} |\n", case.as_str(), break_even(&a, case, "ai.interactions_per_person_day").map_or("more than the scan reaches (3,000)".to_string(), |x| format!("{x:.1}"))));
     }
-    s.push_str("\nThe tiered mix, the allocation rule's lever (forced-local share) and the job-size distribution (small-model share), net at the defaults, no new boxes:\n\n| forced-local share | small-model share 0.2 | 0.5 | 0.8 |\n|---|---|---|---|\n");
-    for fl in [0.0, 0.2, 0.5, 1.0] {
-        s.push_str(&format!("| {fl} |"));
+    s.push_str("\nThe market rule's lever: the share of small-model work done on devices already awake (phones, laptops in use), swept 0 to 0.8, by the share of calls a small model can serve (net, defaults, no new boxes):\n\n| local share | small-model share 0.2 | 0.5 | 0.8 |\n|---|---|---|---|\n");
+    for l in [0.0, 0.2, 0.4, 0.6, 0.8] {
+        s.push_str(&format!("| {l} |"));
         for sm in [0.2, 0.5, 0.8] {
             let mut p = FullParams::defaults(&a, AiCase::Mix);
-            p.set(F::ForcedLocalShare, fl);
+            p.set(F::LocalShare, l);
             p.set(F::SmallJobShare, sm);
-            s.push_str(&format!(" {:.1} |", eval(&p).net));
+            s.push_str(&format!(" {:.2} |", eval(&p).net));
         }
         s.push('\n');
+    }
+    // the dedicated box
+    let pd = FullParams::defaults(&a, AiCase::Mix);
+    let q = |rs: bool, gpu: bool| box_breakeven_queries_per_day(&pd, rs, gpu).map_or("never (its energy per token is not below hosted)".to_string(), |x| format!("{x:.0} queries a day"));
+    let idle_share = |w: f64, qpd: f64| { let idle = w * 86_400.0; let work = qpd * pd.get(F::TokensPerCall) * pd.get(F::LaptopJPerToken); idle / (idle + work) };
+    s.push_str(&format!("\n**When a dedicated box breaks even with hosted, on energy** (it carries its idle draw over its utilisation; {} tokens per query):\n\n| box | against hosted on one mid-size model | against hosted right-sized |\n|---|---|---|\n| small appliance at {} W idle (FRONTIER; small-desktop proxy), small model near the laptop's {:.2} J/token | {} | {} |\n| prosumer GPU at {} W idle (forum posts, low trust), {:.2} J/token (card only) | {} | {} |\n\nA box answering 50 queries a day at {} W spends {:.0}% of its energy idle (ESTATE-0 v4: the scout's arithmetic, query count ASSUMED, gives 96% at 5 W). Running the SAME mid-size model on a box at low load is {:.0}x the batched data centre per token: it never breaks even.\n", pd.get(F::TokensPerCall), pd.get(F::BoxIdleW), pd.get(F::LaptopJPerToken), q(false, false), q(true, false), pd.get(F::ConsumerGpuIdleW), pd.get(F::ConsumerGpuJPerToken), q(false, true), q(true, true), pd.get(F::BoxIdleW), 100.0 * idle_share(pd.get(F::BoxIdleW), 50.0), pd.get(F::SameModelRatio)));
+    // agent multiple
+    s.push_str(&format!("\n**The agent token multiple** (ESTATE-0 v4: an agent about 4x the tokens of chat, multi-agent about 15x; per person per day unmeasured; energy rises less than tokens because agent traffic is mostly input). The AI term relative to chat (1 = no agents, every interaction one call), energy multiple 1 + (m - 1) x prefill ratio ({}), tiered mix, 10 interactions a day:\n\n| token multiple | AI term (kWh per person-year) | net |\n|---|---|---|\n", pd.get(F::PrefillRatio)));
+    {
+        let mut chat = pd.clone();
+        chat.set(F::ShareEthical, 0.0);
+        chat.set(F::ShareSelfAware, 0.0);
+        chat.set(F::SimpleCalls, 1.0);
+        let base_ai = ai_demand_kwh(&chat, AiCase::Mix);
+        let base_net = eval(&chat).net;
+        for m in [1.0, 2.0, 5.0, 15.0] {
+            let mult = 1.0 + (m - 1.0) * pd.get(F::PrefillRatio);
+            s.push_str(&format!("| {m} | {:.2} | {:.1} |\n", base_ai * mult, base_net + base_ai * (mult - 1.0)));
+        }
     }
     for case in AiCase::ALL {
         let (lo, hi, arg) = corners(&a, case, 0.0);
@@ -664,8 +751,8 @@ pub fn report(seed: u64) -> String {
         s.push_str(&arg.iter().map(|(n, v)| format!("`{n}` = {v:.3}")).collect::<Vec<_>>().join(", "));
         s.push_str(". (A vertex search from seat_calibration's corner; each bound is attained by a real combination of input ends; the mix's placement makes its net piecewise, so the bounds are a search, not a guarantee.)\n");
     }
-    s.push_str("\n## Break-even for this test (one input, others at default; no new boxes)\n\n| input | tiered mix (the design) | all hosted (bound) | all on devices (bound) | no AI |\n|---|---|---|---|---|\n");
-    let names: Vec<&str> = ["estate.vanish_share", "edge.marginal_ratio_already_on", "estate.stays_share", "new_box_share", "ai.interactions_per_person_day", "ai.ethical.llm_calls_per_interaction", "ai.self_aware.llm_calls_per_interaction", "ai.kinds.ethical_share", "ai.kinds.self_aware_share", "pob.member_nodes_per_person", "pob.interactions_per_member_day", "ai.tokens_per_call", "ai.tier.hosted.wh_per_1k_tokens.mid", "ai.tier.device.wh_per_1k_tokens.small", "ai.tier.appliance.wh_per_1k_tokens.mid", "ai.tier.edge_server.wh_per_1k_tokens.large", "ai.jobs.small_share", "ai.alloc.forced_local_share", "additions"].to_vec();
+    s.push_str("\n## Break-even for this test (one input, others at default; no new boxes)\n\n| input | tiered mix (the design) | all hosted right-sized | all hosted one model | all on devices | no AI |\n|---|---|---|---|---|---|\n");
+    let names: Vec<&str> = ["estate.vanish_share", "edge.marginal_ratio_already_on", "estate.stays_share", "new_box_share", "ai.interactions_per_person_day", "ai.ethical.llm_calls_per_interaction", "ai.self_aware.llm_calls_per_interaction", "ai.kinds.ethical_share", "ai.kinds.self_aware_share", "pob.member_nodes_per_person", "pob.interactions_per_member_day", "ai.tokens_per_call", "ai.hosted.j_per_token.mid", "ai.right_size_saving", "ai.device.phone.j_per_token", "ai.same_model_ratio_vs_batched_dc", "ai.box.idle_w", "ai.vanish_share", "ai.jobs.small_share", "ai.alloc.local_share", "additions"].to_vec();
     for n in names {
         let f = |c| break_even(&a, c, n).map_or("none in range".to_string(), |x| format!("{x:.3}"));
         let label = match n {
@@ -673,7 +760,7 @@ pub fn report(seed: u64) -> String {
             "additions" => "mesh additions (kWh per person-year)",
             x => x,
         };
-        s.push_str(&format!("| `{label}` | {} | {} | {} | {} |\n", f(AiCase::Mix), f(AiCase::AllHosted), f(AiCase::AllOnDevices), f(AiCase::NoAi)));
+        s.push_str(&format!("| `{label}` | {} | {} | {} | {} | {} |\n", f(AiCase::Mix), f(AiCase::AllHostedRightSized), f(AiCase::AllHosted), f(AiCase::AllOnDevices), f(AiCase::NoAi)));
     }
     s
 }
@@ -713,56 +800,47 @@ mod tests {
             p.set(F::EdgeRatio, 0.3);
             assert!(eval(&p).net < worse, "a more efficient edge saves more");
         }
-        // all AI on devices at the dearest device tiers costs more than no AI
+        // all AI on devices at the dearest same-model ratio costs more than no AI
         let mut p = FullParams::defaults(&adds(), AiCase::AllOnDevices);
-        p.set(F::ProsumerWhPer1k, 0.6);
-        p.set(F::ApplianceWhPer1k, 0.4);
+        p.set(F::SameModelRatio, 46.0);
         p.set(F::InteractionsPerPersonDay, 30.0);
         let q = FullParams::defaults(&adds(), AiCase::NoAi);
         assert!(eval(&p).net > eval(&q).net);
     }
 
     #[test]
-    fn the_mix_sits_between_its_bounds_and_places_by_energy() {
+    fn the_market_rule_right_sizes_and_never_buys_the_same_model_box() {
         let a = adds();
         let p = FullParams::defaults(&a, AiCase::Mix);
         let mix = ai_demand_kwh(&p, AiCase::Mix);
-        let hosted = ai_demand_kwh(&p, AiCase::AllHosted);
-        let devices = ai_demand_kwh(&p, AiCase::AllOnDevices);
-        // with no forced-local share the mix is the cheapest placement, so no dearer than either
+        let rs = ai_demand_kwh(&p, AiCase::AllHostedRightSized);
+        let one = ai_demand_kwh(&p, AiCase::AllHosted);
+        let dev = ai_demand_kwh(&p, AiCase::AllOnDevices);
+        // right-sizing beats one model; devices running mid and large work lose to both
+        assert!(rs < one && dev > one);
+        // the mix at local share 0 equals all hosted right-sized
         let mut q = p.clone();
-        q.set(F::ForcedLocalShare, 0.0);
-        let free = ai_demand_kwh(&q, AiCase::Mix);
-        assert!(free <= hosted + 1e-12 && free <= devices + 1e-12);
-        // forcing calls local moves the mix toward the device bound
-        let mut r = p.clone();
-        r.set(F::ForcedLocalShare, 1.0);
-        assert!((ai_demand_kwh(&r, AiCase::Mix) - devices).abs() < 1e-9);
-        assert!(mix.is_finite());
-        // all hosted: the class tokens times the hosted energies
-        let k = class_ktokens(&p);
-        let w = p.get(F::WhPer1kTokens);
-        let want = (k[0] * w * p.get(F::HostedSmallFactor) + k[1] * w + k[2] * w * p.get(F::HostedLargeFactor)) / 1000.0;
-        assert!((hosted - want).abs() < 1e-9, "{hosted} {want}");
-        // simple agents dominate interactions but not tokens: at the defaults the ethical and
-        // self-aware kinds carry most of the tokens
-        let mut q2 = p.clone();
-        q2.set(F::ShareEthical, 0.0);
-        q2.set(F::ShareSelfAware, 0.0);
-        assert!(class_ktokens(&q2).iter().sum::<f64>() < 0.5 * k.iter().sum::<f64>());
-        // Proof of Benefit and the signed record are positive costs when AI is in scope
-        let r = eval(&p);
-        assert!(r.pob > 0.0 && r.record > 0.0);
-        // tiers' shares sum to one
+        q.set(F::LocalShare, 0.0);
+        assert!((ai_demand_kwh(&q, AiCase::Mix) - rs).abs() < 1e-9);
+        // the mix sits between its right-sized bound and its local-heavy end
+        assert!(mix.is_finite() && mix >= rs - 1e-12);
+        // a box running the same mid-size model never breaks even (marginal above hosted)
+        assert!(tier_j(&p, 2, 1, true).unwrap() > tier_j(&p, 4, 1, true).unwrap());
+        // the hosted mid figure includes its idle reserve
+        assert!((hosted_mid(&p) - 0.18 * 1.1).abs() < 1e-12);
+        // tier shares sum to one
         let (_, _, sh) = ai_split(&p, AiCase::Mix);
         assert!((sh.iter().sum::<f64>() - 1.0).abs() < 1e-12);
         // more interactions cost more, in every AI case
-        for c in [AiCase::Mix, AiCase::AllHosted, AiCase::AllOnDevices] {
+        for c in [AiCase::Mix, AiCase::AllHostedRightSized, AiCase::AllHosted, AiCase::AllOnDevices, AiCase::OldRule] {
             let mut x = FullParams::defaults(&a, c);
             let n0 = eval(&x).net;
             x.set(F::InteractionsPerPersonDay, 30.0);
-            assert!(eval(&x).net > n0);
+            assert!(eval(&x).net > n0, "{c:?}");
         }
+        // Proof of Benefit and the signed record are positive costs when AI is in scope
+        let r = eval(&p);
+        assert!(r.pob > 0.0 && r.record > 0.0);
     }
 
     #[test]
