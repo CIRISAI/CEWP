@@ -18,52 +18,73 @@ matter in the near term. Code: `energy.rs`; CLI: `cewp-cli energy`.
 
 ### TEST 1 headline: the HYBRID (the design), kWh per person-year, no new boxes
 
-Eric, on AI in the theory: "the obvious answer is a hybrid, we use openrouter with ZDR". Agents
-call hosted models through a router with zero data retention.
+Eric, on AI in the theory: "the obvious answer is a hybrid, we use openrouter with ZDR". Its
+shape is **CIRISProxy** (CIRISAI/CIRISProxy, read at 6f2f640): a credit-gated proxy between
+CIRIS agents and hosted providers. DeepInfra is primary, OpenRouter the first fallback, Groq the
+second, and Together serves one model. It keeps zero conversation retention at the proxy,
+anonymised logging, and ZDR web search (Exa), and it describes itself as temporary bridging
+infrastructure. It routes mid-size open-weight models: Qwen 3.6 / 3.5 35B-A3B (about 3B active),
+Qwen 3.6 27B, Llama 4 Scout and Maverick (17B active) and gpt-oss-20b, plus a few 70B dense
+models. None are frontier-scale.
 
 * **What stays:** the inference people ask for stays in data centres at data-centre efficiency.
-  It is neither removed nor relocated.
-* **What vanishes:** the AI and analytics that exist to harvest, profile, rank and advertise,
-  including training on users' retained data. ZDR removes the retention and the
-  training-on-your-data loop, not the inference.
-* **Two new inputs, both FRONTIER:** the wanted share of the estate's AI energy (0.5, range 0.2
-  to 0.8, from UPSTREAM-0 rows 18-25), and inference demand per person relative to today (1×,
-  range 1 to 5×; an agent-heavy mesh may call more).
+* **What vanishes:** the harvesting, profiling, ranking and advertising AI, including training
+  on retained user data.
+* **What ZDR does:** it removes retention and training on the conversation at the provider. It
+  does **not** remove the inference energy, and that energy is the hybrid's AI term.
 
-Hybrid results at 1× inference demand:
-* **Default:** removed 49.8 (of which 24.9 vanishes), relocated at the edge 19.2, inference kept
-  in data centres 5.7, mesh additions 2.8 → **net −22.1**.
-* **Range over every corner of the input box:** −70.2 to +109.7, so the sign is open.
+**The hybrid's AI term:** agent interactions per person per day × 365.25 × LLM calls per
+interaction × tokens per call × Wh per 1,000 tokens for the routed model class.
 
-| inference demand | no new boxes | a new box in every home that can take one |
-|---|---|---|
-| 1× | −22.1 | −2.9 |
-| 2× | −16.5 | +2.8 |
-| 5× | **+0.5** (break-even at 4.91×) | +19.8 |
+| input | default | range | class |
+|---|---|---|---|
+| agent interactions per person per day | 5 | 1 to 30 | FRONTIER |
+| LLM calls per interaction | 30 | 12 to 70 | DERIVED: stated by CIRISProxy's README ("1 credit = 1 user interaction (12-70 LLM calls typical)"), not measured |
+| tokens per call | 2,000 | 500 to 6,000 | FRONTIER |
+| Wh per 1,000 tokens, 20-35B class | 0.05 | 0.01 to 0.3 | FRONTIER |
 
-**Under the hybrid the theory no longer turns on device AI efficiency.** The AI edge ratio
-enters only through the on-device lever, which is 0 in the design. Serving all wanted inference
-on devices at 3× moves the net from −22.1 to −10.8.
+At the defaults that is **5.48 kWh per person-year (3.0 Wh per agent interaction)**. Over the
+corners of its own four inputs it runs from 0.022 to 1,381.
 
-**Break-even for the hybrid** (one input, others at default, no boxes). The saving vanishes if
-any one of these holds:
-* the edge efficiency ratio for the non-AI relocated work is above 2.15;
-* inference demand is above 4.91×;
-* the mesh additions are above 24.9 kWh per person-year.
+Hybrid results (no new boxes; the range covers every corner of the input box):
 
-No value in range flips the default on its own for the vanish share, the stays share, the
-wanted-inference share or the new-box share. Even at a vanish share of 0, the harvesting AI that
-vanishes keeps the default a saving.
+| agent interactions per person per day | net | range | with a new box in every home that can take one |
+|---|---|---|---|
+| 1 | −26.7 | −75.7 to +152.1 | −7.4 |
+| 5 (the default) | **−22.3** | −75.6 to +336.1 | −3.1 |
+| 30 | **+5.1** | −75.0 to +1,487 | +24.3 |
 
-**Corners:**
-* **Worst (+167.7):** 5.0 bn users, 460 TWh, AI share 0.30, stays 0.2, vanish 0.2, edge ratio 3,
-  wanted inference 0.8 at 5× demand, and the highest mesh additions.
-* **Best:** −70.2.
+The default breaks down as: removed 49.8 (of which 24.9 vanishes), relocated at the edge 19.2,
+inference kept in data centres 5.5, mesh additions 2.8. The sign is open over the input box.
+
+* **How many agent interactions per person per day the saving can carry:** 25.4, others at the
+  defaults.
+* **Break-even for the hybrid** (one input, others at default, no boxes). The saving vanishes
+  if any one of these holds:
+  * interactions are above 25.4 per person per day;
+  * energy per 1,000 tokens is above 0.254 Wh, inside its own range;
+  * tokens per call are above 10,146;
+  * LLM calls per interaction are above 152, beyond CIRISProxy's stated 12-70;
+  * the edge efficiency ratio for the non-AI relocated work is above 2.16;
+  * the mesh additions are above 25.1 kWh per person-year.
+* **Never flips the default on its own:** the vanish share and the new-box share.
+* **The theory no longer turns on device AI efficiency.** The AI edge ratio enters only through
+  the on-device lever, which is 0 in the design.
+* **It now turns on the AI term:** the energy per token for the routed model class, and how
+  much people use their agents.
+
+**Measurement request (the lead's, for the running proxy; no host contacted).**
+`hooks/billing_callback.py` keeps global aggregate counters. Its `get_global_usage()` returns
+`total_interactions`, `total_llm_calls`, `total_prompt_tokens`, `total_completion_tokens`, and
+`models_used`. Over a stated window, with no identifiers, these would turn calls per interaction
+and tokens per call from STATED/FRONTIER into MEASURED:
+* calls per interaction = `total_llm_calls / total_interactions`;
+* tokens per call = (prompt + completion) / calls, by model.
 
 **Counterfactuals:**
-* **All AI on devices:** +6.2 at the defaults, ranging from −65.4 to +333. It turns on the AI
-  edge ratio, with break-even at 2.46.
-* **No AI in scope:** −16.5, ranging from −65.4 to +110.6.
+* **All AI on devices:** a cost at the defaults (+6.2), turning on the AI edge ratio
+  (break-even 2.46).
+* **No AI in scope:** a saving at the defaults (−16.5).
 
 ### Inputs
 
@@ -76,31 +97,38 @@ vanishes keeps the default a saving.
 | `estate.vanish_share` | share of the consumer part | 0.2 / 0.5 / 0.8 | FRONTIER | 2024 | (a) harvesting, profiling, ranking, advertising and the duplication that serves them: UPSTREAM-0 row 25 puts them at 0.5 to 5.5 of one operator's 5.5 kWh per person (9% to 100%), rows 18-24 at 10% to over 40% of server energy; NOBODY PUBLISHES (a) against (b) |
 | `edge.efficiency_ratio` | x data-centre energy per unit of work | 0.3 / 1 / 3 | FRONTIER | 2026 | (b) relocated non-AI work at the edge: storage and serving on devices already on cost only a marginal draw (below 1), compute on a phone or home node is less efficient per unit and has no PUE (above 1) |
 | `edge.ai_efficiency_ratio` | x data-centre energy per unit of work | 1 / 3 / 10 | FRONTIER | 2026 | AI the person still wants, run on their own devices: accelerators in a data centre are far more efficient per unit of inference |
-| `ai.wanted_inference_share` | share of the estate's AI energy | 0.2 / 0.5 / 0.8 | FRONTIER | 2021 | inference people actually ask for, against ranking, ads and training on harvested data: UPSTREAM-0 rows 18-25 (ML 10-15% of one operator's energy; 10:20:70 experimentation:training:inference for one fleet; the 0.5-5.5 kWh harvesting bracket); no published split |
-| `ai.inference_demand_multiple` | x today's inference per person | 1 / 1 / 5 | FRONTIER | 2026 | an agent-heavy mesh may call MORE inference per person than today's average user; the report shows 1x, 2x and 5x |
+| `ai.wanted_inference_share` | share of the estate's AI energy | 0.2 / 0.5 / 0.8 | FRONTIER | 2021 | accounting only (it splits the removed AI into what vanishes and today's wanted inference, which the mesh's own CIRISProxy-shaped inference replaces; it does not move the net): inference people actually ask for, against ranking, ads and training on harvested data: UPSTREAM-0 rows 18-25 (ML 10-15% of one operator's energy; 10:20:70 experimentation:training:inference for one fleet; the 0.5-5.5 kWh harvesting bracket); no published split |
+| `ai.interactions_per_person_day` | agent interactions | 1 / 5 / 30 | FRONTIER | 2026 | how often a person asks their agent for something; no figure (CIRISProxy's aggregate counters could measure it: see the measurement request) |
+| `ai.llm_calls_per_interaction` | LLM calls | 12 / 30 / 70 | DERIVED | 2026 | STATED by the project, not measured: CIRISProxy README (CIRISAI/CIRISProxy 6f2f640) '1 credit = 1 user interaction (12-70 LLM calls typical)' |
+| `ai.tokens_per_call` | tokens (prompt + completion) | 500 / 2000 / 6000 | FRONTIER | 2026 | agent calls carry long prompts (context, constitution, history) and short completions; CIRISProxy's litellm_config disables reasoning on DeepInfra Qwen (measured there: 1,193 tokens to 29 for one answer) |
+| `ai.wh_per_1k_tokens.mid_size_open_weight` | Wh per 1,000 tokens | 0.01 / 0.05 / 0.3 | FRONTIER | 2026 | the model class CIRISProxy routes: mid-size open-weight models (Qwen 3.6/3.5 35B-A3B, about 3B active; Qwen 3.6 27B; Llama 4 Scout/Maverick, 17B active; gpt-oss-20b), not frontier-scale, served by DeepInfra, OpenRouter, Groq and Together at data-centre utilisation; a few 70B dense models are also in the config; no sourced figure |
 | `household.persons` | persons | 2.5 / 2.5 / 2.5 | MODEL | 2026 | the household pass's default (micro.rs); per person-year = household-hour figures x 8,766 / 2.5 |
 | mesh additions, gateway mix | kWh/person-year | 0.34 / 2.77 / 12.74 | FRONTIER | 2026 | the household pass (energy.rs), US 2020 mix, node on gateway, terms A + B, expected regime |
 | mesh additions, new-box mix | kWh/person-year | 11.30 / 22.03 / 55.22 | FRONTIER | 2026 | same, a new always-on box in every home that can take one |
 
 ### Result
 
-| AI case | inference demand | new-box share of homes | estate per user | removed (of which vanishes) | relocated at the edge | inference kept in data centres | mesh additions | net (default) | net over every corner | sign |
+| AI case | agent interactions per person-day | new-box share of homes | estate per user | removed (of which vanishes) | relocated at the edge | inference kept in data centres | mesh additions | net (default) | net over every corner | sign |
 |---|---|---|---|---|---|---|---|---|---|---|
-| HYBRID (the design: hosted inference via a zero-retention router) | 1x | 0 | 75.5 | 49.8 (24.9) | 19.2 | 5.7 | 2.77 | -22.1 | [-70.2, 109.7] | open: the box spans zero |
-| HYBRID (the design: hosted inference via a zero-retention router) | 1x | 0.25 | 75.5 | 49.8 (24.9) | 19.2 | 5.7 | 7.58 | -17.3 | [-67.4, 120.3] | open: the box spans zero |
-| HYBRID (the design: hosted inference via a zero-retention router) | 1x | 1 | 75.5 | 49.8 (24.9) | 19.2 | 5.7 | 22.03 | -2.9 | [-59.2, 152.2] | open: the box spans zero |
-| HYBRID (the design: hosted inference via a zero-retention router) | 2x | 0 | 75.5 | 49.8 (24.9) | 19.2 | 11.3 | 2.77 | -16.5 | [-68.1, 113.4] | open: the box spans zero |
-| HYBRID (the design: hosted inference via a zero-retention router) | 2x | 0.25 | 75.5 | 49.8 (24.9) | 19.2 | 11.3 | 7.58 | -11.7 | [-65.4, 124.0] | open: the box spans zero |
-| HYBRID (the design: hosted inference via a zero-retention router) | 2x | 1 | 75.5 | 49.8 (24.9) | 19.2 | 11.3 | 22.03 | 2.8 | [-57.2, 155.9] | open: the box spans zero |
-| HYBRID (the design: hosted inference via a zero-retention router) | 5x | 0 | 75.5 | 49.8 (24.9) | 19.2 | 28.3 | 2.77 | 0.5 | [-65.4, 167.7] | open: the box spans zero |
-| HYBRID (the design: hosted inference via a zero-retention router) | 5x | 0.25 | 75.5 | 49.8 (24.9) | 19.2 | 28.3 | 7.58 | 5.3 | [-62.6, 178.3] | open: the box spans zero |
-| HYBRID (the design: hosted inference via a zero-retention router) | 5x | 1 | 75.5 | 49.8 (24.9) | 19.2 | 28.3 | 22.03 | 19.8 | [-54.4, 210.1] | open: the box spans zero |
-| all AI on devices (counterfactual) | 1x | 0 | 75.5 | 49.8 (19.2) | 53.2 | 0.0 | 2.77 | 6.2 | [-65.4, 333.3] | open: the box spans zero |
-| all AI on devices (counterfactual) | 1x | 0.25 | 75.5 | 49.8 (19.2) | 53.2 | 0.0 | 7.58 | 11.0 | [-62.6, 343.9] | open: the box spans zero |
-| all AI on devices (counterfactual) | 1x | 1 | 75.5 | 49.8 (19.2) | 53.2 | 0.0 | 22.03 | 25.4 | [-54.4, 375.7] | open: the box spans zero |
-| no AI in scope | 1x | 0 | 75.5 | 38.5 (19.2) | 19.2 | 0.0 | 2.77 | -16.5 | [-65.4, 110.6] | open: the box spans zero |
-| no AI in scope | 1x | 0.25 | 75.5 | 38.5 (19.2) | 19.2 | 0.0 | 7.58 | -11.7 | [-62.6, 121.2] | open: the box spans zero |
-| no AI in scope | 1x | 1 | 75.5 | 38.5 (19.2) | 19.2 | 0.0 | 22.03 | 2.8 | [-54.4, 153.1] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 1 | 0 | 75.5 | 49.8 (24.9) | 19.2 | 1.1 | 2.77 | -26.7 | [-75.7, 152.1] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 1 | 0.25 | 75.5 | 49.8 (24.9) | 19.2 | 1.1 | 7.58 | -21.9 | [-72.9, 162.7] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 1 | 1 | 75.5 | 49.8 (24.9) | 19.2 | 1.1 | 22.03 | -7.4 | [-64.7, 194.5] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 5 | 0 | 75.5 | 49.8 (24.9) | 19.2 | 5.5 | 2.77 | -22.3 | [-75.6, 336.1] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 5 | 0.25 | 75.5 | 49.8 (24.9) | 19.2 | 5.5 | 7.58 | -17.5 | [-72.8, 346.8] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 5 | 1 | 75.5 | 49.8 (24.9) | 19.2 | 5.5 | 22.03 | -3.1 | [-64.6, 378.6] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 30 | 0 | 75.5 | 49.8 (24.9) | 19.2 | 32.9 | 2.77 | 5.1 | [-75.0, 1486.7] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 30 | 0.25 | 75.5 | 49.8 (24.9) | 19.2 | 32.9 | 7.58 | 9.9 | [-72.3, 1497.3] | open: the box spans zero |
+| HYBRID (the design: hosted inference via a zero-retention router) | 30 | 1 | 75.5 | 49.8 (24.9) | 19.2 | 32.9 | 22.03 | 24.3 | [-64.1, 1529.2] | open: the box spans zero |
+| all AI on devices (counterfactual) | 5 | 0 | 75.5 | 49.8 (19.2) | 53.2 | 0.0 | 2.77 | 6.2 | [-65.4, 333.3] | open: the box spans zero |
+| all AI on devices (counterfactual) | 5 | 0.25 | 75.5 | 49.8 (19.2) | 53.2 | 0.0 | 7.58 | 11.0 | [-62.6, 343.9] | open: the box spans zero |
+| all AI on devices (counterfactual) | 5 | 1 | 75.5 | 49.8 (19.2) | 53.2 | 0.0 | 22.03 | 25.4 | [-54.4, 375.7] | open: the box spans zero |
+| no AI in scope | 5 | 0 | 75.5 | 38.5 (19.2) | 19.2 | 0.0 | 2.77 | -16.5 | [-65.4, 110.6] | open: the box spans zero |
+| no AI in scope | 5 | 0.25 | 75.5 | 38.5 (19.2) | 19.2 | 0.0 | 7.58 | -11.7 | [-62.6, 121.2] | open: the box spans zero |
+| no AI in scope | 5 | 1 | 75.5 | 38.5 (19.2) | 19.2 | 0.0 | 22.03 | 2.8 | [-54.4, 153.1] | open: the box spans zero |
+
+**The hybrid's AI term** (interactions per day x 365.25 x LLM calls per interaction x tokens per call x Wh per 1,000 tokens for the routed model class): 5.48 kWh per person-year at the defaults (3.0 Wh per agent interaction), [0.022, 1381] over its four inputs' corners. The calls per interaction (12-70) are STATED by CIRISProxy's README, not measured.
+
+**How many agent interactions per person per day the saving can carry** (others at default, no new boxes): 25.4. ZDR removes retention and training on the conversation at the provider; it does not remove the inference energy, which is this term.
 
 Under the hybrid the theory no longer turns on how efficient a device is at AI: the inference people want stays in data centres at data-centre efficiency (the AI edge ratio enters only through the on-device lever, 0 in the design).
 
@@ -108,13 +136,13 @@ Hybrid, the on-device lever (share of wanted inference served on members' device
 
 | on-device share | net (default) |
 |---|---|
-| 0 | -22.1 |
-| 0.1 | -21.0 |
-| 0.25 | -19.3 |
-| 0.5 | -16.5 |
-| 1 | -10.8 |
+| 0 | -22.3 |
+| 0.1 | -21.2 |
+| 0.25 | -19.6 |
+| 0.5 | -16.8 |
+| 1 | -11.4 |
 
-HYBRID (the design: hosted inference via a zero-retention router), no new boxes: best corner -70.2; worst corner (nearest zero from the saving side when the default saves, else the farthest from a saving) 167.7 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.300, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `ai.wanted_inference_share` = 0.800, `ai.inference_demand_multiple` = 5.000, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 11.305.
+HYBRID (the design: hosted inference via a zero-retention router), no new boxes: best corner -75.7; worst corner (nearest zero from the saving side when the default saves, else the farthest from a saving) 1486.7 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.050, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `ai.wanted_inference_share` = 0.200, `ai.interactions_per_person_day` = 30.000, `ai.llm_calls_per_interaction` = 70.000, `ai.tokens_per_call` = 6000.000, `ai.wh_per_1k_tokens.mid_size_open_weight` = 0.300, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 11.305.
 
 all AI on devices (counterfactual), no new boxes: best corner -65.4; worst corner (nearest zero from the saving side when the default saves, else the farthest from a saving) 333.3 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.300, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `edge.ai_efficiency_ratio` = 10.000, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 11.305.
 
@@ -125,15 +153,18 @@ no AI in scope, no new boxes: best corner -65.4; worst corner (nearest zero from
 | input | HYBRID | all AI on devices | no AI |
 |---|---|---|---|
 | `estate.vanish_share` | none in range | 0.660 | 0.072 |
-| `edge.efficiency_ratio` | 2.150 | 0.680 | 1.856 |
-| `estate.stays_share` | 1.090 | 0.208 | 0.914 |
+| `edge.efficiency_ratio` | 2.160 | 0.680 | 1.856 |
+| `estate.stays_share` | 1.096 | 0.208 | 0.914 |
 | `share of homes with a new always-on box` | none in range | none in range | 0.855 |
-| `ai.inference_demand_multiple` | 4.911 | none in range | none in range |
-| `ai.wanted_inference_share` | 2.456 | none in range | none in range |
+| `ai.interactions_per_person_day` | 25.365 | none in range | none in range |
+| `ai.llm_calls_per_interaction` | 152.191 | none in range | none in range |
+| `ai.tokens_per_call` | 10146.070 | none in range | none in range |
+| `ai.wh_per_1k_tokens.mid_size_open_weight` | 0.254 | none in range | none in range |
+| `ai.wanted_inference_share` | none in range | none in range | none in range |
 | `estate.ai_share` | none in range | 0.115 | 0.878 |
 | `share of wanted inference served on devices` | none in range | none in range | none in range |
 | `edge.ai_efficiency_ratio` | none in range | 2.456 | none in range |
-| `mesh additions (kWh per person-year)` | 24.900 | none in range | 19.241 |
+| `mesh additions (kWh per person-year)` | 25.080 | none in range | 19.241 |
 
 
 # TEST 2, THE ADOPTION PATH (substitution 0 to 1; prior 0.005 to 0.16)

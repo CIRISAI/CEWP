@@ -367,7 +367,7 @@ there is dominated by the phone-class client tier at first.
 > members' devices and the networks that stay either way. The mesh side
 > is being recomputed as additions plus relocated work in
 > `FSD/twin/energy.md` (TEST 1, `crates/cewp-sim/src/energy_full.rs`).
-> Test 1 (full replacement, `cewp-cli energy-full`), in the CIRIS design's hybrid (hosted inference through a zero-retention router; the harvesting, ranking and advertising AI vanishes): about 22 kWh per person-year saved at the defaults, turning to a cost if inference demand per person rises about fivefold or the edge is more than about twice as wasteful as a data centre at the work that relocates; over the whole input box the sign is open (MODEL/FRONTIER).
+> Test 1 (full replacement, `cewp-cli energy-full`), in the CIRIS design's hybrid (hosted inference through a zero-retention router; the harvesting, ranking and advertising AI vanishes): about 22 kWh per person-year saved at the defaults (5 agent interactions a day through a CIRISProxy-shaped router at 12-70 LLM calls each), turning to a cost above about 25 agent interactions per person per day, above about 0.25 Wh per 1,000 tokens for the routed mid-size models, or if the edge is more than about twice as wasteful as a data centre at the work that relocates; over the whole input box the sign is open (MODEL/FRONTIER).
 > The arithmetic below is kept; every row is MODEL. The adoption path
 > (one household joining while the platforms still run) is TEST 2, in the
 > same file.

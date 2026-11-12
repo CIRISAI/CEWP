@@ -82,9 +82,15 @@ full_rows! {
     AiEdgeRatio = "edge.ai_efficiency_ratio", "x data-centre energy per unit of work", [1.0, 3.0, 10.0], Frontier, 2026,
         "AI the person still wants, run on their own devices: accelerators in a data centre are far more efficient per unit of inference";
     AiWantedShare = "ai.wanted_inference_share", "share of the estate's AI energy", [0.2, 0.5, 0.8], Frontier, 2021,
-        "inference people actually ask for, against ranking, ads and training on harvested data: UPSTREAM-0 rows 18-25 (ML 10-15% of one operator's energy; 10:20:70 experimentation:training:inference for one fleet; the 0.5-5.5 kWh harvesting bracket); no published split";
-    InferenceDemand = "ai.inference_demand_multiple", "x today's inference per person", [1.0, 1.0, 5.0], Frontier, 2026,
-        "an agent-heavy mesh may call MORE inference per person than today's average user; the report shows 1x, 2x and 5x";
+        "accounting only (it splits the removed AI into what vanishes and today's wanted inference, which the mesh's own CIRISProxy-shaped inference replaces; it does not move the net): inference people actually ask for, against ranking, ads and training on harvested data: UPSTREAM-0 rows 18-25 (ML 10-15% of one operator's energy; 10:20:70 experimentation:training:inference for one fleet; the 0.5-5.5 kWh harvesting bracket); no published split";
+    InteractionsPerPersonDay = "ai.interactions_per_person_day", "agent interactions", [1.0, 5.0, 30.0], Frontier, 2026,
+        "how often a person asks their agent for something; no figure (CIRISProxy's aggregate counters could measure it: see the measurement request)";
+    CallsPerInteraction = "ai.llm_calls_per_interaction", "LLM calls", [12.0, 30.0, 70.0], Derived, 2026,
+        "STATED by the project, not measured: CIRISProxy README (CIRISAI/CIRISProxy 6f2f640) '1 credit = 1 user interaction (12-70 LLM calls typical)'";
+    TokensPerCall = "ai.tokens_per_call", "tokens (prompt + completion)", [500.0, 2000.0, 6000.0], Frontier, 2026,
+        "agent calls carry long prompts (context, constitution, history) and short completions; CIRISProxy's litellm_config disables reasoning on DeepInfra Qwen (measured there: 1,193 tokens to 29 for one answer)";
+    WhPer1kTokens = "ai.wh_per_1k_tokens.mid_size_open_weight", "Wh per 1,000 tokens", [0.01, 0.05, 0.3], Frontier, 2026,
+        "the model class CIRISProxy routes: mid-size open-weight models (Qwen 3.6/3.5 35B-A3B, about 3B active; Qwen 3.6 27B; Llama 4 Scout/Maverick, 17B active; gpt-oss-20b), not frontier-scale, served by DeepInfra, OpenRouter, Groq and Together at data-centre utilisation; a few 70B dense models are also in the config; no sourced figure";
     PersonsPerHousehold = "household.persons", "persons", [2.5, 2.5, 2.5], Model, 2026,
         "the household pass's default (micro.rs); per person-year = household-hour figures x 8,766 / 2.5";
 }
@@ -198,6 +204,13 @@ pub struct Full {
     pub net: f64,
 }
 
+/// The hybrid's AI demand, kWh per person-year: interactions per day x 365.25 x calls per
+/// interaction x tokens per call x Wh per 1,000 tokens.
+#[must_use]
+pub fn ai_demand_kwh(p: &FullParams) -> f64 {
+    p.get(F::InteractionsPerPersonDay) * 365.25 * p.get(F::CallsPerInteraction) * p.get(F::TokensPerCall) / 1000.0 * p.get(F::WhPer1kTokens) / 1000.0
+}
+
 /// Evaluate.
 #[must_use]
 pub fn eval(p: &FullParams) -> Full {
@@ -222,7 +235,9 @@ pub fn eval(p: &FullParams) -> Full {
             // `on_device`) on members' devices
             removed += ai;
             vanished += ai * (1.0 - p.get(F::AiWantedShare));
-            let wanted = ai * p.get(F::AiWantedShare) * p.get(F::InferenceDemand);
+            // the mesh's own inference, through a CIRISProxy-shaped router: interactions x calls
+            // x tokens x energy per token for the routed model class (kWh per person-year)
+            let wanted = ai_demand_kwh(p);
             kept = wanted * (1.0 - p.on_device);
             at_edge += wanted * p.on_device * p.get(F::AiEdgeRatio);
         }
@@ -240,7 +255,7 @@ pub fn corners(a: &Additions, case: AiCase, new_box_share: f64) -> (f64, f64, Ve
     corners_fixed(a, case, new_box_share, None)
 }
 
-/// [`corners`] with the inference demand fixed at `m` (it is excluded from the corners).
+/// [`corners`] with interactions per person per day fixed at `m` (excluded from the corners).
 #[must_use]
 pub fn corners_at(a: &Additions, case: AiCase, new_box_share: f64, m: f64) -> (f64, f64, Vec<(&'static str, f64)>) {
     if case != AiCase::Hybrid {
@@ -252,8 +267,8 @@ pub fn corners_at(a: &Additions, case: AiCase, new_box_share: f64, m: f64) -> (f
 fn corners_fixed(a: &Additions, case: AiCase, new_box_share: f64, m: Option<f64>) -> (f64, f64, Vec<(&'static str, f64)>) {
     let used = |f: F| match f {
         F::AiEdgeRatio => case == AiCase::AllOnDevices,
-        F::AiWantedShare => case == AiCase::Hybrid,
-        F::InferenceDemand => case == AiCase::Hybrid && m.is_none(),
+        F::AiWantedShare | F::CallsPerInteraction | F::TokensPerCall | F::WhPer1kTokens => case == AiCase::Hybrid,
+        F::InteractionsPerPersonDay => case == AiCase::Hybrid && m.is_none(),
         _ => true,
     };
     let free: Vec<F> = F::ALL.iter().copied().filter(|&f| FULL_SPECS[f as usize].lo < FULL_SPECS[f as usize].hi && used(f)).collect();
@@ -264,7 +279,7 @@ fn corners_fixed(a: &Additions, case: AiCase, new_box_share: f64, m: Option<f64>
         let mut p = FullParams::defaults(a, case);
         p.new_box_share = new_box_share;
         if let Some(m) = m {
-            p.set(F::InferenceDemand, m);
+            p.set(F::InteractionsPerPersonDay, m);
         }
         let mut set = Vec::new();
         for (i, &f) in free.iter().enumerate() {
@@ -341,21 +356,40 @@ pub fn report(seed: u64) -> String {
     }
     s.push_str(&format!("| mesh additions, gateway mix | kWh/person-year | {:.2} / {:.2} / {:.2} | FRONTIER | 2026 | the household pass (energy.rs), US 2020 mix, node on gateway, terms A + B, expected regime |\n", a.gateway[0], a.gateway[1], a.gateway[2]));
     s.push_str(&format!("| mesh additions, new-box mix | kWh/person-year | {:.2} / {:.2} / {:.2} | FRONTIER | 2026 | same, a new always-on box in every home that can take one |\n\n", a.new_box[0], a.new_box[1], a.new_box[2]));
-    s.push_str("## Result\n\n| AI case | inference demand | new-box share of homes | estate per user | removed (of which vanishes) | relocated at the edge | inference kept in data centres | mesh additions | net (default) | net over every corner | sign |\n|---|---|---|---|---|---|---|---|---|---|---|\n");
+    s.push_str("## Result\n\n| AI case | agent interactions per person-day | new-box share of homes | estate per user | removed (of which vanishes) | relocated at the edge | inference kept in data centres | mesh additions | net (default) | net over every corner | sign |\n|---|---|---|---|---|---|---|---|---|---|---|\n");
     for case in AiCase::ALL {
-        let demands: &[f64] = if case == AiCase::Hybrid { &[1.0, 2.0, 5.0] } else { &[1.0] };
+        let demands: &[f64] = if case == AiCase::Hybrid { &[1.0, 5.0, 30.0] } else { &[5.0] };
         for &m in demands {
             for nb in [0.0, 0.25, 1.0] {
                 let mut p = FullParams::defaults(&a, case);
                 p.new_box_share = nb;
-                p.set(F::InferenceDemand, m);
+                p.set(F::InteractionsPerPersonDay, m);
                 let r = eval(&p);
                 let (lo, hi, _) = corners_at(&a, case, nb, m);
                 let sign = if hi < 0.0 { "SAVING over the whole input box" } else if lo > 0.0 { "COST over the whole input box" } else { "open: the box spans zero" };
-                s.push_str(&format!("| {} | {}x | {} | {:.1} | {:.1} ({:.1}) | {:.1} | {:.1} | {:.2} | {:.1} | [{:.1}, {:.1}] | {} |\n", case.as_str(), m, nb, r.estate_per_user, r.removed, r.vanished, r.relocated_at_edge, r.inference_kept, r.additions, r.net, lo, hi, sign));
+                s.push_str(&format!("| {} | {} | {} | {:.1} | {:.1} ({:.1}) | {:.1} | {:.1} | {:.2} | {:.1} | [{:.1}, {:.1}] | {} |\n", case.as_str(), m, nb, r.estate_per_user, r.removed, r.vanished, r.relocated_at_edge, r.inference_kept, r.additions, r.net, lo, hi, sign));
             }
         }
     }
+    // the hybrid's AI term on its own, with its interval (corners of its four inputs)
+    let mut lo = f64::INFINITY;
+    let mut hi = f64::NEG_INFINITY;
+    let rows4 = [F::InteractionsPerPersonDay, F::CallsPerInteraction, F::TokensPerCall, F::WhPer1kTokens];
+    for mask in 0u32..16 {
+        let mut p = FullParams::defaults(&a, AiCase::Hybrid);
+        for (i, &f) in rows4.iter().enumerate() {
+            let sp = &FULL_SPECS[f as usize];
+            p.set(f, if mask >> i & 1 == 1 { sp.hi } else { sp.lo });
+        }
+        let v = ai_demand_kwh(&p);
+        lo = lo.min(v);
+        hi = hi.max(v);
+    }
+    let pd = FullParams::defaults(&a, AiCase::Hybrid);
+    let per_interaction_wh = pd.get(F::CallsPerInteraction) * pd.get(F::TokensPerCall) / 1000.0 * pd.get(F::WhPer1kTokens);
+    s.push_str(&format!("\n**The hybrid's AI term** (interactions per day x 365.25 x LLM calls per interaction x tokens per call x Wh per 1,000 tokens for the routed model class): {:.2} kWh per person-year at the defaults ({:.1} Wh per agent interaction), [{:.3}, {:.0}] over its four inputs' corners. The calls per interaction (12-70) are STATED by CIRISProxy's README, not measured.\n", ai_demand_kwh(&pd), per_interaction_wh, lo, hi));
+    let be = break_even(&a, AiCase::Hybrid, "ai.interactions_per_person_day");
+    s.push_str(&format!("\n**How many agent interactions per person per day the saving can carry** (others at default, no new boxes): {}. ZDR removes retention and training on the conversation at the provider; it does not remove the inference energy, which is this term.\n", be.map_or("more than the scan reaches".to_string(), |x| format!("{x:.1}"))));
     s.push_str("\nUnder the hybrid the theory no longer turns on how efficient a device is at AI: the inference people want stays in data centres at data-centre efficiency (the AI edge ratio enters only through the on-device lever, 0 in the design).\n\nHybrid, the on-device lever (share of wanted inference served on members' devices, AI edge ratio 3, no new boxes):\n\n| on-device share | net (default) |\n|---|---|\n");
     for d in [0.0, 0.1, 0.25, 0.5, 1.0] {
         let mut p = FullParams::defaults(&a, AiCase::Hybrid);
@@ -369,7 +403,7 @@ pub fn report(seed: u64) -> String {
         s.push_str(".\n");
     }
     s.push_str("\n## Break-even for this test (one input, others at default; no new boxes)\n\n| input | HYBRID | all AI on devices | no AI |\n|---|---|---|---|\n");
-    let names: Vec<&str> = ["estate.vanish_share", "edge.efficiency_ratio", "estate.stays_share", "new_box_share", "ai.inference_demand_multiple", "ai.wanted_inference_share", "estate.ai_share", "on_device", "edge.ai_efficiency_ratio", "additions"].to_vec();
+    let names: Vec<&str> = ["estate.vanish_share", "edge.efficiency_ratio", "estate.stays_share", "new_box_share", "ai.interactions_per_person_day", "ai.llm_calls_per_interaction", "ai.tokens_per_call", "ai.wh_per_1k_tokens.mid_size_open_weight", "ai.wanted_inference_share", "estate.ai_share", "on_device", "edge.ai_efficiency_ratio", "additions"].to_vec();
     for n in names {
         let f = |c| break_even(&a, c, n).map_or("none in range".to_string(), |x| format!("{x:.3}"));
         let label = match n {
@@ -430,21 +464,16 @@ mod tests {
         let a = adds();
         let mut p = FullParams::defaults(&a, AiCase::Hybrid);
         let r = eval(&p);
-        let ai = r.estate_per_user * p.get(F::AiShare);
-        assert!((r.inference_kept - ai * p.get(F::AiWantedShare)).abs() < 1e-9);
+        assert!((r.inference_kept - ai_demand_kwh(&p)).abs() < 1e-12);
+        // 5 a day x 365.25 x 30 calls x 2,000 tokens x 0.05 Wh per 1k = 5.48 kWh
+        assert!((ai_demand_kwh(&p) - 5.479).abs() < 0.01);
         // the device AI ratio does not move the design (on-device share 0)
         let n0 = r.net;
         p.set(F::AiEdgeRatio, 10.0);
         assert!((eval(&p).net - n0).abs() < 1e-12);
         // more inference demand costs more
-        p.set(F::InferenceDemand, 5.0);
-        assert!(eval(&p).net > n0);
-        // ZDR: with all inference wanted and demand 1, the hybrid removes nothing of AI
-        let mut q = FullParams::defaults(&a, AiCase::Hybrid);
-        q.set(F::AiWantedShare, 1.0);
-        let nq = eval(&q).net;
-        let none = eval(&FullParams::defaults(&a, AiCase::NoAi)).net;
-        assert!((nq - none).abs() < 1e-9);
+        p.set(F::InteractionsPerPersonDay, 30.0);
+        assert!(eval(&p).net > n0, "more agent interactions cost more");
     }
 
     #[test]
