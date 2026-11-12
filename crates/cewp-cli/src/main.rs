@@ -999,6 +999,23 @@ fn main() {
                 print!("{}", cewp_sim::netgraph::report(&g));
                 return;
             }
+            "locality" => match cewp_sim::locality2::cli(&args[i + 1..]) {
+                // FSD/twin/locality.md: audience, path and presence-weighted locality
+                Ok(report) => {
+                    print!("{report}");
+                    return;
+                }
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    process::exit(1);
+                }
+            },
+            "energy" => {
+                // FSD/twin/energy.md: the per-household delta from the status quo, `energy [seed]`
+                let seed = args.get(i + 1).and_then(|a| a.parse().ok()).unwrap_or(1);
+                print!("{}", cewp_sim::energy::report(seed));
+                return;
+            }
             "people" => match cewp_sim::locality::cli(&args[i + 1..]) {
                 Ok(report) => {
                     print!("{report}");

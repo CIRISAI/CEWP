@@ -140,7 +140,7 @@ privacy, and AI accountability reinforce each other instead of trading off:
    whether real groups are that local is the question the model is built
    to test (`FSD/twin/locality.md`). Counted by delivery rather than by
    act, the same page engine gives 0.58 at 100 k nodes and 0.21 at 1 M
-   nodes (MEASURED on the page's engine, not on any mesh;
+   nodes (MODEL: computed by the page's engine on its generated world;
    `FSD/twin/people.md`), and neither figure reads a byte path or who is
    awake. The 1% of acts in
    5,000-member public rooms fan out over the **CC §6.1.6 `deterministic-alm`
