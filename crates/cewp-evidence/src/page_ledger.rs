@@ -1573,8 +1573,8 @@ mod tests {
     }
 
     /// Public text names no agent, session, relay or the owner (FSD/, docs/ and README): process jargon fails the
-    /// gate instead of waiting for a reviewer to notice it. Imported CIRISHolon assets (docs/geo/holon/) are data,
-    /// sha-checked, and are left as published.
+    /// gate instead of waiting for a reviewer to notice it. Imported CIRISHolon assets (docs/geo/holon/) are scanned
+    /// too: a hit there is fixed at source by Holon and re-imported, never edited here.
     #[test]
     fn public_text_carries_no_process_jargon() {
         fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
@@ -1594,17 +1594,17 @@ mod tests {
         walk(&root.join("docs"), &mut files);
         let lower_terms = ["team-lead", "sub-agent", "subagent", "this session", "relayed via holon", "twin-globe", "twin-theory", "twin-calibration", "twin-evidence", "twin-failures",
             "twin-holon", "twin-media", "twin-nat", "twin-people", "twin-topology", "twin-hhsize", "twin-integrate", "twin-geodata"];
+        // a term inside a longer identifier ("cewp-twin-holon-index/v1", a schema name) is not a name: '-' and '_'
+        // count as word characters on both sides
+        let word = |c: char| c.is_alphanumeric() || c == '-' || c == '_';
         let boundary = |s: &str, i: usize, n: usize| {
-            let before = s[..i].chars().next_back().is_none_or(|c| !c.is_alphanumeric());
-            let after = s[i + n..].chars().next().is_none_or(|c| !c.is_alphanumeric());
+            let before = s[..i].chars().next_back().is_none_or(|c| !word(c));
+            let after = s[i + n..].chars().next().is_none_or(|c| !word(c));
             before && after
         };
         let mut hits = Vec::new();
         for f in files {
             let rel = f.strip_prefix(&root).unwrap_or(&f).to_string_lossy().replace('\\', "/");
-            if rel.contains("docs/geo/holon/") {
-                continue;
-            }
             let Ok(text) = std::fs::read_to_string(&f) else { continue };
             for (ln, line) in text.lines().enumerate() {
                 let low = line.to_lowercase();
