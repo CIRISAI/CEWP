@@ -784,10 +784,9 @@ pub fn assemble_evidence_bundle(
         "k2_leaf_load_fraction".to_string(),
         TaggedMetric::model(0.60, Some([0.58, 0.62]), "cewp-sim R3"),
     );
-    metrics.insert(
-        "planetary_5b_power_mw".to_string(),
-        TaggedMetric::projected(3082.0, [2650.0, 3590.0], "R3->R0 certified extrapolation"),
-    );
+    // `planetary_5b_power_mw` (3,082 MW, typed PROJECTED with no computation behind it, and in
+    // contradiction with FEDERATION_SCALING_MODEL.md 3.6) was removed 2026-11-11: energy is a
+    // per-household delta with its sign unknown (cewp-sim energy.rs), not a planetary total.
     metrics.insert(
         "empirical_nat_mix_global".to_string(),
         TaggedMetric::frontier("leviculum#100 field telemetry"),

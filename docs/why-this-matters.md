@@ -22,7 +22,7 @@ own infrastructure. Substitutability is structural.
 Every interaction is data-mined. The substrate's economic model IS
 extraction. Your behavior is the product.
 
-**CEWP's mechanism:** the CEG locality dividend — 65% of typical
+**CEWP's mechanism:** the CEG locality dividend — an assumed 65% of typical
 activity (self/family scope) NEVER leaves your device because the
 wire format won't carry it. Identity-aware storage means YOUR data
 sits in YOUR substrate. There's no centralized observation point.

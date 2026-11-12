@@ -2062,6 +2062,9 @@ fn print_footprint(s: &Scenario) {
     );
     println!();
     println!("  CEWP substrate (fleet styles, no datacenters):");
+    println!("    UNTESTED GROSS ESTIMATE (MODEL): whole-fleet device draw against a whole data-centre estate,");
+    println!("    unlike quantities; reads no traffic, locality or presence and is not a saving. The delta from");
+    println!("    the status quo, with its sign and break-even inputs: cewp-cli energy (FSD/twin/energy.md).");
     for style in [
         FleetStyle::PhoneFirst,
         FleetStyle::Realistic2026,
@@ -2074,7 +2077,7 @@ fn print_footprint(s: &Scenario) {
         };
         let fp = cewp_footprint(s, style, GLOBAL_GRID_CO2_KG_PER_KWH);
         let ratio = internet.power_mw / fp.power_mw.max(0.001);
-        println!("    [{}] {:>7.1} MW  (marginal {:>6.1} / new-build {:>5.1})  {:>5.1} TWh/yr  {:>5.1} Mt CO2/yr  ({}× less)",
+        println!("    [{}] {:>7.1} MW  (marginal {:>6.1} / new-build {:>5.1})  {:>5.1} TWh/yr  {:>5.1} Mt CO2/yr  (gross ratio {}x, MODEL, untested)",
             label,
             fp.power_mw,
             fp.marginal_power_mw,
@@ -2174,7 +2177,7 @@ fn print_regional_breakdown(base: &Scenario, style: FleetStyle) {
     let power_ratio = internet.power_mw / fp_total.power_mw.max(0.001);
     let co2_ratio = internet.co2_mt_per_year / fp_total.co2_mt_per_year.max(0.001);
     println!(
-        "    CEWP is {}× lower power, {}× lower CO2 vs centralized internet substrate.",
+        "    Gross ratio (UNTESTED, MODEL, unlike quantities, not a saving): {}x power, {}x CO2 against the data-centre estate.",
         fmt_count(power_ratio),
         fmt_count(co2_ratio)
     );
@@ -3262,7 +3265,7 @@ fn print_transport_tiers_model(s: &Scenario) {
         fmt_count(total_devices)
     );
     println!(
-        "    Acts staying 100% in locality  {:.1}%  (deliveries: {:.1}% local · {:.1}% cross-locality · {:.1}% cross-region)",
+        "    Acts staying 100% in locality  {:.1}%  (an input: rooms drawn mostly local; deliveries: {:.1}% local · {:.1}% cross-locality · {:.1}% cross-region)",
         (acts_all_local as f64 / acts_with_aud.max(1) as f64) * 100.0,
         (deliv_local as f64 / deliveries.max(1) as f64) * 100.0,
         (deliv_xloc as f64 / deliveries.max(1) as f64) * 100.0,
@@ -3984,7 +3987,8 @@ fn main() {
     println!("  what an operator configures. The only knobs are workload +");
     println!("  topology + disk size.");
     println!();
-    println!("  Environmental footprint compares CEWP against a hyperscale");
+    println!("  Environmental footprint is an UNTESTED GROSS ESTIMATE (see FSD/twin/energy.md");
+    println!("  for the per-household delta, whose sign is not known in advance). It compares CEWP against a hyperscale");
     println!("  baseline calibrated to ~10K facilities × 5 MW (IEA 2024 ≈");
     println!("  415 TWh/yr at 5 B users). CEWP power is per-device-class,");
     println!("  marginal-share-discounted (phones spend ~5% of their idle");

@@ -60,8 +60,10 @@ cohort_scope ∈ {self, family}  ⇒  no holds_bytes emission
                                 ⇒  ZERO inter-host cost
 ```
 
-The 65% local-only fraction in the default cohort distribution
-disappears from every inter-host bandwidth, storage, and CPU column
+The 65% local-only fraction in the default cohort distribution (an
+assumed act mix, MODEL; how local real activity is, and how local it is
+by delivered byte and by who is awake, is measured in
+`FSD/twin/locality.md`, not asserted here) disappears from every inter-host bandwidth, storage, and CPU column
 because the wire format will not carry it. Privacy and scale share
 the same load-bearing primitive.
 
@@ -352,7 +354,23 @@ Iceland or Norway has near-zero CO2 cost; sub-Saharan Africa's home-
 server capability is real but small (12%), so substrate participation
 there is dominated by the phone-class client tier at first.
 
-### 3.6 Environmental footprint (v0.4)
+### 3.6 Environmental footprint (v0.4): an untested gross estimate
+
+> **Status (2026-11-11): UNTESTED GROSS ESTIMATE, kept for its arithmetic,
+> not a finding.** The table below compares unlike quantities: a whole
+> fleet's device draw (users × device shares × idle watts × an assumed
+> marginal share, `examples/scale_model.rs`) against a whole data-centre
+> estate (10,000 facilities × 5 MW). It reads no traffic, no locality and
+> no presence, it does not subtract the draw of phones people run
+> regardless, and it does not ask which data-centre and network energy a
+> mesh workload would actually move off. The ratio column is therefore
+> not a saving. The quantity that answers the question is a per-household
+> **delta from the status quo** (added draw on devices already on, plus
+> devices added or kept on for the mesh, minus avoided upstream energy),
+> whose sign is not known in advance: see `FSD/twin/energy.md` and
+> `crates/cewp-sim/src/energy.rs`, which report that delta with its
+> interval and the inputs that flip its sign. Every row below is MODEL
+> (hand-set wattages and shares), not MEASURED.
 
 Two perspectives in parallel:
 
@@ -366,13 +384,13 @@ Two perspectives in parallel:
 
 At the `full_internet_v1` scenario (5 B users):
 
-| Posture | Power | Electricity | CO2 | vs Internet |
+| Posture | Power (MODEL, gross) | Electricity | CO2 | gross ratio (unlike quantities, untested) |
 |---|---|---|---|---|
 | Internet substrate (today) | 50 GW | 438 TWh/yr | 175 Mt/yr | baseline |
-| CEWP PhoneFirst | 5.3 GW | 47 TWh/yr | 18.6 Mt/yr | **9.4× less** |
-| CEWP Realistic 2026 | 10.3 GW | 90 TWh/yr | 36.2 Mt/yr | **4.8× less** |
-| CEWP Homelab | 16.9 GW | 148 TWh/yr | 59.3 Mt/yr | 3.0× less |
-| CEWP Regional Realism (Realistic 2026, per-region grid CO2) | 14.3 GW | 125 TWh/yr | 61.4 Mt/yr | 3.5× less power, 2.9× less CO2 |
+| CEWP PhoneFirst | 5.3 GW | 47 TWh/yr | 18.6 Mt/yr | 9.4 (gross) |
+| CEWP Realistic 2026 | 10.3 GW | 90 TWh/yr | 36.2 Mt/yr | 4.8 (gross) |
+| CEWP Homelab | 16.9 GW | 148 TWh/yr | 59.3 Mt/yr | 3.0 (gross) |
+| CEWP Regional Realism (Realistic 2026, per-region grid CO2) | 14.3 GW | 125 TWh/yr | 61.4 Mt/yr | 3.5 power, 2.9 CO2 (gross) |
 
 The marginal vs new-buildout split shows where the joules actually
 come from: at Realistic 2026, ~47% is marginal (rides phones /

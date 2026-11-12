@@ -130,11 +130,19 @@ privacy, and AI accountability reinforce each other instead of trading off:
    (`queue`), with `preview` equal to execution over a permutation-invariant
    fold. Nothing offered is refused; nothing refused was offered; a
    stranger sees nothing.
-2. **Privacy and scale come from the same primitive (~92% locality dividend).**
-   Content at `self` and `family` scope (~65% of typical activity) never
-   emits a discovery attestation (`holds_bytes`), and community rooms
-   (~30%) are predominantly local. As a result, **~92% of signed acts
-   never leave the signer's locality** (CC 5.2), and the 1% of acts in
+2. **Privacy and scale come from the same primitive (the locality dividend).**
+   Content at `self` and `family` scope (~65% of typical activity, an
+   assumed act mix) never emits a discovery attestation (`holds_bytes`,
+   CC 5.2). How much traffic stays local is **an input, not a finding**:
+   the model's rooms are drawn mostly local (families 100% and community
+   rooms 90% in the signer's locality, act mix 65/30/4/1), so ~92% of
+   acts are local *by construction* (`0.65 + 0.30 × 0.90`, MODEL);
+   whether real groups are that local is the question the model is built
+   to test (`FSD/twin/locality.md`). Counted by delivery rather than by
+   act, the same page engine gives 0.58 at 100 k nodes and 0.21 at 1 M
+   nodes (MEASURED on the page's engine, not on any mesh;
+   `FSD/twin/people.md`), and neither figure reads a byte path or who is
+   awake. The 1% of acts in
    5,000-member public rooms fan out over the **CC §6.1.6 `deterministic-alm`
    member relay tree** ($O(\log_k N)$ fan-out where every member computes
    the same deterministic tree over sealed chunks, distinct from CC §5.3.3.2's
@@ -366,7 +374,7 @@ reviewed as a single philosophical-technical whole. See
 | Problem | Mechanism |
 |---|---|
 | Centralization (5 companies own the substrate) | Federation of equals; no central party |
-| Surveillance capitalism | CEG locality dividend — 65% of typical activity never leaves your device |
+| Surveillance capitalism | CEG locality dividend — `self`/`family` content (assumed ~65% of activity, MODEL act mix) never leaves your device |
 | Trust crisis (deepfakes, deniable provenance) | Cryptographic provenance on every claim |
 | Misinformation amplification | No engagement-optimization layer; consumer-controlled trust depth |
 | Platform lock-in | Federation key portable across deployments; content SHA-addressed |
@@ -417,7 +425,7 @@ Note: [`formal/transport_tiers/Tiers.lean`](https://github.com/CIRISAI/CIRISCons
 | **Unowned-Only (`0%` Relay Offer — `unowned_only_strands_the_73rd`)** | `6.41 B / 1.80 M` (**999% load / stranded**) | **40.0%** | `400.00 K` supplied vs. `2.40 B` demanded (**0.02% seated; 99.98% displaced**) | `400.00 K` canonical slots only | `16.67 K / layer` |
 
 In the live `100,000`-act rulebook simulation over `5.00 B` people / `11.25 B` devices (`cargo run --example scale_model`):
-- **91.9% of acts** never leave the signer's locality (CC 5.2 locality dividend).
+- **91.9% of acts** never leave the signer's locality: an input carried through, not a result (the example draws its rooms 90% local and its act mix 65/30/4/1; MODEL). By delivery the page engine gives 0.58 at 100 k nodes and 0.21 at 1 M; see `FSD/twin/locality.md`.
 - **12.55 M local rulebook checks** run in **2.60 ms** (**4.82 B rulebook checks/sec** on 1 core; `3.10 K` stranger acts refused at the signer's own door).
 - **Wire traffic** moves **7.24 GB** (`280.89 K` 1-hop device-shaped hops, `3.71 K` `seat` hops, `1.61 M` ordinary/`deterministic-alm` hops, `5.02 K` onion acts at `+0 B`), saving **10.49 M** unicast deliveries via the CC §6.1.6 `deterministic-alm` member relay tree (**6.6× less wire traffic** than a central datacenter at `47.86 GB`, and **574.49 M× less** than broadcasting to `11.25 B` devices at `3.87 EB`).
 
