@@ -9,7 +9,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
 <canvas id="micro" aria-hidden="true"></canvas>
 <button id="btn-hud" class="fab" type="button" title="Toggle controls &amp; population opt-ins">☰ Controls · <span class="badge" id="badge-scale" data-claim="world-population">5.00 B</span></button>
 <button id="btn-story-fab" class="fab fab-story" type="button" title="Watch two people connect and grow into a global network">▶ Play Story</button>
-<button id="btn-stats" class="fab" type="button" title="Toggle live telemetry &amp; sustainability metrics">☰ Metrics · <span class="badge" id="badge-local" data-claim="kernel-locality">– local</span></button>
+<button id="btn-stats" class="fab" type="button" title="Toggle live telemetry &amp; sustainability metrics">☰ Metrics · <span class="badge" id="badge-local" data-claim="kernel-locality" title="Act share whose every delivery stays in the signer's locality. Set by the generated room mix (families 100%, community rooms 90/9/1, act mix 65/30/4/1): an input, MODEL. By delivery it is far lower.">– local (room mix)</span></button>
 <button id="btn-foot" class="fab" type="button" title="Toggle architecture legend &amp; links">? Info</button>
 <nav class="nav-strip" aria-label="Architecture &amp; navigation links">
   <button id="btn-story-nav" class="nav-pill nav-story-btn" type="button" title="Watch two people connect and grow into a global network">▶ Story</button>
@@ -229,7 +229,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
     <span style="font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--cool)">Live Telemetry &amp; Sustainability</span>
     <button class="panel-close" id="close-stats" type="button" title="Hide metrics">✕</button>
   </div>
-  <div class="kv"><span>rows that never leave the signer's locality</span><b class="big" id="local" data-claim="kernel-locality">–</b></div>
+  <div class="kv"><span>rows that never leave the signer's locality (by construction: rooms drawn <span class="fig" data-claim="kernel-locality">90/9/1</span>)</span><b class="big" id="local" data-claim="kernel-locality">–</b></div>
   <div class="bar"><i id="localbar" style="width:0"></i></div>
   <div id="stats-more">
     <div class="kv"><span>deliveries within the locality</span><b id="dlocal" data-claim="kernel-locality">–</b></div>
@@ -1398,7 +1398,7 @@ function tick(){
   const o=res.out; cum+=o[1]; const local=o[17]?o[16]/o[17]:0; $("dlocal").textContent=(o[1]?o[5]/o[1]*100:0).toFixed(1)+"%";
   const localStr=(local*100).toFixed(1)+"%";
   $("local").textContent=localStr; $("localbar").style.width=localStr;
-  if ($("badge-local")) $("badge-local").textContent=localStr+" local";
+  if ($("badge-local")) $("badge-local").textContent=localStr+" local (room mix)";
   $("xmetro").textContent=(o[1]?o[6]/o[1]*100:0).toFixed(1)+"%"; $("xregion").textContent=(o[1]?o[7]/o[1]*100:0).toFixed(1)+"%";
   const crossings=o[6]+o[7]; $("km").textContent=crossings?Math.round(o[8]/crossings)+" km":"–";
   $("m_base").textContent=fmt(o[18])+" hops · "+fmtBytes(o[18]*4096);

@@ -687,13 +687,13 @@ window.CEWP_LEDGER = {
       "source": "kernel-wasm/src/lib.rs tick (outputs 1, 5, 6, 7, 8, 16, 17) over the world from docs/globe.js buildWorld",
       "commit": "f73b918",
       "window": "",
-      "param": "act mix 65% family / 30% community room / 4% consent-free / 1% public (docs/kernel/README.md); room locality shares 90/9/1 (buildWorld)",
+      "param": "act mix 65% family / 30% community room / 4% consent-free / 1% public (docs/kernel/README.md); room locality shares 90/9/1 (buildWorld); the room-placement sweep (twin/theory locality2.rs, FSD/twin/locality.md) shows the headline as a function of these inputs",
       "dataset": "",
       "blocker": "",
       "reproduce": "node --test docs/kernel/kernel.test.js",
       "correction": "",
       "interval": null,
-      "failure": ["The locality share is set largely by the generated room mix (90% of community rooms sit in one locality): an input, not a discovery.", "A locality is one of 181 grid localities, not a town."]
+      "failure": ["The locality share is set largely by the generated room mix (90% of community rooms sit in one locality): an input, not a discovery.", "A locality is one of 181 grid localities, not a town.", "By delivery, the same engine gives 0.58 at 100 k nodes and 0.21 at 1 M nodes (people.md, MEASURED on the page engine). The act share is the headline only because public rooms are 1% of acts and carry most deliveries."]
     },
     {
       "id": "kernel-traffic",
