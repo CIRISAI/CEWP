@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=38"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=39"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2618,7 +2618,7 @@ function dmValue(){
   const id = DATAMAP.active; if (!id || !M || M.leaf === undefined) return "";
   if (id === 1){ const u = HOLT.t.uneven0, cls = HOL_CLS[(M.meta[2] | 0) === 0 && M.meta[4] >= 12000 ? "dense fabric" : MDCLASS[M.meta[2] | 0]] || "village", k = ["village", "suburban", "terraced", "apartment blocks", "dense fabric"].indexOf(cls);
     if (!u || k < 0) return "people: loading CIRISHolon's in-cell table…"; const r = holRegion(M.lat0, M.lon0), e = r === null ? null : u.data.regional[r][k], v = e && e.people ? e.people : u.data.world.people[k];
-    return `people here: in a ${cls} cell ${Math.round(v.slice(k + 2).reduce((a, b) => a + b, 0) / 1e4)}% live in denser ~1 km tiles (${e && e.people ? "regional, " + u.data.regions[r] : "world row"}; ${holVd("unresolved", "unresolved")})`; }
+    return `people here: in ${/^[aeiou]/.test(cls) ? "an" : "a"} ${cls} cell ${Math.round(v.slice(k + 2).reduce((a, b) => a + b, 0) / 1e4)}% live in denser ~1 km tiles (${e && e.people ? "regional, " + u.data.regions[r] : "world row"}; ${holVd("unresolved", "unresolved")})`; }
   const s = holSeam(), c = s ? s.country : -1;
   if (id === 2) return c === 840 ? `awake now here: ${Math.round(incellAwake(M.lon0) * 100)}% of persons (US time diaries at this local hour)` : `awake now: ${holVd("unresolved", "no reference here (" + holCountryName(c) + ")")}; the twin's stand-in drives activity`;
   return s && s.found ? `verdict here: per unit ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])}, composition ${holVd(HOL_V3[s.comp], HOL_V3[s.comp])} (${holCountryName(c)})` : `verdict here: ${holVd("legacy", "no certificate")}`;
@@ -2639,7 +2639,7 @@ function holUnevenLine(cls, lat, lon){
   const use = e && e.people ? { v: e, src: "regional, " + u.data.regions[r] } : { v: { people: u.data.world.people[k] }, src: r === null ? "world" : "world: fewer than 30 cells of this class in " + u.data.regions[r] };
   const above = use.v.people.slice(k + 2).reduce((a, b) => a + b, 0) / 1e4;
   const on = !(typeof TL !== "undefined" && TL.incell === false);
-  return (`in-cell: in a ${cls} cell ${above.toFixed(0)}% of the people live in ~1 km tiles denser than the cell's class (${use.src}; ${holVd("unresolved", "unresolved: a reading of GHS-POP, no generator scored")}); ` +
+  return (`in-cell: in ${/^[aeiou]/.test(cls) ? "an" : "a"} ${cls} cell ${above.toFixed(0)}% of the people live in ~1 km tiles denser than the cell's class (${use.src}; ${holVd("unresolved", "unresolved: a reading of GHS-POP, no generator scored")}); ` +
     (on ? "the twin divides each cell's people over its ~1 km tiles by this table; which tile is the town is the twin's display rule (at the cell's Natural Earth place and toward its densest neighbours, MODEL), not the table's" : holVd("legacy", "legacy even spread inside the cell, no certificate")));
 }
 // evidence:scan

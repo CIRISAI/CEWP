@@ -56,4 +56,4 @@ dependencies = [
 [[package]]
 name = "holon-scene"
 version = "0.1.0"
-source = "git+https://github.com/CIRISAI/CIRISHolon?rev=7783c24fa292ab29437cdeb607c72c97a9776482#7783c24fa292ab29437cdeb607c72c97a9776482"
+source = "git+https://github.com/CIRISAI/CIRISHolon?rev=33dc99f1ef4e6d00bb5f7277f7f6155a20468553#33dc99f1ef4e6d00bb5f7277f7f6155a20468553"

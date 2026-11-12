@@ -9,4 +9,4 @@ description = "Simulation and verification engine for CEWP"
 [dependencies]
 # CIRISHolon's scene crate (AGPL-3.0-or-later, zero dependencies, integers only, wasm32): the household
 # generator (world::household) and the apportionment and seed rules. Pinned to an exact rev; bump deliberately.
-holon-scene = { git = "https://github.com/CIRISAI/CIRISHolon", rev = "7783c24fa292ab29437cdeb607c72c97a9776482" }
+holon-scene = { git = "https://github.com/CIRISAI/CIRISHolon", rev = "33dc99f1ef4e6d00bb5f7277f7f6155a20468553" }
