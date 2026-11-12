@@ -2505,21 +2505,30 @@ function placeEdgeMarkers(F){
     M.markers.push({ x: mx, y: my, node: nodes.find(i => nodeKind(i) === 4) ?? nodes[0], nodes, km: S[site * 4 + 2] });
   }
 }
+// the street's serve seat: how far, how many of its links are shaped, how many devices home on it, its CPU (MODEL);
+// the canvas card says only what it is in plain words, these figures sit in the street's detail panel
+function seatInfo(){
+  if (!M || !M.nu) return null; let s0 = -1; for (let i = 0; i < M.n && s0 < 0; i++) if (nodeKind(i) === 4 && (nodeFlags(i) & NF.present)) s0 = i;
+  if (s0 < 0) return null; const mk = { km: M.sites[(M.nu[s0 * 8 + 7] & 0xffffff) * 4 + 2] }; let homed = 0;
+  for (let l = 0; l < M.links.length; l += 4) if ((M.links[l + 2] & 0xff) === 0 && (M.links[l] === s0 || M.links[l + 1] === s0)) homed++;
+  const sc = M.seatCap && M.seatCap.get(s0); return { km: mk.km, shaped: nodeShaped(s0), homed, cores: sc && sc.c ? sc.c.cores : null };
+}
+function seatLine(){ const s = seatInfo(); if (!s) return "";
+  return `the server this street's phones use (a serve seat, ${Math.round(s.km).toLocaleString()} km away): ${s.shaped} of 8 shaped links in use, ${s.homed} devices homed on it` +
+    (s.cores ? `, CPU ${ivN(s.cores, fmtN)} cores (MODEL, v45.0.0; the interval runs from the server's publish set staying at today's size to it growing with the fleet)` : ""); }
 function drawEdgeMarkers(g, F, alpha){
   const placed = [];
   for (const mk of [...M.markers].sort((a, b) => a.y - b.y)){
     const { x: mx, y: my, nodes, km } = mk;
     const seats = nodes.filter(i => nodeKind(i) === 4), servers = nodes.filter(i => nodeKind(i) === 3), ci = nodes.filter(i => nodeKind(i) === 5);
-    const parts = [];
-    if (seats.length) parts.push("serve seat");
-    if (servers.length) parts.push(servers.length > 1 ? `${servers.length} hosted servers` : "hosted server");
-    if (ci.length) parts.push(ci.length > 1 ? `${ci.length} CI runners` : "CI runner");
-    const label = parts.join(" + ") + " · " + Math.round(km).toLocaleString() + " km";
-    let sub = "";
-    if (seats.length){ const s0 = seats[0]; let homed = 0; for (let l = 0; l < M.links.length; l += 4) if ((M.links[l + 2] & 0xff) === 0 && (M.links[l] === s0 || M.links[l + 1] === s0)) homed++; sub = `${nodeShaped(s0)}/8 shaped · ${homed} homed here`;
-      const sc = M.seatCap && M.seatCap.get(s0); if (sc && sc.c) sub += ` · CPU ${ivN(sc.c.cores, fmtN)} cores (MODEL, v45.0.0, interval over g 0 to 1)`; }
-    const small = F.w < 800; let label2 = label;
-    if (small){ label2 = (seats.length ? "seat" : ci.length ? "CI" : "server") + (parts.length > 1 ? "+" : "") + " · " + Math.round(km).toLocaleString() + " km"; sub = seats.length ? `${nodeShaped(seats[0])}/8 shaped` : ""; }
+    // plain words first; the seat's shaped links, homed devices and CPU are in the street's detail panel (seatLine)
+    const parts = [], kmTxt = Math.round(km).toLocaleString() + " km away";
+    if (seats.length) parts.push("the server this street's phones use");
+    if (servers.length) parts.push(servers.length > 1 ? `${servers.length} rented servers` : "a rented server");
+    if (ci.length) parts.push(ci.length > 1 ? `${ci.length} test computers` : "a test computer");
+    const label = parts.length === 1 && seats.length ? `a server ${kmTxt} that this street's phones use` : parts.join(" and ") + " · " + kmTxt;
+    const sub = "", small = F.w < 800;
+    const label2 = small ? (seats.length ? "the street's server" : ci.length ? "a test computer" : "a rented server") + " · " + kmTxt : label;
     drawNodeGlyph(g, mk.node, mx, my, 11, alpha * (microSel < 0 || nodes.includes(microSel) ? 1 : 0.6), 0);
     g.globalAlpha = alpha; g.font = `600 ${small ? 10 : 11}px ${MFONT}`; g.textBaseline = "middle";
     const tw = Math.max(g.measureText(label2).width, sub ? g.measureText(sub).width : 0) + 12;
@@ -2991,7 +3000,7 @@ function updateFocalChip(F){
   // names (R5, focal, 1:1, patch, seats) are in the "where this comes from" panel
   const head = `<b>A generated street</b> · ${dclass} · ${fig("micro-generated", Math.round(m[4]).toLocaleString() + " people per km²")} · local ${hm} · time ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button>`;
   const plural = (n, one, many) => n + " " + (n === 1 ? one : many);
-  const tierLine = `<div class="chip-sub">${fig("micro-generated", "the street tier (R5, focal, 1:1): a " + Math.round(2 * m[3]) + " m patch with " + plural(kinds[0], "phone", "phones") + ", " + plural(kinds[1], "home node", "home nodes") + ", " + plural(kinds[2], "laptop", "laptops") + ", " + plural(kinds[3], "hosted server", "hosted servers") + ", " + plural(kinds[4], "serve seat", "serve seats") + (kinds[5] ? ", " + plural(kinds[5], "CI runner", "CI runners") : "") + "; drawn at " + scale + " scale; the street's clock runs ×" + microTimeScale)}</div>`;
+  const tierLine = (seatInfo() ? `<div class="chip-sub">${fig("seat-load-model", seatLine())}</div>` : "") + `<div class="chip-sub">${fig("micro-generated", "the street tier (R5, focal, 1:1): a " + Math.round(2 * m[3]) + " m patch with " + plural(kinds[0], "phone", "phones") + ", " + plural(kinds[1], "home node", "home nodes") + ", " + plural(kinds[2], "laptop", "laptops") + ", " + plural(kinds[3], "hosted server", "hosted servers") + ", " + plural(kinds[4], "serve seat", "serve seats") + (kinds[5] ? ", " + plural(kinds[5], "CI runner", "CI runners") : "") + "; drawn at " + scale + " scale; the street's clock runs ×" + microTimeScale)}</div>`;
   const tileLine = `<div class="chip-line">${fig("micro-population", "this street: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " homes, " + P.dev.toLocaleString() + " devices")}</div>`;
   const detail = `<div class="fd-head"><b>Where this street's figures come from</b> <button class="chip-btn" id="fd-close" type="button" aria-label="Close">×</button></div>` +
     (M.denseNote ? `<div class="chip-sub">${fig("dense-fabric", "dense fabric: storeys are the leaf's households over its plots; the density is a 1/8° cell average, and wards inside it are denser")}</div>` : "") +
