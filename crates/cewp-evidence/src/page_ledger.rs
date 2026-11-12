@@ -1572,6 +1572,48 @@ mod tests {
         assert_eq!(j.matches("\"id\": ").count(), PAGE_CLAIMS.len());
     }
 
+    /// The process jargon in one line of public text. A term must start a word: the character before it is not a
+    /// letter, digit, '-' or '_' (so the schema id "cewp-twin-holon-index/v1" is clean). An agent name matches as a
+    /// prefix followed by optional digits ("twin-globe2"), then anything but a letter, digit or '_'; every other term
+    /// must end a word ("the leader" is clean). The Constitution's stewardship line ("Eric Moore") is allowed.
+    fn jargon_in(line: &str) -> Vec<&'static str> {
+        const AGENTS: [&str; 13] = ["twin-globe", "twin-theory", "twin-calibration", "twin-evidence", "twin-failures", "twin-holon", "twin-media", "twin-nat", "twin-people",
+            "twin-topology", "twin-hhsize", "twin-integrate", "twin-geodata"];
+        const TERMS: [&str; 6] = ["team-lead", "sub-agent", "subagent", "this session", "relayed via holon", "the lead"];
+        let starts = |s: &str, i: usize| s[..i].chars().next_back().is_none_or(|c| !(c.is_alphanumeric() || c == '-' || c == '_'));
+        let ends = |s: &str, j: usize, digits: bool| {
+            let rest = &s[j..];
+            let rest = if digits { rest.trim_start_matches(|c: char| c.is_ascii_digit()) } else { rest };
+            rest.chars().next().is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+        };
+        let low = line.to_lowercase();
+        let mut bad = Vec::new();
+        for t in AGENTS {
+            if low.match_indices(t).any(|(i, _)| starts(&low, i) && ends(&low, i + t.len(), true)) {
+                bad.push(t);
+            }
+        }
+        for t in TERMS {
+            if low.match_indices(t).any(|(i, _)| starts(&low, i) && ends(&low, i + t.len(), false)) {
+                bad.push(t);
+            }
+        }
+        if line.match_indices("Eric").any(|(i, _)| starts(line, i) && ends(line, i + 4, false) && !line[i..].starts_with("Eric Moore")) {
+            bad.push("the owner's first name");
+        }
+        bad
+    }
+
+    #[test]
+    fn the_jargon_matcher_catches_the_forms_that_occurred() {
+        for s in ["twin-globe2", "twin-theory's", "by twin-globe2,", "team-lead's", "(twin-media)", "for the lead.", "in this session", "Eric's approval", "`twin-evidence`"] {
+            assert!(!jargon_in(s).is_empty(), "must trip: {s}");
+        }
+        for s in [r#""schema": "cewp-twin-holon-index/v1""#, "stewarded by Eric Moore", "Ericsson Mobility Report", "the leader board", "the leading edge", "twin/globe branch", "the media package"] {
+            assert!(jargon_in(s).is_empty(), "must pass: {s} -> {:?}", jargon_in(s));
+        }
+    }
+
     /// Public text names no agent, session, relay or the owner (FSD/, docs/ and README): process jargon fails the
     /// gate instead of waiting for a reviewer to notice it. Imported CIRISHolon assets (docs/geo/holon/) are scanned
     /// too: a hit there is fixed at source by Holon and re-imported, never edited here.
@@ -1592,30 +1634,12 @@ mod tests {
         let mut files = vec![root.join("README.md")];
         walk(&root.join("FSD"), &mut files);
         walk(&root.join("docs"), &mut files);
-        let lower_terms = ["team-lead", "sub-agent", "subagent", "this session", "relayed via holon", "twin-globe", "twin-theory", "twin-calibration", "twin-evidence", "twin-failures",
-            "twin-holon", "twin-media", "twin-nat", "twin-people", "twin-topology", "twin-hhsize", "twin-integrate", "twin-geodata"];
-        // a term inside a longer identifier ("cewp-twin-holon-index/v1", a schema name) is not a name: '-' and '_'
-        // count as word characters on both sides
-        let word = |c: char| c.is_alphanumeric() || c == '-' || c == '_';
-        let boundary = |s: &str, i: usize, n: usize| {
-            let before = s[..i].chars().next_back().is_none_or(|c| !word(c));
-            let after = s[i + n..].chars().next().is_none_or(|c| !word(c));
-            before && after
-        };
         let mut hits = Vec::new();
         for f in files {
             let rel = f.strip_prefix(&root).unwrap_or(&f).to_string_lossy().replace('\\', "/");
             let Ok(text) = std::fs::read_to_string(&f) else { continue };
             for (ln, line) in text.lines().enumerate() {
-                let low = line.to_lowercase();
-                let mut bad: Vec<&str> = lower_terms.iter().copied().filter(|t| low.match_indices(t).any(|(i, _)| boundary(&low, i, t.len()))).collect();
-                if low.match_indices("the lead").any(|(i, _)| boundary(&low, i, 8)) {
-                    bad.push("the lead");
-                }
-                // the Constitution's stewardship line ("stewarded by Eric Moore") is a published fact, not jargon
-                if line.match_indices("Eric").any(|(i, _)| boundary(line, i, 4) && !line[i..].starts_with("Eric Moore")) {
-                    bad.push("the owner's first name");
-                }
+                let bad = jargon_in(line);
                 if !bad.is_empty() {
                     hits.push(format!("{rel}:{}: {}", ln + 1, bad.join(", ")));
                 }
