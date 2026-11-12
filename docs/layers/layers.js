@@ -248,9 +248,10 @@ window.CEWP_LAYERS["wm-household"] = layer({ id: "wm-household", title: "World m
     this.last = { class_shown: WM.hcls, twin_one_person: +twin[0].toFixed(3), us_one_person: usv ? +usv[0].toFixed(3) : -1, de_one_person: dev ? +dev[0].toFixed(3) : -1 };
     this.info = { us_mean: ur && ur.mean ? `${ur.mean.verdict}: ${ur.mean.reason}` : "-", us_composition: ur && ur.p1 ? `${ur.p1.verdict}: ${ur.p1.reason}` : "-", de_mean: dr && dr.mean ? `${dr.mean.verdict}: ${dr.mean.reason}` : "-", de_composition: dr && dr.p1 ? `${dr.p1.verdict}: ${dr.p1.reason}` : "-", envelope: "United States (tract density) and Germany (1 km tiles); a twin leaf is outside both" };
   },
-  controls: [{ label: "Next class", act(){ WM.hcls = (WM.hcls + 1) % 6; gfxDirty(300); } }],
+  controls: [{ label: "Next class", act(){ WM.hcls = (WM.hcls + 1) % 6; gfxDirty(300); } },
+    { label: "Household rule: CIRISHolon / legacy", act(){ if (typeof tlHouseholds === "function") tlHouseholds(TL.housegen === false); } }],
   status(){ const us = typeof HOLT !== "undefined" && HOLT.t.household0_us; if (!us) return "loading CIRISHolon's tables…"; const cls = ["nation", ...WM_CLASSES][WM.hcls], u = us.data.rows[cls], d = HOLT.t.household0_de && HOLT.t.household0_de.data.rows[cls];
-    const v = (r, k) => r && r[k] ? r[k].verdict : "–"; return `${cls} · US: mean ${v(u, "mean")}, composition ${v(u, "p1")} · Germany: mean ${v(d, "mean")}, composition ${v(d, "p1")} · legacy rule, no certificate, not retuned`; } });
+    const v = (r, k) => r && r[k] ? r[k].verdict : "–"; return `household rule on the street: ${typeof TL !== "undefined" && TL.housegen === false ? "legacy (no certificate)" : "CIRISHolon HOUSEGEN-1 per ~1 km tile"} · these verdicts score the legacy rule: ${cls} · US: mean ${v(u, "mean")}, composition ${v(u, "p1")} · Germany: mean ${v(d, "mean")}, composition ${v(d, "p1")}`; } });
 
 // ------------------------------------------------------------------ package views (kernel-wasm views.rs): each runs once per page
 const VW = (slot) => { const p = wasm.view_ptr(slot) >>> 0, n = wasm.view_len(slot) >>> 0; return (wasm.view_is_u32(slot) ? new Uint32Array(mem.buffer, p, n) : new Float32Array(mem.buffer, p, n)).slice(); };

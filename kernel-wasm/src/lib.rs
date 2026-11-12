@@ -576,6 +576,7 @@ struct HolonDoor {
     mains: Vec<f64>,
     streets: Vec<f64>,
     junctions: Vec<f64>,
+    text: Vec<u8>,
 }
 
 static mut HOLON: Option<HolonDoor> = None;
@@ -584,7 +585,7 @@ fn holon() -> &'static mut HolonDoor {
     // SAFETY: one thread, the page calls in turn (as `micro`).
     unsafe {
         let h = &mut *std::ptr::addr_of_mut!(HOLON);
-        h.get_or_insert_with(|| HolonDoor { ext: vec![0; 25], out: Vec::new(), ctx: [0.0; 33], roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), meta: Vec::new(), mains: Vec::new(), streets: Vec::new(), junctions: Vec::new() })
+        h.get_or_insert_with(|| HolonDoor { ext: vec![0; 25], out: Vec::new(), ctx: [0.0; 33], roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), meta: Vec::new(), mains: Vec::new(), streets: Vec::new(), junctions: Vec::new(), text: Vec::new() })
     }
 }
 
@@ -628,9 +629,107 @@ pub extern "C" fn holon_ctx_ptr() -> *mut f64 { holon().ctx.as_mut_ptr() }
 
 fn holon_layout_of(id: f64) -> Option<LeafLayout> {
     let c = HolonId::unpack(id as u64)?;
-    let ctx = LeafContext::from_f64(&holon().ctx);
+    let mut ctx = LeafContext::from_f64(&holon().ctx);
+    // the household seam: the leaf holds the households CIRISHolon's generator gave its tile
+    if let Some(sizes) = leaf_sizes(c) {
+        ctx.budget = sizes.len() as u64;
+        ctx.people = sizes.iter().map(|&s| u64::from(s)).sum();
+    }
     Some(LeafLayout::build(c, &ctx, &MicroParams { values: micro().params }))
 }
+
+// ------------------------------------------------------------------ the household seam (popchain::households)
+/// On (the default): every leaf's households come from CIRISHolon's household generator, called once per
+/// L4 tile; off: the legacy rule ("no certificate"). `pop_households` switches; the page rebuilds after.
+static mut HOUSEGEN: bool = true;
+static mut TILES: Option<std::collections::BTreeMap<u64, cewp_sim::popchain::households::Tile>> = None;
+
+fn tiles() -> &'static mut std::collections::BTreeMap<u64, cewp_sim::popchain::households::Tile> {
+    // SAFETY: one thread.
+    unsafe { (*std::ptr::addr_of_mut!(TILES)).get_or_insert_with(std::collections::BTreeMap::new) }
+}
+
+/// The reference rule (MODEL, stated on the page): Germany 2022 rows everywhere, with in_country false
+/// because the twin cannot yet test which country a tile is in; CIRISHolon's call then answers
+/// "unresolved: outside the country read" and still generates.
+const REFERENCE: cewp_sim::popchain::households::Reference = cewp_sim::popchain::households::Reference::Germany2022;
+const IN_COUNTRY: bool = false;
+
+/// The tile's generated households for leaf `c`, if the seam is on and the leaf is one the chain's
+/// tree reaches under its tile.
+fn tile_for(c: HolonId) -> Option<&'static cewp_sim::popchain::households::Tile> {
+    use cewp_sim::popchain::households;
+    if !unsafe { *std::ptr::addr_of!(HOUSEGEN) } { return None; }
+    let (cells, world) = pop_state()?;
+    let t = households::tile_of(c);
+    let m = tiles();
+    if !m.contains_key(&t.pack()) {
+        if m.len() > 4096 { m.clear(); }
+        m.insert(t.pack(), households::generate(cells, world, t, REFERENCE, IN_COUNTRY));
+    }
+    m.get(&t.pack())
+}
+
+fn leaf_sizes(c: HolonId) -> Option<Vec<u8>> {
+    tile_for(c)?.leaves.iter().find(|l| l.0 == c).map(|l| l.1.clone())
+}
+
+/// The household seam on (1, CIRISHolon's generator, the default) or off (0, the legacy rule).
+#[no_mangle]
+pub extern "C" fn pop_households(on: u32) -> u32 {
+    unsafe { *std::ptr::addr_of_mut!(HOUSEGEN) = on != 0; }
+    tiles().clear();
+    on
+}
+
+/// What the seam gave leaf `id`: holon buffer 0 gets [on (1/0), the leaf found under its tile (1/0), tile
+/// packed id, tile people, CIRISHolon class 1..5, reference (0 Germany 2022, 1 United States 2024),
+/// in_country, per-unit verdict, composition verdict (0 certified, 1 refused, 2 unresolved), the leaf's
+/// households, the tile's households, the leaves under the tile], then per leaf of the tile its people and
+/// households (in the tree's order); the text buffer gets the per-unit reason, the composition reason and
+/// the notice, one per line. Returns the number of values.
+#[no_mangle]
+pub extern "C" fn pop_household_seam(id: f64) -> u32 {
+    use cewp_sim::popchain::households::Reference;
+    let h = holon();
+    let Some(c) = HolonId::unpack(id as u64) else { return 0 };
+    let on = unsafe { *std::ptr::addr_of!(HOUSEGEN) };
+    let Some(t) = tile_for(c) else {
+        h.out = vec![f64::from(u8::from(on)), 0.0];
+        h.text = Vec::new();
+        return 2;
+    };
+    let mine = t.leaves.iter().find(|l| l.0 == c);
+    let hh_tile: usize = t.leaves.iter().map(|l| l.1.len()).sum();
+    let mut out = vec![
+        1.0, f64::from(u8::from(mine.is_some())), t.id.pack() as f64, t.people as f64, f64::from(t.class),
+        if t.reference == Reference::Germany2022 { 0.0 } else { 1.0 }, f64::from(u8::from(t.in_country)),
+        f64::from(t.per_unit.0), f64::from(t.composition.0), mine.map_or(0.0, |l| l.1.len() as f64), hh_tile as f64, t.leaves.len() as f64,
+    ];
+    for l in &t.leaves {
+        out.push(l.1.iter().map(|&s| f64::from(s)).sum());
+        out.push(l.1.len() as f64);
+    }
+    h.text = format!("{}\n{}\n{}", t.per_unit.1, t.composition.1, t.notice).into_bytes();
+    let n = out.len() as u32;
+    h.out = out;
+    n
+}
+
+/// `popchain::households::generator_digest` as two u32 halves in holon buffer 0 (low, high).
+#[no_mangle]
+pub extern "C" fn pop_generator_digest() -> u32 {
+    let d = cewp_sim::popchain::households::generator_digest();
+    holon().out = vec![(d & 0xFFFF_FFFF) as f64, (d >> 32) as f64];
+    2
+}
+
+/// The text buffer (UTF-8) a door wrote last.
+#[no_mangle]
+pub extern "C" fn holon_text_ptr() -> u32 { holon().text.as_ptr() as usize as u32 }
+/// Its length in bytes.
+#[no_mangle]
+pub extern "C" fn holon_text_len() -> u32 { holon().text.len() as u32 }
 
 /// Lay out leaf `id` from the context at `holon_ctx_ptr` (parameters from the micro block).
 /// Buffers: 1 roads (x0 y0 x1 y1 width, metres from the leaf centre), 2 buildings (cx cy w d
@@ -722,6 +821,7 @@ fn pop_state() -> Option<&'static (PtrCells, cewp_sim::popchain::World)> {
 #[no_mangle]
 pub extern "C" fn pop_load(ptr: *mut f32, len: u32, world_people: f64) -> u32 {
     use cewp_sim::popchain::{cell_people, World, NX, NY};
+    tiles().clear();
     if (len as usize) < NX * NY { return 0; }
     // SAFETY: the page allocated `len` f32 at `ptr` and keeps it; f32 and u32 have the same size.
     unsafe {
@@ -791,6 +891,7 @@ pub extern "C" fn pop_anchors(ptr: *const i32, n: u32) -> u32 {
 #[no_mangle]
 pub extern "C" fn pop_incell(on: u32) -> u32 {
     unsafe { *std::ptr::addr_of_mut!(INCELL) = on != 0; }
+    tiles().clear();
     on
 }
 
@@ -851,7 +952,11 @@ pub extern "C" fn pop_crossings(id: f64) -> u32 {
 pub extern "C" fn micro_build_leaf(id: f64) -> u32 {
     let Some(l) = holon_layout_of(id) else { return 0 };
     let m = micro();
-    let mut w = MicroWorld::from_leaf(&l, MicroParams { values: m.params });
+    let params = MicroParams { values: m.params };
+    let mut w = match HolonId::unpack(id as u64).and_then(leaf_sizes) {
+        Some(sizes) => MicroWorld::from_leaf_with_sizes(&l, params, sizes),
+        None => MicroWorld::from_leaf(&l, params),
+    };
     cewp_sim::netgraph::attach_access(&mut w, access_graph());
     let n = w.nodes.len() as u32;
     m.roads = w.roads.iter().flat_map(|r| [r.x0, r.y0, r.x1, r.y1, r.width]).collect();

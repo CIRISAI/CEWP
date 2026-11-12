@@ -112,7 +112,7 @@ test("the street tier's world is the cohort tier's GHS total, apportioned", asyn
 });
 
 test("every split from the root to the street tile sums exactly; the leaf's persons and devices sum to it", async () => {
-  const { w, tot } = await kernel(); const lines = [], rows = [], seen = new Set(); let nets = 0, ncross = 0, streets = 0; const streetless = [];
+  const { w, tot } = await kernel(); const lines = [], rows = [], seen = new Set(); let nets = 0, ncross = 0, streets = 0; const streetless = [], seamTiles = [];
   const scale = tot[0] / tot[2]; // cohort total over the floored cell total
   const line = (o) => lines.push(JSON.stringify(o));
   for (const [name, la, lo] of PLACES){
@@ -155,25 +155,39 @@ test("every split from the root to the street tile sums exactly; the leaf's pers
       w.micro_build_leaf(HOLON.pack(leaf)); const n = w.micro_population(), o = out(w, 4 + 2 * n);
       const per = o.slice(4, 4 + n), devs = o.slice(4 + n, 4 + 2 * n);
       persons = o[1]; dev = o[2]; nodes = o[3];
-      assert.strictEqual(n, pop.h, `${name}: households`);
-      assert.strictEqual(sum(per), pop.p, `${name}: persons = people`);
+      // the household seam: CIRISHolon's generator for the leaf's L4 tile, households split whole over the tile's leaves
+      const sn = w.pop_household_seam(HOLON.pack(leaf)), so = out(w, sn);
+      if (so[0] === 1 && so[1] === 1){
+        const nl = so[11], lp = [], lh = []; for (let k = 0; k < nl; k++){ lp.push(so[12 + 2 * k]); lh.push(so[13 + 2 * k]); }
+        assert.strictEqual(sum(lp), so[3], `${name}: the tile's households hold its people exactly`);
+        assert.strictEqual(sum(lh), so[10], `${name}: the tile's households over its leaves`);
+        assert.strictEqual(n, so[9], `${name}: the leaf holds the households the generator gave it`);
+        const tile = so[2], tc = HOLON.unpack(tile);
+        line({ id: tile, level: tc.level, seed: 0, kind: "people", parent: so[3], children: lp });
+        line({ id: tile, level: tc.level, seed: 0, kind: "households", parent: so[10], children: lh });
+        seamTiles.push(`${name} ${["certified", "refused", "unresolved"][so[7]]}/${["certified", "refused", "unresolved"][so[8]]}`);
+        assert.ok(lp.some((p, k) => p === sum(per) && lh[k] === n), `${name}: the leaf's persons are its households' sizes, one of the tile's leaves`);
+      } else {
+        assert.strictEqual(n, pop.h, `${name}: households`);
+        assert.strictEqual(sum(per), pop.p, `${name}: persons = people`);
+      }
       assert.strictEqual(sum(devs), dev, `${name}: devices`);
       // the household's second parent: summed by access network, the leaf's households again
       const na = w.micro_access(), acc = out(w, 2 * na), byNet = acc.filter((_, k) => k % 2 === 1);
       assert.ok(na >= 1 && acc.every((v, k) => k % 2 === 1 || v > 0), `${name}: every household has an access network`);
-      assert.strictEqual(sum(byNet), pop.h, `${name}: households by access network`);
+      assert.strictEqual(sum(byNet), n, `${name}: households by access network`);
       nets += na;
       // and summed by street (the household's building's frontage street, tiling::StreetGraph)
       const ns = w.micro_streets(), st = out(w, 2 * ns);
-      assert.strictEqual(sum(st.filter((_, k) => k % 2 === 1)), pop.h, `${name}: households by street`);
+      assert.strictEqual(sum(st.filter((_, k) => k % 2 === 1)), n, `${name}: households by street`);
       // every household is on a street where the leaf has one (a small leaf whose lines all pass outside it has none)
       const roads = w.micro_buf_len(4) / 5;
       assert.ok(roads === 0 || st.every((v, k) => k % 2 === 1 || v >= 0), `${name}: every household is on a street`);
       if (!roads) streetless.push(name);
       streets += ns;
       const id = HOLON.pack(leaf);
-      line({ id, level: leaf.level, seed: 0, kind: "people", parent: pop.p, children: per });
-      line({ id, level: leaf.level, seed: 0, kind: "households", parent: pop.h, children: per.map(() => 1) });
+      line({ id, level: leaf.level, seed: 0, kind: "people", parent: sum(per), children: per }); // with the seam, the leaf's people follow its households
+      line({ id, level: leaf.level, seed: 0, kind: "households", parent: n, children: per.map(() => 1) });
       line({ id, level: leaf.level, seed: 0, kind: "devices", parent: dev, children: devs });
     }
     const cell = pcCellAt(P, la, lo);
@@ -181,5 +195,5 @@ test("every split from the root to the street tile sums exactly; the leaf's pers
     rows.push(`${name}: leaf L${leaf.level}, ${pop.p} people, ${pop.h} households, ${persons} persons, ${dev} devices (${nodes} nodes drawn)`);
   }
   fs.writeFileSync(OUT, lines.join("\n") + "\n");
-  console.log(rows.join("\n")); console.log(`${lines.length} lines -> ${OUT}; ${nets} (leaf, access network) pairs, households summed both ways; ${streets} (leaf, street) pairs (leaves with no street: ${streetless.join(", ") || "none"}); ${seen.size} crossing sides carrying ${ncross} arterial crossings`);
+  console.log(rows.join("\n")); console.log(`${lines.length} lines -> ${OUT}; ${nets} (leaf, access network) pairs, households summed both ways; ${streets} (leaf, street) pairs (leaves with no street: ${streetless.join(", ") || "none"}); household seam tiles: ${seamTiles.length} (${[...new Set(seamTiles.map((x) => x.split(" ").pop()))].join(", ")}); ${seen.size} crossing sides carrying ${ncross} arterial crossings`);
 });

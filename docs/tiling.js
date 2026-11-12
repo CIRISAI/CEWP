@@ -58,7 +58,14 @@ function tlTree(){ if (!TL.T) TL.T = HOLON.tree(tlRoot, tlExt, tlSplit, TL_TARGE
 // the in-cell seam's switch (kernel pop_incell): CIRISHolon's UNEVEN-0 inside a cell (on, the default) or the legacy
 // even spread; every budget below the cell changes, so the tree, its people and the leaf geometry are rebuilt
 function tlIncell(on){
-  if (typeof wasm === "undefined" || !wasm || !wasm.pop_incell) return; wasm.pop_incell(on ? 1 : 0); TL.incell = !!on;
+  if (typeof wasm === "undefined" || !wasm || !wasm.pop_incell) return; wasm.pop_incell(on ? 1 : 0); TL.incell = !!on; tlRebuild();
+}
+// the household seam's switch (kernel pop_households): CIRISHolon's generator per L4 tile (on, the default) or the
+// legacy rule ("no certificate"); every leaf's households and layout change, so the same rebuild
+function tlHouseholds(on){
+  if (typeof wasm === "undefined" || !wasm || !wasm.pop_households) return; wasm.pop_households(on ? 1 : 0); TL.housegen = !!on; tlRebuild();
+}
+function tlRebuild(){
   TL.T = null; TL.l0.clear(); tlPP.clear(); TL.lay.clear(); TL.bytes = 0;
   for (const [, bt] of TL.batch) gl.deleteBuffer(bt.vbo); TL.batch.clear();
   if (typeof M !== "undefined" && M && M.leaf !== undefined) M = null;

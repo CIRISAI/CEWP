@@ -62,6 +62,7 @@ function kernel(){
   const ptr = w.alloc(P.length * 4) >>> 0;
   new Float32Array(w.memory.buffer, ptr, P.length).set(P);
   w.pop_load(ptr, P.length, POP_GRID_PEOPLE);
+  if (w.pop_households) w.pop_households(0); // the legacy household rule, the one CIRISHolon's HOUSEHOLD-0 scored (the page runs HOUSEGEN-1 by default)
   return w;
 }
 

@@ -154,3 +154,15 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   towns); a rhythm Series renderer; envelope greying needs the country test (Natural Earth admin-0
   polygons, approval asked); under 4x CPU throttle one block build is about 28 ms, so a hitch per
   frame while blocks build.
+- **Household seam** (popchain::households, kernel pop_households / pop_household_seam, on by default):
+  `holon_scene::household::generate` once per L4 tile with the tile's people, its class (explicit
+  map 1..5 at 0 / 250 / 1,500 / 6,000 / 12,000 per km2, tested) and the reference rule (MODEL: German
+  2022 rows everywhere, in_country false until the country test exists, so every call is unresolved
+  "outside the country read"); whole households to the tile's leaves by cumulative midpoint; the
+  layout and the focal world both read the leaf's share, so they agree. The leaf rule is unchanged:
+  the tree's households above the tile are the chain's people / 2.5, so "at most 60 households" is
+  "at most about 150 people". One digest over a fixed grid of generator calls is the same natively and
+  in wasm (3604435168484842135, docs/geo/holon/housegen_digest.txt). Wasm 1,219,716 bytes (+80 kB
+  with holon-scene, the tables and the region table). A cold tile costs about 27 ms once (Lyon, 136
+  leaves) and is cached; steady frames are unchanged (16.7 ms p50 at 1440 and 390, on and off).
+  check_sums holds with the tile lines (households and people at the tile over its leaves).

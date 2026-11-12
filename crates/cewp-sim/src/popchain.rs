@@ -413,6 +413,158 @@ pub fn persons_per_household(people: u64, drawn_sizes: &[u64]) -> Vec<u64> {
     apportion(people, drawn_sizes)
 }
 
+/// The household seam (FSD/twin/holon-intake.md section 5): CIRISHolon's household generator
+/// (HOUSEGEN-1, `holon_scene::household::generate`) is called once per L4 tile (0.01 degree, about
+/// 1.1 km, the level nearest its 1 km and tract references; an L3 leaf is its own tile) with the
+/// tile's people, its own class and a reference; the tile's households go whole to its leaves by a
+/// cumulative midpoint over the leaves' apportioned people, so households sum exactly at the tile
+/// and at the leaves, and a leaf's people then follow its households (the tile total stays exact).
+/// The legacy rule (round(people / 2.5) households at the leaf, sizes drawn and apportioned, "no
+/// certificate") is kept as the labelled fallback and never tuned.
+pub mod households {
+    use super::{split, Cells, Pop, World};
+    use crate::tiling::{is_leaf, HolonId};
+    pub use holon_scene::household::Reference;
+    use holon_scene::verdict::Verdict;
+
+    /// The leaf rule's target (tiling.js TL_TARGET): households, which above the tile are the
+    /// chain's people / 2.5, so the rule is "split while a holon holds more than about 150 people".
+    pub const LEAF_TARGET: u64 = 60;
+    /// The tile level.
+    pub const TILE_LEVEL: u8 = 4;
+    /// Lower bounds of CIRISHolon's household classes 1..=5 (village, suburban, terraced, apartment
+    /// blocks, dense fabric), people per km2 of the tile (classes.json, the same as the twin's).
+    pub const CLASS_KM2: [f64; 5] = [0.0, 250.0, 1_500.0, 6_000.0, 12_000.0];
+
+    /// The tile holding a leaf.
+    #[must_use]
+    pub fn tile_of(leaf: HolonId) -> HolonId {
+        if leaf.level <= TILE_LEVEL { leaf } else { leaf.ancestor(TILE_LEVEL) }
+    }
+
+    /// CIRISHolon's class 1..=5 of a tile from its people per km2 (the twin's classes are 0 apartment
+    /// blocks .. 3 village with dense fabric above 12,000 inside class 0; this is the explicit map).
+    #[must_use]
+    pub fn holon_class(people_per_km2: f64) -> u8 {
+        (CLASS_KM2.iter().rposition(|&b| people_per_km2 >= b).unwrap_or(0) + 1) as u8
+    }
+
+    /// The leaves under `tile` in `children()` order, with their apportioned people (the tree's rule:
+    /// L3 or deeper and at most [`LEAF_TARGET`] households, or the last level).
+    #[must_use]
+    pub fn leaves_under<C: Cells>(cells: &C, tile: HolonId, pop: Pop) -> Vec<(HolonId, u64)> {
+        let mut out = Vec::new();
+        let mut stack = vec![(tile, pop)];
+        while let Some((h, p)) = stack.pop() {
+            if is_leaf(h, p.households, LEAF_TARGET) {
+                out.push((h, p.people));
+                continue;
+            }
+            for k in split(cells, h, p).into_iter().rev() {
+                stack.push(k);
+            }
+        }
+        out
+    }
+
+    /// A verdict as the page shows it.
+    #[must_use]
+    pub const fn verdict_code(v: Verdict) -> u8 {
+        match v {
+            Verdict::Certified => 0,
+            Verdict::Refused => 1,
+            Verdict::Unresolved => 2,
+        }
+    }
+
+    /// What a tile's call gave.
+    #[derive(Debug, Clone)]
+    pub struct Tile {
+        /// The tile.
+        pub id: HolonId,
+        /// Its people (exact, the chain's).
+        pub people: u64,
+        /// CIRISHolon's class 1..=5.
+        pub class: u8,
+        /// The reference read.
+        pub reference: Reference,
+        /// Whether the tile was inside the reference's country (false while the twin has no country test).
+        pub in_country: bool,
+        /// Each leaf under the tile, in order, with its households' sizes.
+        pub leaves: Vec<(HolonId, Vec<u8>)>,
+        /// Verdict (0 certified, 1 refused, 2 unresolved) and reason: households per unit, then composition.
+        pub per_unit: (u8, &'static str),
+        /// See `per_unit`.
+        pub composition: (u8, &'static str),
+        /// The notice that travels with the output.
+        pub notice: &'static str,
+    }
+
+    /// FNV-1a over the sizes of a fixed grid of generator calls (both references, the five classes,
+    /// people 0..=2,000 in steps, seeds 0..4): the same number natively and in wasm proves the page runs
+    /// the generator the certificate describes (docs/geo/holon/housegen.test.js, popchain test).
+    #[must_use]
+    pub fn generator_digest() -> u64 {
+        let mut h: u64 = 0xCBF2_9CE4_8422_2325;
+        for reference in [Reference::Germany2022, Reference::UnitedStates2024] {
+            for class in 1..=5u8 {
+                for people in (0..=2_000u64).step_by(37) {
+                    for seed in 0..4u64 {
+                        for s in holon_scene::household::generate(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ people, people, class, reference, true).sizes {
+                            h ^= u64::from(s);
+                            h = h.wrapping_mul(0x0100_0000_01B3);
+                        }
+                        h ^= 0xFF;
+                        h = h.wrapping_mul(0x0100_0000_01B3);
+                    }
+                }
+            }
+        }
+        h
+    }
+
+    /// Generate tile `tile`'s households with CIRISHolon's generator and split them over its leaves.
+    /// `reference` and `in_country` are the caller's MODEL choice (see the kernel's reference rule).
+    #[must_use]
+    pub fn generate<C: Cells>(cells: &C, world: &World, tile: HolonId, reference: Reference, in_country: bool) -> Tile {
+        let pop = super::pop_of(cells, world, tile);
+        let class = holon_class(pop.people as f64 / tile.area_km2().max(1e-9));
+        let h = holon_scene::household::generate(tile.seed(), pop.people, class, reference, in_country);
+        let leaves = leaves_under(cells, tile, pop);
+        // cumulative midpoint: household i (sizes in the generator's order) goes to the leaf whose
+        // interval of apportioned people holds 2 * (people before it) + size, in doubled units
+        let mut ends = Vec::with_capacity(leaves.len());
+        let mut acc = 0u64;
+        for &(_, p) in &leaves {
+            acc += p;
+            ends.push(2 * acc);
+        }
+        let mut per: Vec<Vec<u8>> = vec![Vec::new(); leaves.len()];
+        let (mut before, mut li) = (0u64, 0usize);
+        for &s in &h.sizes {
+            let mid = 2 * before + u64::from(s);
+            while li + 1 < ends.len() && mid > ends[li] {
+                li += 1;
+            }
+            if !per.is_empty() {
+                per[li].push(s);
+            }
+            before += u64::from(s);
+        }
+        Tile {
+            id: tile,
+            people: pop.people,
+            class,
+            reference,
+            in_country,
+            leaves: leaves.iter().map(|x| x.0).zip(per).collect(),
+            per_unit: (verdict_code(h.per_unit.verdict), h.per_unit.reason),
+            composition: (verdict_code(h.composition.verdict), h.composition.reason),
+            notice: h.notice,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -523,6 +675,43 @@ mod tests {
             pop = p;
         }
         assert!(uneven, "the seam must change some split below the cell");
+    }
+
+    #[test]
+    fn the_generator_digest_is_the_committed_one() {
+        // docs/geo/holon/housegen.test.js checks the shipped wasm gives the same number
+        let want = include_str!("../../../docs/geo/holon/housegen_digest.txt").trim().parse::<u64>().unwrap();
+        assert_eq!(households::generator_digest(), want);
+    }
+
+    #[test]
+    fn household_classes_map_explicitly_and_tiles_split_whole_households_exactly() {
+        use households::*;
+        for (d, c) in [(0.5, 1), (249.9, 1), (250.0, 2), (1_499.0, 2), (1_500.0, 3), (5_999.0, 3), (6_000.0, 4), (11_999.0, 4), (12_000.0, 5), (90_000.0, 5)] {
+            assert_eq!(holon_class(d), c, "{d} per km2");
+        }
+        let cells = Uneven(Some(2));
+        let w = World::new(&cells, 330..350, 7_000_000);
+        for (la, lo) in [(47.6, 8.5), (47.58, 8.47), (47.7, 8.62)] {
+            let leaf_tile = tile_of(HolonId::at(9, la, lo));
+            for reference in [Reference::Germany2022, Reference::UnitedStates2024] {
+                let t = generate(&cells, &w, leaf_tile, reference, false);
+                let people: u64 = t.leaves.iter().flat_map(|l| l.1.iter()).map(|&s| u64::from(s)).sum();
+                assert_eq!(people, t.people, "the tile's households hold its people exactly");
+                assert!(t.leaves.iter().all(|l| l.0.ancestor(TILE_LEVEL) == t.id));
+                assert_eq!(t.per_unit.0, 2, "outside the country read: unresolved");
+                // a leaf's people follow its households and stay near its apportioned people
+                let pop = pop_of(&cells, &w, t.id);
+                for ((id, sizes), (id2, apportioned)) in t.leaves.iter().zip(leaves_under(&cells, t.id, pop)) {
+                    assert_eq!(*id, id2);
+                    let got: u64 = sizes.iter().map(|&s| u64::from(s)).sum();
+                    assert!(got.abs_diff(apportioned) <= 16, "{id:?}: {got} people from households, {apportioned} apportioned");
+                }
+                // same seed, same answer
+                let again = generate(&cells, &w, leaf_tile, reference, false);
+                assert_eq!(again.leaves, t.leaves);
+            }
+        }
     }
 
     #[test]

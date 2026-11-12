@@ -198,7 +198,7 @@ pub const ROWS: &[Row] = &[
     row("household.persons", A, pop(&["household"]), "household", "persons",
         "crates/cewp-sim/src/micro.rs:MicroWorld::populate (phones and laptops per person; hosted-server chance 2.25 x persons x server_tier_share)", "MODEL",
         "none known (the UN household-size table forbids derivatives)", &["social.household_size_sd"],
-        "drawn round(2.5 + 1.1 N) clamped 1..6, then the leaf's people apportioned over the households with those weights (popchain::persons_per_household): exact per leaf"),
+        "by default CIRISHolon's HOUSEGEN-1 per L4 tile (popchain::households: sizes summing to the tile's people, whole households to the leaves; every call here unresolved until the twin can test countries); the legacy rule (drawn round(2.5 + 1.1 N) clamped 1..6, people apportioned over them) is the labelled fallback"),
     row("household.adopting", A, pop(&["street tile"]), "household", "households running CIRIS", "crates/cewp-sim/src/micro.rs:MicroWorld::populate", "MODEL",
         "none known (fleet count by locality would be the measure)", &["micro.adoption"], "adoption is a threshold on the household's own stream, so raising it adds households"),
     row("household.devices", A, pop(&["household", "person"]), "household", "devices by kind (phone, laptop, home node, hosted server)",

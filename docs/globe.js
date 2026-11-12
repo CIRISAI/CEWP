@@ -394,7 +394,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=35"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=36"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2557,7 +2557,25 @@ function holDe(cls){
   const t = HOLT.t.household0_de; if (!t) return "…"; const [d, k] = holPick(t, cls);
   return `against German census (${k}): mean ${holVd(d.mean.verdict, d.mean.verdict + " (" + d.mean.generator.toFixed(2) + " vs " + d.mean.reference.toFixed(2) + ")")}; composition ${holVd(d.p1.verdict, d.p1.verdict + " (" + holPct(d.p1.generator) + " vs " + holPct(d.p1.reference) + ")")}`;
 }
-const holEnvelope = () => `${holVd("unresolved", "outside the envelope for this place: the references are the United States and Germany, keyed by a census unit's density, and the twin does not yet test which country a patch is in")} · the rule is the twin's legacy one, ${holVd("legacy", "no certificate")}, not retuned`;
+// the household seam for the focal leaf (kernel pop_household_seam): CIRISHolon's generator per L4 tile, or the legacy rule
+function holSeam(){
+  if (!M || M.leaf === undefined || !wasm.pop_household_seam) return null;
+  if (M.seam !== undefined) return M.seam;
+  const n = wasm.pop_household_seam(M.leaf); if (!n){ M.seam = null; return null; }
+  const p = wasm.holon_buf_ptr(0) >>> 0, o = Array.from(new Float64Array(wasm.memory.buffer, p, n));
+  const tp = wasm.holon_text_ptr() >>> 0, tl = wasm.holon_text_len(), txt = new TextDecoder().decode(new Uint8Array(wasm.memory.buffer, tp, tl)).split("\n");
+  M.seam = { on: o[0] === 1, found: o[1] === 1, people: o[3], cls: o[4], ref: o[5], inCountry: o[6] === 1, perUnit: o[7], comp: o[8], hhLeaf: o[9], hhTile: o[10], leaves: o[11], why: txt };
+  return M.seam;
+}
+const HOL_V3 = ["certified", "refused", "unresolved"], HOL_C5 = ["village", "suburban", "terraced", "apartment blocks", "dense fabric"];
+function holGenLine(){
+  const s = holSeam();
+  if (!s || !s.on) return `households: the twin's legacy rule (round(people / 2.5) per leaf, sizes drawn) ${holVd("legacy", "no certificate")}; CIRISHolon's household generator is switched off`;
+  if (!s.found) return `households: CIRISHolon's generator ran for this tile but this leaf is not one the chain's tree reaches under it, so the legacy rule stands in ${holVd("legacy", "no certificate")}`;
+  return `households: CIRISHolon's generator (HOUSEGEN-1) for this ~1 km tile: ${s.people.toLocaleString()} people in ${s.hhTile.toLocaleString()} households over ${s.leaves} leaves, ${s.hhLeaf} here; ${s.ref === 0 ? "German 2022" : "US 2024"} rows, class ${HOL_C5[s.cls - 1]}; the reference is chosen by a stated rule (MODEL: German rows everywhere, in_country false: the twin cannot yet test countries) · per unit ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit] + ": " + s.why[0])} · composition ${holVd(HOL_V3[s.comp], HOL_V3[s.comp] + ": " + s.why[1])} · no ages, tenure, building type or vacancy; tiles of one class come out too alike · ${s.why[2]}`;
+}
+function holGenShort(){ const s = holSeam(); if (!s || !s.on || !s.found) return `households: legacy ${holVd("legacy", "no certificate")}`; return `households: CIRISHolon HOUSEGEN-1, ${s.hhLeaf} here · ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])} / ${holVd(HOL_V3[s.comp], HOL_V3[s.comp])}`; }
+const holEnvelope = () => `${holVd("unresolved", "outside the envelope for this place: the references are the United States and Germany, keyed by a census unit's density, and the twin does not yet test which country a patch is in")} · these verdicts score the twin's legacy rule (${holVd("legacy", "no certificate")}, kept as the fallback, not retuned)`;
 // the in-cell line: UNEVEN-0 for the patch's region and class (the world row where the region's is below the floor)
 function holUnevenLine(cls, lat, lon){
   const u = HOLT.t.uneven0; if (!u) return "loading CIRISHolon's in-cell table…";
@@ -2592,13 +2610,13 @@ function updateFocalChip(F){
   if ((m[2] | 0) === 0 && m[4] >= 12000 && M.bld && M.bld.length){ let fl = 0, nb = 0; for (let b = 0; b < M.bld.length; b += 8) if (M.bld[b + 6] > 0){ fl += M.bld[b + 5]; nb++; } dclass = "dense fabric · " + fig("dense-fabric", (nb ? Math.round(fl / nb) : "?") + " storeys on average; the density is a 1/8° cell average, and wards inside it are denser"); }
   const ppm = F.k / EARTH_M; const scale = ppm > 1.5 ? "street" : ppm > 0.25 ? "neighbourhood" : ppm > 0.02 ? "district" : "region";
   if (F.w < 800){
-    chip.innerHTML = `<b>R5 1:1</b> · ${dclass} · ${fig("micro-generated", Math.round(m[4]).toLocaleString() + "/km² · " + kinds.reduce((a, b) => a + b, 0) + " devices")} · ${hm} ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · bootstrap <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_SHORT[microBootstrap]}</button> · tap a device`;
+    chip.innerHTML = `<b>R5 1:1</b> · ${dclass} · ${fig("micro-generated", Math.round(m[4]).toLocaleString() + "/km² · " + kinds.reduce((a, b) => a + b, 0) + " devices")} · ${hm} ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · bootstrap <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_SHORT[microBootstrap]}</button> · tap a device<div class="chip-sub">${fig("holon-housegen1", holGenShort())}</div>`;
   } else
   chip.innerHTML = `<b>R5 focal 1:1</b> · ${dclass} · ` +
     `${fig("micro-generated", Math.round(m[4]).toLocaleString() + " people/km² · " + Math.round(2 * m[3]) + " m patch · " + kinds[0] + " phones, " + kinds[1] + " home nodes, " + kinds[2] + " laptops, " + kinds[3] + " hosted servers, " + kinds[4] + " seats" + (kinds[5] ? ", " + kinds[5] + " CI" : ""))} · ` +
     `local ${hm} · sim ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · ${scale} scale` +
     `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people inside a 1/8° cell follow CIRISHolon's in-cell table (UNEVEN-0, unresolved)")}</div>` +
-    `<div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
+    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
     `<div class="chip-sub">rows: ${fig("micro-activity", m[10] + " sent · " + m[11] + " direct (" + m[12] + " shaped) · " + m[13] + " relayed · " + m[15] + " held at a mailbox · " + m[16] + " handed over · punches " + m[20] + "/" + m[19] + " up")} · tap a device</div>` +
     `<div class="chip-sub">model's reading: replication rounds ${fig("micro-activity", (m[37] | 0) + " served · " + (m[38] | 0) + " cadences where an unclaimed device announced with no seat as peer")} · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +
     (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? '<span class="inp">design case: 3, k=2</span>' : '<span class="inp">production: 1</span>'}</button>`) + `</div>`;

@@ -799,6 +799,9 @@ pub struct MicroWorld {
     pub params: MicroParams,
     /// People the world's households must hold (a leaf's popchain people; 0 = drawn sizes as they are).
     pub target_people: u64,
+    /// Household sizes given from outside (CIRISHolon's generator through `popchain::households`), one
+    /// per dwelling in building order; when set they replace the legacy draw and apportionment.
+    pub given_sizes: Option<Vec<u8>>,
     /// Devices drawn for every household, adopting or not, inside the node cap or beyond it: the
     /// holon's device population. The nodes are a display sample of it (at most R5_MAX_NODES).
     pub device_population: u64,
@@ -952,6 +955,23 @@ impl MicroWorld {
         w
     }
 
+    /// [`MicroWorld::from_leaf`] with the leaf's household sizes given (one per dwelling of the layout,
+    /// which must have been laid out for `sizes.len()` households).
+    #[must_use]
+    pub fn from_leaf_with_sizes(leaf: &crate::tiling::LeafLayout, params: MicroParams, sizes: Vec<u8>) -> Self {
+        let (lat0, lon0) = leaf.id.centre_deg();
+        let half = leaf.w.max(leaf.h) / 2.0;
+        let mut w = Self::empty(lat0, lon0, leaf.density_km2, leaf.class, half, leaf.id.seed(), params);
+        w.roads = leaf.roads.clone();
+        w.buildings = leaf.buildings.clone();
+        w.target_people = sizes.iter().map(|&s| u64::from(s)).sum();
+        w.given_sizes = Some(sizes);
+        w.place_sites();
+        w.populate();
+        w.assign_claims();
+        w
+    }
+
     /// Build the focal world on one leaf holon of the tiling (`crate::tiling`): its streets and
     /// dwellings are the leaf's layout, so the world the page runs sits in the tiled streets
     /// exactly, and its households are the leaf's budget.
@@ -996,6 +1016,7 @@ impl MicroWorld {
             qa_peer: NONE,
             runs: 0,
             target_people: 0,
+            given_sizes: None,
             device_population: 0,
             household_devices: Vec::new(),
         }
@@ -1335,7 +1356,11 @@ impl MicroWorld {
                 (p.get(P::PersonsPerHousehold) + 1.1 * hr.gauss()).round().clamp(1.0, 6.0) as u64
             })
             .collect();
-        let sizes = if self.target_people > 0 { crate::popchain::persons_per_household(self.target_people, &drawn) } else { drawn };
+        let sizes = match &self.given_sizes {
+            Some(g) if g.len() == dwellings => g.iter().map(|&s| u64::from(s)).collect(),
+            _ if self.target_people > 0 => crate::popchain::persons_per_household(self.target_people, &drawn),
+            _ => drawn,
+        };
         self.device_population = 0;
         self.household_devices.clear();
         // Every draw for a dwelling comes from that dwelling's own stream, in a fixed order, and

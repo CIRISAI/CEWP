@@ -516,6 +516,24 @@ window.CEWP_LEDGER = {
       "failure": ["One patch of about 60 households; everything outside it is cohorts or a drawing, not simulated 1:1.", "The streets, homes and devices are generated (generated-below-region)."]
     },
     {
+      "id": "holon-housegen1",
+      "class": "MODEL",
+      "code": "MO",
+      "status": "stated",
+      "live": true,
+      "shows": "The street tile's households from CIRISHolon's household generator (HOUSEGEN-1), called once per ~1 km tile (L4) with the tile's people, class and a reference, split whole over the tile's leaves; its verdicts as returned (per unit and composition), the reference rule, and the notice; or the legacy rule's 'no certificate' when switched off.",
+      "source": "holon-scene household::generate (CIRISHolon 7783c24, a pinned git dependency); crates/cewp-sim/src/popchain.rs households (tile, class map, cumulative-midpoint split); kernel-wasm pop_household_seam, pop_households; docs/geo/holon/housegen_digest.txt (one digest natively and in wasm)",
+      "commit": "f73b918",
+      "window": "",
+      "param": "tile = L4 (0.01 degree, about 1.1 km); reference rule (MODEL): German 2022 rows everywhere with in_country false until the twin can test countries; classes 1..5 at 0, 250, 1,500, 6,000, 12,000 people per km2 of the tile",
+      "dataset": "Source: Statistische Aemter des Bundes und der Laender, Zensus 2022, Ergebnisse in Gitterzellen; Data licence Germany - attribution - Version 2.0 (dl-de/by-2-0), www.govdata.de/dl-de/by-2-0; data changed: aggregated by density class. Source: U.S. Census Bureau, 2020-2024 American Community Survey 5-Year Estimates, Tables B25008 and B25009. A derived work; not endorsed or certified by the Census Bureau. Via CIRISHolon HOUSEGEN-1.",
+      "blocker": "",
+      "reproduce": "cargo test -p cewp-sim popchain; node --test docs/geo/holon/housegen.test.js docs/geo/popcond.test.js",
+      "correction": "",
+      "interval": null,
+      "failure": ["Every call outside Germany, every US call and every tile under 10 people is unresolved; with no country test yet, every call here is unresolved ('outside the country read').", "No ages, tenure, building type, who shares a building, or vacancy; tiles of one class come out too alike (real tiles differ by about 0.10 in the one-person share, these draws by 0.05 in village tiles and 0.005 in dense ones).", "Buildings stay the twin's legacy layout ('no certificate')."]
+    },
+    {
       "id": "holon-uneven0",
       "class": "MODEL",
       "code": "MO",
