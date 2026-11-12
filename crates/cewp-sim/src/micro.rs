@@ -851,6 +851,9 @@ pub struct MicroWorld {
     pub device_population: u64,
     /// Devices drawn per household, in household order (its children, for the summing test).
     pub household_devices: Vec<u32>,
+    /// Who lives in each household, in household order, as the device generator drew it: adults 18 to 64,
+    /// adults over 64, children (DEVICEGEN-1's composition); None under the legacy device draw.
+    pub household_groups: Vec<Option<[u8; 3]>>,
     /// Seed (from the tile).
     pub seed: u64,
     rng: Rng,
@@ -1072,6 +1075,7 @@ impl MicroWorld {
             device_seam: None,
             device_population: 0,
             household_devices: Vec::new(),
+            household_groups: Vec::new(),
         }
     }
 
@@ -1416,6 +1420,7 @@ impl MicroWorld {
         };
         self.device_population = 0;
         self.household_devices.clear();
+        self.household_groups.clear();
         // Every draw for a dwelling comes from that dwelling's own stream, in a fixed order, and
         // each share is a threshold on a uniform: raising adoption or reach adds households and
         // routers without reshuffling the ones already there.
@@ -1478,6 +1483,7 @@ impl MicroWorld {
                 // the legacy rule's other draws keep their order): phones per person by group, laptops and
                 // desktops, and a home node only where the scenario finds something to host on
                 let mut desktops = 0u32;
+                let mut groups = None;
                 if let Some(rule) = self.device_rule {
                     let building = if self.class == DensityClass::UrbanCore && self.density_km2 >= crate::tiling::DENSE_FABRIC_KM2 {
                         holon_scene::devices::BUILDING_UNKNOWN
@@ -1490,6 +1496,7 @@ impl MicroWorld {
                     };
                     let seed = holon_scene::seed::child_seed(self.seed ^ 0xDE71_CE6E_0000_0001, hi as u64);
                     let (hd, counts_call, host_call) = holon_scene::devices::generate(seed, u32::from(persons), building, rule.in_country);
+                    groups = Some([hd.adults, hd.seniors, hd.children]);
                     let had_server = kinds.iter().any(|k| k.0 == HostKind::HostedServer);
                     kinds.clear();
                     let mut owner = 0u8;
@@ -1536,6 +1543,7 @@ impl MicroWorld {
                 }
                 self.device_population += kinds.len() as u64 + u64::from(desktops);
                 self.household_devices.push(kinds.len() as u32 + desktops);
+                self.household_groups.push(groups);
                 if !hh.adopting || used + kinds.len() > budget {
                     hh.adopting = false;
                     hh.in_community = false;

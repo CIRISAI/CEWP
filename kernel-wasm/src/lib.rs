@@ -772,6 +772,44 @@ pub extern "C" fn micro_device_seam() -> u32 {
     10
 }
 
+/// The focal street's day as CIRISHolon's rhythm Series (`cewp_sim::street_rhythm::street_day`, PRESENCEGEN-2's chain
+/// per person): `day` seeds the day (the page passes the sim's local day number), `day_type` 0 Monday to Thursday,
+/// 1 Friday, 2 Saturday, 3 Sunday. Holon buffer 0 gets [1, homes, persons with a day, children (no day), employed,
+/// verdict (0 certified, 1 refused, 2 unresolved), continuity violations, cells], then the 24 slots' counts (cells
+/// each; slot s is clock hour (4 + s) mod 24; homes first, then work or school, elsewhere, travelling), then per bin
+/// (23) its flow count and (from, to, persons) per flow, then the 24 slots' persons at home awake per home, then per
+/// home its persons with a day. The text
+/// buffer gets the verdict's reason and the notice. [0] when there is no world or no composition (legacy devices).
+#[no_mangle]
+pub extern "C" fn micro_rhythm(day: f64, day_type: u32) -> u32 {
+    let h = holon();
+    let Some(w) = micro().world.as_ref() else { h.out = vec![0.0]; return 1 };
+    let in_country = w.device_rule.is_some_and(|r| r.in_country);
+    let Some(d) = cewp_sim::street_rhythm::street_day(w, day.max(0.0) as u64, day_type.min(3) as u8, in_country) else { h.out = vec![0.0]; h.text = Vec::new(); return 1 };
+    let s = &d.series;
+    let mut out = vec![1.0, d.homes as f64, f64::from(d.persons), f64::from(d.children), f64::from(d.employed), f64::from(d.verdict.0), d.violations as f64, s.cells as f64];
+    for row in &s.counts { out.extend(row.iter().map(|&c| c as f64)); }
+    for bin in &s.flows {
+        out.push(bin.len() as f64);
+        for &(a, b, n) in bin { out.extend([a as f64, b as f64, n as f64]); }
+    }
+    for row in &d.home_awake { out.extend(row.iter().map(|&c| f64::from(c))); }
+    out.extend(d.residents.iter().map(|&c| f64::from(c)));
+    h.text = format!("{}\n{}", d.verdict.1, cewp_sim::holon_scene::presence::NOTICE_US).into_bytes();
+    let n = out.len() as u32;
+    h.out = out;
+    n
+}
+
+/// `cewp_sim::holon_scene::presence::digest()` (PRESENCEGEN-2's digest over fixed calls) as two u32 halves in holon
+/// buffer 0 (low, high).
+#[no_mangle]
+pub extern "C" fn pop_presence_digest() -> u32 {
+    let d = cewp_sim::holon_scene::presence::digest();
+    holon().out = vec![(d & 0xFFFF_FFFF) as f64, (d >> 32) as f64];
+    2
+}
+
 /// The text buffer (UTF-8) a door wrote last.
 #[no_mangle]
 pub extern "C" fn holon_text_ptr() -> u32 { holon().text.as_ptr() as usize as u32 }

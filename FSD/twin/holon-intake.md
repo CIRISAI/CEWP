@@ -206,3 +206,22 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   housegen.test.js checks the wasm's means against the rows at the pinned rev. The US rows run only
   2.27 to 2.51 across classes, so US cities and suburbs read nearly alike; the German rows run 1.71 to
   2.27.
+- **Street day: the rhythm Series as it is** (crates/cewp-sim/src/street_rhythm.rs `street_day`, kernel
+  `micro_rhythm` / `pop_presence_digest`, on by default at street zoom; layer "Street day: on / off"; ledger
+  holon-presencegen2). holon-scene is pinned at CIRISHolon f07a5ee, which adds PRESENCEGEN-2 and leaves
+  household.rs and devices.rs as they were, so the HOUSEGEN and DEVICEGEN digests do not move. Each adult
+  of the street, as DEVICEGEN-1 drew the household (18 to 64, over 64), gets one generated day from
+  `presence::day(Generator::Chain, …)`: the chain, CERTIFIED in the United States on the 2024 diaries,
+  unresolved elsewhere. Employment is drawn per adult from `presence::employed_ppm` (MODEL: 18 to 64 read
+  at the 25-to-64 share). Children get no day: diaries start at 15 and the device generator's children
+  are under 18. The days become one `rhythm::Series`: cells are the homes, then work or school,
+  elsewhere and travelling; counts are 24 slots from 4 a.m.; flows are every change of place per hour,
+  summed by (from, to); the source is zero, and `check_continuity` finds nothing (test, and the chip
+  line). Drawn from the Series and nothing else: each home a ring (amber awake at home, blue asleep at
+  home, by the hour, interpolated); each hour's moves as dots along arcs to three away discs off the
+  patch's east side (display only). The day follows the street's own clock (the chip's local time),
+  dated from the sim clock. Holon's published digest 2016341816221085133 matches natively and in wasm
+  (presencegen.test.js). Wasm 1,508,022 bytes (+117 kB: the presence tables). Building a street's
+  day is 0.05 to 0.15 ms in the page, once per generated day.
+  Example (a Columbus suburb, Monday to Thursday, 40 adults and 8 children): 03:30, 39 at home; 08:30,
+  18 at home, 11 at work or school, 7 travelling; 13:00, 13 at work or school; 17:30, 23 at home.

@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=41"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=42"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2327,6 +2327,7 @@ function microDraw(){
     }
     drawPulses(g, F, nodeA, dimOf);
   }
+  rhyDraw(g, A, F, Math.max(bldA, nodeA));
   // nodes
   MTAGS.length = 0; MBOXES.length = 0;
   if (nodeA > 0){
@@ -2605,6 +2606,76 @@ function holPresLine(){
   return `who is awake when: US time diaries give ${tn.reference.toFixed(3)} of the time awake (${tn.awake_hours_a_day.toFixed(1)} h a day) against the twin's 0.85, ${holVd("refused", "refused")} · ` +
     (c === 840 ? holVd("unresolved", "inside the United States (2022-2024): the street's activity still follows the twin's stand-in until the presence seam lands") : holVd("unresolved", "no reference outside the United States: the twin's stand-in (model.diurnal.v1) here"));
 }
+// ---- the street's day: CIRISHolon's rhythm Series as it is (holon_scene::rhythm::Series built by the kernel's micro_rhythm from
+// PRESENCEGEN-2's chain, one day per adult): each home a ring filling and emptying by the hour (amber awake at home, blue asleep at
+// home), and in each hour every person who changes place a dot moving along an arc, home to work or school, elsewhere or
+// travelling and back. Children have no diary and are not drawn. Off by the layer button "Street day".
+const RHY = { on: true };
+const RHY_PLACES = ["work or school", "elsewhere", "travelling"], RHY_DAYS = ["Monday to Thursday", "Friday", "Saturday", "Sunday"];
+// the generated day the focal street is in, on the street's own clock (the kernel's local hour, M.meta[1], which the chip shows and
+// the street's activity follows): a day runs from 4 a.m. (slot s is clock hour (4 + s) mod 24); the day's date comes from the sim
+// clock at the street's build (SIM.t, seconds from 10 November 2026, a Tuesday, plus the longitude's solar offset)
+function rhyClock(){
+  if (typeof SIM === "undefined" || !M || M.lon0 === undefined || !M.meta) return null;
+  if (M.rhyAbs0 === undefined){ const st = ((M.meta[1] - M.t / 3600) % 24 + 24) % 24, ap = SIM.t / 3600 + M.lon0 / 15 - M.t / 3600; M.rhyAbs0 = st + 24 * Math.round((ap - st) / 24); }
+  const hl = M.rhyAbs0 + M.t / 3600 - 4, dn = Math.floor(hl / 24), dow = ((dn + 1) % 7 + 7) % 7;
+  return { dn, s: hl - dn * 24, dt: dow <= 3 ? 0 : dow === 4 ? 1 : dow === 5 ? 2 : 3 };
+}
+function rhyData(){
+  if (!RHY.on || !M || typeof wasm === "undefined" || !wasm || !wasm.micro_rhythm) return null;
+  const c = rhyClock(); if (!c) return null;
+  if (M.rhy && M.rhy.dn === c.dn) return M.rhy.d;
+  const n = wasm.micro_rhythm(c.dn + 100000, c.dt), o = new Float64Array(wasm.memory.buffer, wasm.holon_buf_ptr(0) >>> 0, n).slice();
+  let d = null;
+  if (o[0] === 1){
+    const H = o[1], C = o[7]; let k = 8; const counts = [], flows = [], awake = [];
+    for (let s = 0; s < 24; s++){ counts.push(o.subarray(k, k + C)); k += C; }
+    for (let b = 0; b < 23; b++){ const m = o[k++], f = []; for (let i = 0; i < m; i++){ f.push([o[k], o[k + 1], o[k + 2]]); k += 3; } flows.push(f); }
+    for (let s = 0; s < 24; s++){ awake.push(o.subarray(k, k + H)); k += H; }
+    const txt = new TextDecoder().decode(new Uint8Array(wasm.memory.buffer, wasm.holon_text_ptr() >>> 0, wasm.holon_text_len())).split("\n");
+    d = { H, persons: o[2], children: o[3], employed: o[4], verdict: o[5], viol: o[6], C, counts, flows, awake, res: o.subarray(k, k + H), why: txt[0], notice: txt[1] };
+  }
+  M.rhy = { dn: c.dn, d }; return d;
+}
+function rhyDraw(g, A, F, alpha){
+  const d = rhyData(), c = rhyClock(); if (!d || !c || alpha <= 0.01 || !M.hh) return;
+  const s0 = Math.min(23, Math.floor(c.s)), f = s0 < 23 ? c.s - s0 : 0, s1 = Math.min(23, s0 + 1);
+  const scr = (x, y) => [A.a * x + A.c * y + A.e, A.b * x + A.d * y + A.f], H = M.half;
+  // the three away places, off the patch on its east side, held inside the screen
+  const AW = [-0.55, 0.05, 0.6].map((v, k) => { let [x, y] = scr(H * 1.3, H * v); return { t: RHY_PLACES[k], x: Math.max(80, Math.min(F.w - 80, x)), y: Math.max(70, Math.min(F.h - 90, y)) }; });
+  const at = (cell) => cell < d.H ? scr(M.hh[cell * 7], M.hh[cell * 7 + 1]) : [AW[cell - d.H].x, AW[cell - d.H].y];
+  g.save(); g.globalAlpha = alpha;
+  for (let h = 0; h < d.H; h++){ const r = d.res[h]; if (!r) continue;
+    const [x, y] = scr(M.hh[h * 7], M.hh[h * 7 + 1]); if (x < -20 || y < -20 || x > F.w + 20 || y > F.h + 20) continue;
+    const home = d.counts[s0][h] * (1 - f) + d.counts[s1][h] * f, aw = d.awake[s0][h] * (1 - f) + d.awake[s1][h] * f, R = Math.min(24, 7 + 1.6 * Math.sqrt(r) + 1.2 * A.pxPerM), a0 = -Math.PI / 2;
+    g.lineWidth = 1.2; g.strokeStyle = "rgba(220,226,236,0.4)"; g.beginPath(); g.arc(x, y, R, 0, 7); g.stroke();
+    g.lineWidth = 3; const aA = a0 + 2 * Math.PI * aw / r, aH = a0 + 2 * Math.PI * home / r;
+    if (aw > 0.02){ g.strokeStyle = "rgba(255,196,100,0.95)"; g.beginPath(); g.arc(x, y, R, a0, aA); g.stroke(); }
+    if (home - aw > 0.02){ g.strokeStyle = "rgba(118,146,240,0.95)"; g.beginPath(); g.arc(x, y, R, aA, aH); g.stroke(); }
+  }
+  // this hour's moves: one dot per person along a bowed arc, at the hour's fraction (eased), a little apart
+  if (s0 < 23){ const e = f * f * (3 - 2 * f);
+    for (const [a, b, n] of d.flows[s0]){ const [ax, ay] = at(a), [bx, by] = at(b), mx = (ax + bx) / 2 - (by - ay) * 0.18, my = (ay + by) / 2 + (bx - ax) * 0.18;
+      const out = b >= d.H && a < d.H, col = out ? "255,170,90" : "120,200,255";
+      g.strokeStyle = `rgba(${col},0.16)`; g.lineWidth = 1; g.beginPath(); g.moveTo(ax, ay); g.quadraticCurveTo(mx, my, bx, by); g.stroke();
+      for (let i = 0; i < n; i++){ const t = Math.max(0, Math.min(1, e - i * 0.035)), u = 1 - t, px = u * u * ax + 2 * u * t * mx + t * t * bx, py = u * u * ay + 2 * u * t * my + t * t * by;
+        g.fillStyle = `rgba(${col},0.95)`; g.beginPath(); g.arc(px, py, 2.3, 0, 7); g.fill(); } } }
+  // the away places: a disc sized by who is there now, and its name
+  g.font = "10px " + MFONT; g.textAlign = "center"; g.textBaseline = "alphabetic";
+  for (let k = 0; k < 3; k++){ const v = d.counts[s0][d.H + k] * (1 - f) + d.counts[s1][d.H + k] * f, R = 4 + 2.2 * Math.sqrt(v);
+    g.fillStyle = "rgba(10,14,22,0.75)"; g.strokeStyle = "rgba(255,170,90,0.85)"; g.lineWidth = 1.2; g.beginPath(); g.arc(AW[k].x, AW[k].y, 4 + 2.2 * Math.sqrt(d.persons), 0, 7); g.fill(); g.stroke();
+    g.fillStyle = "rgba(255,170,90,0.75)"; g.beginPath(); g.arc(AW[k].x, AW[k].y, R, 0, 7); g.fill();
+    g.fillStyle = "rgba(230,236,244,0.9)"; g.fillText(AW[k].t, AW[k].x, AW[k].y + 4 + 2.2 * Math.sqrt(d.persons) + 12); }
+  g.restore();
+}
+// the chip line: who is where in this hour of the generated day, and what CIRISHolon said of the generator
+function rhyLine(){
+  if (!RHY.on) return `street day: off (layer "Street day")`;
+  const d = rhyData(), c = rhyClock();
+  if (!d || !c) return `street day: needs CIRISHolon's device rule (who lives in each household) ${holVd("legacy", "the legacy device draw has no composition")}`;
+  const s0 = Math.min(23, Math.floor(c.s)), hr = (4 + s0) % 24, row = d.counts[s0], home = row.slice(0, d.H).reduce((a, b) => a + b, 0), aw = d.awake[s0].reduce((a, b) => a + b, 0);
+  return `street day (CIRISHolon PRESENCEGEN-2, the chain, one generated day per adult, ${RHY_DAYS[c.dt]}): ${String(hr).padStart(2, "0")}:${String(Math.floor((c.s - s0) * 60)).padStart(2, "0")} local, ${home} of ${d.persons} adults at home (${aw} awake), ${row[d.H]} at work or school, ${row[d.H + 1]} elsewhere, ${row[d.H + 2]} travelling · ${holVd(HOL_V3[d.verdict], HOL_V3[d.verdict] + ": " + d.why)} · ${d.viol === 0 ? "every hour holds every adult (the continuity law, source zero)" : d.viol + " continuity violations"} · ${d.children} children have no diary and are not drawn; employment drawn per adult (MODEL: 18 to 64 at the 25-to-64 share, ${d.employed} employed) · ${d.notice}`;
+}
 // ---- the data-map strip (Eric: "remember the simcity layer selector?"): one map at a time, each re-tinting the street tier by one
 // quantity from a CIRISHolon table, with a legend; "none" returns the normal view. Drawn by incell.js at region and city zoom.
 var DATAMAP = { active: 1, prev: 0, t0: 0 }; // read by incell.js: the active map and the one fading out (400 ms cross-fade)
@@ -2708,7 +2779,7 @@ function updateFocalChip(F){
   const detail = `<div class="fd-head"><b>Where this street's figures come from</b> <button class="chip-btn" id="fd-close" type="button" aria-label="Close">×</button></div>` +
     (M.denseNote ? `<div class="chip-sub">${fig("dense-fabric", "dense fabric: storeys are the leaf's households over its plots; the density is a 1/8° cell average, and wards inside it are denser")}</div>` : "") +
     `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people inside a 1/8° cell follow CIRISHolon's in-cell table (UNEVEN-0, unresolved)")}</div>` +
-    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devicegen1", holDevGenLine())} · ${fig("holon-devicegen1", hwButtons())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
+    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devicegen1", holDevGenLine())} · ${fig("holon-devicegen1", hwButtons())}</div><div class="chip-sub">${fig("holon-presencegen2", rhyLine())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
     `<div class="chip-sub">rows: ${fig("micro-activity", m[10] + " sent · " + m[11] + " direct (" + m[12] + " shaped) · " + m[13] + " relayed · " + m[15] + " held at a mailbox · " + m[16] + " handed over · punches " + m[20] + "/" + m[19] + " up")} · tap a device</div>` +
     `<div class="chip-sub">model's reading: replication rounds ${fig("micro-activity", (m[37] | 0) + " served · " + (m[38] | 0) + " cadences where an unclaimed device announced with no seat as peer")} · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +
     (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? '<span class="inp">design case: 3, k=2</span>' : '<span class="inp">production: 1</span>'}</button>`) + `</div>`;

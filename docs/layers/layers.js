@@ -250,7 +250,8 @@ window.CEWP_LAYERS["wm-household"] = layer({ id: "wm-household", title: "World m
   },
   controls: [{ label: "Next class", act(){ WM.hcls = (WM.hcls + 1) % 6; gfxDirty(300); } },
     { label: "Household rule: CIRISHolon / legacy", act(){ if (typeof tlHouseholds === "function") tlHouseholds(TL.housegen === false); } },
-    { label: "Device rule: CIRISHolon / legacy", act(){ if (typeof tlDevices === "function") tlDevices(TL.devicegen === false); } }],
+    { label: "Device rule: CIRISHolon / legacy", act(){ if (typeof tlDevices === "function") tlDevices(TL.devicegen === false); } },
+    { label: "Street day: on / off", act(){ if (typeof RHY !== "undefined"){ RHY.on = !RHY.on; if (typeof gfxDirty === "function") gfxDirty(300); } } }],
   status(){ const us = typeof HOLT !== "undefined" && HOLT.t.household0_us; if (!us) return "loading CIRISHolon's tables…"; const cls = ["nation", ...WM_CLASSES][WM.hcls], u = us.data.rows[cls], d = HOLT.t.household0_de && HOLT.t.household0_de.data.rows[cls];
     const v = (r, k) => r && r[k] ? r[k].verdict : "–"; return `household rule on the street: ${typeof TL !== "undefined" && TL.housegen === false ? "legacy (no certificate)" : "CIRISHolon HOUSEGEN-1 per ~1 km tile"} · these verdicts score the legacy rule: ${cls} · US: mean ${v(u, "mean")}, composition ${v(u, "p1")} · Germany: mean ${v(d, "mean")}, composition ${v(d, "p1")}`; } });
 
