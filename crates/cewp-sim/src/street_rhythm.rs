@@ -160,16 +160,19 @@ mod tests {
             w.set_presence(7, 1);
             assert_eq!(w.presence.is_some(), in_country);
             w.step(4.0);
-            let phones: Vec<_> = w.nodes.iter().filter(|n| n.kind == HostKind::Phone && n.household.is_some() && n.awake).collect();
-            (phones.iter().filter(|n| n.activity == Activity::Asleep).count(), phones.len())
+            // a phone whose person sleeps is offline (it follows its person's day), so count offline or asleep
+            let phones: Vec<_> = w.nodes.iter().filter(|n| n.kind == HostKind::Phone && n.household.is_some()).collect();
+            let resting = phones.iter().filter(|n| !n.awake || n.activity == Activity::Asleep).count();
+            let awake_asleep = phones.iter().filter(|n| n.awake && n.activity == Activity::Asleep).count();
+            (resting, phones.len(), awake_asleep)
         };
-        let (night, n) = asleep_at(3.0, true);
-        let (noon, _) = asleep_at(13.0, true);
+        let (night, n, _) = asleep_at(3.0, true);
+        let (noon, _, _) = asleep_at(13.0, true);
         assert!(n > 10, "{n} phones");
-        assert!(night * 10 >= n * 7, "3 a.m.: {night} of {n} asleep");
-        assert!(noon * 10 <= n * 2, "1 p.m.: {noon} of {n} asleep");
-        // outside the country nothing changes: no presence, the stand-in alone
-        assert_eq!(asleep_at(3.0, false).0, 0);
+        assert!(night * 10 >= n * 7, "3 a.m.: {night} of {n} resting");
+        assert!(noon * 10 <= n * 2, "1 p.m.: {noon} of {n} resting");
+        // outside the country nothing changes: no presence, the stand-in alone, no online phone asleep
+        assert_eq!(asleep_at(3.0, false).2, 0);
     }
 
     /// CIRISHolon published PRESENCEGEN-2's digest (`PRESENCEGEN2_RESULTS.md`: one value native and wasm32);

@@ -168,6 +168,7 @@ params! {
     BundleBootstrap = "bundle_bootstrap", 1.0, Model, "edge #881 bundle bootstrap: on, the v45 LTS default (ruled; CIRISEdge#971 c580298, required-set Pull); 0 = off, as on v44. A round here is the one Revocation round per cadence a device keeps with each seat; its other planes go by subject Pull, costed in capacity.rs";
     SeatKmMin = "seat_km_min", 1_500.0, Model, "nearest a seat is drawn from the street: one seat serves the whole mesh, so it is usually a continent away (no real site is used); 120 in design_multi_seat";
     SeatKmMax = "seat_km_max", 8_000.0, Model, "farthest a seat is drawn; 650 in design_multi_seat";
+    LateHoldS = "late_hold_s", 43_200.0, Model, "PROPOSED bound on a held message's wait before it counts as late (12 h: the longest wait MESH-0 reports a quartile and share for, and half a day's waking-to-waking cycle); awaiting a ruling";
 }
 
 /// Number of scenario parameters.
@@ -801,6 +802,18 @@ pub struct MicroStats {
     pub mail_delivered: u64,
     /// Summed hold time of delivered mail.
     pub mail_wait_s: f64,
+    /// Rows taken at once (direct, relayed or to the federation at the moment they were sent).
+    pub at_once: u64,
+    /// Rows held at a device of the recipient's own household (a home node or another member device).
+    pub held_home: u64,
+    /// Rows held at a serve seat.
+    pub held_seat: u64,
+    /// Rows held anywhere else (no mailbox reachable: the recipient's own slot).
+    pub held_other: u64,
+    /// Held rows delivered after waiting longer than `late_hold_s`.
+    pub late: u64,
+    /// Delivered held rows by wait, half-hour bins (48; the last is 23.5 h and over): the quartiles come from it.
+    pub hold_hist: Vec<u64>,
     /// To the federation.
     pub federation: u64,
     /// Punches proposed.
@@ -2122,10 +2135,19 @@ impl MicroWorld {
             match kind {
                 HostKind::Phone => {
                     let awake = self.nodes[i].awake;
-                    if awake && self.rng.chance(leave_probability(dt, awake_mean)) {
-                        self.suspend(i);
-                    } else if !awake && self.rng.chance(leave_probability(dt, asleep_mean)) {
-                        self.resume(i);
+                    // where the person has a generated day (the presence tint), the phone is on while they are awake
+                    // and off while they sleep: reachability follows the person, as sending already does; elsewhere
+                    // the flat on-off chain (mobile_offline_share) stays. The chain's draw is still taken so the other
+                    // draws keep their order.
+                    let flat_off = awake && self.rng.chance(leave_probability(dt, awake_mean));
+                    let flat_on = !awake && self.rng.chance(leave_probability(dt, asleep_mean));
+                    match self.person_day_awake(i) {
+                        Some(true) if !awake => self.resume(i),
+                        Some(false) if awake => self.suspend(i),
+                        Some(_) => {}
+                        None if flat_off => self.suspend(i),
+                        None if flat_on => self.resume(i),
+                        None => {}
                     }
                     let um = self.nodes[i].unmetered;
                     let mean = if um { wifi_mean } else { cell_mean };
@@ -2295,6 +2317,11 @@ impl MicroWorld {
         self.set_activity(src, Activity::Sending, 4.0);
         if !self.nodes[dst].online(t) {
             let holder = self.mailbox_for(dst).unwrap_or(dst);
+            match self.nodes[holder].kind {
+                HostKind::ServeSeat => self.stats.held_seat += 1,
+                _ if holder != dst && self.nodes[holder].household.is_some() && self.nodes[holder].household == self.nodes[dst].household => self.stats.held_home += 1,
+                _ => self.stats.held_other += 1,
+            }
             self.mail.push(Held { src, dst, holder, since: t });
             self.nodes[holder].holding += 1;
             self.nodes[dst].pending += 1;
@@ -2307,6 +2334,7 @@ impl MicroWorld {
             self.record(MsgEvent { t, src, dst, via: holder as u32, via2: NONE, route: Route::Mailboxed, shaped });
             return Route::Mailboxed;
         }
+        self.stats.at_once += 1;
         if self.nodes[dst].kind == HostKind::ServeSeat {
             self.stats.federation += 1;
             let shaped = self.carry(src, dst);
@@ -2474,6 +2502,12 @@ impl MicroWorld {
                 };
                 self.stats.mail_delivered += 1;
                 self.stats.mail_wait_s += t - h.since;
+                let wait = t - h.since;
+                if self.stats.hold_hist.len() < 48 {
+                    self.stats.hold_hist.resize(48, 0);
+                }
+                self.stats.hold_hist[((wait / 1800.0) as usize).min(47)] += 1;
+                self.stats.late += u64::from(wait > self.params.get(P::LateHoldS));
                 self.record(MsgEvent { t, src: h.holder, dst: h.dst, via, via2, route: Route::MailDelivered, shaped });
             } else {
                 i += 1;
@@ -2498,6 +2532,41 @@ impl MicroWorld {
         } else {
             None
         };
+    }
+
+    /// Whether node `i`'s person has a generated day and is awake in it now (None: no presence, no household, or a
+    /// device with no person's day, such as a child's, which keeps the flat chain for reachability).
+    #[must_use]
+    pub fn person_day_awake(&self, i: usize) -> Option<bool> {
+        let pr = self.presence.as_ref()?;
+        let n = &self.nodes[i];
+        let st = pr.days.get(n.household?)?.get(usize::from(n.owner))?;
+        let slot = ((self.local_hour() - 4.0).rem_euclid(24.0)) as usize % 24;
+        Some(crate::street_rhythm::is_awake(st[slot]))
+    }
+
+    /// Hold-time readout: quartiles of delivered held rows' waits (seconds, half-hour resolution) and how many rows
+    /// still held have waited past `late_hold_s`.
+    #[must_use]
+    pub fn hold_readout(&self) -> ([f64; 3], u64) {
+        let total: u64 = self.stats.hold_hist.iter().sum();
+        let q = |f: f64| {
+            if total == 0 {
+                return 0.0;
+            }
+            let want = (f * total as f64).ceil().max(1.0) as u64;
+            let mut acc = 0;
+            for (b, &c) in self.stats.hold_hist.iter().enumerate() {
+                acc += c;
+                if acc >= want {
+                    return (b as f64 + 0.5) * 1800.0;
+                }
+            }
+            47.5 * 1800.0
+        };
+        let bound = self.params.get(P::LateHoldS);
+        let still_late = self.mail.iter().filter(|h| self.t - h.since > bound).count() as u64;
+        ([q(0.25), q(0.5), q(0.75)], still_late)
     }
 
     /// Whether node `i`'s person is awake now, and the hour's PRESENCE-0 awake share, under the presence tint
@@ -3027,6 +3096,64 @@ mod tests {
         let b = w.nodes.iter().rposition(|n| n.kind == HostKind::Phone).unwrap();
         let (f, f2) = w.forwarder(a, b);
         assert!(f != NONE && f2 == NONE || w.nodes[a].household == w.nodes[b].household);
+    }
+
+    /// MESH-0 (a): where a person has a generated day, their phone is reachable exactly while they are awake (it was the
+    /// flat on-off chain, so a sleeping person's phone stayed reachable and an awake one dropped at random).
+    #[test]
+    fn a_phone_is_reachable_while_its_person_is_awake() {
+        use crate::tiling::{HolonId, LeafContext, LeafLayout};
+        for hour in [3.0, 13.0] {
+            let mut p = MicroParams::default();
+            p.set(P::StartLocalHour, hour);
+            let leaf = LeafLayout::build(HolonId::at(8, 40.06, -83.05), &LeafContext { budget: 40, chain: [3_000; 11], ..LeafContext::default() }, &p);
+            let dwellings: usize = leaf.buildings.iter().map(|b| usize::from(b.units)).sum();
+            let sizes: Vec<u8> = (0..dwellings).map(|i| 1 + (i % 4) as u8).collect();
+            let mut w = MicroWorld::from_leaf_with(&leaf, p, sizes, Some(DeviceRule { home_node_where: HOME_ON_GATEWAY, in_country: true }));
+            w.set_presence(7, 1);
+            w.quiet = true;
+            w.step(RESUME_ANNOUNCE_WAIT_S + 4.0);
+            let mut n = 0;
+            for i in 0..w.nodes.len() {
+                if w.nodes[i].kind != HostKind::Phone || w.nodes[i].pinned {
+                    continue;
+                }
+                if let Some(awake) = w.person_day_awake(i) {
+                    assert_eq!(w.nodes[i].awake, awake, "hour {hour}: phone {i} follows its person");
+                    n += 1;
+                }
+            }
+            assert!(n > 10, "{n} phones with a person's day");
+        }
+    }
+
+    /// MESH-0 (c): every row is taken at once or held, and a held row is counted by who holds it; a delivered held row
+    /// past `late_hold_s` is late, and its wait lands in the half-hour histogram the quartiles are read from.
+    #[test]
+    fn held_rows_are_counted_by_holder_and_late_past_the_bound() {
+        let mut w = world(1200.0, 21);
+        w.params.set(P::LateHoldS, 600.0);
+        let [ap, ah, _bp, _bh] = w.story_actors().expect("actors");
+        w.quiet = true;
+        w.pin(ap, true, true, false);
+        w.pin(ah, true, true, true);
+        w.step(15.0);
+        let r0 = w.send(ah, ap);
+        assert_ne!(r0, Route::Mailboxed);
+        w.pin(ap, false, true, false);
+        assert_eq!(w.send(ah, ap), Route::Mailboxed);
+        assert_eq!(w.stats.held_home, 1, "held at the household's own node");
+        assert_eq!(w.stats.at_once + w.stats.mailboxed, w.stats.sent);
+        assert_eq!(w.stats.held_home + w.stats.held_seat + w.stats.held_other, w.stats.mailboxed);
+        w.step(700.0);
+        assert_eq!(w.hold_readout().1, 1, "still held past the bound");
+        w.pin(ap, true, true, false);
+        w.step(RESUME_ANNOUNCE_WAIT_S + 2.0);
+        assert_eq!(w.stats.mail_delivered, 1);
+        assert_eq!(w.stats.late, 1, "delivered after more than late_hold_s");
+        let (q, still) = w.hold_readout();
+        assert_eq!(still, 0);
+        assert!(q[1] >= 600.0 && q[1] <= 1800.0, "median in its half-hour bin: {q:?}");
     }
 
     #[test]

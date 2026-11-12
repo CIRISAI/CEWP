@@ -320,3 +320,33 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   linear between ranks); above it is drawn at the top and named as published (Turkmenistan 1,306, unchecked).
   Small systems (under 1 TWh) are dotted. Ember's credit and the licence link stay on the Power legend whenever an
   Ember year is shown, worded from the sidecar's attribution block.
+- **MESH-0: held messages and who holds them** (CIRISHolon 60791cf, `conformance/scene/MESH0_RESULTS.md`, imported whole
+  as docs/geo/holon/mesh0.json; ledger holon-mesh0 for Holon's figures, street-delivery for the street engine's).
+  MESH-0 is a generated population, not a measurement: 0.858 of person-to-person messages taken at once, 0.988 within
+  12 h with the sender holding, wait quartiles 2 / 4 / 8 h, 0.196 of adults with no smartphone (unchecked).
+  Three changes to the street engine follow from it:
+  (a) A phone whose person has a generated day is online while that person is awake and offline while they sleep
+  (micro.rs churn, `person_day_awake`). A phone with no generated day keeps the flat on/off chain; the chain's draws are
+  still taken, so every later draw is unchanged. Witness `a_phone_is_reachable_while_its_person_is_awake`, red without
+  the change.
+  (b) Who can hold: measured, not changed. Under the device rule (the default street) a home node exists where the
+  household can host one AND the 0.60 offering draw passes; a gateway can host on 0.716 of households and a computer on
+  0.386, both zero on households that declare neither; a new box can host on 0.924, of which 0.155 are mobile-only
+  homes with nothing declared; 0.787 of households declare a fixed line or a desktop. The combined home share is
+  0.6 x 0.716 = 0.43, not 0.60. Only the older tile path (device rule off) draws an independent 0.60 per household,
+  and there MESH-0's finding applies as stated: about 0.21 of hosts sit on households with nothing declared. MESH-0's
+  serve-seat share ranges 0.006 to 0.142 with the host setting; no share is changed until one is chosen.
+  (c) Counters: every delivered message is counted as taken at once, or held by a home node, a serve seat or another
+  device, with a 48-bin half-hour histogram of hold times, the hold quartiles and the count still held past the late
+  bound (`MicroStats` at_once / held_home / held_seat / held_other / late / hold_hist, kernel door micro_hold_stats).
+  The late bound is a new MODEL parameter, micro.late_hold_s = 43,200 s, PROPOSED: 12 h is the longest wait MESH-0
+  reports a share for and half a day's waking cycle, so a message still held past it missed its recipient's whole
+  waking day. It is a readout bound only; no delivery decision reads it. Witness
+  `held_rows_are_counted_by_holder_and_late_past_the_bound`, red without the counters.
+  The street detail panel shows the engine's own split (taken at once, held by whom, quartiles, late) beside MESH-0's
+  figures, each with its class. Limits stated wherever these are shown: person to person only; one clock; members of a
+  household independent; the share of adults with no smartphone is not drawn.
+  Open: the day curve (workload.rs model.diurnal.v1) is above 1 at 22:00 (1.23) while the awake share is 0.416, and
+  still 1.00 at 23:00 (0.198 awake) and 0.78 at midnight (0.092 awake). Under the presence tint the engine keeps the
+  curve's total and moves it onto fewer awake devices, so the rate per awake person roughly triples late in the
+  evening. Not changed here.

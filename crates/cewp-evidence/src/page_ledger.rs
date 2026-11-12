@@ -482,6 +482,34 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ..BASE
     },
     PageClaim {
+        id: "street-delivery",
+        class: Model,
+        live: true,
+        shows: "The focal street's deliveries so far, counted by the street engine: messages taken at once, held at a device of the recipient's home, at the seat or elsewhere, the held messages' waits at the quartiles, how many were delivered after the late bound or are still held past it, and how many relayed messages went through the seat; which reachability is in force; beside CIRISHolon's MESH-0 readings and its limits. Counts under stated assumptions, not a statement that the mesh works.",
+        source: "crates/cewp-sim/src/micro.rs MicroStats (at_once, held_home, held_seat, held_other, late, hold_hist, relayed_via_seat) and hold_readout; churn (a phone follows its person's generated day where one exists); kernel-wasm micro_hold_stats; docs/globe.js deliveryLine",
+        param: "late_hold_s = 43,200 s, PROPOSED (MODEL, awaiting a ruling): the longest wait MESH-0 reports a share for; reachability: a phone is on while its person is awake where the person has a generated day (United States streets), else the flat on-off chain (mobile_offline_share, phone_asleep_mean_s); waits at half-hour resolution",
+        failure: &[
+            "Person to person only, one clock, household members independent: the street's messages are the engine's own draws, not a measured traffic mix.",
+            "The late bound is a proposed number; a share over it is not a quality judgement until the bound is ruled.",
+        ],
+        reproduce: "cargo test -p cewp-sim micro::tests::a_phone_is_reachable_while_its_person_is_awake micro::tests::held_rows_are_counted_by_holder_and_late_past_the_bound",
+        ..BASE
+    },
+    PageClaim {
+        id: "holon-mesh0",
+        class: Model,
+        live: true,
+        shows: "CIRISHolon's MESH-0 (version 1) readings beside the street's own counts: the share taken at once, the share delivered within 12 h with the sender's phone holding, and the share left to a seat across host settings; every count unresolved, on a generated US population.",
+        source: "docs/geo/holon/mesh0.json, imported by tools/holon/import.py from CIRISHolon 60791cf conformance/scene/tables/mesh0",
+        param: "as published: 100,000 generated households, Monday to Thursday, the sender's phone on when its person is awake",
+        dataset: "a generated population: no person, household or place; a generated population Via CIRISHolon MESH-0.",
+        failure: &[
+            "No reading here says a mesh works: that needs a bound on hold time and a seat's capacity. Household members are drawn independently; 0.196 of generated adults have no smartphone (unchecked).",
+        ],
+        reproduce: "python3 -I tools/holon/import.py <CIRISHolon> 60791cf mesh0; node --test docs/geo/holon/intake.test.js",
+        ..BASE
+    },
+    PageClaim {
         id: "holon-grid0",
         class: Model,
         live: true,

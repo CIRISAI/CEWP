@@ -241,6 +241,9 @@ pub const ROWS: &[Row] = &[
         &["activity.mix_family", "activity.mix_community", "activity.mix_consent_free", "activity.mix_public"], "the page's act mix 65/30/4/1"),
     row("seat.distance_km", A, attr("serve seat", &[]), "street tile", "km from the tile", "decoration", "MODEL", "none needed (a deployment choice)",
         &["micro.seat_km_min", "micro.seat_km_max"], "drawn on the chip; no micro model reads a latency from it (netgraph latency is metro to metro)"),
+    row("delivery.late_bound", A, attr("held row", &["phone.attach"]), "row", "seconds a held row may wait before it counts as late",
+        "crates/cewp-sim/src/micro.rs:MicroWorld::hold_readout", "MODEL", "none known (the longest wait the reference population reports a share for is 12 h)",
+        &["micro.late_hold_s"], "proposed; a readout bound only, no delivery decision reads it"),
     // ------------------------------------------------------------------ B: invented today
     row("household.access_network", B, rel("household", "access network", true), "household", "membership (one fixed AS per household)",
         "crates/cewp-sim/src/netgraph.rs:attach_access -> micro.rs Household.access, households_by_access (attached in kernel-wasm micro_build and micro_build_leaf; summed both ways in tests, read by no model yet); failure.rs:DomainWorld::build", "MODEL",

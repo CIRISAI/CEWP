@@ -2,7 +2,7 @@
 """Import one CIRISHolon statistics table into the twin (FSD/twin/holon-intake.md section 1).
 
 Usage: python3 -I tools/holon/import.py <CIRISHolon checkout> <commit> <ref>
-       ref: uneven0 | household0_us | household0_de | power0 | devices0_us | presence0_us | grid0
+       ref: uneven0 | household0_us | household0_de | power0 | devices0_us | presence0_us | grid0 | mesh0
 
 Reads the table and its sidecar from the checkout at the pinned commit (`git show`; nothing is
 fetched from the network), validates it (integers where the table promises integers; no key that
@@ -27,6 +27,7 @@ SOURCES = {
     "household0_us": ("conformance/scene/tables/household0_us", ["household_table.json"]),
     "household0_de": ("conformance/scene/tables/household0_de", ["household_table.json"]),
     "grid0": ("conformance/scene/tables/grid0", ["grid_table.json"]),
+    "mesh0": ("conformance/scene/tables/mesh0", ["mesh0_table.json"]),
 }
 
 
@@ -231,10 +232,12 @@ def main():
         data = presence(tables["presence_table.json"])
     elif ref == "grid0":
         data = grid(tables["grid_table.json"])
+    elif ref == "mesh0":
+        data = tables["mesh0_table.json"]  # MESH-0's readings as published (small); every count unresolved
     else:
         data = household(tables["household_table.json"], ref[-2:])
     full = side.get("commit") or subprocess.run(["git", "-C", holon, "rev-parse", commit], check=True, capture_output=True, text=True).stdout.strip()
-    notice = " ".join(s["notice"] for s in side.get("sources", []) if s.get("notice")) or str(side.get("licences", ""))
+    notice = " ".join(s["notice"] for s in side.get("sources", []) if s.get("notice")) or str(side.get("licences", "")) or ("a generated population: " + str(side.get("holds_no_real_feature", "")))
     asset = {"ref": side.get("reference", ref), "version": side.get("version"), "holon_commit": full, "notice": notice,
              "class": "MODEL", "dataset": (" + ".join(s["name"] for s in side.get("sources", [])) or "documents gathered by CIRISHolon's scout") + " via CIRISHolon",
              "envelope": side.get("envelope"), "verdict": side.get("verdict"), "limits": side.get("limits"),

@@ -137,6 +137,46 @@
    },
    "version": 1
   },
+  "mesh0": {
+   "asset": "docs/geo/holon/mesh0.json",
+   "asset_bytes": 24360,
+   "asset_sha256": "ecd295660aedbffdf15af47b58a33a258c32216dcf7f7adbd3d55060f940b869",
+   "class": "MODEL",
+   "dataset": "documents gathered by CIRISHolon's scout via CIRISHolon",
+   "envelope": {
+    "country": "United States",
+    "day": "Monday to Thursday unless a row says Saturday",
+    "persons": "adults drawn with a smartphone",
+    "population": "100,000 generated households, 20,000 in each of five density classes with equal weight (not a country's class mix)"
+   },
+   "holon_commit": "60791cfa700aa7be41f6dcc215fd77a457eec845",
+   "ledger": "holon-mesh0",
+   "notice": "a generated population: no person, household or place; a generated population",
+   "reference": "MESH-0 (who holds the message; a composition of three generators, United States)",
+   "renormalised_vectors": 0,
+   "serves_registry_rows": [
+    "delivery: the share of messages taken at once, held by the sender, handed to a host at home, or left to someone else; waits; the seat's queue by hour"
+   ],
+   "source_files": {
+    "mesh0_table.json": {
+     "bytes": 25478,
+     "path": "conformance/scene/tables/mesh0/mesh0_table.json",
+     "sha256": "2ac6d4ec7d359819342e2dc4dac5242bd0d291fd3397bb4b4830cea753e4a627"
+    }
+   },
+   "verdict": {
+    "all_rows": "unresolved",
+    "reason": "a composed count takes the lowest verdict among its inputs; an input used outside what it was scored on enters as unresolved",
+    "set_by": [
+     "household sizes (HOUSEGEN-1, United States)",
+     "desktop and laptop counts (DEVICEGEN-1)",
+     "two days of one person joined",
+     "members of a household drawn independently",
+     "whether a host is on"
+    ]
+   },
+   "version": 1
+  },
   "power0": {
    "asset": "docs/geo/holon/power0.json",
    "asset_bytes": 11258,

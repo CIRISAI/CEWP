@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=47"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=48"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2003,7 +2003,7 @@ const MROUTER = ["public listener (IPv6 / forwarded port)", "NAT a facilitated p
 const MDCLASS = ["apartment blocks", "terraced streets", "suburban streets", "village"];
 // cewp_sim::micro::P, in index order (asserted against micro_param_count at build)
 const MP = { reach_home_share: 0, server_tier_share: 4, relay_offering_share: 5, phone_wifi_share: 7, phone_charging_share: 8, home_shaping_opt_in: 9, phone_shaping_opt_in: 10, adoption: 11, serve_seats: 17, homing_k: 18, start_local_hour: 39, claimed_share: 40, bundle_bootstrap: 41, seat_km_min: 42, seat_km_max: 43 };
-const MP_COUNT = 44;
+const MP_COUNT = 45; // 44: late_hold_s (MESH-0 (c), proposed)
 // default = production's shape (one serve seat, k = 1, far away); true = the design's multi-seat case
 // (MicroParams::design_multi_seat: three seats, k = 2, 120-650 km), a named scenario, not the baseline
 let microDesign = false;
@@ -2577,7 +2577,7 @@ function drawScaleBar(g, F, ppm){
 const pad2 = (n) => String(n).padStart(2, "0"); // the street clock's two-digit fields
 // ---- CIRISHolon's tables on the page (FSD/twin/holon-intake.md): loaded lazily, never at first paint
 const HOLT = { want: false, idx: null, t: {}, reg: null, regAt: null };
-const HOL_V = 5; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
+const HOL_V = 6; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
 function holLoad(){
   if (HOLT.want) return; HOLT.want = true;
   const j = (u) => fetch(u + "?v=" + HOL_V).then((r) => r.json());
@@ -2755,6 +2755,24 @@ function energyLine(){
     `added on this street's devices ${f(e.dev[1])} (${rg(e.dev)}; ${EN_WHERE[e.where | 0]}${(e.where | 0) < 3 ? ", " + Math.round(e.reach * 100) + "% of the " + e.hh + " households" : ""}) · ` +
     `data-centre work no longer done for these ${e.persons} people (assuming every household member is an internet user, an upper end), less what moves to their devices and the AI kept hosted ${f(e.dc[1])} (${rg(e.dc)}; the world-average internet user's data-centre estate placed on these people, not a US user's draw) · ` +
     `net ${f(e.net[1])} (${rg(e.net)}), ${sign}; a US 2020 device side with a world-mean data-centre side; inputs MODEL and FRONTIER`;
+}
+// ---- deliveries on the street so far (kernel micro_hold_stats), beside CIRISHolon's MESH-0 readings; counts under stated
+// assumptions, never a statement that the mesh works
+function deliveryLine(){
+  if (!M || typeof wasm === "undefined" || !wasm || !wasm.micro_hold_stats) return "";
+  const n = wasm.micro_hold_stats(), o = new Float64Array(wasm.memory.buffer, wasm.holon_buf_ptr(0) >>> 0, n);
+  if (o[0] !== 1) return "";
+  const sent = o[1], pc = (x) => sent ? Math.round(100 * x / sent) + "%" : "–", hh = (x) => (x / 3600).toFixed(1) + " h", held = o[3] + o[4] + o[5];
+  return `deliveries on this street so far (counts under stated assumptions): ${sent.toLocaleString()} messages; ${pc(o[2])} taken at once; held ${pc(held)} (${pc(o[3])} at a device of the recipient's home, ${pc(o[4])} at the seat, ${pc(o[5])} elsewhere)` +
+    (o[6] ? `; held messages waited ${hh(o[7])} / ${hh(o[8])} / ${hh(o[9])} (quartiles)` : "") + `; ${o[10].toLocaleString()} delivered after the late bound and ${o[11].toLocaleString()} still held past it (bound ${hh(o[12])}, a proposed assumption)` +
+    `; ${o[13] ? Math.round(100 * o[14] / o[13]) + "%" : "–"} of relayed messages went through the seat · reachability: ${o[15] ? "a phone is on while its person is awake (the people's own days)" : "the flat on-off chain (no people's days here)"}`;
+}
+// CIRISHolon's MESH-0 readings, set beside the street's counts, with the limits carried wherever any of it is shown
+function meshLine(){
+  const m = HOLT.t.mesh0, md = m && m.data; if (!md) return "MESH-0: loading…";
+  const s2 = md.S2.by_join_and_phone_rule["afresh, phone on when awake"], left = Object.entries(md.left_to_someone_else).filter(([k]) => k.startsWith("Mon-Thu|afresh|off0|independent")).map(([, v]) => v);
+  const ca = md.counted_apart, nophone = ca.adults_without_phone / (ca.adults_without_phone + ca.addressees);
+  return `CIRISHolon MESH-0 on a generated US population (every count unresolved): ${md.S1.taken_at_once_measured.toFixed(2)} taken at once, ${s2.sender_holds_within_hours["12"].toFixed(2)} within 12 h with the sender's phone holding; left to the seat ${Math.min(...left).toFixed(3)} to ${Math.max(...left).toFixed(3)} depending on which homes have a host that is on · limits: person to person only, one clock, members of a household drawn independently, ${nophone.toFixed(3)} of generated adults drawn with no smartphone (unchecked, looks high)`;
 }
 // the chip line: who is where in this hour of the generated day, and what CIRISHolon said of the generator
 function rhyLine(){
@@ -2964,7 +2982,7 @@ function updateFocalChip(F){
   const detail = `<div class="fd-head"><b>Where this street's figures come from</b> <button class="chip-btn" id="fd-close" type="button" aria-label="Close">×</button></div>` +
     (M.denseNote ? `<div class="chip-sub">${fig("dense-fabric", "dense fabric: storeys are the leaf's households over its plots; the density is a 1/8° cell average, and wards inside it are denser")}</div>` : "") +
     `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people inside a 1/8° cell follow CIRISHolon's in-cell table (UNEVEN-0, unresolved)")}</div>` +
-    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devicegen1", holDevGenLine())} · ${fig("holon-devicegen1", hwButtons())}</div><div class="chip-sub">${fig("holon-presencegen2", rhyLine())}</div><div class="chip-sub">${fig("energy-street", energyLine())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
+    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devicegen1", holDevGenLine())} · ${fig("holon-devicegen1", hwButtons())}</div><div class="chip-sub">${fig("holon-presencegen2", rhyLine())}</div><div class="chip-sub">${fig("energy-street", energyLine())}</div><div class="chip-sub">${fig("street-delivery", deliveryLine())}</div><div class="chip-sub">${fig("holon-mesh0", meshLine())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
     `<div class="chip-sub">rows: ${fig("micro-activity", m[10] + " sent · " + m[11] + " direct (" + m[12] + " shaped) · " + m[13] + " relayed · " + m[15] + " held at a mailbox · " + m[16] + " handed over · punches " + m[20] + "/" + m[19] + " up")} · tap a device</div>` +
     `<div class="chip-sub">model's reading: replication rounds ${fig("micro-activity", (m[37] | 0) + " served · " + (m[38] | 0) + " cadences where an unclaimed device announced with no seat as peer")} · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +
     (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? '<span class="inp">design case: 3, k=2</span>' : '<span class="inp">production: 1</span>'}</button>`) + `</div>`;
