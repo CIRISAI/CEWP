@@ -268,9 +268,13 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   added on this street's devices (the household pass's A + B, long run, with the mix from the street's own
   DEVICEGEN-1 households under the chosen home-node scenario; the pass's term C is not used, being inside
   energy_full's "removed"), and the data-centre side for its people (energy_full's net with the additions at
-  zero, Case A, tiered AI mix at 10 interactions a day: -15.40 kWh per person-year, -43.33 to +909.30, baked as
-  `FULL_REST` and recomputed by a test, which also checks energy_full's net = its additions + this side), times
-  the street's persons. Columbus suburb, 25 households, 48 people, gateway: devices +6.8 (+0.9 to +34.8), data
+  zero, Case A, tiered AI mix at 10 interactions a day: -15.40 kWh per internet user-year, -43.33 to +909.30,
+  baked as `FULL_REST` and recomputed by a test, which also checks energy_full's net = its additions + this side),
+  times ALL the street's persons, stated on the line as an upper end (every household member an internet user; no
+  sourced user share is in the twin). Envelopes, stated on the line: the data-centre side is the world-mean user's
+  estate (71.7 kWh per user-year), not a US user's draw; the device side is US 2020. twin-theory confirmed the
+  sum: A + B alone (C is inside "removed"), the additions enter eval nowhere else, and the two sides share no
+  input row, so the sum of the lows is attainable. Columbus suburb, 25 households, 48 people, gateway: devices +6.8 (+0.9 to +34.8), data
   centre -29.6 (-83.2 to +1,745.9), net -22.8 (-82.2 to +1,780.7), sign open. The pass's counters at seed 1 are
   baked too (`counters_seed1`, test against `Counters::from_hooks(1)`): read live they ran a stand-in day, a
   1.2 s task on a phone at 4x CPU throttle. A street costs 10 to 45 ms there. Wasm 1,591,135 bytes.

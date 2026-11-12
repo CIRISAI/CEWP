@@ -650,13 +650,13 @@
       "source": "crates/cewp-sim/src/street_energy.rs street_energy and FULL_REST (energy_full::eval and corners_at, AiCase::Mix, 10 interactions per person-day, new-box share 0, Case A: the headline row of `cewp-cli energy-full 1` less its additions, kWh per person-year -43.33 / -15.40 / +909.30; test the_baked_data_centre_side_is_energy_fulls recomputes it and checks energy_full's net = additions + this side); energy::with_mix_from_draws, energy::delta; micro.rs household_draws; kernel-wasm micro_energy",
       "commit": "f73b918",
       "window": "",
-      "param": "the pass's mix rule (MODEL): a home node in EVERY household that can host it, not the street's drawn 60 %; the household mix from the street's draws (connection, desktop, any computer, persons, phones); the data-centre side per person times the street's persons (children included, as energy_full is per internet user); the net's range is the sum of the two ranges; every other input at its default (FSD/twin/energy.md)",
+      "param": "the pass's mix rule (MODEL): a home node in EVERY household that can host it, not the street's drawn 60 %; the household mix from the street's draws (connection, desktop, any computer, persons, phones); the data-centre side per internet user times ALL the street's persons (every household member counted as an internet user: an upper end; no sourced internet-user share is in the twin); the net's range is the sum of the two ranges; every other input at its default (FSD/twin/energy.md)",
       "dataset": "",
       "blocker": "",
       "reproduce": "cargo test -p cewp-sim street_energy; cargo run -p cewp-cli -- energy-full 1",
       "correction": "",
       "interval": null,
-      "failure": ["The street's mix is a few dozen households: its shares are a draw, not a rate; most inputs are FRONTIER or MODEL and the net's range spans zero.", "The data-centre side is a world average per internet user, not this street's; nothing here is spatial, which is why there is no Power map."]
+      "failure": ["The street's mix is a few dozen households: its shares are a draw, not a rate; most inputs are FRONTIER or MODEL and the net's range spans zero.", "The data-centre side is the WORLD mean internet user's estate (ESTATE-0: 416 TWh over 5.8 bn users, 71.7 kWh per user-year), not a US user's draw; the device side is US 2020 (DEVICEGEN-1): the figure mixes the two envelopes."]
     },
     {
       "id": "holon-presencegen2",

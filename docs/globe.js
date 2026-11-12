@@ -2705,8 +2705,8 @@ function energyLine(){
   // the same scope as the site's headline (energy_full, Case A): this street's devices plus the data-centre work its people no longer need
   return `energy on this street if the mesh replaced the internet (model output, kWh per household-year; full-replacement test, Case A, the site's headline scope): ` +
     `added on this street's devices ${f(e.dev[1])} (${rg(e.dev)}; ${EN_WHERE[e.where | 0]}${(e.where | 0) < 3 ? ", " + Math.round(e.reach * 100) + "% of the " + e.hh + " households" : ""}) · ` +
-    `data-centre work no longer done for these ${e.persons} people, less what moves to their devices and the AI kept hosted ${f(e.dc[1])} (${rg(e.dc)}) · ` +
-    `net ${f(e.net[1])} (${rg(e.net)}), ${sign}; inputs MODEL and FRONTIER`;
+    `data-centre work no longer done for these ${e.persons} people (assuming every household member is an internet user, an upper end), less what moves to their devices and the AI kept hosted ${f(e.dc[1])} (${rg(e.dc)}; the world-average internet user's data-centre estate placed on these people, not a US user's draw) · ` +
+    `net ${f(e.net[1])} (${rg(e.net)}), ${sign}; a US 2020 device side with a world-mean data-centre side; inputs MODEL and FRONTIER`;
 }
 // the chip line: who is where in this hour of the generated day, and what CIRISHolon said of the generator
 function rhyLine(){
