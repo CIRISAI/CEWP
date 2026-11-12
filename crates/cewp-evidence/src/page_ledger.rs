@@ -423,6 +423,50 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ..BASE
     },
     PageClaim {
+        id: "holon-uneven0",
+        class: Model,
+        shows: "How a 1/8-degree cell's people divide over tiles of each density class (about 0.9 km): CIRISHolon's UNEVEN-0 reading of GHS-POP at its native 30 arc-seconds, world and by the twin's nine regions; verdict unresolved (a reading of the reference, no generator scored).",
+        source: "docs/geo/holon/uneven0.json, imported by tools/holon/import.py from CIRISHolon 7783c24 conformance/scene/tables/uneven0 (transition_table.json, transition_table_by_region.json, sidecar.json); docs/geo/holon/index.json",
+        param: "grain 1 pixel, each cell once; share vectors renormalised to 1,000,000 by largest remainder as the sidecar says (65 vectors, recorded in the asset); regional rows with fewer than 30 cells publish no shares and the world row stands in",
+        dataset: "GHS-POP R2023A, European Commission, Joint Research Centre; Schiavina, Freire, Carioli and MacManus (2023), doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE; CC BY 4.0. Via CIRISHolon UNEVEN-0.",
+        failure: &[
+            "A lower bound on unevenness: nothing below about 1 km is seen.",
+            "The fine grid is itself a model (census counts spread over built-up area).",
+            "Coastal cells read as uneven because sea pixels hold nobody and the cell class uses whole area.",
+        ],
+        reproduce: "python3 -I tools/holon/import.py <CIRISHolon> 7783c24 uneven0; node --test docs/geo/holon/intake.test.js",
+        ..BASE
+    },
+    PageClaim {
+        id: "holon-household0-us",
+        class: Model,
+        shows: "CIRISHolon's verdict on the twin's household-size rule against US census tables: mean persons per household certified (2.50 vs 2.53), one-person share refused (0.18 vs 0.29); by density class where resolved; outside the envelope anywhere but the United States.",
+        source: "docs/geo/holon/household0_us.json, imported by tools/holon/import.py from CIRISHolon 7783c24 conformance/scene/tables/household0_us; scored on docs/geo/household_hist.json (twin/hhsize b939214)",
+        param: "budgets fixed in advance: 0.12 persons on the mean, 0.03 on the one-person share; key: density of a census tract (block group as a check)",
+        dataset: "Source: U.S. Census Bureau, 2020-2024 American Community Survey 5-Year Estimates, Tables B25008, B25009, B25032, B25033 and B26001. This table is a derived work; it is not endorsed or certified by the Census Bureau. (The conventional source line; the Bureau's citation page was not re-read for this build.) Via CIRISHolon HOUSEHOLD-0.",
+        failure: &[
+            "The reference key is the density of a census tract, which a twin leaf does not have: for the twin's own leaves every verdict is outside the envelope.",
+            "United States only; apartment blocks and dense fabric are unresolved (too few counties).",
+            "Group quarters (2.4 % of people) are outside the reference, so the twin's household count is high by about that.",
+        ],
+        reproduce: "python3 -I tools/holon/import.py <CIRISHolon> 7783c24 household0_us; node --test docs/geo/holon/intake.test.js",
+        ..BASE
+    },
+    PageClaim {
+        id: "holon-household0-de",
+        class: Model,
+        shows: "CIRISHolon's verdict on the twin's household-size rule against the German 2022 census on 1 km tiles: refused on both measures (2.50 vs 2.04 persons per household; one-person share 0.18 vs 0.43, from 0.32 in village tiles to 0.62 in dense fabric).",
+        source: "docs/geo/holon/household0_de.json, imported by tools/holon/import.py from CIRISHolon 7783c24 conformance/scene/tables/household0_de",
+        param: "budgets fixed in advance: 5 % of the reference on the mean, 0.03 on the one-person share; key: density class of the 1 km census tile",
+        dataset: "Source: Statistische Aemter des Bundes und der Laender, Zensus 2022, Ergebnisse in Gitterzellen; Data licence Germany - attribution - Version 2.0 (dl-de/by-2-0), www.govdata.de/dl-de/by-2-0; https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Zensus2022/_inhalt.html; data changed: aggregated by density class by the author. Via CIRISHolon HOUSEHOLD-0 DE.",
+        failure: &[
+            "Germany only; the family of the twin's rule is wrong, not just its two numbers, so it is not retuned: Holon's household generator replaces it.",
+            "Apartment blocks and dense fabric are unresolved (too few blocks).",
+        ],
+        reproduce: "python3 -I tools/holon/import.py <CIRISHolon> 7783c24 household0_de; node --test docs/geo/holon/intake.test.js",
+        ..BASE
+    },
+    PageClaim {
         id: "pop-grid-source",
         class: Model,
         shows: "A land-bounded world population grid: GHS-POP R2023A, epoch 2020, summed to 1.5-degree cells of at least 20,000 people.",
@@ -945,6 +989,27 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
     // Phase 2 layers: one kernel-wasm door (kernel-wasm/src/views.rs, slots 0-15) runs each package's
     // own view function once per page. Sources below are at VIEWS_COMMIT; views.rs itself lands with
     // the globe commit that registers these layers.
+    PageClaim {
+        id: "layer-wm-uneven",
+        class: Model,
+        live: true,
+        shows: "Globe layer card: CIRISHolon's UNEVEN-0 by the twin's nine regions, for a chosen cell class the share of the cell's people living in ~1 km tiles denser than the cell's class (hatched: unresolved; grey: fewer than 30 cells, the world row stands in).",
+        source: "docs/layers/layers.js: CEWP_LAYERS wm-uneven, drawn from docs/geo/holon/uneven0.json (ledger holon-uneven0)",
+        param: "the table's people_each_cell_once shares at grain 1, renormalised as the sidecar says",
+        dataset: "GHS-POP R2023A, European Commission, Joint Research Centre; Schiavina, Freire, Carioli and MacManus (2023), doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE; CC BY 4.0. Via CIRISHolon UNEVEN-0.",
+        failure: &["Every row is unresolved: a reading of the reference, no generator scored; nothing below about 1 km is seen."],
+        ..BASE
+    },
+    PageClaim {
+        id: "layer-wm-household",
+        class: Model,
+        live: true,
+        shows: "Globe layer card: households by size, the twin's legacy rule against the US and German census for a chosen class, with CIRISHolon's verdicts (certified solid, refused hatched red, unresolved hatched grey).",
+        source: "docs/layers/layers.js: CEWP_LAYERS wm-household, drawn from docs/geo/holon/household0_us.json and household0_de.json (ledger holon-household0-us, holon-household0-de)",
+        param: "bands as each census publishes them; the twin's shares from CIRISHolon's scoring of docs/geo/household_hist.json",
+        failure: &["For the twin's own leaves every verdict is outside the envelope: the references are keyed by a census unit's density, in two countries."],
+        ..BASE
+    },
     PageClaim {
         id: "layer-topology",
         class: Model,

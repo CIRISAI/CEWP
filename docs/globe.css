@@ -379,3 +379,10 @@ body.story-first #tier-now{left:var(--sf-side);top:var(--sf-top);bottom:auto;min
 
 table.cap .nw{white-space:nowrap}
 
+
+/* CIRISHolon verdicts, drawn so a picture never looks more certain than its verdict */
+.vd{padding:0 2px;border-radius:2px}
+.vd-cert{box-shadow:inset 0 -2px 0 var(--ok)}
+.vd-ref{background:repeating-linear-gradient(135deg,rgba(255,110,90,.28) 0 3px,transparent 3px 6px);outline:1px solid rgba(255,110,90,.5)}
+.vd-unres{background:repeating-linear-gradient(135deg,rgba(170,170,190,.22) 0 3px,transparent 3px 6px)}
+.vd-leg{outline:1px dashed rgba(200,200,210,.55);opacity:.85}

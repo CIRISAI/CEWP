@@ -2522,6 +2522,49 @@ function drawScaleBar(g, F, ppm){
 }
 // ---- the chip that says what you are looking at
 const pad2 = (n) => String(n).padStart(2, "0"); // the street clock's two-digit fields
+// ---- CIRISHolon's tables on the page (FSD/twin/holon-intake.md): loaded lazily, never at first paint
+const HOLT = { want: false, idx: null, t: {}, reg: null, regAt: null };
+const HOL_V = 1; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
+function holLoad(){
+  if (HOLT.want) return; HOLT.want = true;
+  const j = (u) => fetch(u + "?v=" + HOL_V).then((r) => r.json());
+  j("geo/holon/index.json").then((x) => { HOLT.idx = x.tables; for (const ref of Object.keys(x.tables)) j("geo/holon/" + ref + ".json").then((t) => { HOLT.t[ref] = t; if (typeof gfxDirty === "function") gfxDirty(300); }).catch((e) => console.warn(e.message)); }).catch((e) => console.warn(e.message));
+  j("geo/regions.json").then((r) => { HOLT.reg = r; HOLT.regAt = new Map(r.cells.map((c) => [c[2], c[4]])); }).catch((e) => console.warn(e.message));
+}
+// the twin's region of a point: its 1.5-degree cell's (docs/geo/regions.json); a cell not listed takes the nearest listed
+// cell's region (the rule CIRISHolon's regional cut uses); null until regions.json is in
+function holRegion(lat, lon){
+  if (!HOLT.reg) return null;
+  const row = Math.min(119, Math.max(0, Math.floor((90 - lat) / 1.5))), col = ((Math.floor((lon + 180) / 1.5)) % 240 + 240) % 240, id = row * 240 + col;
+  if (HOLT.regAt.has(id)) return HOLT.regAt.get(id);
+  let best = null, bd = Infinity;
+  for (const c of HOLT.reg.cells){ const dr = c[0] - row, dc = Math.min(Math.abs(c[1] - col), 240 - Math.abs(c[1] - col)), d = dr * dr + dc * dc; if (d < bd){ bd = d; best = c[4]; } }
+  return best;
+}
+// a verdict as the page draws it: certified, refused, unresolved (a real reading, not scored), or the legacy rule's "no certificate"
+const holVd = (v, text) => `<span class="vd vd-${v === "certified" ? "cert" : v === "refused" ? "ref" : v === "legacy" ? "leg" : "unres"}" title="${v}">${text}</span>`;
+const HOL_CLS = { "village": "village", "suburban streets": "suburban", "terraced streets": "terraced", "apartment blocks": "apartment blocks", "dense fabric": "dense fabric" };
+// the household-size lines: HOUSEHOLD-0 US and DE on the twin's legacy rule, for the patch's class where resolved
+function holPick(t, cls){ const r = t.data.rows[cls]; return r && r.mean && r.mean.reference !== undefined ? [r, cls] : [t.data.rows.nation, "national"]; }
+const holPct = (x) => Math.round(x * 100) + "%";
+function holUs(cls){
+  const t = HOLT.t.household0_us; if (!t) return "loading CIRISHolon's household verdict…"; const [u, k] = holPick(t, cls);
+  return `household size against US census (${k}): mean ${holVd(u.mean.verdict, u.mean.verdict + " (" + u.mean.generator.toFixed(2) + " vs " + u.mean.reference.toFixed(2) + ")")}; composition ${holVd(u.p1.verdict, u.p1.verdict + " (" + holPct(u.p1.generator) + " one-person households here, " + holPct(u.p1.reference) + " in the US)")}`;
+}
+function holDe(cls){
+  const t = HOLT.t.household0_de; if (!t) return "…"; const [d, k] = holPick(t, cls);
+  return `against German census (${k}): mean ${holVd(d.mean.verdict, d.mean.verdict + " (" + d.mean.generator.toFixed(2) + " vs " + d.mean.reference.toFixed(2) + ")")}; composition ${holVd(d.p1.verdict, d.p1.verdict + " (" + holPct(d.p1.generator) + " vs " + holPct(d.p1.reference) + ")")}`;
+}
+const holEnvelope = () => `${holVd("unresolved", "outside the envelope for this place: the references are the United States and Germany, keyed by a census unit's density, and the twin does not yet test which country a patch is in")} · the rule is the twin's legacy one, ${holVd("legacy", "no certificate")}, not retuned`;
+// the in-cell line: UNEVEN-0 for the patch's region and class (the world row where the region's is below the floor)
+function holUnevenLine(cls, lat, lon){
+  const u = HOLT.t.uneven0; if (!u) return "loading CIRISHolon's in-cell table…";
+  const k = ["village", "suburban", "terraced", "apartment blocks", "dense fabric"].indexOf(cls); if (k < 0) return "–";
+  const r = holRegion(lat, lon), e = r === null ? null : u.data.regional[r][k];
+  const use = e && e.people ? { v: e, src: "regional, " + u.data.regions[r] } : { v: { people: u.data.world.people[k] }, src: r === null ? "world" : "world: fewer than 30 cells of this class in " + u.data.regions[r] };
+  const above = use.v.people.slice(k + 2).reduce((a, b) => a + b, 0) / 1e4;
+  return (`in-cell: in a ${cls} cell ${above.toFixed(0)}% of the people live in ~1 km tiles denser than the cell's class (${use.src}; ${holVd("unresolved", "unresolved: a reading of GHS-POP, no generator scored")}); the twin still spreads them evenly, pending the seam`);
+}
 // evidence:scan
 function updateFocalChip(F){
   const chip = $("focal-chip"); if (!chip) return;
@@ -2536,6 +2579,7 @@ function updateFocalChip(F){
   chip._t = performance.now();
   const m = M.meta, hh = m[1], hm = pad2(Math.floor(hh)) + ":" + pad2(Math.floor((hh % 1) * 60));
   const kinds = [27, 28, 29, 30, 31, 32].map(k => m[k]);
+  holLoad(); const hcls = HOL_CLS[(m[2] | 0) === 0 && m[4] >= 12000 ? "dense fabric" : MDCLASS[m[2] | 0]] || "village"; // the patch's class, as CIRISHolon's tables name it
   // the leaf as a holon (micro_population): people, households and device population; the nodes drawn are a display sample of it
   if (!M.popn && wasm.micro_population){ wasm.micro_population(); const o = new Float64Array(wasm.memory.buffer, wasm.holon_buf_ptr(0) >>> 0, 4); M.popn = { hh: o[0], persons: o[1], dev: o[2], nodes: o[3] }; }
   const P = M.popn || { hh: 0, persons: 0, dev: 0, nodes: 0 };
@@ -2550,6 +2594,7 @@ function updateFocalChip(F){
     `${fig("micro-generated", Math.round(m[4]).toLocaleString() + " people/km² · " + Math.round(2 * m[3]) + " m patch · " + kinds[0] + " phones, " + kinds[1] + " home nodes, " + kinds[2] + " laptops, " + kinds[3] + " hosted servers, " + kinds[4] + " seats" + (kinds[5] ? ", " + kinds[5] + " CI" : ""))} · ` +
     `local ${hm} · sim ×<span id="ts-v" data-evidence="input">${microTimeScale}</span> <button class="chip-btn" id="ts-dn" type="button" title="slower">−</button><button class="chip-btn" id="ts-up" type="button" title="faster">+</button> · ${scale} scale` +
     `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people are spread evenly inside a 1/8° cell until CIRISHolon's in-cell table is consumed")}</div>` +
+    `<div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
     `<div class="chip-sub">rows: ${fig("micro-activity", m[10] + " sent · " + m[11] + " direct (" + m[12] + " shaped) · " + m[13] + " relayed · " + m[15] + " held at a mailbox · " + m[16] + " handed over · punches " + m[20] + "/" + m[19] + " up")} · tap a device</div>` +
     `<div class="chip-sub">model's reading: replication rounds ${fig("micro-activity", (m[37] | 0) + " served · " + (m[38] | 0) + " cadences where an unclaimed device announced with no seat as peer")} · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +
     (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? '<span class="inp">design case: 3, k=2</span>' : '<span class="inp">production: 1</span>'}</button>`) + `</div>`;

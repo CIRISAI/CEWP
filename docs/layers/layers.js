@@ -196,6 +196,61 @@ window.CEWP_LAYERS["seat"] = layer({ id: "seat", title: "Serve-seat load across 
   },
   status(){ const h = this.last; if (this.busy) return "running the seat model's input intervals once…"; return h.points ? `at 100,000 devices ρ ${h.g0_rho_lower_at_100k} to ${h.g0_rho_upper_at_100k} if the publish set stays, ${h.g1_rho_lower_at_100k} to ${h.g1_rho_upper_at_100k} if it grows with the fleet` + (h.street_devices ? ` · this street's seat: ${h.street_devices} devices, ρ ${h.street_rho_lower} to ${h.street_rho_upper}` : "") + " · MODEL, bounds over the inputs · the knee is on the seat card" : "–"; } });
 
+// ------------------------------------------------------------------ world model: CIRISHolon's tables (FSD/twin/holon-intake.md)
+// Each consumed table is a row here with its verdict and envelope; the charts are drawn from the table itself.
+// Hatched = not certified (unresolved or refused); a solid edge = certified.
+const WM = { cls: 1, hcls: 0 };
+const WM_CLASSES = ["village", "suburban", "terraced", "apartment blocks", "dense fabric"];
+function wmCanvas(c, H2){ const dpr = window.devicePixelRatio || 1, W2 = c.clientWidth || 260; if (c.style.height !== H2 + "px") c.style.height = H2 + "px"; if (c.width !== Math.round(W2 * dpr)){ c.width = Math.round(W2 * dpr); c.height = H2 * dpr; } const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W2, H2); g.font = "10px " + MFONT; return [g, W2]; }
+function wmHatch(g, x, y, w, h, col){ g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.strokeStyle = col; g.lineWidth = 1; for (let k = -h; k < w; k += 4){ g.beginPath(); g.moveTo(x + k, y + h); g.lineTo(x + k + h, y); g.stroke(); } g.restore(); g.strokeStyle = col; g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); }
+window.CEWP_LAYERS["wm-uneven"] = layer({ id: "wm-uneven", title: "World model · people inside a cell, by region (UNEVEN-0)", cls: "MODEL", inputs: "MODEL via CIRISHolon, unresolved",
+  source: "docs/geo/holon/uneven0.json (tools/holon/import.py from CIRISHolon conformance/scene/tables/uneven0: transition_table.json and transition_table_by_region.json)",
+  contract: "CIRISHolon's UNEVEN-0 reads GHS-POP at 30 arc-seconds (about 0.9 km tiles) inside every peopled 1/8-degree cell: for each cell class, the share of tiles and of people at each tile class, world-wide and by the twin's nine regions (docs/geo/regions.json). The chart: for the chosen cell class, the share of the cell's people who live in tiles denser than the cell's class, one bar per region and the world. A region with fewer than 30 cells of the class publishes no shares (hatched grey, the world row stands in). Every row's verdict is unresolved: a reading of the reference, no generator scored. Limits: nothing below about 1 km is seen; the fine grid is itself a model; coastal cells read as uneven. Not yet used by the twin's generator (the seam is next).",
+  available: () => typeof holLoad === "function",
+  onShow(){ holLoad(); },
+  panel(c){
+    const u = typeof HOLT !== "undefined" && HOLT.t.uneven0; if (!u) return;
+    const [g, W2] = wmCanvas(c, 150), k = WM.cls, D = u.data, above = (v) => v.slice(k + 2).reduce((a, b) => a + b, 0) / 1e6;
+    const bars = D.regions.map((name, r) => { const e = D.regional[r][k]; return { name, v: e.people ? above(e.people) : null, cells: e.cells }; });
+    bars.push({ name: "world", v: above(D.world.people[k]), cells: D.world.cells[k], world: true });
+    const L = 8, B = 118, T = 14, bw = (W2 - L - 6) / bars.length;
+    g.fillStyle = "#aab4c2"; g.fillText(`${WM_CLASSES[k]}: people in denser 1 km tiles`, L, 10);
+    bars.forEach((b, i) => { const x = L + i * bw + 2, w = bw - 4;
+      if (b.v === null){ wmHatch(g, x, B - 18, w, 18, "rgba(170,170,190,0.55)"); }
+      else { const h = Math.max(1, b.v * (B - T)); wmHatch(g, x, B - h, w, h, b.world ? "rgba(255,255,255,0.75)" : "rgba(255,207,122,0.8)"); g.fillStyle = "#e6ebf2"; g.fillText(Math.round(b.v * 100) + "%", x, B - h - 2); }
+      g.save(); g.translate(x + w / 2 + 3, B + 4); g.rotate(Math.PI / 4); g.fillStyle = "#aab4c2"; g.fillText(b.name.replace("Sub-Saharan Africa", "SS Africa").replace("SE Asia & Oceania", "SE Asia/Oc.").replace("Russia & C. Asia", "Russia/C.As."), 0, 0); g.restore(); });
+    this.last = Object.fromEntries(bars.map((b) => [b.name.toLowerCase().replace(/[^a-z]+/g, "_"), b.v === null ? -1 : +b.v.toFixed(3)]));
+    this.info = { class: WM_CLASSES[k], verdict: "unresolved (every row)", holon_commit: u.holon_commit, renormalised_vectors: String(u.renormalised.length), below_floor: "hatched grey: fewer than 30 cells, the world row stands in" };
+  },
+  controls: [{ label: "Next cell class", act(){ WM.cls = (WM.cls + 1) % 5; gfxDirty(300); } }],
+  status(){ const u = typeof HOLT !== "undefined" && HOLT.t.uneven0; return u ? `${WM_CLASSES[WM.cls]} cells · verdict: unresolved (a reading, not a certificate) · envelope: world, nine regions, five classes, ~1 km grain · CIRISHolon ${u.holon_commit.slice(0, 7)}` : "loading CIRISHolon's table…"; } });
+window.CEWP_LAYERS["wm-household"] = layer({ id: "wm-household", title: "World model · household size against census (HOUSEHOLD-0)", cls: "MODEL", inputs: "MODEL via CIRISHolon: a verdict",
+  source: "docs/geo/holon/household0_us.json and household0_de.json (tools/holon/import.py from CIRISHolon conformance/scene/tables/household0_us and household0_de)",
+  contract: "CIRISHolon scored the twin's own household-size rule (docs/geo/household_hist.json) against census tables with budgets fixed in advance. United States (ACS 2020-2024, keyed by tract density): mean persons per household certified (2.50 vs 2.53), one-person share refused (0.18 vs 0.29). Germany (Zensus 2022, 1 km tiles): refused on both (2.50 vs 2.04; 0.18 vs 0.43). The chart: share of households by size, the twin's rule against each reference for the chosen class (bands as each census publishes them). For the twin's own leaves every verdict is outside the envelope (a census unit's density key, two countries). The rule is kept as the labelled legacy fallback and not retuned: CIRISHolon's household generator replaces it.",
+  available: () => typeof holLoad === "function",
+  onShow(){ holLoad(); },
+  panel(c){
+    const us = typeof HOLT !== "undefined" && HOLT.t.household0_us, de = us && HOLT.t.household0_de; if (!us || !de) return;
+    const cls = ["nation", ...WM_CLASSES][WM.hcls], [g, W2] = wmCanvas(c, 150), gen = us.data.generator.shares_by_size_0_to_7;
+    const ur = us.data.rows[cls], dr = de.data.rows[cls], L = 8, B = 118, T = 14, n = 7, bw = (W2 - L - 6) / n;
+    const twin = [1, 2, 3, 4, 5, 6, 7].map((s) => gen[s] || 0);
+    const usv = ur ? ur.shares_ppm.map((v) => v / 1e6) : null; // bands 1..7+
+    const dev = dr ? dr.shares_ppm.map((v) => v / 1e6) : null, dband = dr ? dr.bands : [];
+    g.fillStyle = "#aab4c2"; g.fillText(`${cls}: dashed twin · US · DE`, L, 10);
+    const ly = (v) => Math.max(1, v * 2 * (B - T));
+    for (let s = 0; s < n; s++){ const x = L + s * bw + 2, w = (bw - 4) / 3;
+      g.strokeStyle = "rgba(200,200,210,0.7)"; g.setLineDash([3, 2]); g.strokeRect(x + 0.5, B - ly(twin[s]) + 0.5, w - 1, ly(twin[s]) - 1); g.setLineDash([]);
+      const uv = usv && s < usv.length ? usv[s] : null; if (uv !== null){ const vd = ur.p1 ? ur.p1.verdict : "unresolved"; if (vd === "certified"){ g.fillStyle = "rgba(124,240,176,0.8)"; g.fillRect(x + w, B - ly(uv), w, ly(uv)); } else wmHatch(g, x + w, B - ly(uv), w, ly(uv), vd === "refused" ? "rgba(255,110,90,0.85)" : "rgba(170,170,190,0.7)"); }
+      const di = dband.findIndex((b) => b === String(s + 1) || (b.endsWith("+") && s + 1 >= parseInt(b))); const dv = dev && di >= 0 && (dband[di] === String(s + 1) || s + 1 === parseInt(dband[di])) ? dev[di] : null;
+      if (dv !== null){ const vd = dr.p1 ? dr.p1.verdict : "unresolved"; wmHatch(g, x + 2 * w, B - ly(dv), w, ly(dv), vd === "refused" ? "rgba(255,150,110,0.85)" : "rgba(170,170,190,0.7)"); }
+      g.fillStyle = "#aab4c2"; g.fillText(s === 6 ? "7+" : String(s + 1), x + w, B + 11); }
+    this.last = { class_shown: WM.hcls, twin_one_person: +twin[0].toFixed(3), us_one_person: usv ? +usv[0].toFixed(3) : -1, de_one_person: dev ? +dev[0].toFixed(3) : -1 };
+    this.info = { us_mean: ur && ur.mean ? `${ur.mean.verdict}: ${ur.mean.reason}` : "-", us_composition: ur && ur.p1 ? `${ur.p1.verdict}: ${ur.p1.reason}` : "-", de_mean: dr && dr.mean ? `${dr.mean.verdict}: ${dr.mean.reason}` : "-", de_composition: dr && dr.p1 ? `${dr.p1.verdict}: ${dr.p1.reason}` : "-", envelope: "United States (tract density) and Germany (1 km tiles); a twin leaf is outside both" };
+  },
+  controls: [{ label: "Next class", act(){ WM.hcls = (WM.hcls + 1) % 6; gfxDirty(300); } }],
+  status(){ const us = typeof HOLT !== "undefined" && HOLT.t.household0_us; if (!us) return "loading CIRISHolon's tables…"; const cls = ["nation", ...WM_CLASSES][WM.hcls], u = us.data.rows[cls], d = HOLT.t.household0_de && HOLT.t.household0_de.data.rows[cls];
+    const v = (r, k) => r && r[k] ? r[k].verdict : "–"; return `${cls} · US: mean ${v(u, "mean")}, composition ${v(u, "p1")} · Germany: mean ${v(d, "mean")}, composition ${v(d, "p1")} · legacy rule, no certificate, not retuned`; } });
+
 // ------------------------------------------------------------------ package views (kernel-wasm views.rs): each runs once per page
 const VW = (slot) => { const p = wasm.view_ptr(slot) >>> 0, n = wasm.view_len(slot) >>> 0; return (wasm.view_is_u32(slot) ? new Uint32Array(mem.buffer, p, n) : new Float32Array(mem.buffer, p, n)).slice(); };
 const DEG = Math.PI / 180;

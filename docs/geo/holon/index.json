@@ -1,0 +1,117 @@
+{
+ "schema": "cewp-twin-holon-index/v1",
+ "tables": {
+  "household0_de": {
+   "asset": "docs/geo/holon/household0_de.json",
+   "asset_bytes": 4605,
+   "asset_sha256": "dec60cd952151a7675a609cf609b9ddda7c23fe1cf1e9da6e1356f0342b62a23",
+   "class": "MODEL",
+   "dataset": "Zensus 2022, Ergebnisse in Gitterzellen, 1 km and 10 km: Groesse des privaten Haushalts; Durchschnittliche Haushaltsgroesse; Bevoelkerungszahl; Wohnungen nach Gebaeudetyp (Groesse); Gebaeude mit Wohnraum nach Gebaeudetyp (Groesse) via CIRISHolon",
+   "envelope": {
+    "classes_resolved": "village, suburban, terraced by block count; apartment blocks and dense fabric are unresolved (effective blocks 25 and 8) and their rows are readings only",
+    "country": "Germany",
+    "date": "15 May 2022",
+    "key": "the density of a 1 km tile as this census counts it, not as the twin's population grid does",
+    "population": "private households; communal accommodation is outside it"
+   },
+   "holon_commit": "7783c24fa292ab29437cdeb607c72c97a9776482",
+   "ledger": "holon-household0-de",
+   "notice": "Source: Statistische Aemter des Bundes und der Laender, Zensus 2022, Ergebnisse in Gitterzellen; Data licence Germany - attribution - Version 2.0 (dl-de/by-2-0), www.govdata.de/dl-de/by-2-0; https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Zensus2022/_inhalt.html; data changed: aggregated by density class by the author.",
+   "reference": "HOUSEHOLD-0 (Germany)",
+   "renormalised_vectors": 0,
+   "serves_registry_rows": [
+    "persons per household (size distribution of households by the density class of a 1 km tile)",
+    "households per building, dwellings per building, buildings by type and size (by the same class)"
+   ],
+   "source_files": {
+    "household_table.json": {
+     "bytes": 17785,
+     "path": "conformance/scene/tables/household0_de/household_table.json",
+     "sha256": "f4a2a9c53d65cfe3c47e772adda66fe406b9ef96fee214247add560822d5b6e8"
+    }
+   },
+   "verdict": {
+    "generator": "TWIN-SIZE-0: the twin's own emitted histogram, twin/hhsize b939214, sha256 438568abd0258d56bad0d2e286c98e3e03d855848969465af79914971bb0a418",
+    "household_composition": "refused nationally (one-person share 0.182 against 0.434) and in village, suburban and terraced; unresolved in the two densest classes",
+    "households_per_leaf": "refused nationally (2.500 against 2.042) and in village, suburban and terraced; unresolved in the two densest classes",
+    "the_family": "refused: with its mean and spread refitted to the national values the rule gives 0.26 two-person households where the census has 0.35 to 0.37"
+   },
+   "version": 1
+  },
+  "household0_us": {
+   "asset": "docs/geo/holon/household0_us.json",
+   "asset_bytes": 4963,
+   "asset_sha256": "c4ef7f4f78779d819c266ddd4796e2b9d2c5542989408119f1688c9ac0c200e3",
+   "class": "MODEL",
+   "dataset": "American Community Survey 5-year estimates 2020-2024, table-based summary file: B25008, B25009, B25032, B25033, B26001, at census tract and block group; 2024 tract gazetteer; 2024 cartographic boundary file for block groups (land area only) via CIRISHolon",
+   "envelope": {
+    "classes_resolved": "village, suburban, terraced by county count; apartment blocks and dense fabric are unresolved (effective counties 17 and 8) and their rows are readings only",
+    "country": "United States",
+    "key": "density of a census unit, not of a 1 km tile and not of a twin leaf; the two census keys agree within both budgets in the three resolved classes",
+    "population": "households only; group quarters (2.4 % of people) are outside it",
+    "window": "2020-2024"
+   },
+   "holon_commit": "7783c24fa292ab29437cdeb607c72c97a9776482",
+   "ledger": "holon-household0-us",
+   "notice": "Source: U.S. Census Bureau, 2020-2024 American Community Survey 5-Year Estimates, Tables B25008, B25009, B25032, B25033 and B26001. This table is a derived work; it is not endorsed or certified by the Census Bureau. (The conventional source line; the Bureau's citation page was not re-read for this build.)",
+   "reference": "HOUSEHOLD-0 (United States)",
+   "renormalised_vectors": 0,
+   "serves_registry_rows": [
+    "persons per household (the size distribution of households, by density class of the census unit, by tenure and by structure band)"
+   ],
+   "source_files": {
+    "household_table.json": {
+     "bytes": 30105,
+     "path": "conformance/scene/tables/household0_us/household_table.json",
+     "sha256": "4d37f0720dca455780bfbbe0b94b4e66d6fec0f755bbcc6de8f8c68e3e71cc2e"
+    }
+   },
+   "verdict": {
+    "for_the_twins_own_leaves": "outside the envelope: a leaf has no census unit. The verdicts are about the rule as a description of US households pooled by census-unit density.",
+    "generator": "TWIN-SIZE-0: the twin's own emitted histogram, twin/hhsize b939214, sha256 438568abd0258d56bad0d2e286c98e3e03d855848969465af79914971bb0a418",
+    "household_composition": "refused nationally (one-person share 0.182 against 0.286) and in village and suburban; unresolved in terraced by the frozen error floor although the miss (0.117) is five times that gap; unresolved in the two densest classes",
+    "households_per_leaf": "certified nationally and in village and suburban; unresolved in terraced (the reference's own split-half gap, 0.10, exceeds half the budget) and in the two densest classes"
+   },
+   "version": 1
+  },
+  "uneven0": {
+   "asset": "docs/geo/holon/uneven0.json",
+   "asset_bytes": 15174,
+   "asset_sha256": "e68fb29a630cabb59360aa905776db006e62cf953cca2d712e153d07497ec5bb",
+   "class": "MODEL",
+   "dataset": "GHS-POP R2023A, epoch 2020, WGS84, 30 arc-seconds via CIRISHolon",
+   "envelope": {
+    "classes": "all five cell classes; the smallest holds 121 cells",
+    "epoch": 2020,
+    "grain": "about 0.9, 1.9 and 3.7 km; nothing below about 1 km is resolved",
+    "regions": "world, not split by region (the twin's region table is not yet published as data)"
+   },
+   "holon_commit": "7783c24fa292ab29437cdeb607c72c97a9776482",
+   "ledger": "holon-uneven0",
+   "notice": "GHS-POP R2023A, European Commission, Joint Research Centre; Schiavina, Freire, Carioli and MacManus (2023), doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE; CC BY 4.0.",
+   "reference": "UNEVEN-0",
+   "renormalised_vectors": 65,
+   "serves_registry_rows": [
+    "households per leaf (the in-cell weights: how a cell's people divide over tiles of each density class)"
+   ],
+   "source_files": {
+    "transition_table.json": {
+     "bytes": 8059,
+     "path": "conformance/scene/tables/uneven0/transition_table.json",
+     "sha256": "54adb3d65bafe208372822f282003b423afa0ec8c1928d2190675562a20d0847"
+    },
+    "transition_table_by_region.json": {
+     "bytes": 27873,
+     "path": "conformance/scene/tables/uneven0/transition_table_by_region.json",
+     "sha256": "4d898027a39845203744087dda941cd1983e0629e360e64e70e3bc842a35f607"
+    }
+   },
+   "verdict": {
+    "all_rows": "unresolved",
+    "budget": null,
+    "reason": "this is a reading of the reference, not a certificate: no generator has been scored against it, and it carries no budget and no consumer. A generator that uses these weights is unscored until its own tiles are compared with the grid."
+   },
+   "version": 1
+  }
+ }
+}
