@@ -1096,7 +1096,8 @@ fn mix_parts<T: Q>(val: &dyn Fn(E) -> T, s: Scenario) -> Vec<(Scenario, T)> {
 }
 
 /// One generated household, as the energy pass needs it. The seam for CIRISHolon DEVICEGEN-1:
-/// after the theory merge (holon-scene pinned at 33dc99f in cewp-sim), each draw is
+/// after the theory merge (holon-scene pinned at f07a5ee in cewp-sim by twin-globe2, 6a71c08 on
+/// twin/globe; devices.rs byte-identical to 33dc99f where DEVICEGEN-1 was read), each draw is
 /// `holon_scene::world::devices::generate(seed, persons, building, true).0` mapped as
 /// `connection = hd.connection` (0 fixed line, 1 mobile data only, 2 none),
 /// `has_desktop = hd.has_desktop()`, `has_computer = hd.counts[0] + hd.counts[1] + hd.counts[2] > 0`
@@ -1597,7 +1598,7 @@ pub fn report(seed: u64) -> String {
         }
         s.push('\n');
     }
-    s.push_str("\n## Where the home node runs (US 2020 household mix, expected regime, substitution 0.05)\n\nThe host choice is applied only to households that can host it; the rest run phones only, and homes with no internet are at zero. Household types are a stated joint stand-in (DEVICES-0 marginals with DEVICEGEN-1's certified 8.7% that have nothing to host on), to be replaced through `energy::with_mix_from_draws` by draws from `holon_scene::world::devices::generate` (CIRISHolon 33dc99f, pinned in cewp-sim by twin-globe2). Envelope: United States, 2020 (set-top boxes +76% and streaming devices -22% by 2024: the always-on boxes move fastest).\n\n| host | households it reaches | delta short run | delta long run |\n|---|---|---|---|\n");
+    s.push_str("\n## Where the home node runs (US 2020 household mix, expected regime, substitution 0.05)\n\nThe host choice is applied only to households that can host it; the rest run phones only, and homes with no internet are at zero. Household types are a stated joint stand-in (DEVICES-0 marginals with DEVICEGEN-1's certified 8.7% that have nothing to host on), to be replaced through `energy::with_mix_from_draws` by draws from `holon_scene::world::devices::generate` (holon-scene pinned at CIRISHolon f07a5ee in cewp-sim by twin-globe2; devices.rs unchanged since 33dc99f). Envelope: United States, 2020 (set-top boxes +76% and streaming devices -22% by 2024: the always-on boxes move fastest).\n\n| host | households it reaches | delta short run | delta long run |\n|---|---|---|---|\n");
     for sc in [Scenario::MixGateway, Scenario::MixComputer, Scenario::MixBox, Scenario::MixNone] {
         let a = delta(&p, &k, sc, ParameterRegime::Expected, Run::Short);
         let b = delta(&p, &k, sc, ParameterRegime::Expected, Run::Long);

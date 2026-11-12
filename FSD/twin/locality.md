@@ -119,7 +119,7 @@ weekday/weekend day shape. CIRISHolon's `presence.people` (awake, place) and
 path with that hour's home and Wi-Fi shares.
 
 **Host availability is a bracket, not a number** (CIRISHolon PRESENCEGEN-2,
-`holon_scene::world::presence::day`, Generator::Chain certified; US 2022-24 only, and carrying it
+`holon_scene::world::presence::day` at the single holon-scene pin f07a5ee, digest 2016341816221085133, Generator::Chain certified; US 2022-24 only, and carrying it
 to another year is refused). A household's joint presence is not measured. In (c), the home-LAN
 share of a household delivery assumes both ends at home as **independent** per-person draws
 (`home_wifi²`), which is the independent end of that bracket, not a measurement. Independent draws

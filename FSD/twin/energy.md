@@ -916,7 +916,7 @@ box, or none. It applies only to households that can host it; the rest run phone
 homes with no internet are at zero. Household types come from a stated joint stand-in:
 DEVICES-0 marginals, CIRISHolon DEVICEGEN-1's certified 8.7% of households with nothing to host
 on, and a desktop spread evenly over homes with a computer (MODEL). It sits behind the seam
-`holon_scene::world::devices::generate` (CIRISHolon 33dc99f) will fill. The rev is to be agreed
+`holon_scene::world::devices::generate` will fill: the single holon-scene pin is CIRISHolon f07a5ee (twin/globe 6a71c08; it carries DEVICEGEN-1, devices.rs byte-identical to 33dc99f, and PRESENCEGEN-2). The rev was agreed
 with twin-globe2, who is wiring the same call into the kernel. DEVICEGEN-1 declares a gateway
 present with a fixed line and a desktop able to host. Whether the gateway can host and whether
 the desktop is on all day are both unknown, so the shares reached are upper bounds. Envelope:
