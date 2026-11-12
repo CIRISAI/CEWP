@@ -249,9 +249,43 @@ energy_rows! {
     VillageUplinkJPerMb = "network.thin_uplink.j_per_mb", "network", "a village's one thin uplink (satellite or long microwave)", "J/MB", [5.0, 50.0, 500.0], Frontier, None, 2026, "", "",
         "a satellite terminal's 50 to 100 W over a few Mbit/s of use; capacity-bound, so the same in both runs";
     // ---- data centre ----------------------------------------------------------------------------
-    DcMsgWhPerPersonHour = "datacentre.messaging.wh_per_person_hour", "data centre", "messaging and social workload one person drives, per hour of the day", "Wh", [0.02, 0.1, 0.5], Frontier, None, 2026, "",
+    DcMsgWhPerPersonHour = "datacentre.messaging.wh_per_person_hour", "data centre", "C1 delivery: message relay and fan-out one person drives, per hour of the day", "Wh", [0.02, 0.1, 0.5], Frontier, None, 2026, "",
         "POWER-0 not_available: no published figure for messaging alone; row 43 (415 TWh, every workload) is not this",
         "a stated bound: a few Wh per user-day for a whole platform, of which messaging is an unknown share";
+    // ---- C2-C5: what the status quo spends beyond delivery (Eric 2026-11-11: "most of the data
+    // centre energy we are saving is not from the pure processing, it is the storing and
+    // harvesting for personal information and ads"); every row FRONTIER, for CIRISHolon to source
+    SubstitutionShare = "c.substitution_share", "lever", "share of use that MOVES from an ad-funded platform to the mesh (not kept alongside it)", "share", [0.5, 0.5, 0.5], Frontier, None, 2026, "", "",
+        "0 = the mesh is purely additive, the honest floor ('people use phones regardless' applies to platforms too); the report shows 0, 0.25, 0.5 and 1 side by side; it multiplies every status-quo line of C";
+    ShortRunShareC2C4 = "c.short_run_share_c2_c4", "data centre", "share of retention, harvesting and ad-system energy that moves with one user's use while capacity is fixed", "share", [0.0, 0.1, 0.3], Frontier, None, 2026, "", "",
+        "storage and training capacity are provisioned per user and per product, so C2-C4 live in the long run; in the short run only marginal inference and request handling move";
+    UseHoursPerPersonDay = "c.platform_use_hours_per_person_day", "workload", "hours a day a person spends in the ad-funded apps the mesh would replace", "h", [1.0, 2.5, 5.0], Frontier, None, 2026, "", "",
+        "of the order of two to three hours a day of social and messaging use";
+    RetainedGbPerUserYear = "c2.retained_gb_per_user_year", "data centre", "messages, media, contacts and metadata a platform keeps per user per year", "GB", [0.5, 3.0, 20.0], Frontier, None, 2026, "", "",
+        "media-heavy users far above text-only ones";
+    YearsKept = "c2.years_kept", "data centre", "years a platform keeps it", "years", [2.0, 8.0, 20.0], Frontier, None, 2026, "", "",
+        "indefinite retention in practice; the stock per user is GB a year times years kept";
+    ReplicationFactor = "c2.replication_factor", "data centre", "copies across regions and backups", "copies", [2.0, 3.0, 6.0], Frontier, None, 2026, "", "",
+        "three-way replication plus backups and caches";
+    StorageWPerTb = "c2.storage_w_per_tb", "data centre", "storage power per TB held, servers and PUE included", "W/TB", [0.5, 2.0, 8.0], Frontier, None, 2026, "", "",
+        "dense disk at a fraction of a W per TB raw, several W per TB with servers, network and overhead";
+    MeshRetainedGbPerUser = "c2.mesh_retained_gb_per_user", "home node", "content the mesh keeps per member on members' own devices (bounded retention)", "GB", [0.5, 5.0, 30.0], Frontier, Some(true), 2026, "", "",
+        "the custody model holds members' content on their own devices with bounded retention; durability.rs gives bytes held per holder but no time axis";
+    DeviceStorageWPerTb = "c2.device_storage_w_per_tb", "home node", "marginal storage power on a device already on", "W/TB", [0.0, 0.2, 1.0], Frontier, Some(true), 2026, "", "",
+        "flash or a disk that spins anyway: near zero marginal";
+    DcHarvestWhPerUseHour = "c3.harvest_wh_per_use_hour", "data centre", "event logging, tracking pipelines, profiling, feature stores, ranking and ad-targeting training and inference, per user-hour of use", "Wh", [0.05, 0.5, 5.0], Frontier, None, 2026, "", "",
+        "the machinery behind the feed and the ads; no published per-user figure";
+    AdImpressionsPerUseHour = "c4.impressions_per_use_hour", "data centre", "ad impressions per user-hour of use", "impressions", [20.0, 60.0, 200.0], Frontier, None, 2026, "", "",
+        "an ad every few posts in a scrolling feed";
+    AdJPerImpression = "c4.j_per_impression", "data centre", "the ad-tech chain per impression: auction, exchanges, bidders, verification", "J", [0.5, 5.0, 50.0], Frontier, None, 2026, "", "",
+        "dozens of bid requests per impression across exchanges and bidders";
+    AdMbPerUseHour = "c5.ad_and_tracker_mb_per_use_hour", "phone", "ad creatives and tracker bytes downloaded per user-hour of use", "MB", [5.0, 20.0, 100.0], Frontier, Some(false), 2026, "", "",
+        "video ads dominate; trackers are small but many";
+    AdRenderJPerImpression = "c5.render_j_per_impression", "phone", "phone CPU and GPU to fetch scripts and render one ad", "J", [0.05, 0.2, 1.0], Frontier, Some(false), 2026,
+        "phone on a power monitor scrolling a feed with and without an ad blocker", "", "script execution and decoding per ad";
+    TrackerWakesPerPhoneHour = "c5.tracker_wakes_per_phone_hour", "phone", "telemetry and tracker requests that wake the radio, per unsuspended phone-hour", "wakes", [0.0, 6.0, 60.0], Frontier, Some(false), 2026,
+        "a phone's wake log with the platform app installed and idle", "",
+        "a platform app that phones home pays the same promotion and tail term A charges the mesh's idle round";
     DcCallWhPerParticipantHour = "datacentre.call.wh_per_participant_hour", "data centre", "SFU work per participant-hour of a video call", "Wh", [0.1, 1.0, 5.0], Frontier, None, 2026, "", "",
         "an SFU forwards without transcoding; the high end includes recording and transcoding";
     // ---- village ---------------------------------------------------------------------------------
@@ -282,6 +316,12 @@ energy_rows! {
         "DEVICES-0 (US 2020, RECS) via the lead: 72.8%", "envelope: United States, 2020, a pandemic year";
     ShareCellOnly = "mix.cellular_only_share", "workload", "households with cellular data only", "share", [0.146, 0.146, 0.146], Model, None, 2020, "",
         "DEVICES-0 (US 2020): 14.6%", "for them an always-on node has no fixed line to sit behind";
+    ShareNothingToHost = "mix.nothing_to_host_share", "workload", "households with no computer and no fixed line", "share", [0.087, 0.087, 0.087], Model, None, 2020, "",
+        "DEVICEGEN-1 (CIRISHolon 33dc99f): CERTIFIED for the US 2020 (8.8% generated, 8.7% held out; clustering 2.92 against 2.85)", "nothing to host a home node on";
+    ShareNoComputer = "mix.no_computer_share", "workload", "households with no laptop, desktop or tablet", "share", [0.111, 0.111, 0.111], Model, None, 2020, "",
+        "DEVICES-0 / DEVICEGEN-1 (US 2020)", "";
+    ShareDesktop = "mix.desktop_share", "workload", "households with a desktop (DECLARED able to host; on all day: unknown)", "share", [0.408, 0.408, 0.408], Model, None, 2020, "",
+        "DEVICES-0 (US 2020); the desktop is independent of the line among homes with a computer in this stand-in (MODEL) until the generator call replaces it", "";
     ShareNoInternet = "mix.no_internet_share", "workload", "households with no internet", "share", [0.071, 0.071, 0.071], Model, None, 2020, "",
         "DEVICES-0 (US 2020): 7.1%", "they take no part: delta 0; the undeclared 5.5% is left out and the mix renormalised over 94.5%";
 }
@@ -673,6 +713,43 @@ impl Dev {
     }
 }
 
+/// Which part of the delta a line belongs to (term C is split into named components).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Part {
+    /// Terms A and B.
+    Device = 0,
+    /// C1: delivery (message relay and fan-out, the SFU, delivery bytes).
+    C1Delivery = 1,
+    /// C2: retention (storing every user's content, replicated).
+    C2Retention = 2,
+    /// C3: harvesting, profiling, ranking and targeting.
+    C3Harvest = 3,
+    /// C4: the advertising system (auctions and the ad-tech chain).
+    C4Ads = 4,
+    /// C5: the device and network side of ads and tracking.
+    C5DeviceNetwork = 5,
+    /// The mesh's own upstream (network bytes it adds), subtracted in C.
+    MeshUpstream = 6,
+}
+
+impl Part {
+    /// Every part.
+    pub const ALL: [Self; 7] = [Self::Device, Self::C1Delivery, Self::C2Retention, Self::C3Harvest, Self::C4Ads, Self::C5DeviceNetwork, Self::MeshUpstream];
+    /// Name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Device => "A/B",
+            Self::C1Delivery => "C1 delivery",
+            Self::C2Retention => "C2 retention",
+            Self::C3Harvest => "C3 harvesting",
+            Self::C4Ads => "C4 ad system",
+            Self::C5DeviceNetwork => "C5 ad/tracker device+network",
+            Self::MeshUpstream => "mesh upstream (minus)",
+        }
+    }
+}
+
 /// One joule line: `joules = count * value(row)`, entering its term with `sign`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Contribution<T> {
@@ -692,6 +769,8 @@ pub struct Contribution<T> {
     pub joules: T,
     /// +1 adds to the term, -1 subtracts (C's mesh-side upstream).
     pub sign: f64,
+    /// Component.
+    pub part: Part,
 }
 
 /// The scenarios.
@@ -722,11 +801,16 @@ pub enum Scenario {
     /// The same mix with a new box in every home that has a line, and a box with a modem in
     /// every cellular-only home.
     MixBox,
+    /// The mix with the node on a computer already on, in homes with a line and a desktop;
+    /// phones only elsewhere.
+    MixComputer,
+    /// The mix with no home node anywhere: phones only.
+    MixNone,
 }
 
 impl Scenario {
     /// Every scenario.
-    pub const ALL: [Self; 11] = [Self::RouterNode, Self::ComputerNode, Self::AddedBox, Self::PhonesOnly, Self::CellOnlyPhones, Self::CellOnlyBox, Self::CallNeighbourRelay, Self::CallHostedRelay, Self::Village, Self::MixGateway, Self::MixBox];
+    pub const ALL: [Self; 13] = [Self::RouterNode, Self::ComputerNode, Self::AddedBox, Self::PhonesOnly, Self::CellOnlyPhones, Self::CellOnlyBox, Self::CallNeighbourRelay, Self::CallHostedRelay, Self::Village, Self::MixGateway, Self::MixBox, Self::MixComputer, Self::MixNone];
     /// Name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -742,6 +826,8 @@ impl Scenario {
             Self::Village => "village, one thin uplink",
             Self::MixGateway => "US 2020 household mix, node on gateway",
             Self::MixBox => "US 2020 household mix, new box",
+            Self::MixComputer => "US 2020 household mix, node on a computer already on",
+            Self::MixNone => "US 2020 household mix, no home node",
         }
     }
     /// The unit one result is per.
@@ -797,11 +883,13 @@ pub const fn regime_name(r: ParameterRegime) -> &'static str {
 
 struct Ledger<T> {
     v: Vec<Contribution<T>>,
+    part: Part,
 }
 
 impl<T: Q> Ledger<T> {
     fn put(&mut self, term: Term, dev: Dev, row: E, what: &'static str, count: T, value: T, sign: f64) {
-        self.v.push(Contribution { term, dev, row, what, count, value, joules: count * value, sign });
+        let part = if term == Term::AvoidedUpstream { if sign < 0.0 { Part::MeshUpstream } else { self.part } } else { Part::Device };
+        self.v.push(Contribution { term, dev, row, what, count, value, joules: count * value, sign, part });
     }
     /// Network lines for `fixed` and `mobile` MB: the traffic term, plus in the long run the
     /// line's or SIM's capacity share (baseload W x 3600 / its own MB an hour).
@@ -919,12 +1007,14 @@ fn household<T: Q>(l: &mut Ledger<T>, val: &dyn Fn(E) -> T, k: &Counters, r: Par
     if village {
         l.put(B, D::Village, E::VillageNodeW, "the household's share of the village node's seconds", val(E::VillageHouseholds).recip() * T::k(3600.0), val(E::VillageNodeW), 1.0);
     }
-    // ---- C: avoided upstream ----------------------------------------------------------------
-    l.put(C, D::DataCentre, E::DcMsgWhPerPersonHour, "person-hours of the messaging workload (Wh -> J x3600)", h * T::k(3600.0), val(E::DcMsgWhPerPersonHour), 1.0);
+    // ---- C: avoided upstream, by component; every status-quo line times the substitution share
+    let sub = val(E::SubstitutionShare);
+    l.part = Part::C1Delivery;
+    l.put(C, D::DataCentre, E::DcMsgWhPerPersonHour, "C1: person-hours of message delivery that move (Wh -> J x3600 x substitution)", h * T::k(3600.0) * sub, val(E::DcMsgWhPerPersonHour), 1.0);
     // bytes by the access they ride: in a cellular-only home everything at home rides the
     // carrier (with a box, the phones' Wi-Fi is the box's)
     let (fx, mo) = if cell_only { (if home == Home::None { w } else { zero }, if home == Home::None { c } else { one }) } else { (w, c) };
-    let sq_mb = (sends + copies) * mb_act;
+    let sq_mb = (sends + copies) * mb_act * sub;
     let far = if village { one - loc } else { one };
     let mesh_mb = copies * mb_act * far * (one + relayed) * T::k(2.0);
     let sync_mb = T::k(2.0 * k.sync_bytes_per_device_hour / 1e6) * (phones_on * val(E::PhoneScheduleShare) + if has_node { one } else { zero });
@@ -938,6 +1028,60 @@ fn household<T: Q>(l: &mut Ledger<T>, val: &dyn Fn(E) -> T, k: &Counters, r: Par
         l.net(val, run, "mesh sync MB to the seat on access", sync_mb * fx, sync_mb * mo, -1.0);
     }
     let _ = loc;
+    // C2-C4 are provisioned per user: the whole of them in the long run, a marginal share in
+    // the short run
+    let runf = if run == Run::Long { one } else { val(E::ShortRunShareC2C4) };
+    let use_frac = val(E::UseHoursPerPersonDay) * T::k(1.0 / 24.0);
+    let users = h * use_frac; // person-hours of platform use per household-hour
+    l.part = Part::C2Retention;
+    let tb = h * val(E::RetainedGbPerUserYear) * val(E::YearsKept) * val(E::ReplicationFactor) * T::k(1e-3);
+    l.put(C, D::DataCentre, E::StorageWPerTb, "C2: status-quo TB held for the household (GB/user-year x years x replication) x seconds x substitution x run share", tb * T::k(3600.0) * sub * runf, val(E::StorageWPerTb), 1.0);
+    // the mesh keeps members' content on their own devices: a marginal draw on devices on anyway
+    l.put(A, D::HomeNode, E::DeviceStorageWPerTb, "C2 mesh side: TB members keep on their own devices x seconds", h * val(E::MeshRetainedGbPerUser) * T::k(1e-3 * 3600.0), val(E::DeviceStorageWPerTb), 1.0);
+    l.part = Part::C3Harvest;
+    l.put(C, D::DataCentre, E::DcHarvestWhPerUseHour, "C3: user-hours of use x 3600 x substitution x run share", users * T::k(3600.0) * sub * runf, val(E::DcHarvestWhPerUseHour), 1.0);
+    l.part = Part::C4Ads;
+    let imps = users * val(E::AdImpressionsPerUseHour);
+    l.put(C, D::DataCentre, E::AdJPerImpression, "C4: ad impressions x substitution x run share", imps * sub * runf, val(E::AdJPerImpression), 1.0);
+    l.part = Part::C5DeviceNetwork;
+    let ad_mb = users * val(E::AdMbPerUseHour) * sub;
+    l.put(C, D::Phone, E::PhoneJPerMbWifi, "C5: ad and tracker MB on the phone's Wi-Fi", ad_mb * w, val(E::PhoneJPerMbWifi), 1.0);
+    l.put(C, D::Phone, E::PhoneJPerMbCell, "C5: ad and tracker MB on the phone's carrier", ad_mb * c, val(E::PhoneJPerMbCell), 1.0);
+    l.put(C, D::Phone, E::AdRenderJPerImpression, "C5: ads rendered on the phone", imps * sub, val(E::AdRenderJPerImpression), 1.0);
+    let tw = phones_on * val(E::TrackerWakesPerPhoneHour) * sub;
+    l.put(C, D::Phone, E::PhoneWakeJWifi, "C5: tracker and telemetry wake-ups on Wi-Fi", tw * w, val(E::PhoneWakeJWifi), 1.0);
+    l.put(C, D::Phone, E::PhoneCellPromoJ, "C5: tracker and telemetry wake-ups on a carrier", tw * c, val(E::PhoneCellPromoJ), 1.0);
+    l.put(C, D::Phone, E::PhoneCellTailW, "C5: tail seconds after those wake-ups", tw * c * val(E::PhoneCellTailS), val(E::PhoneCellTailW), 1.0);
+    if !village {
+        l.net(val, run, "C5: ad and tracker MB on access", ad_mb * fx, ad_mb * mo, 1.0);
+    } else {
+        l.put(C, D::Network, E::VillageUplinkJPerMb, "C5: ad and tracker MB over the village uplink", ad_mb, val(E::VillageUplinkJPerMb), 1.0);
+    }
+    l.part = Part::C1Delivery;
+}
+
+/// The household types of a mix scenario and their (un-normalised) shares: the host choice is
+/// applied only to the households that can host it; the rest fall back to phones only.
+fn mix_parts<T: Q>(val: &dyn Fn(E) -> T, s: Scenario) -> Vec<(Scenario, T)> {
+    let (fb, co) = (val(E::ShareFixedBroadband), val(E::ShareCellOnly));
+    let one = T::k(1.0);
+    // desktop given a fixed line: desktops spread evenly over homes with a computer (MODEL)
+    let with_computer = one - val(E::ShareNoComputer);
+    let desk_given_fixed = val(E::ShareDesktop) * with_computer.recip() * (fb - (val(E::ShareNoComputer) - val(E::ShareNothingToHost))) * fb.recip();
+    match s {
+        Scenario::MixGateway => vec![(Scenario::RouterNode, fb), (Scenario::CellOnlyPhones, co)],
+        Scenario::MixBox => vec![(Scenario::AddedBox, fb), (Scenario::CellOnlyBox, co)],
+        Scenario::MixComputer => vec![(Scenario::ComputerNode, fb * desk_given_fixed), (Scenario::PhonesOnly, fb * (one - desk_given_fixed)), (Scenario::CellOnlyPhones, co)],
+        _ => vec![(Scenario::PhonesOnly, fb), (Scenario::CellOnlyPhones, co)],
+    }
+}
+
+/// Share of ALL households (US 2020) whose home node runs where the scenario says.
+#[must_use]
+pub fn host_reach(p: &EnergyParams, s: Scenario) -> f64 {
+    // over ALL households: the 5.5% the census leaves undeclared are not reached
+    let parts = mix_parts(&|e| p.get(e), s);
+    parts.iter().filter(|(sc, _)| !matches!(sc, Scenario::PhonesOnly | Scenario::CellOnlyPhones)).map(|(_, w)| *w).sum::<f64>() + 0.0
 }
 
 fn scaled<T: Q>(v: Vec<Contribution<T>>, f: T) -> Vec<Contribution<T>> {
@@ -953,7 +1097,7 @@ fn scaled<T: Q>(v: Vec<Contribution<T>>, f: T) -> Vec<Contribution<T>> {
 pub fn contributions<T: Q>(val: &dyn Fn(E) -> T, k: &Counters, s: Scenario, r: ParameterRegime, run: Run) -> Vec<Contribution<T>> {
     use Dev as D;
     use Term::{AddedDevices as B, AddedOnExisting as A, AvoidedUpstream as C};
-    let mut l = Ledger { v: Vec::new() };
+    let mut l = Ledger { v: Vec::new(), part: Part::C1Delivery };
     match s {
         Scenario::RouterNode => household(&mut l, val, k, r, run, Home::Gateway, false, false),
         Scenario::ComputerNode => household(&mut l, val, k, r, run, Home::Computer, false, false),
@@ -962,13 +1106,15 @@ pub fn contributions<T: Q>(val: &dyn Fn(E) -> T, k: &Counters, s: Scenario, r: P
         Scenario::CellOnlyPhones => household(&mut l, val, k, r, run, Home::None, true, false),
         Scenario::CellOnlyBox => household(&mut l, val, k, r, run, Home::Box, true, false),
         Scenario::Village => household(&mut l, val, k, r, run, Home::None, false, true),
-        Scenario::MixGateway | Scenario::MixBox => {
+        Scenario::MixGateway | Scenario::MixBox | Scenario::MixComputer | Scenario::MixNone => {
             let (fb, co, ni) = (val(E::ShareFixedBroadband), val(E::ShareCellOnly), val(E::ShareNoInternet));
             let norm = (fb + co + ni).recip();
-            let (a, b) = if s == Scenario::MixGateway { (Scenario::RouterNode, Scenario::CellOnlyPhones) } else { (Scenario::AddedBox, Scenario::CellOnlyBox) };
-            let mut v = scaled(contributions(val, k, a, r, run), fb * norm);
-            v.extend(scaled(contributions(val, k, b, r, run), co * norm));
+            let mut v = Vec::new();
+            for (sc, w) in mix_parts(val, s) {
+                v.extend(scaled(contributions(val, k, sc, r, run), w * norm));
+            }
             // homes with no internet take no part: zero lines
+            let _ = (fb, co, ni);
             return v;
         }
         Scenario::CallNeighbourRelay | Scenario::CallHostedRelay => {
@@ -1000,9 +1146,10 @@ pub fn contributions<T: Q>(val: &dyn Fn(E) -> T, k: &Counters, s: Scenario, r: P
             }
             let fixed_h = (k.call[0].hours + k.call[1].hours) / total_h;
             let (fx, mo) = (T::k(fixed_h), T::k(1.0 - fixed_h));
-            l.put(C, D::DataCentre, E::DcCallWhPerParticipantHour, "SFU participant-hours (Wh -> J x3600)", T::k(3600.0), val(E::DcCallWhPerParticipantHour), 1.0);
+            let sub = val(E::SubstitutionShare);
+            l.put(C, D::DataCentre, E::DcCallWhPerParticipantHour, "C1: SFU participant-hours that move (Wh -> J x3600 x substitution)", T::k(3600.0) * sub, val(E::DcCallWhPerParticipantHour), 1.0);
             let sq = T::k(stream * n);
-            l.net(val, run, "SFU call MB on access (one up, N - 1 down)", sq * fx, sq * mo, 1.0);
+            l.net(val, run, "C1: SFU call MB on access (one up, N - 1 down) x substitution", sq * fx * sub, sq * mo * sub, 1.0);
             if hosted {
                 // one upload to the hosted relay and N - 1 downloads, as the SFU's; the relay
                 // is an SFU in a data centre, priced with the SFU's own row
@@ -1133,6 +1280,41 @@ pub struct BreakEven {
     /// Whether the zero lies inside the row's own interval (the sign is open on this input).
     pub inside: bool,
 }
+
+/// Point joules per [`Part`] (signed as each enters `C`; `Part::Device` is A + B).
+#[must_use]
+pub fn by_part(p: &EnergyParams, k: &Counters, s: Scenario, r: ParameterRegime, run: Run) -> [f64; 7] {
+    let mut out = [0.0; 7];
+    for c in contributions(&|e| p.get(e), k, s, r, run) {
+        out[c.part as usize] += c.sign * c.joules;
+    }
+    out
+}
+
+/// The parts a row is priced in for `s` (for the break-even table's "component" column).
+#[must_use]
+pub fn parts_of(p: &EnergyParams, k: &Counters, s: Scenario, r: ParameterRegime, run: Run, row: E) -> Vec<Part> {
+    let mut v: Vec<Part> = contributions(&|e| p.get(e), k, s, r, run).into_iter().filter(|c| c.row == row).map(|c| c.part).collect();
+    v.sort();
+    v.dedup();
+    v
+}
+
+/// The component an input that only scales a count belongs to (by its name).
+#[must_use]
+pub fn input_component(name: &str) -> &'static str {
+    if name.starts_with("c2.") { "C2 retention (count)" }
+    else if name.starts_with("c3.") { "C3 harvesting (count)" }
+    else if name.starts_with("c4.") { "C4 ad system (count)" }
+    else if name.starts_with("c5.") { "C5 ad/tracker (count)" }
+    else if name.starts_with("c.") { "C2-C5 (count)" }
+    else if name.starts_with("mix.") { "household mix" }
+    else if name.starts_with("village.") || name.starts_with("hosted.") || name.starts_with("home_node.") { "A/B (count)" }
+    else { "A and C (count)" }
+}
+
+/// Substitution shares the report shows side by side.
+pub const SUBSTITUTIONS: [f64; 4] = [0.0, 0.25, 0.5, 1.0];
 
 /// The phone-radio rows, listed first in the break-even table.
 pub const PHONE_RADIO_ROWS: [E; 8] = [E::PhoneCellRoundShare, E::WifiShare, E::CellOnlyWifiShare, E::PhoneCellTailS, E::RoundCadenceS, E::PhoneCellTailW, E::PhoneCellPromoJ, E::PhoneScheduleShare];
@@ -1328,6 +1510,32 @@ pub fn report(seed: u64) -> String {
         }
         s.push('\n');
     }
+    s.push_str("\n## Where the home node runs (US 2020 household mix, expected regime, substitution 0.5)\n\nThe host choice is applied only to households that can host it; the rest run phones only, and homes with no internet are at zero. Household types are a stated joint stand-in (DEVICES-0 marginals with DEVICEGEN-1's certified 8.7% that have nothing to host on), to be replaced by `holon_scene::world::devices::generate` (CIRISHolon 33dc99f) through the same seam. Envelope: United States, 2020 (set-top boxes +76% and streaming devices -22% by 2024: the always-on boxes move fastest).\n\n| host | households it reaches | delta short run | delta long run |\n|---|---|---|---|\n");
+    for sc in [Scenario::MixGateway, Scenario::MixComputer, Scenario::MixBox, Scenario::MixNone] {
+        let a = delta(&p, &k, sc, ParameterRegime::Expected, Run::Short);
+        let b = delta(&p, &k, sc, ParameterRegime::Expected, Run::Long);
+        s.push_str(&format!("| {} | {} | {} [{}, {}] {} | {} [{}, {}] {} |\n", sc.as_str(), format!("{:.1}%", 100.0 * host_reach(&p, sc)), j(a.net), j(a.net_bounds.lo), j(a.net_bounds.hi), sign_word(&a), j(b.net), j(b.net_bounds.lo), j(b.net_bounds.hi), sign_word(&b)));
+    }
+    // term C by component and the substitution share
+    s.push_str("\n## Term C by component (expected regime, stand-in presence, substitution 0.5, point J)\n\nC1 delivery, C2 retention, C3 harvesting and profiling, C4 the ad system, C5 the device and network side of ads and tracking; the mesh's own upstream is subtracted. C2-C4 are provisioned per user and per product: the long run counts them whole, the short run only `c.short_run_share_c2_c4` (0.1) of them. Every row is FRONTIER: no dataset.\n\n| scenario | run | C1 delivery | C2 retention | C3 harvesting | C4 ad system | C5 ad/tracker device+network | mesh upstream | C total | A + B |\n|---|---|---|---|---|---|---|---|---|---|\n");
+    for sc in Scenario::ALL {
+        for run in Run::ALL {
+            let b = by_part(&p, &k, sc, ParameterRegime::Expected, run);
+            let ct: f64 = b[1..].iter().sum();
+            s.push_str(&format!("| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n", sc.as_str(), run.as_str(), j(b[1]), j(b[2]), j(b[3]), j(b[4]), j(b[5]), j(b[6]), j(ct), j(b[0])));
+        }
+    }
+    s.push_str("\n## The substitution share side by side (expected regime): delta point [bounds] at 0, 0.25, 0.5 and 1\n\nAt 0 the mesh is purely additive: nothing moves off the platform, so nothing upstream is avoided. That is the honest floor.\n\n| scenario | run | 0 | 0.25 | 0.5 | 1 |\n|---|---|---|---|---|---|\n");
+    for sc in Scenario::ALL {
+        for run in Run::ALL {
+            s.push_str(&format!("| {} | {} |", sc.as_str(), run.as_str()));
+            for x in SUBSTITUTIONS {
+                let d = delta(&p.with(E::SubstitutionShare, x), &k, sc, ParameterRegime::Expected, run);
+                s.push_str(&format!(" {} [{}, {}] {} |", j(d.net), j(d.net_bounds.lo), j(d.net_bounds.hi), sign_word(&d).split(' ').next().unwrap_or("")));
+            }
+            s.push('\n');
+        }
+    }
     s.push_str("\n## The delta by scenario, regime and network run\n\n| scenario | per | regime | run | A added on existing | B added devices | C avoided upstream (net) | delta = A + B - C | enclosure | sign | class |\n|---|---|---|---|---|---|---|---|---|---|---|\n");
     for sc in Scenario::ALL {
         for r in REGIMES {
@@ -1351,13 +1559,13 @@ pub fn report(seed: u64) -> String {
         }
         s.push('\n');
     }
-    s.push_str("\n## Break-even (expected regime): the value of one input, others at default, where delta = 0\n\nPhone-radio inputs first (levers are fixed at what the edge does today; their zero is where a design change would flip the sign), then every input whose zero lies inside its own interval, then the largest movers.\n\n| scenario | run | input | class | interval | delta at lo / hi | zero at | inside interval |\n|---|---|---|---|---|---|---|---|\n");
+    s.push_str("\n## Break-even (expected regime): the value of one input, others at default, where delta = 0\n\nPhone-radio inputs first (levers are fixed at what the edge does today; their zero is where a design change would flip the sign), then every input whose zero lies inside its own interval, then the largest movers.\n\n| scenario | run | input | component | class | interval | delta at lo / hi | zero at | inside interval |\n|---|---|---|---|---|---|---|---|---|\n");
     for sc in Scenario::ALL {
         for run in Run::ALL {
             let be = break_even(&p, &k, sc, ParameterRegime::Expected, run);
             let mut others = 0;
             for b in &be {
-                let radio = PHONE_RADIO_ROWS.contains(&b.row);
+                let radio = PHONE_RADIO_ROWS.contains(&b.row) || b.row == E::SubstitutionShare;
                 if !radio && !b.inside {
                     others += 1;
                     if others > 2 {
@@ -1365,7 +1573,8 @@ pub fn report(seed: u64) -> String {
                     }
                 }
                 let sp = spec(b.row);
-                s.push_str(&format!("| {} | {} | `{}` | {} | [{}, {}] {} | {} / {} | {} | {} |\n", sc.as_str(), run.as_str(), sp.name, sp.class.as_str(), sp.lo, sp.hi, sp.unit, j(b.net_at_lo), j(b.net_at_hi), b.at.map_or("none in range".to_string(), |z| format!("{z:.4}")), if b.inside { "yes" } else { "no" }));
+                let parts: Vec<&str> = parts_of(&p, &k, sc, ParameterRegime::Expected, run, b.row).iter().map(|x| x.as_str()).collect();
+                s.push_str(&format!("| {} | {} | `{}` | {} | {} | [{}, {}] {} | {} / {} | {} | {} |\n", sc.as_str(), run.as_str(), sp.name, if parts.is_empty() { input_component(sp.name).to_string() } else { parts.join(", ") }, sp.class.as_str(), sp.lo, sp.hi, sp.unit, j(b.net_at_lo), j(b.net_at_hi), b.at.map_or("none in range".to_string(), |z| format!("{z:.4}")), if b.inside { "yes" } else { "no" }));
             }
         }
     }
@@ -1651,10 +1860,38 @@ mod tests {
     }
 
     #[test]
+    fn at_zero_substitution_nothing_upstream_is_avoided() {
+        let k = counters();
+        let p = EnergyParams::default().with(E::SubstitutionShare, 0.0);
+        for sc in Scenario::ALL {
+            for run in Run::ALL {
+                let b = by_part(&p, &k, sc, ParameterRegime::Expected, run);
+                for x in &b[1..6] {
+                    assert!(x.abs() < 1e-9, "{sc:?} {run:?}: status-quo lines vanish at substitution 0");
+                }
+                // more substitution never costs more
+                let n0 = net_at(&p, &k, sc, ParameterRegime::Expected, run);
+                let n1 = net_at(&p.with(E::SubstitutionShare, 1.0), &k, sc, ParameterRegime::Expected, run);
+                assert!(n1 <= n0 + 1e-9);
+            }
+        }
+        // C2-C4 count whole only in the long run
+        let q = EnergyParams::default();
+        let s = by_part(&q, &k, Scenario::PhonesOnly, ParameterRegime::Expected, Run::Short);
+        let l = by_part(&q, &k, Scenario::PhonesOnly, ParameterRegime::Expected, Run::Long);
+        assert!(l[2] > s[2] && l[3] > s[3] && l[4] > s[4]);
+    }
+
+    #[test]
     fn deterministic_by_seed() {
         assert_eq!(Counters::from_hooks(5), Counters::from_hooks(5));
         assert_eq!(view_delta(5), view_delta(5));
         assert_eq!(view_delta(5).len(), Scenario::ALL.len() * REGIMES.len() * 2 * DELTA_STRIDE);
+        let p = EnergyParams::default();
+        // the gateway reaches every fixed-line home (72.8% of all), a desktop fewer, none nobody
+        assert!((host_reach(&p, Scenario::MixGateway) - 0.728).abs() < 1e-9);
+        assert!(host_reach(&p, Scenario::MixComputer) < host_reach(&p, Scenario::MixGateway));
+        assert!(host_reach(&p, Scenario::MixNone) == 0.0);
         assert_eq!(view_break_even(5).len() % BREAK_EVEN_STRIDE, 0);
         assert_eq!(view_phone_wh(5).len(), 81 * PHONE_STRIDE);
     }

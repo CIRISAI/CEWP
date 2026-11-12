@@ -79,7 +79,22 @@ break-even table reports the value at which each lever would flip the sign.
 | `network.mobile.baseload_w` | network | mobile baseload per subscriber (scales with capacity in the long run) | W | 0.6 / 1.2 / 4.6 | MODEL | yes | 2024 | - | POWER-0 rows 36 (1.2 W per subscriber, 4G model) and 5 (Arcep 40 kWh per SIM a year = 4.6 W all in) | - |
 | `network.mobile.sim_mb_per_hour` | network | a SIM's own traffic, to share its capacity | MB/h | 10.0 / 25.0 / 60.0 | FRONTIER | n/a | 2026 | - | ours | of the order of 15 to 20 GB a month |
 | `network.thin_uplink.j_per_mb` | network | a village's one thin uplink (satellite or long microwave) | J/MB | 5.0 / 50.0 / 500.0 | FRONTIER | n/a | 2026 | - | ours | a satellite terminal's 50 to 100 W over a few Mbit/s of use; capacity-bound, so the same in both runs |
-| `datacentre.messaging.wh_per_person_hour` | data centre | messaging and social workload one person drives, per hour of the day | Wh | 0.02 / 0.1 / 0.5 | FRONTIER | n/a | 2026 | - | POWER-0 not_available: no published figure for messaging alone; row 43 (415 TWh, every workload) is not this | a stated bound: a few Wh per user-day for a whole platform, of which messaging is an unknown share |
+| `datacentre.messaging.wh_per_person_hour` | data centre | C1 delivery: message relay and fan-out one person drives, per hour of the day | Wh | 0.02 / 0.1 / 0.5 | FRONTIER | n/a | 2026 | - | POWER-0 not_available: no published figure for messaging alone; row 43 (415 TWh, every workload) is not this | a stated bound: a few Wh per user-day for a whole platform, of which messaging is an unknown share |
+| `c.substitution_share` | lever | share of use that MOVES from an ad-funded platform to the mesh (not kept alongside it) | share | 0.5 / 0.5 / 0.5 | FRONTIER | n/a | 2026 | - | ours | 0 = the mesh is purely additive, the honest floor ('people use phones regardless' applies to platforms too); the report shows 0, 0.25, 0.5 and 1 side by side; it multiplies every status-quo line of C |
+| `c.short_run_share_c2_c4` | data centre | share of retention, harvesting and ad-system energy that moves with one user's use while capacity is fixed | share | 0.0 / 0.1 / 0.3 | FRONTIER | n/a | 2026 | - | ours | storage and training capacity are provisioned per user and per product, so C2-C4 live in the long run; in the short run only marginal inference and request handling move |
+| `c.platform_use_hours_per_person_day` | workload | hours a day a person spends in the ad-funded apps the mesh would replace | h | 1.0 / 2.5 / 5.0 | FRONTIER | n/a | 2026 | - | ours | of the order of two to three hours a day of social and messaging use |
+| `c2.retained_gb_per_user_year` | data centre | messages, media, contacts and metadata a platform keeps per user per year | GB | 0.5 / 3.0 / 20.0 | FRONTIER | n/a | 2026 | - | ours | media-heavy users far above text-only ones |
+| `c2.years_kept` | data centre | years a platform keeps it | years | 2.0 / 8.0 / 20.0 | FRONTIER | n/a | 2026 | - | ours | indefinite retention in practice; the stock per user is GB a year times years kept |
+| `c2.replication_factor` | data centre | copies across regions and backups | copies | 2.0 / 3.0 / 6.0 | FRONTIER | n/a | 2026 | - | ours | three-way replication plus backups and caches |
+| `c2.storage_w_per_tb` | data centre | storage power per TB held, servers and PUE included | W/TB | 0.5 / 2.0 / 8.0 | FRONTIER | n/a | 2026 | - | ours | dense disk at a fraction of a W per TB raw, several W per TB with servers, network and overhead |
+| `c2.mesh_retained_gb_per_user` | home node | content the mesh keeps per member on members' own devices (bounded retention) | GB | 0.5 / 5.0 / 30.0 | FRONTIER | yes | 2026 | - | ours | the custody model holds members' content on their own devices with bounded retention; durability.rs gives bytes held per holder but no time axis |
+| `c2.device_storage_w_per_tb` | home node | marginal storage power on a device already on | W/TB | 0.0 / 0.2 / 1.0 | FRONTIER | yes | 2026 | - | ours | flash or a disk that spins anyway: near zero marginal |
+| `c3.harvest_wh_per_use_hour` | data centre | event logging, tracking pipelines, profiling, feature stores, ranking and ad-targeting training and inference, per user-hour of use | Wh | 0.05 / 0.5 / 5.0 | FRONTIER | n/a | 2026 | - | ours | the machinery behind the feed and the ads; no published per-user figure |
+| `c4.impressions_per_use_hour` | data centre | ad impressions per user-hour of use | impressions | 20.0 / 60.0 / 200.0 | FRONTIER | n/a | 2026 | - | ours | an ad every few posts in a scrolling feed |
+| `c4.j_per_impression` | data centre | the ad-tech chain per impression: auction, exchanges, bidders, verification | J | 0.5 / 5.0 / 50.0 | FRONTIER | n/a | 2026 | - | ours | dozens of bid requests per impression across exchanges and bidders |
+| `c5.ad_and_tracker_mb_per_use_hour` | phone | ad creatives and tracker bytes downloaded per user-hour of use | MB | 5.0 / 20.0 / 100.0 | FRONTIER | no | 2026 | - | ours | video ads dominate; trackers are small but many |
+| `c5.render_j_per_impression` | phone | phone CPU and GPU to fetch scripts and render one ad | J | 0.05 / 0.2 / 1.0 | FRONTIER | no | 2026 | phone on a power monitor scrolling a feed with and without an ad blocker | ours | script execution and decoding per ad |
+| `c5.tracker_wakes_per_phone_hour` | phone | telemetry and tracker requests that wake the radio, per unsuspended phone-hour | wakes | 0.0 / 6.0 / 60.0 | FRONTIER | no | 2026 | a phone's wake log with the platform app installed and idle | ours | a platform app that phones home pays the same promotion and tail term A charges the mesh's idle round |
 | `datacentre.call.wh_per_participant_hour` | data centre | SFU work per participant-hour of a video call | Wh | 0.1 / 1.0 / 5.0 | FRONTIER | n/a | 2026 | - | ours | an SFU forwards without transcoding; the high end includes recording and transcoding |
 | `village.node.w` | village node | one added node with its radio and solar controller (full draw) | W | 5.0 / 10.0 / 20.0 | MODEL | no | 2026 | - | ours | a small server plus a Wi-Fi or mesh radio |
 | `village.households` | workload | households behind one village node and uplink | households | 20.0 / 50.0 / 200.0 | MODEL | n/a | 2026 | - | ours | a village of a few hundred people |
@@ -92,6 +107,9 @@ break-even table reports the value at which each lever would flip the sign.
 | `phone.keepalive_bytes_per_mapping_hour` | workload | bytes to hold one NAT mapping for an hour | bytes | 0.0 / 2000.0 / 20000.0 | FRONTIER | n/a | 2026 | packet capture of a phone holding punched paths | ours | keepalives ride the 30 s round wake, so they add bytes, not wake-ups |
 | `mix.fixed_broadband_share` | workload | households with fixed broadband (a gateway) | share | 0.728 / 0.728 / 0.728 | MODEL | n/a | 2020 | - | DEVICES-0 (US 2020, RECS) via the lead: 72.8% | envelope: United States, 2020, a pandemic year |
 | `mix.cellular_only_share` | workload | households with cellular data only | share | 0.146 / 0.146 / 0.146 | MODEL | n/a | 2020 | - | DEVICES-0 (US 2020): 14.6% | for them an always-on node has no fixed line to sit behind |
+| `mix.nothing_to_host_share` | workload | households with no computer and no fixed line | share | 0.087 / 0.087 / 0.087 | MODEL | n/a | 2020 | - | DEVICEGEN-1 (CIRISHolon 33dc99f): CERTIFIED for the US 2020 (8.8% generated, 8.7% held out; clustering 2.92 against 2.85) | nothing to host a home node on |
+| `mix.no_computer_share` | workload | households with no laptop, desktop or tablet | share | 0.111 / 0.111 / 0.111 | MODEL | n/a | 2020 | - | DEVICES-0 / DEVICEGEN-1 (US 2020) | - |
+| `mix.desktop_share` | workload | households with a desktop (DECLARED able to host; on all day: unknown) | share | 0.408 / 0.408 / 0.408 | MODEL | n/a | 2020 | - | DEVICES-0 (US 2020); the desktop is independent of the line among homes with a computer in this stand-in (MODEL) until the generator call replaces it | - |
 | `mix.no_internet_share` | workload | households with no internet | share | 0.071 / 0.071 / 0.071 | MODEL | n/a | 2020 | - | DEVICES-0 (US 2020): 7.1% | they take no part: delta 0; the undeclared 5.5% is left out and the mix renormalised over 94.5% |
 
 Rows ours to measure on real hardware (**needs measurement on device**):
@@ -165,18 +183,141 @@ elsewhere, 0.2 (both FRONTIER, since PRESENCE-0 has no networks). Over device-ho
 | scenario | stand-in (unsuspended 0.85, Wi-Fi 0.65) | PRESENCE-0, edge as is (rounds while unsuspended) | PRESENCE-0, rounds only while awake |
 |---|---|---|---|
 | (inputs) | Wi-Fi share 0.650, rounds while unsuspended 1.000, phone Wh/day 3.23 | Wi-Fi share 0.852, rounds while unsuspended 1.000, phone Wh/day 1.38 | Wi-Fi share 0.783, rounds while unsuspended 0.733, phone Wh/day 1.48 |
-| home node on existing gateway | 2197 [-4948, 14819] open (point > 0) | 1627 [-4948, 14819] open (point > 0) | 1658 [-4948, 14819] open (point > 0) |
-| home node on computer already on | 3637 [-4588, 20219] open (point > 0) | 3067 [-4588, 20219] open (point > 0) | 3098 [-4588, 20219] open (point > 0) |
-| home node on a new always-on box | 22357 [6572, 58991] cost (interval > 0) | 21787 [6572, 58991] cost (interval > 0) | 21818 [6572, 58991] cost (interval > 0) |
-| phones only (home with a fixed line) | 540 [-5330, 8324] open (point > 0) | -30.7 [-5330, 8324] open (point < 0) | 0.152 [-5330, 8324] open (point > 0) |
-| phones only (cellular-only home) | 2101 [-5239, 11926] open (point > 0) | 2101 [-5239, 11926] open (point > 0) | 1430 [-5239, 11926] open (point > 0) |
-| new box on cellular (cellular-only home) | 29585 [10177, 73803] cost (interval > 0) | 29021 [10177, 73803] cost (interval > 0) | 29050 [10177, 73803] cost (interval > 0) |
-| village, one thin uplink | 263 [-7463, 6864] open (point > 0) | 263 [-7463, 6864] open (point > 0) | 261 [-7463, 6864] open (point > 0) |
-| US 2020 household mix, node on gateway | 2018 [-4621, 13259] open (point > 0) | 1578 [-4621, 13259] open (point > 0) | 1498 [-4621, 13259] open (point > 0) |
-| US 2020 household mix, new box | 21794 [6635, 56847] cost (interval > 0) | 21267 [6635, 56847] cost (interval > 0) | 21296 [6635, 56847] cost (interval > 0) |
+| home node on existing gateway | 2532 [-36523, 15435] open (point > 0) | 1978 [-36523, 15435] open (point > 0) | 2003 [-36523, 15435] open (point > 0) |
+| home node on computer already on | 3972 [-36163, 20835] open (point > 0) | 3418 [-36163, 20835] open (point > 0) | 3443 [-36163, 20835] open (point > 0) |
+| home node on a new always-on box | 22692 [-25003, 59607] open (point > 0) | 22138 [-25003, 59607] open (point > 0) | 22163 [-25003, 59607] open (point > 0) |
+| phones only (home with a fixed line) | 874 [-36907, 8941] open (point > 0) | 321 [-36907, 8941] open (point > 0) | 346 [-36907, 8941] open (point > 0) |
+| phones only (cellular-only home) | 2388 [-37201, 12662] open (point > 0) | 2388 [-37201, 12662] open (point > 0) | 1717 [-37201, 12662] open (point > 0) |
+| new box on cellular (cellular-only home) | 29907 [-21694, 74539] open (point > 0) | 29356 [-21694, 74539] open (point > 0) | 29381 [-21694, 74539] open (point > 0) |
+| village, one thin uplink | 550 [-51750, 11063] open (point > 0) | 550 [-51750, 11063] open (point > 0) | 548 [-51750, 11063] open (point > 0) |
+| US 2020 household mix, node on gateway | 2319 [-33884, 13847] open (point > 0) | 1893 [-33884, 13847] open (point > 0) | 1809 [-33884, 13847] open (point > 0) |
+| US 2020 household mix, new box | 22102 [-22613, 57436] open (point > 0) | 21590 [-22613, 57436] open (point > 0) | 21613 [-22613, 57436] open (point > 0) |
+| US 2020 household mix, node on a computer already on | 2101 [-33925, 12911] open (point > 0) | 1675 [-33925, 12911] open (point > 0) | 1591 [-33925, 12911] open (point > 0) |
+| US 2020 household mix, no home node | 1042 [-34180, 8844] open (point > 0) | 616 [-34180, 8844] open (point > 0) | 532 [-34180, 8844] open (point > 0) |
+| host | households it reaches | delta short run | delta long run |
+|---|---|---|---|
+| US 2020 household mix, node on gateway | 72.8% | 2319 [-33884, 13847] open (point > 0) | 1715 [-137400, 71371] open (point > 0) |
+| US 2020 household mix, node on a computer already on | 32.3% | 2101 [-33925, 12911] open (point > 0) | 1492 [-137507, 70369] open (point > 0) |
+| US 2020 household mix, new box | 87.4% | 22102 [-22613, 57436] open (point > 0) | 21490 [-126120, 113515] open (point > 0) |
+| US 2020 household mix, no home node | 0.0% | 1042 [-34180, 8844] open (point > 0) | 430 [-137814, 66250] open (point > 0) |
 
 The bounds are the same in all three columns. They span every row's full interval, which
 contains all three settings. The points move.
+
+## 4b. Term C rebuilt as named components (Eric, 2026-11-11)
+
+Eric's correction: "most of the data center energy we are saving is not from the pure
+processing, it is the storing and harvesting for personal information and ads". Term C is now
+a sum of named components. Each has its own rows, class, interval and a substitution share, so
+the claim can be tested rather than assumed:
+
+* **C1 delivery**: message relay and fan-out (`datacentre.messaging.wh_per_person_hour`), the
+  SFU for calls, and the status quo's delivery bytes on access.
+* **C2 retention**: every user's content kept, replicated and held:
+  GB/user-year × years kept × replication × W/TB. The mesh side (content on members' own
+  devices with bounded retention, a marginal draw on devices that are on anyway) goes in A.
+* **C3 harvesting**: event logging, tracking, profiling, feature stores, and ranking and
+  targeting training and inference, per user-hour of use.
+* **C4 the ad system**: impressions per user-hour × J per impression across the ad-tech chain.
+* **C5 the device and network side**: ad and tracker bytes on the phone's radio and on access,
+  ads rendered on the phone, and tracker and telemetry wake-ups. These pay the same promotion
+  and tail that term A charges the mesh's idle rounds.
+
+Every C2-C5 row is FRONTIER with stated reasoning, laid out for CIRISHolon to source row for row.
+**The substitution share** (`c.substitution_share`) multiplies every status-quo line of C. It
+is the share of use that actually moves off an ad-funded platform rather than being kept
+alongside it. At 0 the mesh is purely additive, which is the honest floor. **C2-C4 live in the
+long run**: storage and training capacity are provisioned per user and per product. In the short
+run only `c.short_run_share_c2_c4` (0.1, FRONTIER) of them moves with one user's use.
+
+### C by component (expected regime, substitution 0.5, point J per household-hour or participant-hour)
+
+| scenario | run | C1 delivery | C2 retention | C3 harvesting | C4 ad system | C5 ad/tracker device+network | mesh upstream | C total | A + B |
+|---|---|---|---|---|---|---|---|---|---|
+| home node on existing gateway | short run | 455 | 64.8 | 23.4 | 3.9 | 37.3 | -25.1 | 559 | 3091 |
+| home node on existing gateway | long run | 523 | 648 | 234 | 39.1 | 208 | -395 | 1257 | 3091 |
+| home node on computer already on | short run | 455 | 64.8 | 23.4 | 3.9 | 37.3 | -25.1 | 559 | 4531 |
+| home node on computer already on | long run | 523 | 648 | 234 | 39.1 | 208 | -395 | 1257 | 4531 |
+| home node on a new always-on box | short run | 455 | 64.8 | 23.4 | 3.9 | 37.3 | -25.1 | 559 | 23251 |
+| home node on a new always-on box | long run | 523 | 648 | 234 | 39.1 | 208 | -395 | 1257 | 23251 |
+| phones only (home with a fixed line) | short run | 455 | 64.8 | 23.4 | 3.9 | 37.3 | -24.4 | 560 | 1434 |
+| phones only (home with a fixed line) | long run | 523 | 648 | 234 | 39.1 | 208 | -385 | 1267 | 1434 |
+| phones only (cellular-only home) | short run | 461 | 64.8 | 23.4 | 3.9 | 91.7 | -68.1 | 577 | 2965 |
+| phones only (cellular-only home) | long run | 624 | 648 | 234 | 39.1 | 499 | -1032 | 1012 | 2965 |
+| new box on cellular (cellular-only home) | short run | 463 | 64.8 | 23.4 | 3.9 | 57.6 | -69.2 | 543 | 30451 |
+| new box on cellular (cellular-only home) | long run | 642 | 648 | 234 | 39.1 | 508 | -1046 | 1025 | 30451 |
+| call relayed by a neighbour vs SFU | short run | 6674 | 0.000 | 0.000 | 0.000 | 0.000 | -14774 | -8101 | 797 |
+| call relayed by a neighbour vs SFU | long run | 80287 | 0.000 | 0.000 | 0.000 | 0.000 | -237932 | -157645 | 797 |
+| call relayed in a data centre vs SFU | short run | 6674 | 0.000 | 0.000 | 0.000 | 0.000 | -9747 | -3074 | 4108 |
+| call relayed in a data centre vs SFU | long run | 80287 | 0.000 | 0.000 | 0.000 | 0.000 | -156974 | -76687 | 4108 |
+| village, one thin uplink | short run | 502 | 64.8 | 23.4 | 3.9 | 132 | -97.4 | 629 | 1179 |
+| village, one thin uplink | long run | 502 | 648 | 234 | 39.1 | 132 | -97.4 | 1458 | 1179 |
+| US 2020 household mix, node on gateway | short run | 422 | 59.9 | 21.7 | 3.6 | 42.9 | -29.9 | 520 | 2839 |
+| US 2020 household mix, node on gateway | long run | 499 | 599 | 217 | 36.1 | 237 | -464 | 1124 | 2839 |
+| US 2020 household mix, new box | short run | 422 | 59.9 | 21.7 | 3.6 | 37.6 | -30.0 | 515 | 22616 |
+| US 2020 household mix, new box | long run | 502 | 599 | 217 | 36.1 | 239 | -466 | 1126 | 22616 |
+| US 2020 household mix, node on a computer already on | short run | 422 | 59.9 | 21.7 | 3.6 | 42.9 | -29.6 | 520 | 2621 |
+| US 2020 household mix, node on a computer already on | long run | 499 | 599 | 217 | 36.1 | 237 | -459 | 1129 | 2621 |
+| US 2020 household mix, no home node | short run | 422 | 59.9 | 21.7 | 3.6 | 42.9 | -29.3 | 520 | 1562 |
+| US 2020 household mix, no home node | long run | 499 | 599 | 217 | 36.1 | 237 | -456 | 1133 | 1562 |
+
+### The substitution share side by side (delta point [bounds] sign)
+
+| scenario | run | 0 | 0.25 | 0.5 | 1 |
+|---|---|---|---|---|---|
+| home node on existing gateway | short run | 3116 [429, 15738] cost | 2824 [-17986, 15587] open | 2532 [-36523, 15435] open | 1948 [-73598, 15133] open |
+| home node on existing gateway | long run | 3486 [434, 83458] cost | 2660 [-71435, 76838] open | 1834 [-145233, 70218] open | 182 [-292829, 56977] open |
+| home node on computer already on | short run | 4556 [789, 21138] cost | 4264 [-17626, 20987] open | 3972 [-36163, 20835] open | 3388 [-73238, 20533] open |
+| home node on computer already on | long run | 4926 [794, 88858] cost | 4100 [-71075, 82238] open | 3274 [-144873, 75618] open | 1622 [-292469, 62377] open |
+| home node on a new always-on box | short run | 23276 [11949, 59910] cost | 22984 [-6466, 59759] open | 22692 [-25003, 59607] open | 22108 [-62078, 59305] open |
+| home node on a new always-on box | long run | 23646 [11954, 127630] cost | 22820 [-59915, 121010] open | 21994 [-133713, 114390] open | 20342 [-281309, 101149] open |
+| phones only (home with a fixed line) | short run | 1458 [46.7, 9244] cost | 1166 [-18370, 9092] open | 874 [-36907, 8941] open | 290 [-73982, 8638] open |
+| phones only (home with a fixed line) | long run | 1818 [51.1, 76810] cost | 992 [-71973, 70190] open | 166 [-145771, 63569] open | -1486 [-293366, 50329] open |
+| phones only (cellular-only home) | short run | 3033 [109, 13090] cost | 2711 [-18478, 12876] open | 2388 [-37201, 12662] open | 1742 [-74647, 12233] open |
+| phones only (cellular-only home) | long run | 3997 [137, 133460] cost | 2975 [-81001, 122647] open | 1953 [-165157, 111833] open | -91.3 [-333467, 90207] open |
+| new box on cellular (cellular-only home) | short run | 30520 [15554, 74967] cost | 30214 [-3040, 74753] open | 29907 [-21694, 74539] open | 29295 [-59078, 74111] open |
+| new box on cellular (cellular-only home) | long run | 31497 [15595, 185984] cost | 30461 [-65744, 175170] open | 29425 [-149829, 164357] open | 27354 [-317999, 142731] open |
+| call relayed by a neighbour vs SFU | short run | 15572 [6155, 33832] cost | 12235 [670, 28760] cost | 8898 [-4816, 23687] open | 2224 [-15786, 13542] open |
+| call relayed by a neighbour vs SFU | long run | 238730 [50263, 2062796] cost | 198586 [37503, 1723075] cost | 158443 [24742, 1383355] cost | 78156 [-778, 703914] open |
+| call relayed in a data centre vs SFU | short run | 13856 [4393, 40550] cost | 10519 [3317, 31067] cost | 7182 [2242, 21585] cost | 508 [91.1, 2620] cost |
+| call relayed in a data centre vs SFU | long run | 161082 [33493, 1379142] cost | 120939 [25142, 1035011] cost | 80795 [16792, 690881] cost | 508 [91.1, 2620] cost |
+| village, one thin uplink | short run | 1276 [129, 17566] cost | 913 [-25624, 14315] open | 550 [-51750, 11063] open | -176 [-106318, 7040] open |
+| village, one thin uplink | long run | 1276 [129, 17566] cost | 499 [-64974, 14306] open | -279 [-130451, 11046] open | -1835 [-263720, 7005] open |
+| US 2020 household mix, node on gateway | short run | 2869 [347, 14147] cost | 2594 [-16710, 13997] open | 2319 [-33884, 13847] open | 1770 [-68230, 13548] open |
+| US 2020 household mix, node on gateway | long run | 3303 [355, 84913] cost | 2509 [-67546, 78142] open | 1715 [-137400, 71371] open | 126 [-277106, 57830] open |
+| US 2020 household mix, new box | short run | 22646 [11608, 57735] cost | 22374 [-5445, 57586] open | 22102 [-22613, 57436] open | 21557 [-56950, 57136] open |
+| US 2020 household mix, new box | long run | 23082 [11618, 127057] cost | 22286 [-56271, 120286] open | 21490 [-126120, 113515] open | 19897 [-265817, 99974] open |
+| US 2020 household mix, node on a computer already on | short run | 2651 [306, 13210] cost | 2376 [-16752, 13060] open | 2101 [-33925, 12911] open | 1552 [-68272, 12611] open |
+| US 2020 household mix, node on a computer already on | long run | 3081 [314, 83911] cost | 2287 [-67653, 77140] open | 1492 [-137507, 70369] open | -96.1 [-277214, 56828] open |
+| US 2020 household mix, no home node | short run | 1592 [52.8, 9144] cost | 1317 [-17006, 8994] open | 1042 [-34180, 8844] open | 493 [-68526, 8544] open |
+| US 2020 household mix, no home node | long run | 2018 [60.6, 79791] cost | 1224 [-67960, 73021] open | 430 [-137814, 66250] open | -1159 [-277520, 52709] open |
+
+Break-even on the substitution share, other inputs at their defaults (`cewp-cli energy`), is
+the share of use that would have to move before the point delta reaches zero. The short run
+needs more than 1 everywhere except the village (0.88), so it cannot be reached. In the long
+run: phones only on a fixed line 0.55, the village 0.41, US mix with no home node 0.64, US mix
+with the node on a computer 0.97, and US mix with the node on the gateway 1.04, just out of
+reach. The two new-box mixes need 7 or more, so no possible share reaches them.
+
+## 4c. Where the home node runs (US 2020 household mix)
+
+The home node's host is an explicit scenario input: the gateway, a computer already on, a new
+box, or none. It applies only to households that can host it; the rest run phones only, and
+homes with no internet are at zero. Household types come from a stated joint stand-in:
+DEVICES-0 marginals, CIRISHolon DEVICEGEN-1's certified 8.7% of households with nothing to host
+on, and a desktop spread evenly over homes with a computer (MODEL). It sits behind the seam
+`holon_scene::world::devices::generate` (CIRISHolon 33dc99f) will fill. The rev is to be agreed
+with twin-globe2, who is wiring the same call into the kernel. DEVICEGEN-1 declares a gateway
+present with a fixed line and a desktop able to host. Whether the gateway can host and whether
+the desktop is on all day are both unknown, so the shares reached are upper bounds. Envelope:
+United States, 2020. By 2024 set-top boxes are +76% and streaming devices −22%.
+
+| host | households it reaches | delta short run | delta long run |
+|---|---|---|---|
+| US 2020 household mix, node on gateway | 72.8% | 2319 [-33884, 13847] open (point > 0) | 1715 [-137400, 71371] open (point > 0) |
+| US 2020 household mix, node on a computer already on | 32.3% | 2101 [-33925, 12911] open (point > 0) | 1492 [-137507, 70369] open (point > 0) |
+| US 2020 household mix, new box | 87.4% | 22102 [-22613, 57436] open (point > 0) | 21490 [-126120, 113515] open (point > 0) |
+| US 2020 household mix, no home node | 0.0% | 1042 [-34180, 8844] open (point > 0) | 430 [-137814, 66250] open (point > 0) |
 
 ## 5. Counters read (DERIVED from the packages' events)
 
@@ -230,44 +371,50 @@ to contain every combination but is wider. Every result is FRONTIER.
 
 | scenario | per | regime | run | A added on existing | B added devices | C avoided upstream (net) | delta = A + B - C | enclosure | sign | class |
 |---|---|---|---|---|---|---|---|---|---|---|
-| home node on existing gateway | household-hour | expected | short run | 2424 [371, 10058] | 658 [56.4, 4337] | 884 [-424, 5399] | 2197 [-4948, 14819] | [-6200, 15407] | open (point > 0) | FRONTIER |
-| home node on existing gateway | household-hour | expected | long run | 2424 [371, 10058] | 658 [56.4, 4337] | 650 [-42934, 5394] | 2432 [-4943, 57330] | [-31922, 89739] | open (point > 0) | FRONTIER |
-| home node on computer already on | household-hour | expected | short run | 3864 [731, 15458] | 658 [56.4, 4337] | 884 [-424, 5399] | 3637 [-4588, 20219] | [-5840, 20807] | open (point > 0) | FRONTIER |
-| home node on computer already on | household-hour | expected | long run | 3864 [731, 15458] | 658 [56.4, 4337] | 650 [-42934, 5394] | 3872 [-4583, 62730] | [-31562, 95139] | open (point > 0) | FRONTIER |
-| home node on a new always-on box | household-hour | expected | short run | 984 [11.5, 4658] | 22258 [11936, 53909] | 884 [-424, 5399] | 22357 [6572, 58991] | [5320, 59579] | cost (interval > 0) | FRONTIER |
-| home node on a new always-on box | household-hour | expected | long run | 984 [11.5, 4658] | 22258 [11936, 53909] | 650 [-42934, 5394] | 22592 [6577, 101502] | [-20402, 133911] | cost (interval > 0) | FRONTIER |
-| phones only (home with a fixed line) | household-hour | expected | short run | 984 [11.5, 4649] | 441 [34.7, 3254] | 885 [-421, 5399] | 540 [-5330, 8324] | [-6582, 8910] | open (point > 0) | FRONTIER |
-| phones only (home with a fixed line) | household-hour | expected | long run | 984 [11.5, 4649] | 441 [34.7, 3254] | 661 [-42778, 5395] | 764 [-5326, 50681] | [-32304, 83086] | open (point > 0) | FRONTIER |
-| phones only (cellular-only home) | household-hour | expected | short run | 2515 [70.0, 7695] | 441 [34.7, 3254] | 855 [-977, 5396] | 2101 [-5239, 11926] | [-7282, 12732] | open (point > 0) | FRONTIER |
-| phones only (cellular-only home) | household-hour | expected | long run | 2515 [70.0, 7695] | 441 [34.7, 3254] | 216 [-80020, 5366] | 2740 [-5209, 90970] | [-48892, 139072] | open (point > 0) | FRONTIER |
-| new box on cellular (cellular-only home) | household-hour | expected | short run | 984 [11.5, 4658] | 29458 [15536, 68309] | 856 [-836, 5394] | 29585 [10177, 73803] | [8687, 74666] | cost (interval > 0) | FRONTIER |
-| new box on cellular (cellular-only home) | household-hour | expected | long run | 984 [11.5, 4658] | 29458 [15536, 68309] | 239 [-70525, 5353] | 30203 [10218, 143493] | [-32601, 194065] | cost (interval > 0) | FRONTIER |
-| call relayed by a neighbour vs SFU | participant-hour | expected | short run | 797 [181, 3623] | 0.000 [0.000, 0.000] | -1427 [-9919, 15967] | 2224 [-15786, 13542] | [-34630, 32385] | open (point > 0) | FRONTIER |
-| call relayed by a neighbour vs SFU | participant-hour | expected | long run | 797 [181, 3623] | 0.000 [0.000, 0.000] | -77358 [-700291, 959] | 78156 [-778, 703914] | [-1329114, 2032249] | open (point > 0) | FRONTIER |
-| call relayed in a data centre vs SFU | participant-hour | expected | short run | 508 [91.1, 2620] | 3600 [360, 18000] | 3600 [360, 18000] | 508 [91.1, 2620] | [-36382, 39092] | cost (interval > 0) | FRONTIER |
-| call relayed in a data centre vs SFU | participant-hour | expected | long run | 508 [91.1, 2620] | 3600 [360, 18000] | 3600 [360, 18000] | 508 [91.1, 2620] | [-1345874, 1348585] | cost (interval > 0) | FRONTIER |
-| village, one thin uplink | household-hour | expected | short run | 9.1 [1.7, 80.5] | 1161 [125, 6853] | 907 [46.2, 7608] | 263 [-7463, 6864] | [-17763, 17097] | open (point > 0) | FRONTIER |
-| village, one thin uplink | household-hour | expected | long run | 9.1 [1.7, 80.5] | 1161 [125, 6853] | 907 [46.2, 7608] | 263 [-7463, 6864] | [-17763, 17097] | open (point > 0) | FRONTIER |
-| US 2020 household mix, node on gateway | household-hour | expected | short run | 2256 [297, 8937] | 575 [48.8, 3844] | 813 [-477, 4993] | 2018 [-4621, 13259] | [-5901, 13836] | open (point > 0) | FRONTIER |
-| US 2020 household mix, node on gateway | household-hour | expected | long run | 2256 [297, 8937] | 575 [48.8, 3844] | 534 [-45438, 4985] | 2297 [-4613, 58220] | [-32145, 90619] | open (point > 0) | FRONTIER |
-| US 2020 household mix, new box | household-hour | expected | short run | 910 [10.6, 4308] | 21698 [11596, 52084] | 813 [-456, 4993] | 21794 [6635, 56847] | [5440, 57434] | cost (interval > 0) | FRONTIER |
-| US 2020 household mix, new box | household-hour | expected | long run | 910 [10.6, 4308] | 21698 [11596, 52084] | 538 [-43971, 4983] | 22070 [6645, 100363] | [-20754, 133144] | cost (interval > 0) | FRONTIER |
+| home node on existing gateway | household-hour | expected | short run | 2433 [371, 10382] | 658 [56.4, 4337] | 559 [-716, 37903] | 2532 [-36523, 15435] | [-38555, 15803] | open (point > 0) | FRONTIER |
+| home node on existing gateway | household-hour | expected | long run | 2433 [371, 10382] | 658 [56.4, 4337] | 1257 [-55499, 146535] | 1834 [-145233, 70218] | [-162329, 90123] | open (point > 0) | FRONTIER |
+| home node on computer already on | household-hour | expected | short run | 3873 [731, 15782] | 658 [56.4, 4337] | 559 [-716, 37903] | 3972 [-36163, 20835] | [-38195, 21203] | open (point > 0) | FRONTIER |
+| home node on computer already on | household-hour | expected | long run | 3873 [731, 15782] | 658 [56.4, 4337] | 1257 [-55499, 146535] | 3274 [-144873, 75618] | [-161969, 95523] | open (point > 0) | FRONTIER |
+| home node on a new always-on box | household-hour | expected | short run | 993 [11.5, 4982] | 22258 [11936, 53909] | 559 [-716, 37903] | 22692 [-25003, 59607] | [-27035, 59975] | open (point > 0) | FRONTIER |
+| home node on a new always-on box | household-hour | expected | long run | 993 [11.5, 4982] | 22258 [11936, 53909] | 1257 [-55499, 146535] | 21994 [-133713, 114390] | [-150809, 134295] | open (point > 0) | FRONTIER |
+| phones only (home with a fixed line) | household-hour | expected | short run | 993 [11.5, 4973] | 441 [34.7, 3254] | 560 [-714, 37905] | 874 [-36907, 8941] | [-38937, 9306] | open (point > 0) | FRONTIER |
+| phones only (home with a fixed line) | household-hour | expected | long run | 993 [11.5, 4973] | 441 [34.7, 3254] | 1267 [-55343, 146691] | 166 [-145771, 63569] | [-162711, 83470] | open (point > 0) | FRONTIER |
+| phones only (cellular-only home) | household-hour | expected | short run | 2524 [70.0, 8019] | 441 [34.7, 3254] | 577 [-1389, 38819] | 2388 [-37201, 12662] | [-40439, 13128] | open (point > 0) | FRONTIER |
+| phones only (cellular-only home) | household-hour | expected | long run | 2524 [70.0, 8019] | 441 [34.7, 3254] | 1012 [-100561, 166646] | 1953 [-165157, 111833] | [-192069, 139455] | open (point > 0) | FRONTIER |
+| new box on cellular (cellular-only home) | household-hour | expected | short run | 993 [11.5, 4982] | 29458 [15536, 68309] | 543 [-1248, 38193] | 29907 [-21694, 74539] | [-23848, 75062] | open (point > 0) | FRONTIER |
+| new box on cellular (cellular-only home) | household-hour | expected | long run | 993 [11.5, 4982] | 29458 [15536, 68309] | 1025 [-91066, 165961] | 29425 [-149829, 164357] | [-174923, 194448] | open (point > 0) | FRONTIER |
+| call relayed by a neighbour vs SFU | participant-hour | expected | short run | 797 [181, 3623] | 0.000 [0.000, 0.000] | -8101 [-20064, 4996] | 8898 [-4816, 23687] | [-15665, 34536] | open (point > 0) | FRONTIER |
+| call relayed by a neighbour vs SFU | participant-hour | expected | long run | 797 [181, 3623] | 0.000 [0.000, 0.000] | -157645 [-1379732, -24562] | 158443 [24742, 1383355] | [-640853, 2048950] | cost (interval > 0) | FRONTIER |
+| call relayed in a data centre vs SFU | participant-hour | expected | short run | 508 [91.1, 2620] | 3600 [360, 18000] | -3074 [-9785, 7029] | 7182 [2242, 21585] | [-17417, 41243] | cost (interval > 0) | FRONTIER |
+| call relayed in a data centre vs SFU | participant-hour | expected | long run | 508 [91.1, 2620] | 3600 [360, 18000] | -76687 [-679081, -7521] | 80795 [16792, 690881] | [-657613, 1365285] | cost (interval > 0) | FRONTIER |
+| village, one thin uplink | household-hour | expected | short run | 18.1 [1.7, 405] | 1161 [125, 6853] | 629 [-3805, 51905] | 550 [-51750, 11063] | [-58265, 17492] | open (point > 0) | FRONTIER |
+| village, one thin uplink | household-hour | expected | long run | 18.1 [1.7, 405] | 1161 [125, 6853] | 1458 [-3788, 130606] | -279 [-130451, 11046] | [-136966, 17481] | open (point < 0) | FRONTIER |
+| US 2020 household mix, node on gateway | household-hour | expected | short run | 2264 [297, 9237] | 575 [48.8, 3844] | 520 [-767, 35197] | 2319 [-33884, 13847] | [-35949, 14202] | open (point > 0) | FRONTIER |
+| US 2020 household mix, node on gateway | household-hour | expected | long run | 2264 [297, 9237] | 575 [48.8, 3844] | 1124 [-58291, 138632] | 1715 [-137400, 71371] | [-154728, 90974] | open (point > 0) | FRONTIER |
+| US 2020 household mix, new box | household-hour | expected | short run | 918 [10.6, 4608] | 21698 [11596, 52084] | 515 [-745, 35100] | 22102 [-22613, 57436] | [-24511, 57800] | open (point > 0) | FRONTIER |
+| US 2020 household mix, new box | household-hour | expected | long run | 918 [10.6, 4608] | 21698 [11596, 52084] | 1126 [-56824, 138527] | 21490 [-126120, 113515] | [-143204, 133499] | open (point > 0) | FRONTIER |
+| US 2020 household mix, node on a computer already on | household-hour | expected | short run | 2140 [266, 8766] | 482 [39.5, 3380] | 520 [-766, 35198] | 2101 [-33925, 12911] | [-35990, 13265] | open (point > 0) | FRONTIER |
+| US 2020 household mix, node on a computer already on | household-hour | expected | long run | 2140 [266, 8766] | 482 [39.5, 3380] | 1129 [-58224, 138699] | 1492 [-137507, 70369] | [-154768, 89969] | open (point > 0) | FRONTIER |
+| US 2020 household mix, no home node | household-hour | expected | short run | 1155 [19.7, 5070] | 408 [32.1, 3009] | 520 [-765, 35199] | 1042 [-34180, 8844] | [-36243, 9197] | open (point > 0) | FRONTIER |
+| US 2020 household mix, no home node | household-hour | expected | long run | 1155 [19.7, 5070] | 408 [32.1, 3009] | 1133 [-58171, 138753] | 430 [-137814, 66250] | [-155022, 85848] | open (point > 0) | FRONTIER |
 
 By device class (expected regime, short run, stand-in presence, J as each enters the delta):
 
 | scenario | phone | home node | hosted | network | data centre | village node |
 |---|---|---|---|---|---|---|
-| home node on existing gateway | 984 | 1440 | 658 | 15.9 | -900 | 0.000 |
-| home node on computer already on | 984 | 2880 | 658 | 15.9 | -900 | 0.000 |
-| home node on a new always-on box | 984 | 21600 | 658 | 15.9 | -900 | 0.000 |
-| phones only (home with a fixed line) | 984 | 0.000 | 441 | 15.2 | -900 | 0.000 |
-| phones only (cellular-only home) | 2515 | 0.000 | 441 | 45.1 | -900 | 0.000 |
-| new box on cellular (cellular-only home) | 984 | 28800 | 658 | 43.8 | -900 | 0.000 |
-| call relayed by a neighbour vs SFU | 622 | 175 | 0.000 | 5027 | -3600 | 0.000 |
-| call relayed in a data centre vs SFU | 444 | 64.2 | 3600 | 0.000 | -3600 | 0.000 |
-| village, one thin uplink | 9.1 | 0.000 | 441 | -6.6 | -900 | 720 |
-| US 2020 household mix, node on gateway | 1146 | 1109 | 575 | 19.2 | -832 | 0.000 |
-| US 2020 household mix, new box | 910 | 21090 | 608 | 19.0 | -832 | 0.000 |
+| home node on existing gateway | 958 | 1449 | 658 | 8.9 | -542 | 0.000 |
+| home node on computer already on | 958 | 2889 | 658 | 8.9 | -542 | 0.000 |
+| home node on a new always-on box | 958 | 21609 | 658 | 8.9 | -542 | 0.000 |
+| phones only (home with a fixed line) | 958 | 9.0 | 441 | 8.3 | -542 | 0.000 |
+| phones only (cellular-only home) | 2452 | 9.0 | 441 | 27.9 | -542 | 0.000 |
+| new box on cellular (cellular-only home) | 958 | 28809 | 658 | 24.6 | -542 | 0.000 |
+| call relayed by a neighbour vs SFU | 622 | 175 | 0.000 | 9901 | -1800 | 0.000 |
+| call relayed in a data centre vs SFU | 444 | 64.2 | 3600 | 4874 | -1800 | 0.000 |
+| village, one thin uplink | 7.1 | 9.0 | 441 | -84.8 | -542 | 720 |
+| US 2020 household mix, node on gateway | 1117 | 1118 | 575 | 11.2 | -501 | 0.000 |
+| US 2020 household mix, new box | 886 | 21098 | 608 | 10.7 | -501 | 0.000 |
+| US 2020 household mix, node on a computer already on | 1117 | 993 | 482 | 10.9 | -501 | 0.000 |
+| US 2020 household mix, no home node | 1117 | 8.3 | 408 | 10.7 | -501 | 0.000 |
 
 ## 8. Break-even: what decides the sign
 
@@ -276,97 +423,100 @@ zero is a design threshold. Then come the inputs whose zero lies inside their ow
 (these decide the sign), then the largest movers. Expected regime, stand-in presence. The full
 table, including the long run and every scenario, is printed by `cewp-cli energy`.
 
-| scenario | run | input | class | interval | delta at lo / hi | zero at | inside interval |
-|---|---|---|---|---|---|---|---|
-| home node on existing gateway | short run | `lever.cell_round_share` | MODEL | [1, 1] share | 2197 / 2197 | none in range | no |
-| home node on existing gateway | short run | `phone.wifi_share` | MODEL | [0.4, 0.9] share | 2907 / 1490 | 1.4287 | no |
-| home node on existing gateway | short run | `phone.cell.tail_s` | MODEL | [2, 12] s | 1418 / 2230 | none in range | no |
-| home node on existing gateway | short run | `lever.round_cadence_s` | MODEL | [30, 30] s | 2197 / 2197 | none in range | no |
-| home node on existing gateway | short run | `phone.cell.tail_w` | MODEL | [0.5, 1.5] W | 1700 / 2589 | none in range | no |
-| home node on existing gateway | short run | `phone.cell.promotion_j` | MODEL | [0.2, 1.5] J | 2178 / 2277 | none in range | no |
-| home node on existing gateway | short run | `lever.phone_schedule_share` | MODEL | [1, 1] share | 2197 / 2197 | none in range | no |
-| home node on existing gateway | short run | `home_node.on_router.marginal_w` | FRONTIER | [0.1, 1.5] W | 1117 / 6157 | none in range | no |
-| home node on existing gateway | short run | `datacentre.messaging.wh_per_person_hour` | FRONTIER | [0.02, 0.5] Wh | 2917 / -1403 | 0.3442 | yes |
-| home node on existing gateway | short run | `hosted.seat.w` | MODEL | [60, 300] W | 1870 / 3180 | none in range | no |
-| home node on a new always-on box | short run | `lever.cell_round_share` | MODEL | [1, 1] share | 22357 / 22357 | none in range | no |
-| home node on a new always-on box | short run | `phone.wifi_share` | MODEL | [0.4, 0.9] share | 23067 / 21650 | 8.8889 | no |
-| home node on a new always-on box | short run | `phone.cell.tail_s` | MODEL | [2, 12] s | 21578 / 22390 | none in range | no |
-| home node on a new always-on box | short run | `lever.round_cadence_s` | MODEL | [30, 30] s | 22357 / 22357 | none in range | no |
-| home node on a new always-on box | short run | `phone.cell.tail_w` | MODEL | [0.5, 1.5] W | 21860 / 22749 | none in range | no |
-| home node on a new always-on box | short run | `phone.cell.promotion_j` | MODEL | [0.2, 1.5] J | 22338 / 22437 | none in range | no |
-| home node on a new always-on box | short run | `lever.phone_schedule_share` | MODEL | [1, 1] share | 22357 / 22357 | none in range | no |
-| home node on a new always-on box | short run | `home_node.added_box.w` | MODEL | [3.3, 13.77] W | 12637 / 50329 | none in range | no |
-| home node on a new always-on box | short run | `datacentre.messaging.wh_per_person_hour` | FRONTIER | [0.02, 0.5] Wh | 23077 / 18757 | 2.5842 | no |
-| phones only (home with a fixed line) | short run | `lever.cell_round_share` | MODEL | [1, 1] share | 540 / 540 | 0.4479 | no |
-| phones only (home with a fixed line) | short run | `phone.wifi_share` | MODEL | [0.4, 0.9] share | 1248 / -167 | 0.8408 | yes |
-| phones only (home with a fixed line) | short run | `phone.cell.tail_s` | MODEL | [2, 12] s | -240 / 572 | 4.9563 | yes |
-| phones only (home with a fixed line) | short run | `lever.round_cadence_s` | MODEL | [30, 30] s | 540 / 540 | 71.3873 | no |
-| phones only (home with a fixed line) | short run | `phone.cell.tail_w` | MODEL | [0.5, 1.5] W | 41.9 / 931 | 0.4529 | no |
-| phones only (home with a fixed line) | short run | `phone.cell.promotion_j` | MODEL | [0.2, 1.5] J | 520 / 619 | none in range | no |
-| phones only (home with a fixed line) | short run | `lever.phone_schedule_share` | MODEL | [1, 1] share | 540 / 540 | 0.4518 | no |
-| phones only (home with a fixed line) | short run | `datacentre.messaging.wh_per_person_hour` | FRONTIER | [0.02, 0.5] Wh | 1260 / -3060 | 0.1600 | yes |
-| phones only (home with a fixed line) | short run | `hosted.seat.w` | MODEL | [60, 300] W | 320 / 1198 | none in range | no |
-| phones only (home with a fixed line) | short run | `hosted.devices_per_seat` | MODEL | [1000, 10000] devices | 979 / 189 | none in range | no |
-| phones only (cellular-only home) | short run | `lever.cell_round_share` | MODEL | [1, 1] share | 2101 / 2101 | 0.1642 | no |
-| phones only (cellular-only home) | short run | `phone.wifi_share.cell_only_home` | FRONTIER | [0, 0.3] share | 2386 / 1532 | 0.8408 | no |
-| phones only (cellular-only home) | short run | `phone.cell.tail_s` | MODEL | [2, 12] s | 95.8 / 2185 | 1.5415 | no |
-| phones only (cellular-only home) | short run | `lever.round_cadence_s` | MODEL | [30, 30] s | 2101 / 2101 | 255.4235 | no |
-| phones only (cellular-only home) | short run | `phone.cell.tail_w` | MODEL | [0.5, 1.5] W | 821 / 3107 | 0.1409 | no |
-| phones only (cellular-only home) | short run | `phone.cell.promotion_j` | MODEL | [0.2, 1.5] J | 2050 / 2306 | none in range | no |
-| phones only (cellular-only home) | short run | `lever.phone_schedule_share` | MODEL | [1, 1] share | 2101 / 2101 | 0.1655 | no |
-| phones only (cellular-only home) | short run | `datacentre.messaging.wh_per_person_hour` | FRONTIER | [0.02, 0.5] Wh | 2821 / -1499 | 0.3335 | yes |
-| phones only (cellular-only home) | short run | `phone.mesh_extra_content_wakes` | FRONTIER | [-0.3, 0.3] share | 1547 / 2656 | none in range | no |
-| phones only (cellular-only home) | short run | `hosted.seat.w` | MODEL | [60, 300] W | 1882 / 2760 | none in range | no |
-| call relayed by a neighbour vs SFU | short run | `datacentre.call.wh_per_participant_hour` | FRONTIER | [0.1, 5] Wh | 5464 / -12176 | 1.6179 | yes |
-| call relayed by a neighbour vs SFU | short run | `network.mobile.traffic_j_per_mb` | MODEL | [5, 25] J/MB | -586 / 7178 | 6.5101 | yes |
-| call relayed by a neighbour vs SFU | short run | `phone.j_per_chunk_sig_op` | FRONTIER | [0.00002, 0.0005] J | 1874 / 3976 | none in range | no |
-| call relayed by a neighbour vs SFU | short run | `network.fixed.traffic_j_per_mb` | MODEL | [0.08, 0.5] J/MB | 2041 / 2523 | none in range | no |
-| call relayed in a data centre vs SFU | short run | `phone.j_per_chunk_sig_op` | FRONTIER | [0.00002, 0.0005] J | 158 / 2260 | none in range | no |
-| call relayed in a data centre vs SFU | short run | `home_node.j_per_chunk_sig_op` | MODEL | [0.00001, 0.0003] J | 454 / 848 | none in range | no |
-| village, one thin uplink | short run | `lever.round_cadence_s` | MODEL | [30, 30] s | 263 / 263 | none in range | no |
-| village, one thin uplink | short run | `lever.phone_schedule_share` | MODEL | [1, 1] share | 263 / 263 | none in range | no |
-| village, one thin uplink | short run | `datacentre.messaging.wh_per_person_hour` | FRONTIER | [0.02, 0.5] Wh | 983 / -3337 | 0.1293 | yes |
-| village, one thin uplink | short run | `village.households` | MODEL | [20, 200] households | 1343 / -277 | 78.8330 | yes |
-| village, one thin uplink | short run | `village.node.w` | MODEL | [5, 20] W | -96.7 / 983 | 6.3425 | yes |
-| village, one thin uplink | short run | `hosted.seat.w` | MODEL | [60, 300] W | 43.8 / 922 | 48.0201 | no |
-| village, one thin uplink | short run | `hosted.devices_per_seat` | MODEL | [1000, 10000] devices | 702 / -87.9 | 4997.9044 | yes |
-| village, one thin uplink | short run | `workload.bytes_per_act` | MODEL | [1000, 50000] bytes | 279 / 86.1 | 71872.7552 | no |
-| US 2020 household mix, node on gateway | short run | `lever.cell_round_share` | MODEL | [1, 1] share | 2018 / 2018 | none in range | no |
-| US 2020 household mix, node on gateway | short run | `phone.wifi_share` | MODEL | [0.4, 0.9] share | 2564 / 1473 | 1.5788 | no |
-| US 2020 household mix, node on gateway | short run | `phone.wifi_share.cell_only_home` | FRONTIER | [0, 0.3] share | 2062 / 1930 | 4.7991 | no |
-| US 2020 household mix, node on gateway | short run | `phone.cell.tail_s` | MODEL | [2, 12] s | 1107 / 2055 | none in range | no |
-| US 2020 household mix, node on gateway | short run | `lever.round_cadence_s` | MODEL | [30, 30] s | 2018 / 2018 | none in range | no |
-| US 2020 household mix, node on gateway | short run | `phone.cell.tail_w` | MODEL | [0.5, 1.5] W | 1436 / 2474 | none in range | no |
-| US 2020 household mix, node on gateway | short run | `phone.cell.promotion_j` | MODEL | [0.2, 1.5] J | 1994 / 2111 | none in range | no |
-| US 2020 household mix, node on gateway | short run | `lever.phone_schedule_share` | MODEL | [1, 1] share | 2018 / 2018 | none in range | no |
-| US 2020 household mix, node on gateway | short run | `datacentre.messaging.wh_per_person_hour` | FRONTIER | [0.02, 0.5] Wh | 2683 / -1312 | 0.3424 | yes |
-| US 2020 household mix, node on gateway | short run | `home_node.on_router.marginal_w` | FRONTIER | [0.1, 1.5] W | 1186 / 5068 | none in range | no |
-| US 2020 household mix, node on gateway | short run | `hosted.seat.w` | MODEL | [60, 300] W | 1731 / 2876 | none in range | no |
+| scenario | run | input | component | class | interval | delta at lo / hi | zero at | inside interval |
+|---|---|---|---|---|---|---|---|---|
+| phones only (home with a fixed line) | short run | `lever.cell_round_share` | A and C (count) | MODEL | [1, 1] share | 874 / 874 | 0.1061 | no |
+| phones only (home with a fixed line) | short run | `phone.wifi_share` | A and C (count) | MODEL | [0.4, 0.9] share | 1561 / 189 | 0.9690 | no |
+| phones only (home with a fixed line) | short run | `phone.cell.tail_s` | A and C (count) | MODEL | [2, 12] s | 112 / 906 | 0.5817 | no |
+| phones only (home with a fixed line) | short run | `lever.round_cadence_s` | A and C (count) | MODEL | [30, 30] s | 874 / 874 | 489.7785 | no |
+| phones only (home with a fixed line) | short run | `phone.cell.tail_w` | A/B, C5 ad/tracker device+network | MODEL | [0.5, 1.5] W | 388 / 1256 | 0.0532 | no |
+| phones only (home with a fixed line) | short run | `phone.cell.promotion_j` | A/B, C5 ad/tracker device+network | MODEL | [0.2, 1.5] J | 854 / 952 | none in range | no |
+| phones only (home with a fixed line) | short run | `lever.phone_schedule_share` | A and C (count) | MODEL | [1, 1] share | 874 / 874 | 0.1124 | no |
+| phones only (home with a fixed line) | short run | `datacentre.messaging.wh_per_person_hour` | C1 delivery | FRONTIER | [0.02, 0.5] Wh | 1234 / -926 | 0.2942 | yes |
+| phones only (home with a fixed line) | short run | `hosted.seat.w` | A/B | MODEL | [60, 300] W | 654 / 1532 | none in range | no |
+| phones only (home with a fixed line) | short run | `hosted.devices_per_seat` | A/B (count) | MODEL | [1000, 10000] devices | 1313 / 523 | none in range | no |
+| phones only (home with a fixed line) | short run | `c.substitution_share` | C2-C5 (count) | FRONTIER | [0.5, 0.5] share | 874 / 874 | 1.2482 | no |
+| call relayed by a neighbour vs SFU | short run | `network.mobile.traffic_j_per_mb` | C1 delivery, mesh upstream (minus) | MODEL | [5, 25] J/MB | 3362 / 18654 | 0.6023 | no |
+| call relayed by a neighbour vs SFU | short run | `datacentre.call.wh_per_participant_hour` | C1 delivery | FRONTIER | [0.1, 5] Wh | 10518 / 1698 | 5.9434 | no |
+| call relayed by a neighbour vs SFU | short run | `c.substitution_share` | C2-C5 (count) | FRONTIER | [0.5, 0.5] share | 8898 / 8898 | 1.1667 | no |
+| village, one thin uplink | short run | `lever.round_cadence_s` | A and C (count) | MODEL | [30, 30] s | 550 / 550 | none in range | no |
+| village, one thin uplink | short run | `lever.phone_schedule_share` | A and C (count) | MODEL | [1, 1] share | 550 / 550 | none in range | no |
+| village, one thin uplink | short run | `datacentre.messaging.wh_per_person_hour` | C1 delivery | FRONTIER | [0.02, 0.5] Wh | 910 / -1250 | 0.2222 | yes |
+| village, one thin uplink | short run | `village.households` | A/B (count) | MODEL | [20, 200] households | 1630 / 10.0 | 211.7640 | no |
+| village, one thin uplink | short run | `village.node.w` | A/B | MODEL | [5, 20] W | 190 / 1270 | 2.3611 | no |
+| village, one thin uplink | short run | `network.thin_uplink.j_per_mb` | C1 delivery, C5 ad/tracker device+network, mesh upstream (minus) | FRONTIER | [5, 500] J/MB | 626 / -213 | 374.3978 | yes |
+| village, one thin uplink | short run | `c.substitution_share` | C2-C5 (count) | FRONTIER | [0.5, 0.5] share | 550 / 550 | 0.8786 | no |
+| US 2020 household mix, node on gateway | short run | `lever.cell_round_share` | A and C (count) | MODEL | [1, 1] share | 2319 / 2319 | none in range | no |
+| US 2020 household mix, node on gateway | short run | `phone.wifi_share` | A and C (count) | MODEL | [0.4, 0.9] share | 2849 / 1791 | 1.7525 | no |
+| US 2020 household mix, node on gateway | short run | `phone.wifi_share.cell_only_home` | A and C (count) | FRONTIER | [0, 0.3] share | 2362 / 2234 | 5.7028 | no |
+| US 2020 household mix, node on gateway | short run | `phone.cell.tail_s` | A and C (count) | MODEL | [2, 12] s | 1430 / 2356 | none in range | no |
+| US 2020 household mix, node on gateway | short run | `lever.round_cadence_s` | A and C (count) | MODEL | [30, 30] s | 2319 / 2319 | none in range | no |
+| US 2020 household mix, node on gateway | short run | `phone.cell.tail_w` | A/B, C5 ad/tracker device+network | MODEL | [0.5, 1.5] W | 1752 / 2765 | none in range | no |
+| US 2020 household mix, node on gateway | short run | `phone.cell.promotion_j` | A/B, C5 ad/tracker device+network | MODEL | [0.2, 1.5] J | 2297 / 2410 | none in range | no |
+| US 2020 household mix, node on gateway | short run | `lever.phone_schedule_share` | A and C (count) | MODEL | [1, 1] share | 2319 / 2319 | none in range | no |
+| US 2020 household mix, node on gateway | short run | `home_node.on_router.marginal_w` | A/B | FRONTIER | [0.1, 1.5] W | 1487 / 5370 | none in range | no |
+| US 2020 household mix, node on gateway | short run | `datacentre.messaging.wh_per_person_hour` | C1 delivery | FRONTIER | [0.02, 0.5] Wh | 2652 / 654 | 0.6573 | no |
+| US 2020 household mix, node on gateway | short run | `c.substitution_share` | C2-C5 (count) | FRONTIER | [0.5, 0.5] share | 2319 / 2319 | 2.6099 | no |
+| US 2020 household mix, new box | short run | `lever.cell_round_share` | A and C (count) | MODEL | [1, 1] share | 22102 / 22102 | none in range | no |
+| US 2020 household mix, new box | short run | `phone.wifi_share` | A and C (count) | MODEL | [0.4, 0.9] share | 22737 / 21468 | 9.7206 | no |
+| US 2020 household mix, new box | short run | `phone.cell.tail_s` | A and C (count) | MODEL | [2, 12] s | 21397 / 22131 | none in range | no |
+| US 2020 household mix, new box | short run | `lever.round_cadence_s` | A and C (count) | MODEL | [30, 30] s | 22102 / 22102 | none in range | no |
+| US 2020 household mix, new box | short run | `phone.cell.tail_w` | A/B, C5 ad/tracker device+network | MODEL | [0.5, 1.5] W | 21652 / 22455 | none in range | no |
+| US 2020 household mix, new box | short run | `phone.cell.promotion_j` | A/B, C5 ad/tracker device+network | MODEL | [0.2, 1.5] J | 22084 / 22174 | none in range | no |
+| US 2020 household mix, new box | short run | `lever.phone_schedule_share` | A and C (count) | MODEL | [1, 1] share | 22102 / 22102 | none in range | no |
+| US 2020 household mix, new box | short run | `home_node.added_box.w` | A/B | MODEL | [3.3, 13.77] W | 13112 / 47972 | none in range | no |
+| US 2020 household mix, new box | short run | `datacentre.messaging.wh_per_person_hour` | C1 delivery | FRONTIER | [0.02, 0.5] Wh | 22435 / 20437 | 5.4105 | no |
+| US 2020 household mix, new box | short run | `c.substitution_share` | C2-C5 (count) | FRONTIER | [0.5, 0.5] share | 22102 / 22102 | 20.7940 | no |
+| US 2020 household mix, node on a computer already on | short run | `lever.cell_round_share` | A and C (count) | MODEL | [1, 1] share | 2101 / 2101 | none in range | no |
+| US 2020 household mix, node on a computer already on | short run | `phone.wifi_share` | A and C (count) | MODEL | [0.4, 0.9] share | 2631 / 1573 | 1.6488 | no |
+| US 2020 household mix, node on a computer already on | short run | `phone.wifi_share.cell_only_home` | A and C (count) | FRONTIER | [0, 0.3] share | 2144 / 2016 | 5.1615 | no |
+| US 2020 household mix, node on a computer already on | short run | `phone.cell.tail_s` | A and C (count) | MODEL | [2, 12] s | 1212 / 2138 | none in range | no |
+| US 2020 household mix, node on a computer already on | short run | `lever.round_cadence_s` | A and C (count) | MODEL | [30, 30] s | 2101 / 2101 | none in range | no |
+| US 2020 household mix, node on a computer already on | short run | `phone.cell.tail_w` | A/B, C5 ad/tracker device+network | MODEL | [0.5, 1.5] W | 1534 / 2547 | none in range | no |
+| US 2020 household mix, node on a computer already on | short run | `phone.cell.promotion_j` | A/B, C5 ad/tracker device+network | MODEL | [0.2, 1.5] J | 2079 / 2192 | none in range | no |
+| US 2020 household mix, node on a computer already on | short run | `lever.phone_schedule_share` | A and C (count) | MODEL | [1, 1] share | 2101 / 2101 | none in range | no |
+| US 2020 household mix, node on a computer already on | short run | `home_node.on_computer.marginal_w` | A/B | FRONTIER | [0.2, 3] W | 1363 / 4809 | none in range | no |
+| US 2020 household mix, node on a computer already on | short run | `datacentre.messaging.wh_per_person_hour` | C1 delivery | FRONTIER | [0.02, 0.5] Wh | 2434 / 437 | 0.6049 | no |
+| US 2020 household mix, node on a computer already on | short run | `c.substitution_share` | C2-C5 (count) | FRONTIER | [0.5, 0.5] share | 2101 / 2101 | 2.4116 | no |
+| US 2020 household mix, no home node | short run | `lever.cell_round_share` | A and C (count) | MODEL | [1, 1] share | 1042 / 1042 | 0.0870 | no |
+| US 2020 household mix, no home node | short run | `phone.wifi_share` | A and C (count) | MODEL | [0.4, 0.9] share | 1571 / 514 | 1.1442 | no |
+| US 2020 household mix, no home node | short run | `phone.wifi_share.cell_only_home` | A and C (count) | FRONTIER | [0, 0.3] share | 1085 / 957 | 2.5758 | no |
+| US 2020 household mix, no home node | short run | `phone.cell.tail_s` | A and C (count) | MODEL | [2, 12] s | 153 / 1079 | 0.3472 | no |
+| US 2020 household mix, no home node | short run | `lever.round_cadence_s` | A and C (count) | MODEL | [30, 30] s | 1042 / 1042 | 759.5890 | no |
+| US 2020 household mix, no home node | short run | `phone.cell.tail_w` | A/B, C5 ad/tracker device+network | MODEL | [0.5, 1.5] W | 475 / 1488 | 0.0317 | no |
+| US 2020 household mix, no home node | short run | `phone.cell.promotion_j` | A/B, C5 ad/tracker device+network | MODEL | [0.2, 1.5] J | 1019 / 1133 | none in range | no |
+| US 2020 household mix, no home node | short run | `lever.phone_schedule_share` | A and C (count) | MODEL | [1, 1] share | 1042 / 1042 | 0.0918 | no |
+| US 2020 household mix, no home node | short run | `datacentre.messaging.wh_per_person_hour` | C1 delivery | FRONTIER | [0.02, 0.5] Wh | 1375 / -623 | 0.3504 | yes |
+| US 2020 household mix, no home node | short run | `hosted.seat.w` | A/B | MODEL | [60, 300] W | 839 / 1651 | none in range | no |
+| US 2020 household mix, no home node | short run | `hosted.devices_per_seat` | A/B (count) | MODEL | [1000, 10000] devices | 1448 / 717 | none in range | no |
+| US 2020 household mix, no home node | short run | `c.substitution_share` | C2-C5 (count) | FRONTIER | [0.5, 0.5] share | 1042 / 1042 | 1.4481 | no |
 
 ### Findings (the sign and what decides it; nothing here is a saving or a cost claim)
 
-* **A new always-on box is a cost** across its whole interval: +22.4 kJ per household-hour, in
-  [+6.6, +59.0] kJ (6.2 W at the point). On cellular with a modem it is +29.6 kJ, in
-  [+10.2, +73.8]. In the US 2020 mix it is +21.8 kJ, in [+6.6, +56.8]. The box's full draw is
-  of the gateway's own order and dominates. No avoided-upstream input inside its row reaches it.
-* **A node on the existing gateway, phones only, the village and the gateway mix are open.**
-  The sign is decided first by `datacentre.messaging.wh_per_person_hour`, with break-even
-  0.34 Wh (gateway), 0.16 (phones only, fixed line), 0.33 (cellular-only phones), 0.13
-  (village) and 0.34 (mix). POWER-0 lists that quantity as **not available**: no published
-  figure exists for messaging alone. The decisive input is one nobody publishes.
-* **The phone radio decides phones-only cases.** For phones only with a fixed line (stand-in),
-  the Wi-Fi share flips the sign at 0.84 and the carrier tail at 4.96 s. The lever
-  `cell_round_share` flips it at 0.45 (fixed-line home) and 0.16 (cellular-only home). The
-  round cadence flips it at 71 s (fixed line) and 255 s (cellular only). Under PRESENCE-0 the
-  phones-only point drops from +540 to −31 (edge as is) or +0.2 (rounds only while awake). The
-  sign sits on the presence input.
-* **A call relayed by a neighbour** is open in the short run: +2.2 kJ per participant-hour, in
-  [−15.8, +13.5]. It is decided by SFU energy (break-even 1.62 Wh per participant-hour) and by
-  mobile traffic J/MB (6.5). In the long run the mesh's extra bytes on mobile capacity make it
-  +78 kJ, in [−0.8, +704]. **A call relayed in a data centre** is a cost of +0.5 kJ, in
-  [+0.1, +2.6]: the relay is an SFU, and the delta is chunk signing on the devices.
-* **Network.** In the short run the traffic term barely moves anything on fixed lines. Mobile
-  capacity in the long run is where the mesh's extra bytes cost most.
+Sections 7 and 8 are at substitution 0.5. The long-run break-even rows are printed by
+`cewp-cli energy`.
+
+* **At substitution 0 every household case is a cost** across its interval (section 4b). The
+  mesh is purely additive there, and nothing upstream is avoided.
+* **Short run (capacity fixed):** at substitution 0.5 no household case reaches a saving at the
+  point. C1 delivery still decides wherever any single input decides (phones only:
+  `datacentre.messaging` 0.29 Wh/person-hour; village: 0.22).
+* **Long run:** **C2 retention** and **C3 harvesting** now decide the gateway and computer
+  mixes. Break-evens: storage 7.7 W/TB, retained 11.6 GB per user-year, harvesting 4.5 Wh per
+  user-hour (gateway mix). For phones-only and no-node cases many inputs decide: retained GB
+  3.8, storage 2.5 W/TB, harvesting 0.85 Wh, ad J per impression 26, tracker wake-ups 49 an
+  hour, use 3.4 h a day, and the phone radio (Wi-Fi share 0.70, tail 9.5 s).
+* **A new always-on box** (on a line or on cellular) needs a substitution share of 7 or more to
+  reach zero at the defaults. No possible share does that. It turns open only through the
+  far ends of the C2-C4 intervals.
+* **What would have to be true** for the gateway mix to be a saving in the long run: nearly all
+  use moves (substitution ≥ 1.04 at the defaults, so not quite), or retention, harvesting or
+  the ad chain cost more than their defaults. Examples: more than 7.7 W per TB held, more than
+  11.6 GB per user-year, more than 4.5 Wh of harvesting per user-hour. None of these has a
+  published figure (all FRONTIER).
+* **The phone radio** is still the largest device term. The tracker wake-ups a platform app
+  makes are now priced on the status-quo side at the same radio cost. They decide the sign at
+  49 wake-ups an hour (phones only, long run).
 
 ## 9. Hooks (flat `Vec<f32>`, class codes as `seat_hooks::class`)
 
@@ -374,8 +524,9 @@ table, including the long run and every scenario, is printed by `cewp-cli energy
   (0 short, 1 long), per (0 household-hour, 1 participant-hour), A, A_lo, A_hi, B, B_lo, B_hi,
   C, C_lo, C_hi, net, net_lo, net_hi]`. Scenarios are in `Scenario::ALL` order (0 gateway,
   1 computer, 2 new box, 3 phones only (fixed line), 4 phones only (cellular only), 5 box on
-  cellular, 6 call via a neighbour, 7 call via a DC, 8 village, 9 mix gateway, 10 mix box).
-  Regimes are 0 optimistic, 1 expected, 2 pessimistic, 3 adversarial. 88 rows. The sign is a
+  cellular, 6 call via a neighbour, 7 call via a DC, 8 village, 9 mix gateway, 10 mix box,
+  11 mix computer, 12 mix none). Regimes are 0 optimistic, 1 expected, 2 pessimistic,
+  3 adversarial. 104 rows. All at substitution 0.5. The sign is a
   cost if `net_lo > 0`, a saving if `net_hi < 0`, and open otherwise.
 * `view_delta_class(seed)`: one class per `view_delta` row.
 * `view_break_even(seed)`: `BREAK_EVEN_STRIDE = 9` per row: `[scenario, run, row index into

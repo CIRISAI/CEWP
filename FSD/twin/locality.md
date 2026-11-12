@@ -246,7 +246,7 @@ Below a district TIES-0 gives no licence: the share of own-district links within
 
 Act and delivery locality at the locality band (the page's definition) over social.rs's seven kinds, then over all ten, and the share of delivered bytes that leave the metro. Inputs one at a time from the defaults, then jointly, then the placeless null.
 
-Across the sub-kilometre FRONTIER rows the delivery share within the tile runs 13.7% to 14.1% (the building and tile inputs do not move it at all: at this world size a grid cell holds fewer households than one building or tile chunk, so those bands are not resolved and what lies 'within the tile' is the household and same-cell placement. **The model cannot state a sub-district locality yet**; it needs a world placed at street grain (the micro tier) and a sub-district tie reference, which TIES-0 says does not exist); delivery locality at the locality band runs 51.8% to 51.8% over the same rows.
+Across the sub-kilometre FRONTIER rows the delivery share within the tile runs 13.7% to 14.1% (the building and tile inputs do not move it at all: at this world size a grid cell holds fewer households than one building or tile chunk, so those bands are not resolved and what lies 'within the tile' is the household and same-cell placement. **The model cannot state a sub-district locality yet**; it needs a world placed at street grain (the micro tier); TIES-1 gives one anchor for close ties only, and weak ties below a district have none); delivery locality at the locality band runs 51.8% to 51.8% over the same rows.
 
 | setting | act locality (7 kinds) | delivery locality (7) | act locality (10) | delivery locality (10) | delivery within the tile (10) | bytes leaving the metro |
 |---|---|---|---|---|---|---|
@@ -275,6 +275,57 @@ Across the sub-kilometre FRONTIER rows the delivery share within the tile runs 1
 | close_friends.tile_share = 0.1688 (TIES-0 below-district bracket, FRONTIER) | 74.3% | 51.0% | 70.6% | 51.8% | 14.0% | 78.2% |
 | placeless null model (every non-household room ignores place) | 32.5% | 4.0% | 37.9% | 4.6% | 2.5% | 97.7% |
 
+
+## 7b. Audience locality three ways (CIRISHolon TIES-1, US 2008, closest ties)
+
+TIES-1 (`conformance/scene/tables/ties1_us`, 1ba48ea) is a survey of a person's closest ties, up
+to ten named people: relation, distance band from "same house" outward, and contact frequency
+by means. Envelope: United States, 2008, adults, closest ties only. It maps to the twin's kinds
+as follows. Household is the same house. Kin is family elsewhere: 0.68 within 100 miles and
+0.82 within 500, so about a fifth lies beyond one twin locality, where the page puts family
+rooms wholly inside one. Close friends are non-kin. Work, Neighbourhood and Interest get floors
+only. School, Public, Own devices and Own agents have no reference and stay FRONTIER. The close
+friends' bands are now TIES-1's non-kin bands (MODEL). Their within-tile share, 0.149, is the
+one measured sub-district anchor (of closest ties outside the house within 50 miles, 0.142 are
+on the block or under a mile; an evenly spread law gives 0.02), and it is still swept. Weak ties
+below a district have no licence. Written contact follows ties band for band within 0.03, so no
+extra weight goes on near ties for written messages. Close-tie distance is not keyed on density.
+
+Findings (MODEL against MODEL references):
+* **Household grain is a bracket.** The household carries 0.29 to 0.61 of electronic contact
+  with closest ties (0.52 correcting for unnamed co-residents). The twin's household share of
+  its close-tie kinds' deliveries is 15.0%, below the bracket: the twin under-weights the most
+  local traffic.
+* **Kin:** the twin puts 84.1% within the locality, against TIES-1's 67.6% within 100 miles
+  and 82.5% within 500 miles. Close friends: 84.6% against 82.6% / 89.8%. Work and
+  neighbourhood sit at or above their floors. **Interest groups: the twin's 40.6% is far below
+  the 88.8% floor of close group members.** A floor only bounds close members, so this flags the
+  twin's interest placement for review, not as wrong.
+
+### Audience locality three ways, side by side
+
+1. **Legacy inputs (by construction, MODEL)**: the page draws families 100% in the signer's locality and community rooms 90/9/1; act mix 65/30/4/1. Nothing measured.
+2. **Weak-tie outer envelope at district grain (TIES-0, Germany, one platform's links)**: 74.9% within 300 km; no licence below a district.
+3. **Closest ties by kind (TIES-1, United States 2008, adults, up to ten closest ties; CIRISHolon 1ba48eac69aae8126d1200f1b0b4371fa341db3e conformance/scene/tables/ties1_us/ties_by_kind_table.json v1 sha256 64aeb4ceefffa317a7833cca3bb21caab8d8b91974ca3bc83f6f86479267b376 (2,512 respondents, 7,059 closest ties))**: shares within 100 miles and within 500 miles (the twin's locality half-width, ~300 km, lies between). Work, Neighbourhood and Interest get floors only (their closest members); School, Public, Own devices and Own agents have no reference and stay FRONTIER. Close-tie distance is not keyed on density (TIES-1 shows no rise with it).
+
+The twin's own column is (a) above: the share of each kind's deliveries inside the locality, and, for kin and close friends, the same outside the household.
+
+| kind | legacy (page, by construction) | TIES-1 reference | TIES-1 within 100 mi / 500 mi | twin (a) within locality | twin (a) within locality, outside the household | verdict |
+|---|---|---|---|---|---|---|
+| household | 100% (family) | same house by definition | 100.0% / 100.0% | 100.0% | - | MODEL reference (US 2008, closest ties) |
+| kin | 100% (family) | family elsewhere (outside the house) | 67.6% / 82.5% | 84.1% | 80.6% | MODEL reference (US 2008, closest ties) |
+| work | 90% (community) | floor: co-worker closest ties | 90.3% / 96.4% | 91.7% | 91.2% | MODEL floor (US 2008 close members only) |
+| school | 90% (community) | none | - / - | 100.0% | 100.0% | FRONTIER: no reference |
+| neighbourhood | 90% (community) | floor: neighbour closest ties | 94.6% / 95.9% | 100.0% | 100.0% | MODEL floor (US 2008 close members only) |
+| interest | 90% (community) | floor: group-member closest ties | 88.8% / 93.4% | 40.6% | 39.9% | MODEL floor (US 2008 close members only) |
+| public | 1% public rooms are world rooms | none | - / - | 9.0% | 8.8% | FRONTIER: no reference |
+| close friends | 90% (community) | non-kin closest ties | 82.6% / 89.8% | 84.6% | 82.4% | MODEL reference (US 2008, closest ties) |
+| own devices | not on the page | none | - / - | 100.0% | - | FRONTIER: no reference |
+| own agents | not on the page | none | - / - | 40.0% | 0.0% | FRONTIER: no reference |
+
+**Audience locality at household grain is a bracket, not a point.** TIES-1: the household carries at least 29% of electronic contact with closest ties, 52% correcting for unnamed co-residents, up to 61% (a 2008 price; written contact follows ties band for band within 0.03, so ties stand in for written messages with no extra weight on near ties; voice leans to the house at 0.325, in person 0.437). The twin's household share of its close-tie kinds' deliveries (household, kin, close friends) is 15.0% (below the bracket).
+
+Sub-district: of closest ties outside the house and within 50 miles, 14.2% are on the block or under a mile (an evenly spread distance law gives 2%); the close-friends tile share takes TIES-1's non-kin value (14.9%) as its central value, swept below. Weak ties below a district still have no licence.
 
 ## 8. Validity envelope
 
