@@ -801,24 +801,30 @@ pub extern "C" fn micro_rhythm(day: f64, day_type: u32) -> u32 {
     n
 }
 
-/// The energy pass's counters at seed 1 (the report's), read once: a 2,000-person stand-in day, so it is costly.
+/// The energy pass's counters at seed 1 (the report's), baked (`street_energy::counters_seed1`; reading them live
+/// runs a stand-in day, 1.2 s on a throttled phone).
 fn energy_counters() -> &'static cewp_sim::energy::Counters {
     static C: std::sync::OnceLock<cewp_sim::energy::Counters> = std::sync::OnceLock::new();
-    C.get_or_init(|| cewp_sim::energy::Counters::from_hooks(1))
+    C.get_or_init(cewp_sim::street_energy::counters_seed1)
 }
 
-/// The focal street's mesh energy delta (`cewp_sim::street_energy::street_energy`): holon buffer 0 gets [1,
-/// households, home-node scenario (0 gateway, 1 computer, 2 new box, 3 none), reach, short point, short low, short
-/// high, long point, long low, long high (kWh per household-year), class code (0 MEASURED .. 4 FRONTIER)]. [0]
-/// with no world or under the legacy device draw.
+/// The focal street's share of the full-replacement test (`cewp_sim::street_energy::street_energy`): holon buffer 0
+/// gets [1, households, persons, home-node scenario (0 gateway, 1 computer, 2 new box, 3 none), reach, devices low,
+/// point, high, data-centre side low, point, high, net low, point, high (kWh per household-year), device-side class
+/// code (0 MEASURED .. 4 FRONTIER)]. [0] with no world or under the legacy device draw.
 #[no_mangle]
 pub extern "C" fn micro_energy() -> u32 {
     let h = holon();
     let Some(w) = micro().world.as_ref() else { h.out = vec![0.0]; return 1 };
     let Some(e) = cewp_sim::street_energy::street_energy(w, energy_counters()) else { h.out = vec![0.0]; return 1 };
     let wh = w.device_rule.map_or(3.0, |r| f64::from(r.home_node_where));
-    h.out = vec![1.0, e.households as f64, wh, e.reach, e.short[0], e.short[1], e.short[2], e.long[0], e.long[1], e.long[2], f64::from(e.class.code())];
-    11
+    let mut out = vec![1.0, e.households as f64, f64::from(e.persons), wh, e.reach];
+    out.extend(e.devices);
+    out.extend(e.data_centre);
+    out.extend(e.net);
+    out.push(f64::from(e.class.code()));
+    h.out = out;
+    15
 }
 
 /// The presence tint (`MicroWorld::set_presence`): the street's devices follow their people's generated days for

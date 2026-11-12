@@ -512,14 +512,14 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         id: "energy-street",
         class: Model,
         live: true,
-        shows: "The focal street's mesh energy delta from the status quo, in kWh per household-year, short and long run: the energy pass (FSD/twin/energy.md) (delta = A + B - C, expected regime) with its household mix set from this street's own households as CIRISHolon's DEVICEGEN-1 drew them, under the home-node scenario chosen on the page; the point and the lowest and highest found over every input's interval, and the weakest class of any input priced.",
-        source: "crates/cewp-sim/src/street_energy.rs street_energy (energy::with_mix_from_draws, energy::delta, energy::host_reach; counters at seed 1, the report's); micro.rs household_draws; kernel-wasm micro_energy",
-        param: "the pass's mix rule (MODEL): a home node in EVERY household that can host it, not the street's drawn 60 %; the household mix from the street's draws (connection, desktop, any computer, persons, phones); every other input at the pass's defaults (FSD/twin/energy.md)",
+        shows: "The focal street's share of the full-replacement test (the site's headline scope, Case A), model output in kWh per household-year: what the mesh adds on this street's devices (the household pass's terms A + B, long run, with the mix from this street's own households as CIRISHolon's DEVICEGEN-1 drew them, under the chosen home-node scenario) and the data-centre side for its people (energy_full's net with the additions at zero: the work removed, less what relocates to members' devices and the AI kept hosted, records, Proof of Benefit and self-observation), and their sum with its sign; each with its range.",
+        source: "crates/cewp-sim/src/street_energy.rs street_energy and FULL_REST (energy_full::eval and corners_at, AiCase::Mix, 10 interactions per person-day, new-box share 0, Case A: the headline row of `cewp-cli energy-full 1` less its additions, kWh per person-year -43.33 / -15.40 / +909.30; test the_baked_data_centre_side_is_energy_fulls recomputes it and checks energy_full's net = additions + this side); energy::with_mix_from_draws, energy::delta; micro.rs household_draws; kernel-wasm micro_energy",
+        param: "the pass's mix rule (MODEL): a home node in EVERY household that can host it, not the street's drawn 60 %; the household mix from the street's draws (connection, desktop, any computer, persons, phones); the data-centre side per person times the street's persons (children included, as energy_full is per internet user); the net's range is the sum of the two ranges; every other input at its default (FSD/twin/energy.md)",
         failure: &[
-            "The street's mix is a few dozen households: its shares are a draw, not a rate; the pass's rows carry their own classes and most are FRONTIER or MODEL.",
-            "Not spatial beyond the street: no grid mix or carbon intensity is in the twin, which is why there is no Power map.",
+            "The street's mix is a few dozen households: its shares are a draw, not a rate; most inputs are FRONTIER or MODEL and the net's range spans zero.",
+            "The data-centre side is a world average per internet user, not this street's; nothing here is spatial, which is why there is no Power map.",
         ],
-        reproduce: "cargo test -p cewp-sim street_energy; cargo run -p cewp-cli -- energy 1",
+        reproduce: "cargo test -p cewp-sim street_energy; cargo run -p cewp-cli -- energy-full 1",
         ..BASE
     },
     PageClaim {

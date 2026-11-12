@@ -46,6 +46,9 @@ window.CEWP_LAYERS["flows"] = layer({ id: "flows", title: "Flows between localit
   contract: "During tick() the kernel counts every delivery that leaves its signer's locality, the same events as out[6] + out[7], into a 181 × 181 u32 matrix (row = from, column = to), buffer 10. Positions: locality_centroids(lat, lon, metro, n), buffer 2, f64 × 3 (lat°, lon°, nodes). The page sums the last 25 ticks and draws the 60 largest pairs, ribbon width ∝ log(count). Checked every tick: Σ matrix = out[6] + out[7].",
   available: has("globe_buf_ptr", "locality_centroids"),
   onTick(){
+    // only while the layer is shown: summing 25 ticks of a 181 x 181 matrix every tick took about a tenth of a
+    // throttled phone's main thread with the layer off; the window refills in 3 s of sim when it is switched on
+    if (typeof LAYERS !== "undefined" && LAYERS.on && !LAYERS.on("flows")){ FLOW.win = []; FLOW.sum = null; return; }
     if (FLOW.W !== W){ wasm.locality_centroids(bufs.lat, bufs.lon, bufs.metro, W.n); FLOW.cent = F64(2).slice(); FLOW.W = W; FLOW.win = []; FLOW.sum = null; }
     const m = U32(10).slice(); FLOW.N = Math.round(Math.sqrt(m.length));
     const out = new Float64Array(mem.buffer, bufs.out, OUT); let tot = 0; for (let i = 0; i < m.length; i++) tot += m[i];

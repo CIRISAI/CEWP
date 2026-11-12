@@ -150,8 +150,13 @@ else{gl_FragColor=vec4(0.36,0.38,0.44,uA*0.5*hatch);}}`;
 let pAww = null;
 function awakeWideBuild(){
   if (AWW.mask || typeof HOLT === "undefined" || !HOLT.countries) return !!AWW.mask;
-  const [a0, o0, a1, o1] = AWW.box, NX = 240, NY = 114, D = new Uint8Array(NX * NY);
-  for (let y = 0; y < NY; y++) for (let x = 0; x < NX; x++){ const la = a0 + (y + 0.5) * 0.5, lo = o0 + (x + 0.5) * 0.5; D[y * NX + x] = countryNear(HOLT.countries, la, lo) === 840 ? 255 : 0; }
+  // the mask is 27,000 country lookups (about 1 s on a phone at 4x CPU throttle): a few rows a frame, at most 3 ms each,
+  // and the layer draws once it is whole
+  const [a0, o0, a1, o1] = AWW.box, NX = 240, NY = 114;
+  if (!AWW.D){ AWW.D = new Uint8Array(NX * NY); AWW.row = 0; }
+  const D = AWW.D, t0 = performance.now();
+  while (AWW.row < NY && performance.now() - t0 < 3){ const y = AWW.row++; for (let x = 0; x < NX; x++){ const la = a0 + (y + 0.5) * 0.5, lo = o0 + (x + 0.5) * 0.5; D[y * NX + x] = countryNear(HOLT.countries, la, lo) === 840 ? 255 : 0; } }
+  if (AWW.row < NY){ if (typeof gfxDirty === "function") gfxDirty(100); return false; }
   const tex = (w, h, data, filt) => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, w, h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, data);
     for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, filt], [gl.TEXTURE_MAG_FILTER, filt], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v); return t; };
   AWW.mask = tex(NX, NY, D, gl.NEAREST); AWW.col = tex(NX, 1, AWW.colData, gl.LINEAR);

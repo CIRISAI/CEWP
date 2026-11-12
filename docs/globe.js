@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=44"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=45"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2693,15 +2693,20 @@ function streetEnergy(){
   if (!M || typeof wasm === "undefined" || !wasm || !wasm.micro_energy) return null; if (M.energy !== undefined) return M.energy;
   if (!M.energyQ){ M.energyQ = true; const m = M;
     (window.requestIdleCallback || ((f) => setTimeout(f, 50)))(() => { if (M !== m) return; const t0 = performance.now(), n = wasm.micro_energy(), o = Array.from(new Float64Array(wasm.memory.buffer, wasm.holon_buf_ptr(0) >>> 0, n));
-      m.energy = o[0] === 1 ? { hh: o[1], where: o[2], reach: o[3], short: o.slice(4, 7), long: o.slice(7, 10), cls: o[10] } : null; m.energyMs = performance.now() - t0; const c = $("focal-chip"); if (c) c._t = 0; }, { timeout: 3000 }); }
+      m.energy = o[0] === 1 ? { hh: o[1], persons: o[2], where: o[3], reach: o[4], dev: o.slice(5, 8), dc: o.slice(8, 11), net: o.slice(11, 14), cls: o[14] } : null; m.energyMs = performance.now() - t0; const c = $("focal-chip"); if (c) c._t = 0; }, { timeout: 3000 }); }
   return undefined;
 }
 function energyLine(){
   const e = streetEnergy();
-  if (e === undefined) return "mesh energy on this street: computing…";
-  if (!e) return `mesh energy on this street: needs CIRISHolon's device rule (this street's households) ${holVd("legacy", "the legacy device draw has no household mix")}`;
-  const f = (x) => { const r = Math.round(x * 10) / 10; return r === 0 ? "0.0" : (r > 0 ? "+" : "−") + Math.abs(r).toFixed(1); }, sign = (v) => v[1] > 0 ? "a cost over every input's range" : v[2] < 0 ? "a saving over every input's range" : "sign open over the inputs";
-  return `mesh energy on this street against the status quo (the energy pass, expected regime, the household mix from this street's ${e.hh} households, ${EN_WHERE[e.where | 0]}${(e.where | 0) < 3 ? ", " + Math.round(e.reach * 100) + "% of them" : ""}): short run ${f(e.short[0])} kWh per household-year (${f(e.short[1])} to ${f(e.short[2])}, ${sign(e.short)}), long run ${f(e.long[0])} (${f(e.long[1])} to ${f(e.long[2])}, ${sign(e.long)}); weakest input ${EN_CLASS[e.cls | 0]}`;
+  if (e === undefined) return "energy on this street (full replacement): computing…";
+  if (!e) return `energy on this street: needs CIRISHolon's device rule (this street's households) ${holVd("legacy", "the legacy device draw has no household mix")}`;
+  const f = (x) => { const r = Math.round(x * 10) / 10; return r === 0 ? "0.0" : (r > 0 ? "+" : "−") + Math.abs(r).toFixed(1); }, rg = (v) => `${f(v[0])} to ${f(v[2])}`;
+  const sign = e.net[2] < 0 ? "a saving over every input's range" : e.net[0] > 0 ? "a cost over every input's range" : "sign open: the range spans zero";
+  // the same scope as the site's headline (energy_full, Case A): this street's devices plus the data-centre work its people no longer need
+  return `energy on this street if the mesh replaced the internet (model output, kWh per household-year; full-replacement test, Case A, the site's headline scope): ` +
+    `added on this street's devices ${f(e.dev[1])} (${rg(e.dev)}; ${EN_WHERE[e.where | 0]}${(e.where | 0) < 3 ? ", " + Math.round(e.reach * 100) + "% of the " + e.hh + " households" : ""}) · ` +
+    `data-centre work no longer done for these ${e.persons} people, less what moves to their devices and the AI kept hosted ${f(e.dc[1])} (${rg(e.dc)}) · ` +
+    `net ${f(e.net[1])} (${rg(e.net)}), ${sign}; inputs MODEL and FRONTIER`;
 }
 // the chip line: who is where in this hour of the generated day, and what CIRISHolon said of the generator
 function rhyLine(){

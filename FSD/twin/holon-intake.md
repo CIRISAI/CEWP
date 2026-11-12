@@ -262,11 +262,15 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   phones are asleep, at 1 p.m. at most 20 %; outside the country none change. Wasm 1,517,600 bytes.
 - **No Power map; the street's energy line instead** (crates/cewp-sim/src/street_energy.rs, kernel `micro_energy`,
   ledger energy-street). The energy pass varies by scenario and regime, not by place, and no grid mix or carbon
-  intensity is in the twin, so a map would be the People map times a constant. Instead the detail panel gives
-  the focal street's own delta: `energy::with_mix_from_draws` over the street's DEVICEGEN-1 households (micro.rs
-  `household_draws`, the mapping energy::HouseholdDraw documents), the pass's mix scenario for the chosen
-  home-node scenario (a home node in EVERY household that can host it, the pass's rule), expected regime, short
-  and long run, point and range in kWh per household-year. Example (Columbus suburb, 25 households): gateway
-  +6.8 short (+0.8 to +37.5, a cost over every input's range), +7.3 long (sign open); new box +58.1; phones only
-  +3.3 (sign open). The pass's counters are read once at seed 1 (the report's); each street then costs 7 to 11 ms.
-  Wasm 1,635,876 bytes (+118 kB: the energy pass and the stand-in world its counters read).
+  intensity is in the twin, so a map would be the People map times a constant (grid data is to come from CIRISHolon
+  as a statistics table, GRID-0). The detail panel gives the focal street's share of the site's headline scope
+  (full replacement, Case A), model output in kWh per household-year, in two parts that sum to its net:
+  added on this street's devices (the household pass's A + B, long run, with the mix from the street's own
+  DEVICEGEN-1 households under the chosen home-node scenario; the pass's term C is not used, being inside
+  energy_full's "removed"), and the data-centre side for its people (energy_full's net with the additions at
+  zero, Case A, tiered AI mix at 10 interactions a day: -15.40 kWh per person-year, -43.33 to +909.30, baked as
+  `FULL_REST` and recomputed by a test, which also checks energy_full's net = its additions + this side), times
+  the street's persons. Columbus suburb, 25 households, 48 people, gateway: devices +6.8 (+0.9 to +34.8), data
+  centre -29.6 (-83.2 to +1,745.9), net -22.8 (-82.2 to +1,780.7), sign open. The pass's counters at seed 1 are
+  baked too (`counters_seed1`, test against `Counters::from_hooks(1)`): read live they ran a stand-in day, a
+  1.2 s task on a phone at 4x CPU throttle. A street costs 10 to 45 ms there. Wasm 1,591,135 bytes.
