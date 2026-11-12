@@ -265,6 +265,107 @@ mod tests {
         }
     }
 
+    /// One assumption of the street, or MESH-0's in its place, for the decomposition against MESH-0's hold times.
+    #[derive(Clone, Copy, Default)]
+    struct M0 { follow_h: f64, people_only: bool, phones: bool, other_households: bool, independent: bool }
+    /// Messages people's devices send over one generated day on the Columbus street (each person's day leads sending),
+    /// followed `follow_h` more hours: [sent, taken at once, held, held and delivered], the delivered waits (hours), and
+    /// the share of the street's adults with no phone.
+    fn mesh0_read(c: M0) -> ([u64; 4], Vec<f64>, f64) {
+        use crate::micro::{HostKind, Route, P};
+        use std::collections::{HashMap, VecDeque};
+        let p = {
+            let mut p = MicroParams::default();
+            p.set(P::StartLocalHour, 4.0);
+            if c.other_households {
+                p.set(P::FamilyShare, 0.0);
+                p.set(P::CommunityShare, 0.95);
+            }
+            p
+        };
+        let leaf = LeafLayout::build(HolonId::at(8, 40.06, -83.05), &LeafContext { budget: 40, chain: [3_000; 11], ..LeafContext::default() }, &p);
+        let dwellings: usize = leaf.buildings.iter().map(|b| usize::from(b.units)).sum();
+        // the page's composition: household sizes from CIRISHolon's generator (US 2024 rows, the street's density class)
+        let class = crate::popchain::households::holon_class(3_000.0);
+        let drawn = holon_scene::household::generate(0x00C0_1B05, (dwellings as u64) * 3, class, holon_scene::household::Reference::UnitedStates2024, true).sizes;
+        let sizes: Vec<u8> = (0..dwellings).map(|i| drawn[i % drawn.len().max(1)]).collect();
+        let mut w = MicroWorld::from_leaf_with(&leaf, p, sizes, Some(DeviceRule { home_node_where: HOME_ON_GATEWAY, in_country: true }));
+        w.set_presence(7, 1);
+        w.address_phones = c.phones;
+        if c.independent {
+            // each adult takes the day of an adult in another household (a fixed derangement by a seeded shuffle), so
+            // members of one household no longer share their hours
+            let pr = w.presence.as_mut().expect("presence");
+            let mut all: Vec<[u8; 24]> = pr.days.iter().flatten().copied().collect();
+            let n = all.len();
+            let mut x: u64 = 0x9E37_79B9_7F4A_7C15;
+            for i in (1..n).rev() {
+                x ^= x << 13; x ^= x >> 7; x ^= x << 17;
+                all.swap(i, (x % (i as u64 + 1)) as usize);
+            }
+            let mut k = 0;
+            for d in &mut pr.days { for s in d.iter_mut() { *s = all[k]; k += 1; } }
+        }
+        // adults with no phone, among the households that run CIRIS (the others have no devices on the street at all)
+        let ad = |h: usize| w.households[h].adopting && !w.households[h].nodes.is_empty();
+        let adults: usize = w.presence.as_ref().map_or(0, |p| p.days.iter().enumerate().filter(|&(h, _)| ad(h)).map(|(_, d)| d.len()).sum());
+        let with_phone: usize = w.presence.as_ref().map_or(0, |p| p.days.iter().enumerate().filter(|&(h, _)| ad(h)).map(|(h, d)| (0..d.len()).filter(|&o| w.households[h].nodes.iter().any(|&j| w.nodes[j].kind == HostKind::Phone && usize::from(w.nodes[j].owner) == o)).count()).sum());
+        let person = |w: &MicroWorld, i: usize| matches!(w.nodes[i].kind, HostKind::Phone | HostKind::Laptop);
+        let (mut n, mut waits, mut open): ([u64; 4], Vec<f64>, HashMap<usize, VecDeque<f64>>) = ([0; 4], Vec::new(), HashMap::new());
+        let minutes = ((24.0 + c.follow_h) * 60.0) as usize;
+        for m in 0..minutes {
+            w.events.clear();
+            w.step(60.0);
+            let sending = m < 24 * 60;
+            for e in &w.events {
+                if e.route == Route::MailDelivered {
+                    if let Some(q) = open.get_mut(&e.dst) {
+                        if let Some(t0) = q.pop_front() { waits.push((e.t - t0) / 3600.0); n[3] += 1; }
+                    }
+                    continue;
+                }
+                if !sending || !person(&w, e.src) || (c.people_only && !person(&w, e.dst)) {
+                    continue;
+                }
+                n[0] += 1;
+                if e.route == Route::Mailboxed { n[2] += 1; open.entry(e.dst).or_default().push_back(e.t); } else { n[1] += 1; }
+            }
+        }
+        (n, waits, 1.0 - with_phone as f64 / adults.max(1) as f64)
+    }
+    fn m0_summary(r: &([u64; 4], Vec<f64>, f64)) -> [f64; 5] {
+        let (n, w, _) = r; let mut v = w.clone(); v.sort_by(f64::total_cmp);
+        let q = |f: f64| if v.is_empty() { 0.0 } else { v[((f * v.len() as f64).ceil() as usize).clamp(1, v.len()) - 1] };
+        // shares of the delivered held rows (the page's base and MESH-0's, which followed every message to delivery)
+        let over8 = v.iter().filter(|&&x| x > 8.0).count() as f64 / v.len().max(1) as f64;
+        [n[1] as f64 / n[0].max(1) as f64, q(0.25), q(0.5), q(0.75), over8]
+    }
+
+    /// The decomposition of the street's hold times against MESH-0's, one assumption at a time (a report; cargo test -p
+    /// cewp-sim mesh0_decomposition -- --ignored --nocapture).
+    #[test]
+    #[ignore = "a report, not a check"]
+    fn mesh0_decomposition() {
+        // every switch after the first is measured on the followed day, so that truncation does not confound it
+        let f = M0 { follow_h: 24.0, ..M0::default() };
+        let rows: [(&str, M0); 8] = [
+            ("the page: one day, held rows counted if delivered within it", M0::default()),
+            ("follow the day's rows 24 h more", f),
+            ("+ addressed to people only (phones, laptops)", M0 { people_only: true, ..f }),
+            ("+ a person, reached at their phone", M0 { phones: true, ..f }),
+            ("+ addressees outside the sender's household", M0 { other_households: true, ..f }),
+            ("+ household members' days independent", M0 { independent: true, ..f }),
+            ("all of MESH-0's assumptions together", M0 { people_only: true, phones: true, other_households: true, independent: true, ..f }),
+            ("all but 'outside the household' (MESH-0's ties may include it)", M0 { people_only: true, phones: true, independent: true, ..f }),
+        ];
+        println!("MESH-0: at once 0.858, held waits 2 / 4 / 8 h, over 8 h 0.23");
+        for (name, c) in rows {
+            let r = mesh0_read(c); let s = m0_summary(&r);
+            println!("{name}: sent {}, at once {:.3}, held {} (delivered {}), waits {:.1} / {:.1} / {:.1} h, over 8 h {:.3}; adults with no phone {:.3}",
+                r.0[0], s[0], r.0[2], r.0[3], s[1], s[2], s[3], s[4], r.2);
+        }
+    }
+
     /// CIRISHolon published PRESENCEGEN-2's digest (`PRESENCEGEN2_RESULTS.md`: one value native and wasm32);
     /// docs/geo/holon/presencegen_digest.txt carries it and presencegen.test.js checks the page's wasm against it.
     #[test]

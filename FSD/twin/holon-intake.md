@@ -357,6 +357,33 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   The day curve (workload.rs model.diurnal.v1) is above 1 at 22:00 (1.23) while the awake share is 0.416, and still
   1.00 at 23:00 (0.198 awake) and 0.78 at midnight (0.092 awake); keeping its total on the awake roughly tripled the
   rate per awake person late in the evening, which the sending rule below resolves.
+- **Hold times against MESH-0, by decomposition (nothing tuned).** MESH-0 (100,000 US households) holds messages 2 / 4 / 8 h
+  at the quartiles with 0.23 waiting over 8 h; the street's panel showed every held message delivered within 8 h. On the
+  Columbus street (CIRISHolon's US household sizes, one generated Tuesday, each person's day leading sending), the
+  street's assumptions switched to MESH-0's one at a time (street_rhythm mesh0_decomposition; each switch after the
+  first measured on the followed day; shares of the gap from the page's figure to MESH-0's):
+
+  | switch | taken at once | median wait | over 8 h | share of the gap: at once / median / over 8 h |
+  |---|---|---|---|---|
+  | the page: one day, held messages counted if delivered within it | 0.730 | 1.0 h | 0.000 | — |
+  | follow the day's messages 24 h more (an evening message to an early sleeper is delivered next morning) | 0.730 | 1.1 h | 0.030 | 0 / 0.03 / 0.13 |
+  | + count only messages to people (phones, laptops), not to home nodes or the server | 0.615 | 1.1 h | 0.030 | −0.90 / 0 / 0 |
+  | + the addressee is a person, received at their phone (not their laptop or home node) | 0.806 | 2.8 h | 0.171 | 0.59 / 0.57 / 0.61 |
+  | + addressees only outside the sender's household | 0.734 | 1.2 h | 0.040 | 0.03 / 0.03 / 0.04 |
+  | + household members' days drawn independently | 0.723 | 1.0 h | 0.017 | −0.05 / −0.03 / −0.06 |
+  | all of MESH-0's assumptions together | 0.838 | 2.1 h | 0.114 | 0.84 / 0.37 / 0.50 |
+  | all but "outside the household" | 0.857 | 2.5 h | 0.127 | 0.99 / 0.50 / 0.55 |
+
+  The shares do not add: the switches interact. What explains most of it is what counts as delivery: the street
+  addresses devices, so a message to a household's always-on home node or the server is taken at once and a held
+  message waits only until a mailbox can pass it on, where MESH-0 needs the addressee's phone; and the page counted
+  waits only for messages delivered within the day it had run. Adults with no phone are treated alike (never an
+  addressee in MESH-0's count, never reached at a phone here); on this street they are 0.286 of adults in households
+  that run CIRIS, against MESH-0's 0.196. Unexplained after all switches (a median of 2.1 to 2.5 h against 4 h, 0.11 to
+  0.13 over 8 h against 0.23): one street of about 40 households on one weekday against 100,000 households over a
+  week, and MESH-0's four messages per addressee against the street's flat rate per awake device (a person with a
+  laptop sends twice). The address-at-the-phone switch is an engine hook for this comparison only
+  (MicroWorld::address_phones), not a page setting. The panel now says what each line counts.
 - **Sending: each person's day leads, the curve is the second setting.** Sending by hour has no reference in anything
   read (neither the engine's day curve, model.diurnal.v1, nor CIRISHolon's construction is one), so the street shows
   two assumptions. Where a person has a generated day, each of their awake devices signs at msg_mean_interval_s

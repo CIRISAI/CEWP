@@ -491,6 +491,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         failure: &[
             "Person to person only, one clock, household members independent: the street's messages are the engine's own draws, not a measured traffic mix.",
             "The late bound is an assumed number (12 h): a share over it is a readout, not a quality judgement.",
+            "Not MESH-0's count: the street addresses devices (always-on home nodes and the server take a message at once) and counts waits as delivered so far; switched to MESH-0's assumptions one at a time on a Columbus street (one generated day), reaching the person at their phone moves the taken-at-once share from 0.73 to 0.81 and the median wait from 1.1 to 2.8 h; all together 0.84 and 2.1 h, against MESH-0's 0.86 and 4 h (street_rhythm mesh0_decomposition).",
             "Sending by hour has no reference: where people have generated days the street shows two assumptions (each awake device at one flat rate, the default; or the assumed day curve's total poured onto whoever is awake), and the counts depend on which.",
         ],
         reproduce: "cargo test -p cewp-sim micro::tests::a_phone_is_reachable_while_its_person_is_awake micro::tests::held_rows_are_counted_by_holder_and_late_past_the_bound",

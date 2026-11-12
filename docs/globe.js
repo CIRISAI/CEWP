@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=50"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=51"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2783,7 +2783,7 @@ function deliveryLine(){
   const n = wasm.micro_hold_stats(), o = new Float64Array(wasm.memory.buffer, wasm.holon_buf_ptr(0) >>> 0, n);
   if (o[0] !== 1) return "";
   const sent = o[1], pc = (x) => sent ? Math.round(100 * x / sent) + "%" : "–", hh = (x) => (x / 3600).toFixed(1) + " h", held = o[3] + o[4] + o[5];
-  return `deliveries on this street so far (counts under stated assumptions): ${sent.toLocaleString()} messages; ${pc(o[2])} taken at once; held ${pc(held)} (${pc(o[3])} at a device of the recipient's home, ${pc(o[4])} at the seat, ${pc(o[5])} elsewhere)` +
+  return `deliveries on this street so far (counts under stated assumptions; a message goes to a device, a person's phone or laptop, a home node or the street's server, and counts as taken at once when that device is on; waits count the held messages delivered so far): ${sent.toLocaleString()} messages; ${pc(o[2])} taken at once; held ${pc(held)} (${pc(o[3])} at a device of the recipient's home, ${pc(o[4])} at the seat, ${pc(o[5])} elsewhere)` +
     (o[6] ? `; held messages waited ${hh(o[7])} / ${hh(o[8])} / ${hh(o[9])} (quartiles), ${n > 16 ? [1, 4, 8, 24].map((x, i) => Math.round(100 * o[16 + i]) + "% under " + x + " h").join(", ") : ""}` : "") +
     `; ${o[10].toLocaleString()} delivered late and ${o[11].toLocaleString()} still held past ${hh(o[12])} (MODEL: late means after ${hh(o[12])}, the longest wait MESH-0 reports a share for; a readout, nothing is decided by it)` +
     `; ${o[13] ? Math.round(100 * o[14] / o[13]) + "%" : "–"} of relayed messages went through the seat · reachability: ${o[15] ? "a phone is on while its person is awake (the people's own days)" : "the flat on-off chain (no people's days here)"}` +
@@ -2794,7 +2794,7 @@ function meshLine(){
   const m = HOLT.t.mesh0, md = m && m.data; if (!md) return "MESH-0: loading…";
   const s2 = md.S2.by_join_and_phone_rule["afresh, phone on when awake"], left = Object.entries(md.left_to_someone_else).filter(([k]) => k.startsWith("Mon-Thu|afresh|off0|independent")).map(([, v]) => v);
   const ca = md.counted_apart, nophone = ca.adults_without_phone / (ca.adults_without_phone + ca.addressees);
-  return `CIRISHolon MESH-0 on a generated US population (every count unresolved): ${md.S1.taken_at_once_measured.toFixed(2)} taken at once, ${s2.sender_holds_within_hours["12"].toFixed(2)} within 12 h with the sender's phone holding; left to the seat ${Math.min(...left).toFixed(3)} to ${Math.max(...left).toFixed(3)} depending on which homes have a host that is on · home nodes: under the default rule about 0.43 of homes have one (0.60, the share of hosts that offer, is an assumption, times the 0.716 of homes whose gateway can host it); MESH-0's finding that 0.21 of hosts sit in homes with nothing to host on applies only to the older tile path, where the 0.60 is drawn for every home · limits: person to person only, one clock, members of a household drawn independently, ${nophone.toFixed(3)} of generated adults drawn with no smartphone (unchecked, looks high)`;
+  return `CIRISHolon MESH-0 on a generated US population (every count unresolved; not the same count as the street's line: MESH-0 counts person to person, at the addressee's phone, every message followed to delivery): ${md.S1.taken_at_once_measured.toFixed(2)} taken at once, ${s2.sender_holds_within_hours["12"].toFixed(2)} within 12 h with the sender's phone holding; left to the seat ${Math.min(...left).toFixed(3)} to ${Math.max(...left).toFixed(3)} depending on which homes have a host that is on · home nodes: under the default rule about 0.43 of homes have one (0.60, the share of hosts that offer, is an assumption, times the 0.716 of homes whose gateway can host it); MESH-0's finding that 0.21 of hosts sit in homes with nothing to host on applies only to the older tile path, where the 0.60 is drawn for every home · limits: person to person only, one clock, members of a household drawn independently, ${nophone.toFixed(3)} of generated adults drawn with no smartphone (unchecked, looks high)`;
 }
 // the chip line: who is where in this hour of the generated day, and what CIRISHolon said of the generator
 function rhyLine(){

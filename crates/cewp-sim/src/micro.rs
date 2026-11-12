@@ -886,6 +886,9 @@ pub struct MicroWorld {
     pub household_draws: Vec<Option<crate::energy::HouseholdDraw>>,
     /// Who is awake, per person, for the street's devices (the presence tint): set by [`MicroWorld::set_presence`].
     pub presence: Option<StreetPresence>,
+    /// Address rows as CIRISHolon's MESH-0 does (a person, reached at their phone) instead of by the room mix's device:
+    /// for the decomposition against MESH-0 only (street_rhythm mesh0_decomposition); not a page setting. Default off.
+    pub address_phones: bool,
     /// Seed (from the tile).
     pub seed: u64,
     rng: Rng,
@@ -1119,6 +1122,7 @@ impl MicroWorld {
             household_groups: Vec::new(),
             household_draws: Vec::new(),
             presence: None,
+            address_phones: false,
         }
     }
 
@@ -2224,6 +2228,33 @@ impl MicroWorld {
     // -------------------------------------------------------------- traffic
 
     fn pick_destination(&mut self, src: usize) -> Option<usize> {
+        let d = self.pick_device(src)?;
+        if !self.address_phones || self.nodes[src].kind == HostKind::CiRunner {
+            return Some(d);
+        }
+        // MESH-0's addressee (address_phones): a person, reached at their phone. A server or seat has no person; the
+        // sender's own phone is not an addressee; a child's phone is counted apart (only adults have generated days);
+        // the addressed device's own person if they have a phone, else another adult of that household who does
+        let hd = self.nodes[d].household?;
+        let (sh, so) = (self.nodes[src].household, self.nodes[src].owner);
+        let adults = self.presence.as_ref().and_then(|p| p.days.get(hd)).map_or(usize::MAX, Vec::len);
+        let phones: Vec<usize> = self.households[hd]
+            .nodes
+            .iter()
+            .copied()
+            .filter(|&j| self.nodes[j].kind == HostKind::Phone && usize::from(self.nodes[j].owner) < adults && !(sh == Some(hd) && self.nodes[j].owner == so))
+            .collect();
+        if phones.is_empty() {
+            return None;
+        }
+        if let Some(&ph) = phones.iter().find(|&&j| self.nodes[j].owner == self.nodes[d].owner) {
+            return Some(ph);
+        }
+        Some(phones[self.rng.below(phones.len())])
+    }
+
+    /// The device a row from `src` is addressed to, by the room mix (family, community, the sender's seat).
+    fn pick_device(&mut self, src: usize) -> Option<usize> {
         let p = self.params.clone();
         let n = &self.nodes[src];
         if n.kind == HostKind::CiRunner {
