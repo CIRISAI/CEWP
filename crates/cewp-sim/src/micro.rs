@@ -410,6 +410,9 @@ pub struct Household {
     pub router: RouterNat,
     /// In the street's community room.
     pub in_community: bool,
+    /// Its access network's AS, its second parent beside the street tile (`netgraph::attach_access`;
+    /// 0 until attached).
+    pub access: u32,
     /// Its devices.
     pub nodes: Vec<usize>,
     /// Position of the dwelling inside the building.
@@ -1362,6 +1365,7 @@ impl MicroWorld {
                     persons,
                     router,
                     in_community: u_comm < p.share(P::CommunityJoinShare),
+                    access: 0,
                     nodes: Vec::new(),
                     x,
                     y,
@@ -1474,6 +1478,25 @@ impl MicroWorld {
             let n = &mut self.nodes[i];
             n.last_announce = -(i as f64 % ANNOUNCE_INTERVAL_S);
         }
+    }
+
+    /// Give each household its access network's AS (index = household); see
+    /// `netgraph::attach_access`.
+    pub fn set_access(&mut self, asns: &[u32]) {
+        for (h, &a) in self.households.iter_mut().zip(asns) {
+            h.access = a;
+        }
+    }
+
+    /// Households per access network (AS 0 = not attached): the households' second parent. Its
+    /// values sum to the tile's households when every household is attached.
+    #[must_use]
+    pub fn households_by_access(&self) -> BTreeMap<u32, u64> {
+        let mut m = BTreeMap::new();
+        for h in &self.households {
+            *m.entry(h.access).or_insert(0) += 1;
+        }
+        m
     }
 
     fn rehome(&mut self, i: usize, seats: &[usize], k: usize) {

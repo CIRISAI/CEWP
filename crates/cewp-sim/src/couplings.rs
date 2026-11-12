@@ -240,9 +240,9 @@ pub const ROWS: &[Row] = &[
         &["micro.seat_km_min", "micro.seat_km_max"], "drawn on the chip; no micro model reads a latency from it (netgraph latency is metro to metro)"),
     // ------------------------------------------------------------------ B: invented today
     row("household.access_network", B, rel("household", "access network", true), "household", "membership (one fixed AS per household)",
-        "crates/cewp-sim/src/netgraph.rs:assign_micro (report and tests; micro.rs does not read it yet: item 6 g owed); failure.rs:DomainWorld::build", "MODEL",
+        "crates/cewp-sim/src/netgraph.rs:attach_access -> micro.rs Household.access, households_by_access (attached in kernel-wasm micro_build and micro_build_leaf; summed both ways in tests, read by no model yet); failure.rs:DomainWorld::build", "MODEL",
         "none known (ISP market shares per metro)", &["netgraph.incumbent_weight", "netgraph.local_weight_top", "failure.world.fixed_isps_per_country", "failure.world.isp_zipf"],
-        "the household's second parent: households summed by cell and by access network must agree"),
+        "the household's second parent: households summed by street tile and by access network agree for every seed (netgraph test, popcond.test.js). Micro's router class is still its own draw; reading the network's NAT behaviour is FSD/twin/nat.md section 8"),
     row("phone.carrier", B, rel("phone", "carrier", true), "device", "membership", "crates/cewp-sim/src/netgraph.rs:assign_micro; failure.rs:DomainWorld::build", "MODEL",
         "World Bank indicators mirroring ITU (subscriptions, country grain); no market shares", &["netgraph.mobile_weight_top", "failure.world.cell_carriers_per_country"],
         "a phone's third parent"),

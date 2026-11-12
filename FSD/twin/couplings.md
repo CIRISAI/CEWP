@@ -57,9 +57,11 @@ Read from the code, not from memory.
   positions are drawing (and the Story's choice of its four actors).
 - **Distance to the serve seat** is drawn and shown, but no micro model reads a latency from it;
   the netgraph latency is metro to metro. Decoration today.
-- **Household to access network** is generated (`netgraph.rs:assign_micro`) but only the netgraph
-  report and its tests read it; micro's reach is still its own per-household router draw. It is in
-  part B until item 6 (g) wires it.
+- **Household to access network** is now attached to every household of the focal world
+  (`netgraph.rs:attach_access`, called by kernel-wasm on every build), and the households summed by
+  street tile and by access network agree for every seed. No model reads it yet: micro's reach is
+  still its own per-household router draw, so the row stays in part B until the NAT seam of
+  `FSD/twin/nat.md` section 8 makes the router class follow the network.
 - **Building storeys and arterial crossings** are decoration: storeys set glyph height and shadow,
   crossings join neighbouring tiles' arterials, and nothing reads either. Street membership is
   decoration until streets become a graph (item 6 (f)).
@@ -100,9 +102,9 @@ integers.
 - The globe renders a Series directly (cells filling and emptying, arrows along flows), not
   converted to the twin's own shape.
 - The page shows each activity curve with its verdict.
-- Item 6 (f) streets as a graph, (g) the access network as the household's second parent, and
-  (h) crossings per side in the sums file, which move `leaf.streets`, `household.access_network`
-  and `leaf.arterial_crossings` to models that read them.
+- Item 6 (f) streets as a graph and (h) crossings per side in the sums file, and the NAT seam of
+  `FSD/twin/nat.md` section 8 (router class from the household's access network), which move
+  `leaf.streets`, `leaf.arterial_crossings` and `household.access_network` to models that read them.
 
 ## 7. Gaps with no free reference, and what the fleet could measure instead
 
@@ -165,7 +167,7 @@ no-redistribution terms.
 
 | name | type | tier | unit | joins / parents / read with / bins | consumer | class | reference | params |
 |---|---|---|---|---|---|---|---|---|
-| `household.access_network` | relationship | household | membership (one fixed AS per household) | household -> access network | crates/cewp-sim/src/netgraph.rs:assign_micro (report and tests; micro.rs does not read it yet: item 6 g owed); failure.rs:DomainWorld::build (the household's second parent: households summed by cell and by access network must agree) | MODEL | none known (ISP market shares per metro) | `netgraph.incumbent_weight` `netgraph.local_weight_top` `failure.world.fixed_isps_per_country` `failure.world.isp_zipf` |
+| `household.access_network` | relationship | household | membership (one fixed AS per household) | household -> access network | crates/cewp-sim/src/netgraph.rs:attach_access -> micro.rs Household.access, households_by_access (attached in kernel-wasm micro_build and micro_build_leaf; summed both ways in tests, read by no model yet); failure.rs:DomainWorld::build (the household's second parent: households summed by street tile and by access network agree for every seed (netgraph test, popcond.test.js). Micro's router class is still its own draw; reading the network's NAT behaviour is FSD/twin/nat.md section 8) | MODEL | none known (ISP market shares per metro) | `netgraph.incumbent_weight` `netgraph.local_weight_top` `failure.world.fixed_isps_per_country` `failure.world.isp_zipf` |
 | `phone.carrier` | relationship | device | membership | phone -> carrier | crates/cewp-sim/src/netgraph.rs:assign_micro; failure.rs:DomainWorld::build (a phone's third parent) | MODEL | World Bank indicators mirroring ITU (subscriptions, country grain); no market shares | `netgraph.mobile_weight_top` `failure.world.cell_carriers_per_country` |
 | `household.carrier_shared` | relationship | household | pairs on one carrier | phone -- phone | crates/cewp-sim/src/reach.rs:World::generate (family plans) | MODEL | none known | `reach.family_same_carrier_share` |
 | `access_link.technology` | attribute | access link | class (cable \| fibre \| DSL \| 4G \| 5G) | of access network; with household.access_network, region.ipv4_scarcity | crates/cewp-sim/src/reach.rs:ReachModel::draw_tech, network; reach/topo.rs (drawn per ASN, so one network is one technology) | MODEL | World Bank indicators mirroring ITU (fixed broadband per 100); M-Lab NDT for rates | `reach.fixed_cable_share` `reach.fixed_fibre_share` `reach.cell_5g_share` |

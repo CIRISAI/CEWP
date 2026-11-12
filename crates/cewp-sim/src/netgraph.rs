@@ -1862,6 +1862,29 @@ fn draw_share(rng: &mut Rng, market: &[(Asn, u32)]) -> Option<Asn> {
     market.last().map(|&(a, _)| a)
 }
 
+/// The fixed access network of every household of a micro world (index = `world.households`),
+/// drawn from its metro's fixed market on the household's own stream, so adding households never
+/// reshuffles the others. This is the household's second parent beside its street tile
+/// (CIRISHolon `two_parents_agree`); `None` only where the metro has no fixed market.
+#[must_use]
+pub fn household_networks(world: &MicroWorld, g: &NetGraph) -> Vec<Option<NetLabel>> {
+    let home_m = nearest_metro(&g.metros, deg_to_cdeg(world.lat0), deg_to_cdeg(world.lon0));
+    (0..world.households.len())
+        .map(|hi| {
+            let mut r = Rng::new(world.seed ^ (hi as u64 + 1).wrapping_mul(0x9FB2_1C65_1E98_DF25) ^ 0x7090_F1ED);
+            let asn = draw_share(&mut r, g.fixed_market(home_m))?;
+            g.label(asn, home_m)
+        })
+        .collect()
+}
+
+/// Attach every household of `world` to its access network ([`household_networks`]); a household
+/// whose metro has no fixed market keeps AS 0.
+pub fn attach_access(world: &mut MicroWorld, g: &NetGraph) {
+    let asns: Vec<u32> = household_networks(world, g).iter().map(|l| l.map_or(0, |l| l.asn)).collect();
+    world.set_access(&asns);
+}
+
 /// The network of every node of a micro world (index = `world.nodes` index).
 ///
 /// * A household's devices share one fixed AS, drawn from its metro's fixed market on the
@@ -1889,13 +1912,7 @@ pub fn assign_micro(world: &MicroWorld, g: &NetGraph) -> Vec<NodeNet> {
             g.label(asn, m)
         })
         .collect();
-    let hh_fixed: Vec<Option<NetLabel>> = (0..world.households.len())
-        .map(|hi| {
-            let mut r = Rng::new(world.seed ^ (hi as u64 + 1).wrapping_mul(0x9FB2_1C65_1E98_DF25) ^ 0x7090_F1ED);
-            let asn = draw_share(&mut r, g.fixed_market(home_m))?;
-            g.label(asn, home_m)
-        })
-        .collect();
+    let hh_fixed = household_networks(world, g);
     let fallback = NetLabel { asn: 0, role: AsRole::AccessFixed, metro: home_m, region };
     world
         .nodes
@@ -2429,6 +2446,43 @@ mod tests {
         for i in (0..la.len()).step_by(41) {
             let j = (i * 13 + 5) % la.len();
             assert_eq!(g2.path(la[i], la[j]), g.path(la[i], la[j]));
+        }
+    }
+
+    #[test]
+    fn households_sum_the_same_by_street_tile_and_by_access_network() {
+        // the household's two parents (CIRISHolon two_parents_agree): for every graph seed and
+        // world seed, the households summed by tile equal those summed by access network, every
+        // household has exactly one, and its devices at home ride that network
+        let places = [(47.3769, 8.5417, 2_500.0), (30.0444, 31.2357, 37_000.0), (6.5244, 3.3792, 5_300.0), (39.2, -77.25, 1_100.0), (46.3, 2.3, 13.0)];
+        for gseed in [1_u64, 7, 0x5EED] {
+            let g = generate(gseed, &NetParams::default());
+            let (mut by_tile, mut by_net) = (0_u64, BTreeMap::<u32, u64>::new());
+            for wseed in [3_u64, 11, 0xC1A5] {
+                for &(la, lo, d) in &places {
+                    let mut w = MicroWorld::build_at_density(la, lo, d, wseed, MicroParams::default());
+                    attach_access(&mut w, &g);
+                    let tile = w.households.len() as u64;
+                    let nets = w.households_by_access();
+                    assert!(!nets.contains_key(&0), "a household with no access network at {la},{lo}");
+                    assert_eq!(nets.values().sum::<u64>(), tile);
+                    for &a in nets.keys() {
+                        assert_eq!(g.ases.iter().find(|x| x.asn == a).map(|x| x.role), Some(AsRole::AccessFixed));
+                    }
+                    let nn = assign_micro(&w, &g);
+                    for (i, n) in w.nodes.iter().enumerate() {
+                        if let (Some(h), false) = (n.household, n.kind.off_patch()) {
+                            assert_eq!(nn[i].home.asn, w.households[h].access, "node {i} rides its household's network");
+                        }
+                    }
+                    by_tile += tile;
+                    for (a, k) in nets {
+                        *by_net.entry(a).or_insert(0) += k;
+                    }
+                }
+            }
+            assert_eq!(by_net.values().sum::<u64>(), by_tile, "graph seed {gseed}");
+            assert!(by_net.len() > 3, "graph seed {gseed}: {} networks", by_net.len());
         }
     }
 

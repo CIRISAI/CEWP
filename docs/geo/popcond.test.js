@@ -10,7 +10,8 @@
 //   people track the overlap of GHS-POP within the same bound scaled to the cohort total (cross-check
 //   against popcond.js pcPeople, computed independently in JavaScript);
 // * at the leaf: its households' persons sum to its people exactly, and its households' devices sum to
-//   the leaf's device population exactly (the node cap is a display sample of it);
+//   the leaf's device population exactly (the node cap is a display sample of it); its households
+//   summed by access network (their second parent, netgraph::attach_access) are its households;
 // * where GHS-POP reads under the floor, the street tile holds nobody.
 //
 // Every check is also written in CIRISHolon's sums format, one JSON object per line per (holon, seed,
@@ -73,7 +74,7 @@ test("the street tier's world is the cohort tier's GHS total, apportioned", asyn
 });
 
 test("every split from the root to the street tile sums exactly; the leaf's persons and devices sum to it", async () => {
-  const { w, tot } = await kernel(); const lines = [], rows = [];
+  const { w, tot } = await kernel(); const lines = [], rows = []; let nets = 0;
   const scale = tot[0] / tot[2]; // cohort total over the floored cell total
   const line = (o) => lines.push(JSON.stringify(o));
   for (const [name, la, lo] of PLACES){
@@ -105,6 +106,11 @@ test("every split from the root to the street tile sums exactly; the leaf's pers
       assert.strictEqual(n, pop.h, `${name}: households`);
       assert.strictEqual(sum(per), pop.p, `${name}: persons = people`);
       assert.strictEqual(sum(devs), dev, `${name}: devices`);
+      // the household's second parent: summed by access network, the leaf's households again
+      const na = w.micro_access(), acc = out(w, 2 * na), byNet = acc.filter((_, k) => k % 2 === 1);
+      assert.ok(na >= 1 && acc.every((v, k) => k % 2 === 1 || v > 0), `${name}: every household has an access network`);
+      assert.strictEqual(sum(byNet), pop.h, `${name}: households by access network`);
+      nets += na;
       const id = HOLON.pack(leaf);
       line({ id, level: leaf.level, seed: 0, kind: "people", parent: pop.p, children: per });
       line({ id, level: leaf.level, seed: 0, kind: "households", parent: pop.h, children: per.map(() => 1) });
@@ -115,5 +121,5 @@ test("every split from the root to the street tile sums exactly; the leaf's pers
     rows.push(`${name}: leaf L${leaf.level}, ${pop.p} people, ${pop.h} households, ${persons} persons, ${dev} devices (${nodes} nodes drawn)`);
   }
   fs.writeFileSync(OUT, lines.join("\n") + "\n");
-  console.log(rows.join("\n")); console.log(`${lines.length} lines -> ${OUT}`);
+  console.log(rows.join("\n")); console.log(`${lines.length} lines -> ${OUT}; ${nets} (leaf, access network) pairs, households summed both ways`);
 });

@@ -544,11 +544,12 @@ pub extern "C" fn micro_build(lat: f64, lon: f64, density_km2: f64, seed_lo: u32
     let m = micro();
     let params = MicroParams { values: m.params };
     let seed = ((seed_hi as u64) << 32) | seed_lo as u64;
-    let w = if exact != 0 {
+    let mut w = if exact != 0 {
         MicroWorld::build_at_density(lat, lon, density_km2, seed, params)
     } else {
         MicroWorld::build(lat, lon, density_km2, seed, params)
     };
+    cewp_sim::netgraph::attach_access(&mut w, access_graph());
     let n = w.nodes.len() as u32;
     m.roads = w.roads.iter().flat_map(|r| [r.x0, r.y0, r.x1, r.y1, r.width]).collect();
     m.sites = w.sites.iter().flat_map(|s| [s.lat, s.lon, s.km, s.kind as u8 as f64]).collect();
@@ -752,13 +753,36 @@ pub extern "C" fn pop_of(id: f64) -> f64 {
 pub extern "C" fn micro_build_leaf(id: f64) -> u32 {
     let Some(l) = holon_layout_of(id) else { return 0 };
     let m = micro();
-    let w = MicroWorld::from_leaf(&l, MicroParams { values: m.params });
+    let mut w = MicroWorld::from_leaf(&l, MicroParams { values: m.params });
+    cewp_sim::netgraph::attach_access(&mut w, access_graph());
     let n = w.nodes.len() as u32;
     m.roads = w.roads.iter().flat_map(|r| [r.x0, r.y0, r.x1, r.y1, r.width]).collect();
     m.sites = w.sites.iter().flat_map(|s| [s.lat, s.lon, s.km, s.kind as u8 as f64]).collect();
     m.world = Some(w);
     micro_export();
     n
+}
+
+/// The stand-in AS graph the focal world's households are attached to: seed 7, the seed the page's
+/// topology layer draws (docs/layers/layers.js TOPO.seed), built once.
+static mut ACCESS_GRAPH: Option<cewp_sim::netgraph::NetGraph> = None;
+
+fn access_graph() -> &'static cewp_sim::netgraph::NetGraph {
+    // SAFETY: one thread, as `micro()`.
+    unsafe {
+        let g = &mut *std::ptr::addr_of_mut!(ACCESS_GRAPH);
+        g.get_or_insert_with(|| cewp_sim::netgraph::generate(7, &cewp_sim::netgraph::NetParams::default()))
+    }
+}
+
+/// The focal world's households by access network, their second parent: holon buffer 0 gets
+/// (AS, households) pairs in AS order (AS 0 = not attached). Returns the pair count.
+#[no_mangle]
+pub extern "C" fn micro_access() -> u32 {
+    let Some(w) = micro().world.as_ref() else { return 0 };
+    let by = w.households_by_access();
+    holon().out = by.iter().flat_map(|(&a, &k)| [f64::from(a), k as f64]).collect();
+    by.len() as u32
 }
 
 /// The focal world's population as a holon: holon buffer 0 gets [households, persons, device
