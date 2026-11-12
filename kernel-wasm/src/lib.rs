@@ -827,6 +827,19 @@ pub extern "C" fn micro_energy() -> u32 {
     15
 }
 
+/// The engine's day curve (`workload::diurnal_multiplier`, model.diurnal.v1) at local hour `hour`: the Data map reads the
+/// engine's own figure rather than a copy of its constants.
+#[no_mangle]
+pub extern "C" fn clock_diurnal(hour: f64) -> f64 {
+    diurnal_multiplier(hour.rem_euclid(24.0) * 3600.0)
+}
+
+/// The street engine's mean gap between rows a person's awake device signs (`msg_mean_interval_s`, MODEL), seconds.
+#[no_mangle]
+pub extern "C" fn micro_msg_interval() -> f64 {
+    MicroParams::default().get(cewp_sim::micro::P::MsgMeanIntervalS)
+}
+
 /// The presence tint (`MicroWorld::set_presence`): the street's devices follow their people's generated days for
 /// generated day `day` (the page's local day number) of `weekday` (0 Monday). Inside the United States under
 /// CIRISHolon's device rule only; returns 1 when set, 0 when cleared (the twin's stand-in runs alone).

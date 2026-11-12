@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=46"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=47"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2596,7 +2596,8 @@ function holRegion(lat, lon){
   return best;
 }
 // a verdict as the page draws it: certified, refused, unresolved (a real reading, not scored), or the legacy rule's "no certificate"
-const holVd = (v, text) => `<span class="vd vd-${v === "certified" ? "cert" : v === "refused" ? "ref" : v === "legacy" ? "leg" : "unres"}" title="${v}">${text}</span>`;
+const HOL_TITLE = { certified: "compared with a real statistic and within its error budget", refused: "compared with a real statistic and does not match", unresolved: "read from the table, not yet checked against a reference", legacy: "the twin's own older rule, nothing to check it against" };
+const holVd = (v, text) => `<span class="vd vd-${v === "certified" ? "cert" : v === "refused" ? "ref" : v === "legacy" ? "leg" : "unres"}" title="${v}: ${HOL_TITLE[v] || HOL_TITLE.unresolved}">${text}</span>`;
 const HOL_CLS = { "village": "village", "suburban streets": "suburban", "terraced streets": "terraced", "apartment blocks": "apartment blocks", "dense fabric": "dense fabric" };
 // the household-size lines: HOUSEHOLD-0 US and DE on the twin's legacy rule, for the patch's class where resolved
 function holPick(t, cls){ const r = t.data.rows[cls]; return r && r.mean && r.mean.reference !== undefined ? [r, cls] : [t.data.rows.nation, "national"]; }
@@ -2724,7 +2725,11 @@ function rhyDraw(g, A, F, alpha){
   // the ring legend, one line under the away places
   { const low = AW.reduce((m, p) => p.y > m.y ? p : m), ly = low.y + 4 + 2.2 * Math.sqrt(d.persons) + 28, lx = Math.max(110, Math.min(F.w - 110, low.x)); g.textAlign = "left";
     const parts = [["rgba(255,196,100,0.95)", "awake at home"], ["rgba(118,146,240,0.95)", "asleep at home"], ["rgba(255,170,90,0.95)", "moving"]];
-    let x = lx - 105; for (const [col, t] of parts){ g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 3; g.beginPath(); if (t === "moving") g.arc(x + 4, ly - 3, 2.3, 0, 7), g.fill(); else g.arc(x + 4, ly - 3, 4, 0, 7), g.stroke();
+    // centred under the away places and held inside the screen (at 390 px it ran off the right edge)
+    const tw = parts.reduce((w, [, t]) => w + 15 + g.measureText(t).width + 6, 0);
+    let x = Math.max(8, Math.min(F.w - tw - 8, lx - tw / 2));
+    g.fillStyle = "rgba(10,14,22,0.78)"; g.fillRect(x - 4, ly - 12, tw + 4, 17); // a backing, so the line reads over the street's own rings
+    for (const [col, t] of parts){ g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 3; g.beginPath(); if (t === "moving") g.arc(x + 4, ly - 3, 2.3, 0, 7), g.fill(); else g.arc(x + 4, ly - 3, 4, 0, 7), g.stroke();
       g.fillStyle = "rgba(220,226,236,0.9)"; g.fillText(t, x + 11, ly); x += 15 + g.measureText(t).width + 6; } }
   g.restore();
 }
@@ -2762,14 +2767,19 @@ function rhyLine(){
 // ---- the data-map strip (a layer selector in the manner of a city-builder game): one map at a time, each re-tinting the street tier by one
 // quantity from a CIRISHolon table, with a legend; "none" returns the normal view. Drawn by incell.js at region and city zoom.
 var DATAMAP = { active: 0, prev: 0, t0: 0 }; // None by default: the plain view; a map is chosen // read by incell.js: the active map and the one fading out (400 ms cross-fade)
+// ids are the shader's modes; the strip shows the top level in reading order (where people live, who is up, how many live
+// together, how clean the power is) and keeps the checking view under "Advanced", closed by default
 const DM_MAPS = [
-  { id: 0, icon: "○", name: "None" },
+  { id: 0, icon: "○", name: "Off" },
   { id: 1, icon: "◉", name: "People", ref: "holon-uneven0" },
   { id: 2, icon: "☾", name: "Awake", ref: "holon-presence0-us" },
-  { id: 3, icon: "✓", name: "Verdict", ref: "holon-housegen1" },
+  { id: 3, icon: "✓", name: "Checked?", ref: "holon-housegen1" },
   { id: 4, icon: "⌂", name: "Households", ref: "holon-housegen1" },
   { id: 5, icon: "ϟ", name: "Power", ref: "holon-grid0" },
+  { id: 6, icon: "⇅", name: "Data", ref: "data-activity" },
 ];
+const DM_MAP = (id) => DM_MAPS.find((m) => m.id === id);
+const DM_TOP = [0, 1, 2, 6, 4, 5], DM_ADV = [3], DM_ADV_OPEN = { open: false };
 // ---- Power: CIRISHolon GRID-0 (grid carbon intensity priors) by COUNTRY on the Natural Earth admin-0 mask. GRID-0's rules:
 // one kind per map (never two), the year on the legend, trust C hatched, no averaging of disagreeing rows (the higher-trust row
 // shown, the other named), a country with no row is "no reference" (no inherited region value). Each choice is one exact kind.
@@ -2809,35 +2819,44 @@ function hhMeans(){
 // a legend is two lines: the map's name with its ramp (ticks and units) or its swatches, then the table's badge and a
 // "where this comes from" disclosure holding the prose (review: legends had become prose)
 const DM_MORE = { open: false };
-const DM_RAMP_OF = { "dm-people": "people", "dm-awake": "awake", "dm-hh": "households", "dm-power": "power" }; // incell.js DM_RAMPS: the bars use the shader's stops
+const DM_RAMP_OF = { "dm-people": "people", "dm-awake": "awake", "dm-hh": "households", "dm-power": "power", "dm-data": "data" }; // incell.js DM_RAMPS: the bars use the shader's stops
 const dmGrad = (cls) => typeof DM_RAMPS !== "undefined" && DM_RAMP_OF[cls] ? `background:linear-gradient(90deg,${DM_RAMPS[DM_RAMP_OF[cls]].join(",")})` : "";
 function dmBar(cls, ticks){ return `<span class="dm-bar"><span class="dm-ramp ${cls}" style="${dmGrad(cls)}"></span>${ticks.map(([v, t]) => `<i style="left:${(v * 100).toFixed(1)}%">${t}</i>`).join("")}</span>`; }
+// the plain gloss of the checking words, shown wherever a badge is first seen (the "where this comes from" text, Advanced)
+const HOL_GLOSS = "certified = compared with a real statistic and within its error budget; refused = compared and does not match; unresolved = read from the table, not yet checked against a reference; legacy = the twin's own older rule, with nothing to check it against";
 function dmLegend(){
   const id = DATAMAP.active; if (!id) return "";
-  const lv = (x) => (Math.log10(x) - 2) / 2.5, more = (html) => `<button type="button" class="dm-more-b" data-dm-more aria-expanded="${DM_MORE.open}">where this comes from ${DM_MORE.open ? "▾" : "▸"}</button>${DM_MORE.open ? `<div class="dm-more">${html}</div>` : ""}`;
-  if (id === 1) return `<div class="dm-l1"><b>People</b> ${fig("holon-uneven0", dmBar("dm-people", [[0, "100"], [lv(1000), "1k"], [lv(10000), "10k"], [1, "30k"]]) + " persons/km²")}</div>` +
-    `<div class="dm-l2"><span class="dm-tb">CIRISHolon UNEVEN-0 v1</span> ${holVd("unresolved", "unresolved")} ${more(fig("holon-uneven0", "persons per km² in each ~0.9 km pixel, log scale: a 1/8° cell's people over its pixels by CIRISHolon's in-cell table (regional row where published); which pixel is the town is the twin's rule (MODEL)"))}</div>`;
-  if (id === 2) return `<div class="dm-l1"><b>Awake now</b> ${fig("holon-presence0-us", dmBar("dm-awake", [[0, "0%"], [0.5, "50%"], [1, "100%"]]) + " awake")} <span class="dm-noref">no ref.</span></div>` +
-    `<div class="dm-l2"><span class="dm-tb">CIRISHolon PRESENCE-0 v1 · US 2022-24</span> ${more(fig("holon-presence0-us", "the share of persons aged 15 and over awake at each block's local hour (US time diaries 2022-2024, by day type, interpolated between hours); United States only, hatched with no reference elsewhere; at street zoom each adult's own generated day (PRESENCEGEN-2) shows instead"))}</div>`;
+  const lv = (x) => (Math.log10(x) - 2) / 2.5, more = (html) => `<button type="button" class="dm-more-b" data-dm-more aria-expanded="${DM_MORE.open}">where this comes from ${DM_MORE.open ? "▾" : "▸"}</button>${DM_MORE.open ? `<div class="dm-more">${html} <span class="dm-gloss">${fig("holon-verdict-count", HOL_GLOSS + ".")}</span></div>` : ""}`;
+  if (id === 1) return `<div class="dm-l1 dm-wrap"><b>People</b> ${fig("holon-uneven0", "where people live: people per km² in each ~1 km square")}</div>` +
+    `<div class="dm-l2 dm-wrap">${fig("holon-uneven0", dmBar("dm-people", [[0, "100"], [lv(1000), "1k"], [lv(10000), "10k"], [1, "30k"]]))} ${more("Table: " + holVd("unresolved", "CIRISHolon UNEVEN-0 v1, unresolved") + ". " + fig("holon-uneven0", "persons per km² in each ~0.9 km pixel, log scale: a 1/8° cell's people over its pixels by CIRISHolon's in-cell table (regional row where published); which pixel is the town is the twin's rule (MODEL)"))}</div>`;
+  if (id === 2) return `<div class="dm-l1 dm-wrap"><b>Awake</b> ${fig("holon-presence0-us", "who is up right now: the share of people awake at each place's local hour (United States only; hatched where there is no data)")}</div>` +
+    `<div class="dm-l2 dm-wrap">${fig("holon-presence0-us", dmBar("dm-awake", [[0, "0%"], [0.5, "50%"], [1, "100%"]]))} ${more("Table: " + holVd("unresolved", "CIRISHolon PRESENCE-0 v1, US time diaries 2022-24") + ". " + fig("holon-presence0-us", "the share of persons aged 15 and over awake at each block's local hour (US time diaries 2022-2024, by day type, interpolated between hours; local solar time, not civil time zones); United States only, hatched with no reference elsewhere; at street zoom each adult's own generated day (PRESENCEGEN-2) shows instead"))}</div>`;
   if (id === 5){ const g = gridSel(), K = GRID_KINDS[GRID.kind];
-    if (!g) return `<div class="dm-l1"><b>Power</b> loading CIRISHolon's GRID-0…</div>`;
+    if (!g) return `<div class="dm-l1"><b>Power</b> ${fig("holon-grid0", "how clean the electricity is: loading…")}</div>`;
     const yr = g.years.length ? (g.years.length === 1 ? String(g.years[0]) : g.years[0] + "–" + g.years[g.years.length - 1]) : "no row", unit = g.units.join(" / ") || "gCO2/kWh";
-    const sel = `<select class="dm-kind" data-grid-kind aria-label="kind of rate">${GRID_KINDS.map((k, i) => `<option value="${i}"${i === GRID.kind ? " selected" : ""}>${k.label}</option>`).join("")}</select>`;
+    const sel = `<select class="dm-kind" data-grid-kind aria-label="which kind of rate">${GRID_KINDS.map((k, i) => `<option value="${i}"${i === GRID.kind ? " selected" : ""}>${k.label}</option>`).join("")}</select>`;
     const list = g.rows.map((r) => `${r.row.place} ${r.row.value} (${r.row.year}, trust ${r.row.trust}${r.others.length ? "; also " + r.others.map((o) => o.value + " trust " + o.trust + ", " + o.source).join("; ") : ""})`).join(", ");
-    return `<div class="dm-l1 dm-wrap"><b>Power</b> ${fig("holon-grid0", "grid carbon intensity, " + unit + ", " + yr)} ${sel}</div>` +
-      `<div class="dm-l2 dm-wrap">${fig("holon-grid0", dmBar("dm-power", [[0, "0"], [0.25, "250"], [0.5, "500"], [0.75, "750"], [1, "1000"]]))} <span class="dm-tb">CIRISHolon GRID-0 v${HOLT.t.grid0 ? HOLT.t.grid0.version : "?"}</span> ${holVd("unresolved", "unresolved")} <span class="vd dm-noref">no ref.</span> ${more(fig("holon-grid0", "kind shown: " + g.kind + " — " + K.reading + ". One kind per map; another kind is another map. Countries (" + g.rows.length + "): " + (list || "none") +
-        ". Trust C rows (secondhand pages) are hatched; where two rows disagree for one place and year the higher-trust row is shown and the other named, never averaged. A country with no row of this kind is 'no reference'. Colour fills the Natural Earth admin-0 mask (de facto, simplified), not a claim about borders. A country value hides its grid regions: the US mainland eGRID 2023 subregions run " +
+    return `<div class="dm-l1 dm-wrap"><b>Power</b> ${fig("holon-grid0", "how clean the electricity is: grid carbon intensity, " + unit + ", by country, " + yr)}</div>` +
+      `<div class="dm-l2 dm-wrap">${fig("holon-grid0", dmBar("dm-power", [[0, "0"], [0.25, "250"], [0.5, "500"], [0.75, "750"], [1, "1000"]]))} ${sel} ${more("Table: " + holVd("unresolved", "CIRISHolon GRID-0 v" + (HOLT.t.grid0 ? HOLT.t.grid0.version : "?") + ", every row an unresolved prior") + " · " + fig("holon-grid0", "kind shown: " + g.kind + " — " + K.reading + ". One kind per map; another kind is another map. Countries (" + g.rows.length + "): " + (list || "none") +
+        ". Trust C rows (secondhand pages) are hatched; where two rows disagree for one place and year the higher-trust row is shown and the other named, never averaged. A country with no row of this kind is 'no reference' (hatched). Colour fills the Natural Earth admin-0 mask (de facto, simplified), not a claim about borders. A country value hides its grid regions: the US mainland eGRID 2023 subregions run " +
         (g.us.avg ? g.us.avg[0].toFixed(0) + " to " + g.us.avg[1].toFixed(0) : "?") + " gCO2/kWh on average and " + (g.us.nbl ? g.us.nbl[0].toFixed(0) + " to " + g.us.nbl[1].toFixed(0) : "?") + " non-baseload (subregion boundaries are not in the twin). An average rate times a change in load is an attribution, never 'emissions avoided'."))}</div>`; }
-  if (id === 3) return `<div class="dm-l1"><b>Verdict</b> ${holVd("certified", "certified")} ${holVd("unresolved", "read, not certified")} <span class="vd dm-noref">no reference</span></div>` +
-    `<div class="dm-l2"><span class="dm-tb">CIRISHolon HOUSEGEN-1</span> ${more(fig("holon-housegen1", "CIRISHolon's household generator per ~1 km tile: German village tiles certified (composition), other German and all US tiles unresolved, elsewhere outside every reference") + " · " + fig("countries-source", "country from Natural Earth's mask, for envelopes only"))}</div>`;
+  if (id === 6){ const lg = (x) => (Math.log10(x) - 2.5) / 3.2 * 0.94 + 0.06, rate = typeof dataRate === "function" ? dataRate() : 0;
+    return `<div class="dm-l1 dm-wrap"><b>Data</b> ${fig("data-activity", "how much is moving on the mesh right now: the model's estimate of messages per hour per km², not a measurement")}</div>` +
+      `<div class="dm-l2 dm-wrap">${fig("data-activity", dmBar("dm-data", [[lg(1000), "1k"], [lg(10000), "10k"], [lg(100000), "100k"]]) + " per hour per km²")} ${more(fig("data-activity", "people per km² in each ~1 km square (the People layer) × " + rate.toFixed(1) + " messages an hour from each person's awake device (the street engine's msg_mean_interval_s, an assumed number) × the engine's day curve at the place's local solar hour (model.diurnal.v1, lowest around 03:00, highest around 19:30). Under the presence tint (United States) the engine moves the same total and changes only whose devices send. One signing device per person; laptops and background sync are not counted. Not a measurement."))}</div>`; }
+  if (id === 3) return `<div class="dm-l1 dm-wrap"><b>Checked?</b> ${fig("holon-housegen1", "whether the twin's household mix here has been compared with a real census")}</div>` +
+    `<div class="dm-l2 dm-wrap">${holVd("certified", "matches the census")} ${holVd("unresolved", "read, not yet checked")} <span class="vd dm-noref">nothing to check against</span> ${more(fig("holon-housegen1", "CIRISHolon's household generator (HOUSEGEN-1) per ~1 km tile: German village tiles certified (composition), other German and all US tiles unresolved, elsewhere outside every reference") + " · " + fig("countries-source", "country from Natural Earth's mask, for envelopes only"))}</div>`;
   if (id === 4){ const h = hhMeans(), r = (a) => a ? Math.min(...a).toFixed(2) + " (dense) to " + Math.max(...a).toFixed(2) : "…";
-    return `<div class="dm-l1"><b>Households</b> ${fig("holon-housegen1", dmBar("dm-hh", [[0.1, "1.7"], [0.4, "2.0"], [0.7, "2.3"], [1, "2.6"]]) + " persons each")}</div>` +
-      `<div class="dm-l2"><span class="dm-tb">CIRISHolon HOUSEGEN-1 rows</span> ${holVd("unresolved", "unresolved")} ${more(fig("holon-housegen1", "the mean of the row the generator draws from at each ~0.9 km pixel's density class (the pixel standing for its ~1 km tile): US 2024 rows " + r(h && h.us) + " in the United States, German 2022 rows " + r(h && h.de) + " in Germany and everywhere else (there outside the country read, hatched more); hatched, as every row's per-unit verdict is unresolved; the expectation, not one tile's draw"))}</div>`; }
+    return `<div class="dm-l1 dm-wrap"><b>Households</b> ${fig("holon-housegen1", "how many live together: average people per home in each ~1 km square")}</div>` +
+      `<div class="dm-l2 dm-wrap">${fig("holon-housegen1", dmBar("dm-hh", [[0.1, "1.7"], [0.4, "2.0"], [0.7, "2.3"], [1, "2.6"]]))} ${more("Table: " + holVd("unresolved", "CIRISHolon HOUSEGEN-1 rows, unresolved") + ". " + fig("holon-housegen1", "the mean of the row the generator draws from at each ~0.9 km pixel's density class (the pixel standing for its ~1 km tile): US 2024 rows " + r(h && h.us) + " in the United States, German 2022 rows " + r(h && h.de) + " in Germany and everywhere else (there outside the country read, hatched more); hatched, as every row's per-unit verdict is unresolved; the expectation, not one tile's draw"))}</div>`; }
   return "";
 }
 function dmRender(){
   const el = $("data-map"); if (!el) return;
-  el.innerHTML = DM_MAPS.map((m) => `<button type="button" role="radio" aria-checked="${DATAMAP.active === m.id}" class="dm-b${DATAMAP.active === m.id ? " on" : ""}" data-dm="${m.id}"><span aria-hidden="true">${m.icon}</span> ${m.name}</button>`).join("");
+  if (DM_ADV.includes(DATAMAP.active)) DM_ADV_OPEN.open = true;
+  const btn = (m) => `<button type="button" role="radio" aria-checked="${DATAMAP.active === m.id}" class="dm-b${DATAMAP.active === m.id ? " on" : ""}" data-dm="${m.id}"><span aria-hidden="true">${m.icon}</span> ${m.name}</button>`;
+  el.innerHTML = DM_TOP.map((i) => btn(DM_MAP(i))).join("") +
+    `<button type="button" class="dm-b dm-adv" data-dm-adv aria-expanded="${DM_ADV_OPEN.open}">Advanced ${DM_ADV_OPEN.open ? "▾" : "▸"}</button>` +
+    (DM_ADV_OPEN.open ? DM_ADV.map((i) => btn(DM_MAP(i))).join("") : "");
   // on a phone the strip scrolls sideways: keep the active map's button in view
   const on = el.querySelector(".dm-b.on"); if (on && (on.offsetLeft < el.scrollLeft || on.offsetLeft + on.offsetWidth > el.scrollLeft + el.clientWidth)) el.scrollLeft = Math.max(0, on.offsetLeft - 8);
   const lg = $("dm-legend"); if (lg){ const h = dmLegend(); lg.innerHTML = h; lg.classList.toggle("panel-hidden", !h); }
@@ -2845,7 +2864,8 @@ function dmRender(){
 }
 function dmSet(id){ if (id === DATAMAP.active) return; DATAMAP.prev = DATAMAP.active; DATAMAP.active = id; DATAMAP.t0 = performance.now(); holLoad(); dmRender(); if (typeof gfxDirty === "function") gfxDirty(800); const c = $("focal-chip"); if (c) c._t = 0; }
 document.addEventListener("click", (e) => { const b = e.target.closest && e.target.closest("[data-dm]"); if (b) dmSet(+b.dataset.dm);
-  const m = e.target.closest && e.target.closest("[data-dm-more]"); if (m){ DM_MORE.open = !DM_MORE.open; dmRender(); } });
+  const m = e.target.closest && e.target.closest("[data-dm-more]"); if (m){ DM_MORE.open = !DM_MORE.open; dmRender(); }
+  const a = e.target.closest && e.target.closest("[data-dm-adv]"); if (a){ DM_ADV_OPEN.open = !DM_ADV_OPEN.open; if (!DM_ADV_OPEN.open && DM_ADV.includes(DATAMAP.active)) dmSet(0); dmRender(); } });
 document.addEventListener("change", (e) => { const s = e.target.closest && e.target.closest("[data-grid-kind]"); if (s){ GRID.kind = +s.value; GRID.sel = null; dmRender(); if (typeof gfxDirty === "function") gfxDirty(500); const c = $("focal-chip"); if (c) c._t = 0; } });
 // on a phone the strip and its legend are one block directly under the tier pill (clear of the chip and the zoom column)
 function dmPlace(){ const b = $("dm-block"), t = $("tier-now"); if (!b) return; if (window.innerWidth > 800 || !t){ b.style.top = ""; return; }
@@ -2857,19 +2877,21 @@ function dmValue(){
   const id = DATAMAP.active; if (!id || !M || M.leaf === undefined) return "";
   if (id === 1){ const u = HOLT.t.uneven0, cls = HOL_CLS[(M.meta[2] | 0) === 0 && M.meta[4] >= 12000 ? "dense fabric" : MDCLASS[M.meta[2] | 0]] || "village", k = ["village", "suburban", "terraced", "apartment blocks", "dense fabric"].indexOf(cls);
     if (!u || k < 0) return "people: loading CIRISHolon's in-cell table…"; const r = holRegion(M.lat0, M.lon0), e = r === null ? null : u.data.regional[r][k], v = e && e.people ? e.people : u.data.world.people[k];
-    return `people here: in ${/^[aeiou]/.test(cls) ? "an" : "a"} ${cls} cell ${Math.round(v.slice(k + 2).reduce((a, b) => a + b, 0) / 1e4)}% live in denser ~1 km tiles (${e && e.people ? "regional, " + u.data.regions[r] : "world row"}; ${holVd("unresolved", "unresolved")})`; }
+    return `people here: in ${/^[aeiou]/.test(cls) ? "an" : "a"} ${cls} area like this one, ${Math.round(v.slice(k + 2).reduce((a, b) => a + b, 0) / 1e4)}% of people live in denser ~1 km squares nearby`; }
   const s = holSeam(), c = s ? s.country : -1;
+  if (id === 6){ const d = M.meta[4] || 0, r = typeof dataRate === "function" ? dataRate() : 0, h = typeof dataDiurnal === "function" ? dataDiurnal(M.lon0) : 1;
+    return `data moving here now: about ${Math.round(d * r * h).toLocaleString()} messages an hour per km² (the model's estimate at ${Math.floor(dataHour(M.lon0))}:00 local)`; }
   if (id === 5){ const g = gridSel(), iso = HOLT.countries ? countryNear(HOLT.countries, M.lat0, M.lon0) : null; if (!g) return "grid here: loading…";
     const r = g.rows.find((x) => x.iso === iso);
-    return r ? `grid here: ${r.row.place} ${r.row.value} ${r.row.unit} (${r.row.year}, ${GRID_KINDS[GRID.kind].label}, trust ${r.row.trust}; ${holVd("unresolved", "a prior, unresolved")})` : `grid here: ${holVd("unresolved", "no reference")} for ${holCountryName(iso)} in this kind (${GRID_KINDS[GRID.kind].label})`; }
+    return r ? `electricity here: ${r.row.place}, ${r.row.value} ${r.row.unit.replace("/kWh", " per kWh")} (${r.row.year})` : `electricity here: no figure for ${holCountryName(iso)} in this reading`; }
   if (id === 2 && c === 840){ const d = typeof rhyData === "function" ? rhyData() : null, k = typeof rhyClock === "function" ? rhyClock() : null;
     if (d && k){ const s0 = Math.min(23, Math.floor(k.s)), row = d.counts[s0], home = row.slice(0, d.H).reduce((a, b) => a + b, 0), aw = d.awake[s0].reduce((a, b) => a + b, 0), out = row[d.H] + row[d.H + 1] + row[d.H + 2];
       // away: work or school, elsewhere (awake or asleep) and travelling; the asleep-elsewhere few are counted with the away, a bracket
-      return `awake now on this street: ${aw} at home awake, ${home - aw} at home asleep, ${out} away, of ${d.persons} adults (each adult's own generated day, PRESENCEGEN-2, ${holVd(HOL_V3[d.verdict], HOL_V3[d.verdict])}); the time diaries' share at this hour ${Math.round(incellAwake(M.lon0) * 100)}%`; } }
-  if (id === 2) return c === 840 ? `awake now here: ${Math.round(incellAwake(M.lon0) * 100)}% of persons (US time diaries at this local hour)` : `awake now: ${holVd("unresolved", "no reference here (" + holCountryName(c) + ")")}; the twin's stand-in drives activity`;
-  if (id === 4){ const h = hhMeans(); if (!s || !s.on || !s.found || !h) return `households here: ${holVd("legacy", "the twin's legacy rule, 2.5 persons per household")}`;
+      return `awake now on this street: ${aw} at home awake, ${home - aw} at home asleep, ${out} out, of ${d.persons} adults (the model's day for each one); the time diaries say ${Math.round(incellAwake(M.lon0) * 100)}% of people are awake at this hour`; } }
+  if (id === 2) return c === 840 ? `awake now here: ${Math.round(incellAwake(M.lon0) * 100)}% of people (US time diaries at this local hour)` : `awake now: no data for ${holCountryName(c)}; the model's own day curve runs here`;
+  if (id === 4){ const h = hhMeans(); if (!s || !s.on || !s.found || !h) return `households here: the twin's own rule, 2.5 people per home`;
     const row = (s.ref === 0 ? h.de : h.us)[s.cls - 1];
-    return `households here: this ~1 km tile's ${s.hhTile.toLocaleString()} generated households hold ${(s.people / s.hhTile).toFixed(2)} persons each (the ${s.ref === 0 ? "German 2022" : "US 2024"} ${HOL_C5[s.cls - 1]} row: ${row.toFixed(2)}; ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])})`; }
+    return `households here: about ${(s.people / s.hhTile).toFixed(1)} people per home in this ~1 km square (${s.hhTile.toLocaleString()} homes); the census figure for this kind of area is ${row.toFixed(1)}`; }
   return s && s.found ? `verdict here: per unit ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])}, composition ${holVd(HOL_V3[s.comp], HOL_V3[s.comp])} (${holCountryName(c)})` : `verdict here: ${holVd("legacy", "no certificate")}`;
 }
 function holGenShort(){ const s = holSeam(); if (!s || !s.on || !s.found) return `households: legacy ${holVd("legacy", "no certificate")}`; return `households: CIRISHolon HOUSEGEN-1, ${s.hhLeaf} here · ${holVd(HOL_V3[s.perUnit], HOL_V3[s.perUnit])} / ${holVd(HOL_V3[s.comp], HOL_V3[s.comp])}`; }
@@ -2931,10 +2953,11 @@ function updateFocalChip(F){
     (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? '<span class="inp">design case: 3, k=2</span>' : '<span class="inp">production: 1</span>'}</button>`) + `</div>`;
   // the verdict badges: CIRISHolon's verdicts counted from the panel's own lines
   const cnt = (k) => (detail.match(new RegExp('class="vd vd-' + k + '"', "g")) || []).length;
-  const badges = `<div class="chip-line chip-badges">Holon: ${fig("holon-verdict-count", '<span class="vd vd-cert" title="certified by CIRISHolon against a reference">' + cnt("cert") + ' certified</span> · <span class="vd vd-ref" title="refused against a reference">' + cnt("ref") + ' refused</span> · <span class="vd vd-unres" title="unresolved, or outside the reference\'s envelope">' + cnt("unres") + ' unresolved</span> · <span class="vd vd-leg" title="the twin\'s legacy rule, no certificate">' + cnt("leg") + ' legacy</span>')} <button class="chip-btn" id="fd-open" type="button" aria-expanded="${!!(det && det.classList.contains("open"))}" aria-controls="focal-detail">where this comes from</button></div>`;
-  const dmv = DATAMAP.active ? `<div class="chip-line">${fig(DM_MAPS[DATAMAP.active].ref, dmValue())}</div>` : "";
+  const checks = `<div class="chip-sub fd-checks">Checks against real statistics: ${fig("holon-verdict-count", '<span class="vd vd-cert" title="certified by CIRISHolon against a reference">' + cnt("cert") + ' certified</span> · <span class="vd vd-ref" title="refused against a reference">' + cnt("ref") + ' refused</span> · <span class="vd vd-unres" title="unresolved, or outside the reference\'s envelope">' + cnt("unres") + ' unresolved</span> · <span class="vd vd-leg" title="the twin\'s legacy rule, no certificate">' + cnt("leg") + ' legacy</span>')}</div><div class="chip-sub dm-gloss">${fig("holon-verdict-count", HOL_GLOSS + ".")}</div>`;
+  const badges = `<div class="chip-line chip-badges"><button class="chip-btn" id="fd-open" type="button" aria-expanded="${!!(det && det.classList.contains("open"))}" aria-controls="focal-detail">where this comes from</button></div>`;
+  const dmv = DATAMAP.active ? `<div class="chip-line">${fig(DM_MAP(DATAMAP.active).ref, dmValue())}</div>` : "";
   chip.innerHTML = head + tileLine + dmv + badges;
-  if (det && !det.contains(document.activeElement)){ det.innerHTML = detail; det.classList.toggle("panel-hidden", false); }
+  if (det && !det.contains(document.activeElement)){ det.innerHTML = detail.replace("</div>", "</div>" + checks); det.classList.toggle("panel-hidden", false); }
   $("fd-open").onclick = () => { det.classList.toggle("open"); chip._t = 0; };
   for (const bt of det.querySelectorAll("[data-hw]")) bt.onclick = () => { homeWhere = +bt.dataset.hw; MICRO_GEN++; if (wasm.micro_device_rule) wasm.micro_device_rule(TL.devicegen === false ? 0 : 1, homeWhere); M = null; chip._t = 0; };
   const fc = $("fd-close"); if (fc) fc.onclick = () => { det.classList.remove("open"); chip._t = 0; };

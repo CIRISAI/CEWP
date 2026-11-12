@@ -468,6 +468,20 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         ..BASE
     },
     PageClaim {
+        id: "data-activity",
+        class: Model,
+        live: true,
+        shows: "The Data map: how much the model moves on the mesh, in messages per hour per km2, at each place's local solar hour: people per km2 (the People layer) times the street engine's message rate per awake device times the engine's day curve; with its value for the focal street in the chip. The model's estimate, not a measurement.",
+        source: "docs/incell.js dataRate / dataDiurnal and shader mode 6; kernel-wasm micro_msg_interval (micro.rs msg_mean_interval_s) and clock_diurnal (workload.rs diurnal_multiplier, model.diurnal.v1)",
+        param: "msg_mean_interval_s = 480 s (MODEL: 7.5 messages an hour from a person's awake device); model.diurnal.v1 (MODEL stand-in, 0.50x around 03:10 to 1.60x at 19:30); one signing device per person (laptops and background sync left out); local solar time, not civil time zones",
+        failure: &[
+            "The rate is an assumed number, not measured on the mesh; the engine's people_hooks Poisson stand-in gives 7.51 acts per person-hour, which agrees but is the same assumption run, not a check.",
+            "Messages, not bytes: the background sync (76 kB per device-hour each way, flat over the day) is not drawn.",
+        ],
+        reproduce: "cargo test -p cewp-sim micro workload; node --test docs/kernel/kernel.test.js",
+        ..BASE
+    },
+    PageClaim {
         id: "holon-grid0",
         class: Model,
         live: true,
@@ -518,7 +532,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         id: "holon-verdict-count",
         class: Derived,
         live: true,
-        shows: "The focal chip's badge line: how many of CIRISHolon's verdicts on this tile's lines are certified, refused, unresolved or outside the envelope, and how many lines run the twin's legacy rule (no certificate); each verdict, its reason and its notice are in the 'where this comes from' panel.",
+        shows: "The first line of the 'where this comes from' panel (the street's detail), with a plain gloss of the four words under it: how many of CIRISHolon's verdicts on this tile's lines are certified, refused, unresolved or outside the envelope, and how many lines run the twin's legacy rule (no certificate); each verdict, its reason and its notice are in the 'where this comes from' panel.",
         source: "docs/globe.js updateFocalChip: counted from the panel's own verdict marks (holVd)",
         failure: &["A count of verdicts, not a score: one certified and one refused line are not an average."],
         ..BASE

@@ -295,3 +295,16 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   Not built: intensity times the per-person energy net. That net's range spans zero and its data-centre side is a
   world mean, so a country map of "attributed gCO2 per person-year" would colour a sign-open, non-local quantity;
   it waits for a per-place energy side.
+- **The map strip in plain words (the owner's ruling).** The top level holds only layers a stranger reads at a glance,
+  in reading order: People (where people live), Awake (who is up right now), Data (how much is moving), Households
+  (how many live together), Power (how clean the electricity is). Each legend's first line is a plain sentence with
+  its unit; generator names, versions, trust classes and the checking words sit behind "where this comes from", with a
+  plain gloss of certified / refused / unresolved / legacy. The checking view ("Checked?", formerly Verdict) is under
+  "Advanced", closed by default. The street chip carries plain values; its verdict counts moved to the top of the
+  "where this comes from" panel, glossed.
+- **Data: the engine's own activity.** People per km2 times the street engine's message rate per awake device
+  (micro.rs msg_mean_interval_s = 480 s, read from the kernel) times the engine's day curve (workload.rs
+  model.diurnal.v1, kernel clock_diurnal) at the place's local solar hour: messages per hour per km2, the model's
+  estimate. Under the presence tint the engine moves the same total (it changes whose devices send), so the map is
+  what the engine moves; one signing device per person, background sync (76 kB per device-hour, flat) not drawn.
+  Ledger data-activity.
