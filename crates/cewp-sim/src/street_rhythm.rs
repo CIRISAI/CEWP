@@ -175,6 +175,96 @@ mod tests {
         assert_eq!(asleep_at(3.0, false).2, 0);
     }
 
+    /// One generated day on a Columbus street (4 a.m. to 4 a.m., Tuesday), minute by minute: rows phones and laptops
+    /// sign per local hour, their awake device-seconds, rows signed while the sender's person was asleep at both ends of
+    /// the minute, the seat's queue, and the late counts. `curve`: the second setting (send_by_curve 1); `presence`:
+    /// false runs the stand-in alone (no generated days).
+    struct DayRun { sends: [u64; 24], awake_s: [f64; 24], asleep_sends: u64, seat_peak: usize, seat_2330: usize, total: u64, held: u64, late: u64, under: Vec<f64> }
+    fn run_day(curve: bool, presence: bool) -> DayRun {
+        use crate::micro::{HostKind, Route, P};
+        let p = { let mut p = MicroParams::default(); p.set(P::StartLocalHour, 4.0); p.set(P::SendByCurve, if curve { 1.0 } else { 0.0 }); p };
+        let leaf = LeafLayout::build(HolonId::at(8, 40.06, -83.05), &LeafContext { budget: 40, chain: [3_000; 11], ..LeafContext::default() }, &p);
+        let dwellings: usize = leaf.buildings.iter().map(|b| usize::from(b.units)).sum();
+        let sizes: Vec<u8> = (0..dwellings).map(|i| 1 + (i % 4) as u8).collect();
+        let mut w = MicroWorld::from_leaf_with(&leaf, p, sizes, Some(DeviceRule { home_node_where: HOME_ON_GATEWAY, in_country: true }));
+        if presence {
+            w.set_presence(7, 1);
+        }
+        let person_dev = |w: &MicroWorld, i: usize| matches!(w.nodes[i].kind, HostKind::Phone | HostKind::Laptop);
+        let mut r = DayRun { sends: [0; 24], awake_s: [0.0; 24], asleep_sends: 0, seat_peak: 0, seat_2330: 0, total: 0, held: 0, late: 0, under: vec![] };
+        for minute in 0..24 * 60 {
+            let hour = w.local_hour() as usize % 24;
+            let asleep0: Vec<bool> = (0..w.nodes.len()).map(|i| w.person_awake(i).is_some_and(|p| !p.0)).collect();
+            for i in 0..w.nodes.len() {
+                let n = &w.nodes[i];
+                if person_dev(&w, i) && n.online(w.t) && !n.pinned && w.person_awake(i).is_none_or(|p| p.0) {
+                    r.awake_s[hour] += 60.0;
+                }
+            }
+            w.events.clear();
+            w.step(60.0);
+            for e in &w.events {
+                if e.route == Route::MailDelivered || !person_dev(&w, e.src) {
+                    continue;
+                }
+                r.sends[hour] += 1;
+                r.asleep_sends += u64::from(asleep0[e.src] && w.person_awake(e.src).is_some_and(|p| !p.0));
+            }
+            let q = w.held_at_seats();
+            r.seat_peak = r.seat_peak.max(q);
+            if minute == (23 * 60 + 30) - 4 * 60 {
+                r.seat_2330 = q;
+            }
+        }
+        r.total = r.sends.iter().sum();
+        r.held = w.stats.mail_delivered;
+        r.late = w.stats.late;
+        r.under = w.hold_shares_under(&[1.0, 4.0, 8.0, 24.0]);
+        r
+    }
+    /// Hours whose count is off the day's pooled rate per awake device-second by more than four standard deviations
+    /// (Poisson), among hours expecting at least 30 rows.
+    fn off_rate_hours(r: &DayRun) -> Vec<usize> {
+        let rate = r.total as f64 / r.awake_s.iter().sum::<f64>();
+        (0..24).filter(|&h| { let lam = rate * r.awake_s[h]; lam >= 30.0 && (r.sends[h] as f64 - lam).abs() > 4.0 * lam.sqrt() + 2.0 }).collect()
+    }
+
+    /// Where people have generated days, each awake device sends at one flat rate: no row from a device whose person is
+    /// asleep, and the rows per awake device-hour are the same every hour within sampling error. The second setting
+    /// (the day curve's total poured onto the awake) is not flat, which is what makes the first a check at all.
+    #[test]
+    fn each_persons_day_leads_sending_at_a_flat_rate_per_awake_hour() {
+        let day = run_day(false, true);
+        assert_eq!(day.asleep_sends, 0, "no row from a device whose person is asleep");
+        assert!(day.total > 500, "{} rows", day.total);
+        assert_eq!(off_rate_hours(&day), Vec::<usize>::new(), "the rate per awake device-hour is flat: {:?} / {:?}", day.sends, day.awake_s);
+        let curve = run_day(true, true);
+        assert_eq!(curve.asleep_sends, 0);
+        assert!(!off_rate_hours(&curve).is_empty(), "the curve setting is not flat per awake hour");
+    }
+
+    /// The switch moves the late evening the way the numbers say: the curve stays near or above 1 from 22:00 while the
+    /// awake share falls below a half, so the curve setting sends more late in the evening and the seat holds more then.
+    #[test]
+    fn the_curve_setting_sends_more_late_in_the_evening_and_the_seat_holds_more() {
+        let (day, curve) = (run_day(false, true), run_day(true, true));
+        let late = |r: &DayRun| r.sends[21] + r.sends[22] + r.sends[23];
+        assert!(late(&curve) > late(&day), "late-evening rows: curve {} against each person's day {}", late(&curve), late(&day));
+        assert!(curve.seat_2330 >= day.seat_2330, "the seat's queue at 23:30: curve {} against each person's day {}", curve.seat_2330, day.seat_2330);
+    }
+
+    /// The two-setting table for the record (cargo test -p cewp-sim send_rule_table -- --ignored --nocapture).
+    #[test]
+    #[ignore = "a report, not a check"]
+    fn send_rule_table() {
+        for (name, curve, presence) in [("each person's day (default)", false, true), ("the assumed curve on people's days", true, true), ("the stand-in alone (no days)", false, false)] {
+            let r = run_day(curve, presence);
+            println!("{name}: rows a day {}, late evening (21-24 h) {}, seat queue peak {} (23:30: {}), held rows delivered {}, late {} ({:.3}), under 1/4/8/24 h {:?}, by hour {:?}",
+                r.total, r.sends[21] + r.sends[22] + r.sends[23], r.seat_peak, r.seat_2330, r.held, r.late, r.late as f64 / r.held.max(1) as f64,
+                r.under.iter().map(|x| (x * 1000.0).round() / 1000.0).collect::<Vec<_>>(), r.sends);
+        }
+    }
+
     /// CIRISHolon published PRESENCEGEN-2's digest (`PRESENCEGEN2_RESULTS.md`: one value native and wasm32);
     /// docs/geo/holon/presencegen_digest.txt carries it and presencegen.test.js checks the page's wasm against it.
     #[test]

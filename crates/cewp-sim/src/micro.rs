@@ -151,7 +151,7 @@ params! {
     WifiDwellMeanS = "wifi_dwell_mean_s", 5400.0, Model, "mean stay on Wi-Fi; cellular dwell follows from phone_wifi_share";
     ChargeDwellMeanS = "charge_dwell_mean_s", 3600.0, Model, "mean time on external power";
     LaptopDwellMeanS = "laptop_dwell_mean_s", 2400.0, Model, "mean laptop open period";
-    MsgMeanIntervalS = "msg_mean_interval_s", 480.0, Model, "mean gap between rows a person's awake device signs (times diurnal_multiplier)";
+    MsgMeanIntervalS = "msg_mean_interval_s", 480.0, Model, "mean gap between rows a person's awake device signs (divided by diurnal_multiplier where the day curve applies)";
     CiMsgIntervalS = "ci_msg_interval_s", 45.0, Model, "mean gap between rows a running CI job sends";
     FamilyShare = "family_share", 0.65, Model, "globe kernel act mix: 65% self/family";
     CommunityShare = "community_share", 0.30, Model, "globe kernel act mix: 30% community room";
@@ -169,6 +169,7 @@ params! {
     SeatKmMin = "seat_km_min", 1_500.0, Model, "nearest a seat is drawn from the street: one seat serves the whole mesh, so it is usually a continent away (no real site is used); 120 in design_multi_seat";
     SeatKmMax = "seat_km_max", 8_000.0, Model, "farthest a seat is drawn; 650 in design_multi_seat";
     LateHoldS = "late_hold_s", 43_200.0, Model, "a held message counts as late after 12 h, the longest wait MESH-0 reports a share for; a readout bound, no delivery decision reads it";
+    SendByCurve = "send_by_curve", 0.0, Model, "where a person has a generated day, how their devices send (sending by hour has no reference; two assumptions): 0, each awake device at msg_mean_interval_s, no day curve; 1, the assumed day curve's total poured onto whoever is awake. Without a generated day the curve is the only setting";
 }
 
 /// Number of scenario parameters.
@@ -2573,6 +2574,12 @@ impl MicroWorld {
         ([q(0.25), q(0.5), q(0.75)], still_late)
     }
 
+    /// Rows the serve seats hold now (the seat's queue).
+    #[must_use]
+    pub fn held_at_seats(&self) -> usize {
+        self.mail.iter().filter(|h| self.nodes[h.holder].kind == HostKind::ServeSeat).count()
+    }
+
     /// The share of delivered held rows whose wait was under each of `hours` (multiples of half an hour, at most 24):
     /// so a reader sees the spread of waits, not one threshold. 0 for each when nothing has been held.
     #[must_use]
@@ -2629,19 +2636,23 @@ impl MicroWorld {
         let mu = diurnal_multiplier(self.local_hour() * 3600.0);
         let human = self.params.get(P::MsgMeanIntervalS).max(1.0);
         let ci = self.params.get(P::CiMsgIntervalS).max(1.0);
+        let by_curve = self.params.get(P::SendByCurve) >= 0.5;
         for i in 0..self.nodes.len() {
             let n = &self.nodes[i];
             if !n.online(t) || n.pinned {
                 continue;
             }
-            // the presence tint: a phone or laptop signs only while its person is awake, at the stand-in's
-            // rate scaled by the hour's awake share, so the street's total stays the stand-in's
+            // the presence tint: a phone or laptop signs only while its person is awake. Where the person has a
+            // generated day it leads: each awake device at the flat mean gap, no day curve (send_by_curve 0); the
+            // second setting keeps the assumed curve's total and pours it onto whoever is awake (send_by_curve 1, the
+            // stand-in's total). Without a day the curve is the only setting.
             let person = if matches!(n.kind, HostKind::Phone | HostKind::Laptop) { self.person_awake(i) } else { None };
             if person.is_some_and(|p| !p.0) {
                 continue;
             }
             let mean = match n.kind {
                 HostKind::Phone | HostKind::Laptop => match person {
+                    Some(_) if !by_curve => human,
                     Some((_, share)) => human * share.max(0.05) / mu,
                     None => human / mu,
                 },

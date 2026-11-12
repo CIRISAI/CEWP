@@ -305,8 +305,9 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
 - **Data: the engine's own activity.** People per km2 times the street engine's message rate per awake device
   (micro.rs msg_mean_interval_s = 480 s, read from the kernel) times the engine's day curve (workload.rs
   model.diurnal.v1, kernel clock_diurnal) at the place's local solar hour: messages per hour per km2, the model's
-  estimate. Under the presence tint the engine moves the same total (it changes whose devices send), so the map is
-  what the engine moves; one signing device per person, background sync (76 kB per device-hour, flat) not drawn.
+  estimate. (Since superseded: where people have generated days each person's day now leads sending, and the Data
+  map follows who is awake in the United States; see "Sending" below.) One signing device per person; background
+  sync (76 kB per device-hour, flat) not drawn.
   Ledger data-activity.
 - **GRID-0 version 3** (CIRISHolon d71d610: 700 rows from Ember's yearly electricity data, CC BY 4.0, no version-2 value
   changed). Version-3 rows join the admin-0 mask on ISO alpha-3 (docs/geo/country_iso.json now carries alpha-3 from the
@@ -342,8 +343,6 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   home nodes only where something can host, and that is the default. The MESH-0 disclosure says both numbers plainly
   (about 0.43 of homes have a home node under the default; 0.60 is the offering draw, an assumption) and that the 0.21
   misplacement applies only to the older tile path.
-  Late in the evening the day curve stays high while the sleep tables say most people are asleep (above); the Data
-  layer's Advanced text says so in one sentence, and the engine is not changed here.
   (c) Counters: every delivered message is counted as taken at once, or held by a home node, a serve seat or another
   device, with a 48-bin half-hour histogram of hold times, the hold quartiles and the count still held past the late
   bound (`MicroStats` at_once / held_home / held_seat / held_other / late / hold_hist, kernel door micro_hold_stats).
@@ -355,7 +354,29 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   The street detail panel shows the engine's own split (taken at once, held by whom, quartiles, late) beside MESH-0's
   figures, each with its class. Limits stated wherever these are shown: person to person only; one clock; members of a
   household independent; the share of adults with no smartphone is not drawn.
-  Open: the day curve (workload.rs model.diurnal.v1) is above 1 at 22:00 (1.23) while the awake share is 0.416, and
-  still 1.00 at 23:00 (0.198 awake) and 0.78 at midnight (0.092 awake). Under the presence tint the engine keeps the
-  curve's total and moves it onto fewer awake devices, so the rate per awake person roughly triples late in the
-  evening. Not changed here.
+  The day curve (workload.rs model.diurnal.v1) is above 1 at 22:00 (1.23) while the awake share is 0.416, and still
+  1.00 at 23:00 (0.198 awake) and 0.78 at midnight (0.092 awake); keeping its total on the awake roughly tripled the
+  rate per awake person late in the evening, which the sending rule below resolves.
+- **Sending: each person's day leads, the curve is the second setting.** Sending by hour has no reference in anything
+  read (neither the engine's day curve, model.diurnal.v1, nor CIRISHolon's construction is one), so the street shows
+  two assumptions. Where a person has a generated day, each of their awake devices signs at msg_mean_interval_s
+  (480 s) with no day curve (micro.rs send_by_curve 0, the default); keeping the curve's total and pouring it onto
+  whoever is awake (send_by_curve 1, the earlier rule) is the second, labelled setting, because it tripled the rate per
+  awake person late in the evening. Without a generated day (outside the United States today) the curve is the only
+  setting. Home nodes and hosted servers keep the curve (they are not people). One generated day on a Columbus
+  street (4 a.m. to 4 a.m., Tuesday; street_rhythm send_rule_table):
+
+  | setting | rows a day (phones, laptops) | 21:00 to 24:00 | seat's queue, peak (at 23:30) | held rows delivered | late | delivered under 1 / 4 / 8 / 24 h |
+  |---|---|---|---|---|---|---|
+  | each person's day (default) | 4,874 | 424 | 140 (59) | 1,774 | 0 | 0.52 / 0.93 / 1.00 / 1.00 |
+  | the assumed curve on people's days | 7,705 | 1,037 | 318 (170) | 2,262 | 0 | 0.58 / 0.94 / 1.00 / 1.00 |
+  | the stand-in alone (no days) | 7,354 | 1,165 | 83 (29) | 2,550 | 0 | 0.63 / 0.98 / 1.00 / 1.00 |
+
+  So in the United States the street's total is no longer the stand-in's: it is set by its people's awake hours, about
+  two thirds of the stand-in's on this street. Witnesses: each_persons_day_leads_sending_at_a_flat_rate_per_awake_hour
+  (no row from a device whose person is asleep; rows per awake device-hour within four standard deviations of the
+  day's rate in every hour expecting 30 or more, while the curve setting is not) and
+  the_curve_setting_sends_more_late_in_the_evening_and_the_seat_holds_more. Nothing in the energy line reads the
+  street's message total (street_energy reads the households' device draws and the baked counters), so it does not
+  move. The Data map follows: in the United States people × the PRESENCE-0 awake share × the rate, elsewhere people ×
+  the rate × the curve, hatched; a step where the two meet at a border is the rules', and the legend says so.

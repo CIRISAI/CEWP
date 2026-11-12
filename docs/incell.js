@@ -17,14 +17,14 @@ const ICV = `attribute vec3 p;attribute vec2 uv;uniform mat3 R;uniform float S;u
 // Each map reads its quantity through its own sequential ramp (DM_RAMPS, one row of the ramp texture Rp), dark to bright, over a
 // dimmed neutral land (the veil; None, mode 0, is the plain view: a faint warm in-cell tint and no veil): People inferno, Awake navy to amber, Households viridis, Verdict teal and hatching.
 // Colour-blind safe: no ramp separates by red against green alone. uR is the ramp's row (texture v).
-const ICF = `precision mediump float;uniform sampler2D T;uniform sampler2D C;uniform sampler2D Rp;uniform float uA;uniform float uMode;uniform float uAwake;uniform float uRate;uniform vec4 uT;uniform float uDE0;uniform vec4 uDEd;uniform float uUS0;uniform vec4 uUSd;varying vec2 vUv;varying float vz;
+const ICF = `precision mediump float;uniform sampler2D T;uniform sampler2D C;uniform sampler2D Rp;uniform float uA;uniform float uMode;uniform float uAwake;uniform float uCurve;uniform float uRate;uniform vec4 uT;uniform float uDE0;uniform vec4 uDEd;uniform float uUS0;uniform vec4 uUSd;varying vec2 vUv;varying float vz;
 vec3 ramp(float row,float t){return texture2D(Rp,vec2(clamp(t,0.0,1.0)*0.992+0.004,row)).rgb;}
 void main(){if(vz<0.0)discard;float v=texture2D(T,vUv).r;vec4 a=texture2D(C,vUv);
 float hatch=step(0.5,fract((gl_FragCoord.x+gl_FragCoord.y)/6.0));
 bool us=a.r>0.2&&a.r<0.6;bool de=a.r>0.6;float cls=floor(a.g*255.0/50.0+0.5);
 if(uMode<0.75){if(v<0.02)discard;vec3 c=mix(vec3(0.95,0.78,0.42),vec3(1.0,0.93,0.72),smoothstep(0.55,1.0,v));gl_FragColor=vec4(c,uA*(0.10+0.55*v*v)*(1.0-hatch*0.18));return;}
 if(uMode<1.5){if(v<0.02)discard;gl_FragColor=vec4(ramp(0.0625,0.12+0.88*v)*(1.0-hatch*0.10),uA*(0.80+0.20*v));return;}
-if(uMode>5.5){if(v<0.02)discard;float msg=pow(10.0,2.0+2.5*v)*uRate*uAwake;float t=(log(msg)/2.302585-2.5)/3.2;gl_FragColor=vec4(ramp(0.5625,0.06+0.94*t),uA*(0.78+0.22*clamp(t,0.0,1.0)));return;}
+if(uMode>5.5){if(v<0.02)discard;float msg=pow(10.0,2.0+2.5*v)*uRate*(us?uAwake:uCurve);float t=(log(msg)/2.302585-2.5)/3.2;gl_FragColor=vec4(ramp(0.5625,0.06+0.94*t),uA*(0.78+0.22*clamp(t,0.0,1.0))*(us?1.0:0.40+0.60*hatch));return;}
 if(a.b<0.5)discard;
 if(uMode<2.5){
  if(us){gl_FragColor=vec4(ramp(0.1875,uAwake)*(1.0-hatch*0.08),uA*(0.40+0.55*max(v,0.1)));}
@@ -133,8 +133,9 @@ function incellAux(b){
   b.aux = t; return t;
 }
 // Data: the engine's message rate (micro.rs msg_mean_interval_s: a person's awake device signs a row every 480 s on average,
-// 7.5 an hour) and its day curve (workload.rs model.diurnal.v1), both read from the kernel; under the presence tint the street's
-// total is this same product, so the map is what the engine moves, per km2 and per hour, at each block's local solar hour
+// 7.5 an hour), read from the kernel, times who is awake at each block's local solar hour: in the United States the PRESENCE-0
+// awake share (each person's day leads sending, as on the street, micro.rs send_by_curve 0), elsewhere the engine's assumed
+// day curve (workload.rs model.diurnal.v1, kernel clock_diurnal), hatched: sending by hour has no reference, two assumptions
 let DATA_RATE = null;
 function dataRate(){ if (DATA_RATE === null && typeof wasm !== "undefined" && wasm && wasm.micro_msg_interval){ DATA_RATE = 3600 / Math.max(1, wasm.micro_msg_interval()); } return DATA_RATE || 0; }
 function dataHour(lon){ return typeof SIM === "undefined" ? 12 : (((SIM.t / 3600 + lon / 15) % 24) + 24) % 24; }
@@ -256,7 +257,7 @@ function incellDraw(R, S, asp, w, h, mpp, a){
   gl.uniformMatrix3fv(gl.getUniformLocation(pIncell, "R"), false, R); gl.uniform1f(gl.getUniformLocation(pIncell, "S"), S); gl.uniform2fv(gl.getUniformLocation(pIncell, "asp"), asp);
   gl.uniform1i(gl.getUniformLocation(pIncell, "T"), 0); gl.uniform1i(gl.getUniformLocation(pIncell, "C"), 1);
   gl.uniform1i(gl.getUniformLocation(pIncell, "Rp"), 2); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, incellRampTex()); gl.activeTexture(gl.TEXTURE0);
-  const ap = gl.getAttribLocation(pIncell, "p"), au = gl.getAttribLocation(pIncell, "uv"), uA = gl.getUniformLocation(pIncell, "uA"), uM = gl.getUniformLocation(pIncell, "uMode"), uW = gl.getUniformLocation(pIncell, "uAwake");
+  const ap = gl.getAttribLocation(pIncell, "p"), au = gl.getAttribLocation(pIncell, "uv"), uA = gl.getUniformLocation(pIncell, "uA"), uM = gl.getUniformLocation(pIncell, "uMode"), uW = gl.getUniformLocation(pIncell, "uAwake"), uC = gl.getUniformLocation(pIncell, "uCurve");
   gl.enableVertexAttribArray(ap); gl.enableVertexAttribArray(au);
   // the active map and, for 400 ms after a switch, the one fading out
   const k = Math.min(1, (performance.now() - DATAMAP.t0) / 400), passes = [[DATAMAP.active, k]];
@@ -269,9 +270,9 @@ function incellDraw(R, S, asp, w, h, mpp, a){
   for (const [mode, f] of passes){ if (f <= 0.01 || mode === 5 || (mode === 4 && !hm)) continue;
     gl.uniform1f(uA, a * f); gl.uniform1f(uM, mode === 0 ? 0.5 : mode);
     for (const v of vis){ const b = INCELL.blocks.get(v.k); if (!b || !b.tex) continue;
-      let aux = null; if (mode > 1 && mode < 5){ aux = incellAux(b); if (!aux) continue; }
+      let aux = null; if ((mode > 1 && mode < 5) || mode === 6){ aux = incellAux(b); if (!aux) continue; } // Data reads the country too
       if (mode === 2) gl.uniform1f(uW, incellAwake(-180 + (b.bc + 0.5) * 1.5));
-      if (mode === 6) gl.uniform1f(uW, dataDiurnal(-180 + (b.bc + 0.5) * 1.5)); // Data: the engine's day curve at the block's local hour
+      if (mode === 6){ const lo = -180 + (b.bc + 0.5) * 1.5; gl.uniform1f(uW, incellAwake(lo)); gl.uniform1f(uC, dataDiurnal(lo)); } // Data: who is awake in the United States, the assumed curve elsewhere
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, aux || b.tex); gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, b.tex); gl.bindBuffer(gl.ARRAY_BUFFER, b.mesh.buf);
       gl.vertexAttribPointer(ap, 3, gl.FLOAT, false, 20, 0); gl.vertexAttribPointer(au, 2, gl.FLOAT, false, 20, 12);

@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=49"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=50"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2002,8 +2002,8 @@ const MROUTE = ["direct", "relayed", "held at a mailbox", "mail handed over", "t
 const MROUTER = ["public listener (IPv6 / forwarded port)", "NAT a facilitated punch can traverse", "hard NAT / CGNAT: no direct path in"];
 const MDCLASS = ["apartment blocks", "terraced streets", "suburban streets", "village"];
 // cewp_sim::micro::P, in index order (asserted against micro_param_count at build)
-const MP = { reach_home_share: 0, server_tier_share: 4, relay_offering_share: 5, phone_wifi_share: 7, phone_charging_share: 8, home_shaping_opt_in: 9, phone_shaping_opt_in: 10, adoption: 11, serve_seats: 17, homing_k: 18, start_local_hour: 39, claimed_share: 40, bundle_bootstrap: 41, seat_km_min: 42, seat_km_max: 43 };
-const MP_COUNT = 45; // 44: late_hold_s (MESH-0 (c), proposed)
+const MP = { reach_home_share: 0, server_tier_share: 4, relay_offering_share: 5, phone_wifi_share: 7, phone_charging_share: 8, home_shaping_opt_in: 9, phone_shaping_opt_in: 10, adoption: 11, serve_seats: 17, homing_k: 18, start_local_hour: 39, claimed_share: 40, bundle_bootstrap: 41, seat_km_min: 42, seat_km_max: 43, send_by_curve: 45 };
+const MP_COUNT = 46; // 44: late_hold_s; 45: send_by_curve
 // default = production's shape (one serve seat, k = 1, far away); true = the design's multi-seat case
 // (MicroParams::design_multi_seat: three seats, k = 2, 120-650 km), a named scenario, not the baseline
 let microDesign = false;
@@ -2055,6 +2055,7 @@ function microSetParams(adoption, lon, utcH){
   p[MP.home_shaping_opt_in] = v("sl_sh_home");
   p[MP.phone_shaping_opt_in] = v("sl_sh_phone");
   p[MP.adoption] = adoption;
+  p[MP.send_by_curve] = sendCurve; // where people have generated days: 0 each person's day leads sending, 1 the assumed curve
   p[MP.bundle_bootstrap] = microBootstrap ? 1 : 0; // the world rounds the same for 1 and 2; the shape is costed in capacity
   if (microDesign){ p[MP.serve_seats] = 3; p[MP.homing_k] = 2; p[MP.seat_km_min] = 120; p[MP.seat_km_max] = 650; }
   p[MP.start_local_hour] = (((utcH === undefined ? getSimUtcHours(getTime()) : utcH) + lon / 15) % 24 + 24) % 24;
@@ -2635,6 +2636,11 @@ function holGenLine(){
 // the device generator's line (DEVICEGEN-1 per household, kernel micro_device_seam) and the home-node scenario (MODEL)
 const HOME_WHERE = ["on the gateway", "on an existing computer", "on a new box", "none (phones only)"];
 let homeWhere = 0;
+// how a street whose people have generated days sends (micro.rs send_by_curve; sending by hour has no reference, so two
+// assumptions are shown): 0 each awake device at one flat rate (the default), 1 the assumed day curve's total on the awake
+let sendCurve = 0;
+const SEND_RULES = ["each person's day", "the assumed day curve"];
+const sendButtons = () => "sending by hour has no reference; shown under two assumptions: " + SEND_RULES.map((t, k) => '<button class="chip-btn' + (sendCurve === k ? " on" : "") + '" type="button" data-send="' + k + '">' + t + "</button>").join("");
 function holDevSeam(){
   if (!M || !wasm.micro_device_seam) return null; if (M.dseam !== undefined) return M.dseam;
   const n = wasm.micro_device_seam(), p = wasm.holon_buf_ptr(0) >>> 0, o = Array.from(new Float64Array(wasm.memory.buffer, p, n));
@@ -2771,7 +2777,8 @@ function deliveryLine(){
   return `deliveries on this street so far (counts under stated assumptions): ${sent.toLocaleString()} messages; ${pc(o[2])} taken at once; held ${pc(held)} (${pc(o[3])} at a device of the recipient's home, ${pc(o[4])} at the seat, ${pc(o[5])} elsewhere)` +
     (o[6] ? `; held messages waited ${hh(o[7])} / ${hh(o[8])} / ${hh(o[9])} (quartiles), ${n > 16 ? [1, 4, 8, 24].map((x, i) => Math.round(100 * o[16 + i]) + "% under " + x + " h").join(", ") : ""}` : "") +
     `; ${o[10].toLocaleString()} delivered late and ${o[11].toLocaleString()} still held past ${hh(o[12])} (MODEL: late means after ${hh(o[12])}, the longest wait MESH-0 reports a share for; a readout, nothing is decided by it)` +
-    `; ${o[13] ? Math.round(100 * o[14] / o[13]) + "%" : "–"} of relayed messages went through the seat · reachability: ${o[15] ? "a phone is on while its person is awake (the people's own days)" : "the flat on-off chain (no people's days here)"}`;
+    `; ${o[13] ? Math.round(100 * o[14] / o[13]) + "%" : "–"} of relayed messages went through the seat · reachability: ${o[15] ? "a phone is on while its person is awake (the people's own days)" : "the flat on-off chain (no people's days here)"}` +
+    ` · sending: ${o[15] ? (sendCurve ? "the assumed day curve's total, poured onto whoever is awake (MODEL, assumed)" : "each awake device at one flat rate, no day curve (MODEL); the street's total is set by its people's awake hours, not by the stand-in's curve") : "the assumed day curve (no people's days here, so no second setting)"}`;
 }
 // CIRISHolon's MESH-0 readings, set beside the street's counts, with the limits carried wherever any of it is shown
 function meshLine(){
@@ -2881,8 +2888,8 @@ function dmLegend(){
         ". Trust C rows (secondhand pages) are hatched; where two rows disagree for one place and year the higher-trust row is shown and the other named, never averaged. A country with no row of this kind is 'no reference' (hatched). Colour fills the Natural Earth admin-0 mask (de facto, simplified), not a claim about borders. A country value hides its grid regions: the US mainland eGRID 2023 subregions run " +
         (g.us.avg ? g.us.avg[0].toFixed(0) + " to " + g.us.avg[1].toFixed(0) : "?") + " gCO2/kWh on average and " + (g.us.nbl ? g.us.nbl[0].toFixed(0) + " to " + g.us.nbl[1].toFixed(0) : "?") + " non-baseload (subregion boundaries are not in the twin). An average rate times a change in load is an attribution, never 'emissions avoided'."))}</div>`; }
   if (id === 6){ const lg = (x) => (Math.log10(x) - 2.5) / 3.2 * 0.94 + 0.06, rate = typeof dataRate === "function" ? dataRate() : 0;
-    return `<div class="dm-l1 dm-wrap"><b>Data</b> ${fig("data-activity", "messages people send here in this hour, by the model's daily rhythm; an estimate, not a measurement")}</div>` +
-      `<div class="dm-l2 dm-wrap">${fig("data-activity", dmBar("dm-data", [[lg(1000), "1k"], [lg(10000), "10k"], [lg(100000), "100k"]]) + " per hour per km²")} ${more(fig("data-activity", "people per km² in each ~1 km square (the People layer) × " + rate.toFixed(1) + " messages an hour per person (the street engine's assumed mean gap of " + Math.round(3600 / Math.max(rate, 1e-9)) + " s between messages from a person's device) × the engine's daily rhythm at the place's local solar hour (an assumed curve, lowest around 03:00 and highest around 19:30; the same curve everywhere, no country has its own yet). Where people's own days are drawn (United States streets) the engine moves this same total and changes only whose devices send. Late in the evening the model's message curve stays high while its sleep tables say most people are asleep; the two are not yet reconciled. Devices also sync in the background at a steady rate; that is not drawn here. Not a measurement."))}</div>`; }
+    return `<div class="dm-l1 dm-wrap"><b>Data</b> ${fig("data-activity", "messages people send here in this hour; an estimate under two assumptions, not a measurement: in the United States by who is awake, elsewhere (hatched) by an assumed daily curve")}</div>` +
+      `<div class="dm-l2 dm-wrap">${fig("data-activity", dmBar("dm-data", [[lg(1000), "1k"], [lg(10000), "10k"], [lg(100000), "100k"]]) + " per hour per km²")} ${more(fig("data-activity", "Sending by hour has no reference; shown under two assumptions. People per km² in each ~1 km square (the People layer) × " + rate.toFixed(1) + " messages an hour per awake person (the street engine's assumed mean gap of " + Math.round(3600 / Math.max(rate, 1e-9)) + " s between messages from a person's device) × in the United States, the share of people awake at the place's local solar hour (CIRISHolon PRESENCE-0, US time diaries): each person's day leads sending, as on the street; elsewhere (hatched), the engine's assumed daily curve instead (lowest around 03:00, highest around 19:30, the same everywhere: no other country has day tables yet). Where the two rules meet at a border the colour can step; that step is the rules', not a real difference. Devices also sync in the background at a steady rate; that is not drawn here. Not a measurement."))}</div>`; }
   if (id === 3) return `<div class="dm-l1 dm-wrap"><b>Checked?</b> ${fig("holon-housegen1", "whether the twin's household mix here has been compared with a real census")}</div>` +
     `<div class="dm-l2 dm-wrap">${holVd("certified", "matches the census")} ${holVd("unresolved", "read, not yet checked")} <span class="vd dm-noref">nothing to check against</span> ${more(fig("holon-housegen1", "CIRISHolon's household generator (HOUSEGEN-1) per ~1 km tile: German village tiles certified (composition), other German and all US tiles unresolved, elsewhere outside every reference") + " · " + fig("countries-source", "country from Natural Earth's mask, for envelopes only"))}</div>`;
   if (id === 4){ const h = hhMeans(), r = (a) => a ? Math.min(...a).toFixed(2) + " (dense) to " + Math.max(...a).toFixed(2) : "…";
@@ -2919,8 +2926,9 @@ function dmValue(){
     if (!u || k < 0) return "people: loading CIRISHolon's in-cell table…"; const r = holRegion(M.lat0, M.lon0), e = r === null ? null : u.data.regional[r][k], v = e && e.people ? e.people : u.data.world.people[k];
     return `people here: in ${/^[aeiou]/.test(cls) ? "an" : "a"} ${cls} area like this one, ${Math.round(v.slice(k + 2).reduce((a, b) => a + b, 0) / 1e4)}% of people live in denser ~1 km squares nearby`; }
   const s = holSeam(), c = s ? s.country : -1;
-  if (id === 6){ const d = M.meta[4] || 0, r = typeof dataRate === "function" ? dataRate() : 0, h = typeof dataDiurnal === "function" ? dataDiurnal(M.lon0) : 1;
-    return `data moving here now: about ${Math.round(d * r * h).toLocaleString()} messages an hour per km² (the model's estimate at ${Math.floor(dataHour(M.lon0))}:00 local)`; }
+  if (id === 6){ const d = M.meta[4] || 0, r = typeof dataRate === "function" ? dataRate() : 0, us = HOLT.countries && countryNear(HOLT.countries, M.lat0, M.lon0) === 840;
+    const h = us ? incellAwake(M.lon0) : (typeof dataDiurnal === "function" ? dataDiurnal(M.lon0) : 1);
+    return `data moving here now: about ${Math.round(d * r * h).toLocaleString()} messages an hour per km² (the model's estimate at ${Math.floor(dataHour(M.lon0))}:00 local, ${us ? "by who is awake here" : "by the assumed daily curve"}; sending by hour has no reference, shown under two assumptions)`; }
   if (id === 5){ const g = gridSel(), iso = HOLT.countries ? countryNear(HOLT.countries, M.lat0, M.lon0) : null; if (!g) return "grid here: loading…";
     const r = g.rows.find((x) => x.iso === iso);
     return r ? `electricity here: ${r.row.place}, ${Math.round(r.row.value)} ${r.row.unit.replace("/kWh", " per kWh")} (${r.row.year}${r.row.small_system ? ", a small system" : ""})` : `electricity here: no figure for ${holCountryName(iso)} in this reading`; }
@@ -2988,7 +2996,7 @@ function updateFocalChip(F){
   const detail = `<div class="fd-head"><b>Where this street's figures come from</b> <button class="chip-btn" id="fd-close" type="button" aria-label="Close">×</button></div>` +
     (M.denseNote ? `<div class="chip-sub">${fig("dense-fabric", "dense fabric: storeys are the leaf's households over its plots; the density is a 1/8° cell average, and wards inside it are denser")}</div>` : "") +
     `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people inside a 1/8° cell follow CIRISHolon's in-cell table (UNEVEN-0, unresolved)")}</div>` +
-    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devicegen1", holDevGenLine())} · ${fig("holon-devicegen1", hwButtons())}</div><div class="chip-sub">${fig("holon-presencegen2", rhyLine())}</div><div class="chip-sub">${fig("energy-street", energyLine())}</div><div class="chip-sub">${fig("street-delivery", deliveryLine())}</div><div class="chip-sub">${fig("holon-mesh0", meshLine())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
+    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devicegen1", holDevGenLine())} · ${fig("holon-devicegen1", hwButtons())}</div><div class="chip-sub">${fig("holon-presencegen2", rhyLine())}</div><div class="chip-sub">${fig("energy-street", energyLine())}</div><div class="chip-sub">${fig("street-delivery", deliveryLine())}${fig("street-delivery", M.presOn ? " · " + sendButtons() : "")}</div><div class="chip-sub">${fig("holon-mesh0", meshLine())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
     `<div class="chip-sub">rows: ${fig("micro-activity", m[10] + " sent · " + m[11] + " direct (" + m[12] + " shaped) · " + m[13] + " relayed · " + m[15] + " held at a mailbox · " + m[16] + " handed over · punches " + m[20] + "/" + m[19] + " up")} · tap a device</div>` +
     `<div class="chip-sub">model's reading: replication rounds ${fig("micro-activity", (m[37] | 0) + " served · " + (m[38] | 0) + " cadences where an unclaimed device announced with no seat as peer")} · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +
     (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? '<span class="inp">design case: 3, k=2</span>' : '<span class="inp">production: 1</span>'}</button>`) + `</div>`;
@@ -3000,6 +3008,7 @@ function updateFocalChip(F){
   chip.innerHTML = head + tileLine + dmv + badges;
   if (det && !det.contains(document.activeElement)){ det.innerHTML = detail.replace("</div>", "</div>" + checks + tierLine); det.classList.toggle("panel-hidden", false); }
   $("fd-open").onclick = () => { det.classList.toggle("open"); chip._t = 0; };
+  for (const bt of det.querySelectorAll("[data-send]")) bt.onclick = () => { sendCurve = +bt.dataset.send; MICRO_GEN++; M = null; chip._t = 0; };
   for (const bt of det.querySelectorAll("[data-hw]")) bt.onclick = () => { homeWhere = +bt.dataset.hw; MICRO_GEN++; if (wasm.micro_device_rule) wasm.micro_device_rule(TL.devicegen === false ? 0 : 1, homeWhere); M = null; chip._t = 0; };
   const fc = $("fd-close"); if (fc) fc.onclick = () => { det.classList.remove("open"); chip._t = 0; };
   $("ts-dn").onclick = () => { microTimeScale = Math.max(1, Math.round(microTimeScale / 2)); chip._t = 0; };
