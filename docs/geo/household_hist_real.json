@@ -2,7 +2,7 @@
  "what": "household sizes (persons per household) over every street leaf the page builds inside each probe place's L3 street tile, from the page's own path (GHS-POP assets -> geodata.js geoPopFine -> kernel pop_load / pop_root / pop_split / pop_of -> HOLON.tree -> holon_layout -> micro_build_leaf -> micro_population), MODEL",
  "command": "node docs/geo/household_hist_real.js --write",
  "inputs": {
-  "docs/kernel/kernel_scale.wasm": "57a99634720e007ec2b4fbc07d52a8e2d103e7de44574f7601b257bff519aaea",
+  "docs/kernel/kernel_scale.wasm": "0f3e8a39a37f70c9fa9d3a7b5a4708d183bdd3f036a5cc6f05e9427a51022958",
   "docs/geo/gd/pop0.bin.gz": "7711745ab49ecdd6ae0dac09f63c4bcf1d60aee91dd1ddc98426ce7223488dbb",
   "docs/geo/gd/pop1.bin.gz": "ce8ca1dc64950a8646cc04b7bf8ad621e6b1ad4e05b7dd56066aa08576dedf01",
   "docs/geo/geodata.js": "611401a1ee657243ff0427ad697680e36942edea30ed160ba2b5acf93b43234d",

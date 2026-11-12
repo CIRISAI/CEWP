@@ -830,7 +830,7 @@ pub extern "C" fn micro_energy() -> u32 {
 /// The street's deliveries so far (MESH-0's readings, counted by the engine): holon buffer 0 gets [1, sent, taken at once,
 /// held at a home device, held at a seat, held elsewhere, held rows delivered, hold-time quartiles q1 q2 q3 (s, half-hour
 /// resolution), delivered late, still held past the bound, late_hold_s, relayed, relayed via a seat, reachability from
-/// people's days (1) or the flat chain (0)]. [0] with no world.
+/// people's days (1) or the flat chain (0), then the shares of held rows delivered under 1, 4, 8 and 24 h]. [0] with no world.
 #[no_mangle]
 pub extern "C" fn micro_hold_stats() -> u32 {
     let h = holon();
@@ -839,7 +839,8 @@ pub extern "C" fn micro_hold_stats() -> u32 {
     let (q, still) = w.hold_readout();
     h.out = vec![1.0, st.sent as f64, st.at_once as f64, st.held_home as f64, st.held_seat as f64, st.held_other as f64, st.mail_delivered as f64,
         q[0], q[1], q[2], st.late as f64, still as f64, w.params.get(MicroP::LateHoldS), st.relayed as f64, st.relayed_via_seat as f64, f64::from(u8::from(w.presence.is_some()))];
-    16
+    h.out.extend(w.hold_shares_under(&[1.0, 4.0, 8.0, 24.0])); // 16..19: shares of held rows delivered under 1, 4, 8, 24 h
+    20
 }
 
 /// The engine's day curve (`workload::diurnal_multiplier`, model.diurnal.v1) at local hour `hour`: the Data map reads the

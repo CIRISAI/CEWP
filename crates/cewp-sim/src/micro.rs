@@ -168,7 +168,7 @@ params! {
     BundleBootstrap = "bundle_bootstrap", 1.0, Model, "edge #881 bundle bootstrap: on, the v45 LTS default (ruled; CIRISEdge#971 c580298, required-set Pull); 0 = off, as on v44. A round here is the one Revocation round per cadence a device keeps with each seat; its other planes go by subject Pull, costed in capacity.rs";
     SeatKmMin = "seat_km_min", 1_500.0, Model, "nearest a seat is drawn from the street: one seat serves the whole mesh, so it is usually a continent away (no real site is used); 120 in design_multi_seat";
     SeatKmMax = "seat_km_max", 8_000.0, Model, "farthest a seat is drawn; 650 in design_multi_seat";
-    LateHoldS = "late_hold_s", 43_200.0, Model, "PROPOSED bound on a held message's wait before it counts as late (12 h: the longest wait MESH-0 reports a quartile and share for, and half a day's waking-to-waking cycle); awaiting a ruling";
+    LateHoldS = "late_hold_s", 43_200.0, Model, "a held message counts as late after 12 h, the longest wait MESH-0 reports a share for; a readout bound, no delivery decision reads it";
 }
 
 /// Number of scenario parameters.
@@ -783,6 +783,9 @@ pub struct MsgEvent {
     pub shaped: bool,
 }
 
+/// Bins of the held-row wait histogram: 48 half-hours, then one for a wait of 24 h or more.
+pub const HOLD_BINS: usize = 49;
+
 /// Running counts (all MODEL outputs).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct MicroStats {
@@ -812,7 +815,8 @@ pub struct MicroStats {
     pub held_other: u64,
     /// Held rows delivered after waiting longer than `late_hold_s`.
     pub late: u64,
-    /// Delivered held rows by wait, half-hour bins (48; the last is 23.5 h and over): the quartiles come from it.
+    /// Delivered held rows by wait, half-hour bins (HOLD_BINS: 48 of half an hour, then one for 24 h and over): the
+    /// quartiles and the shares under 1, 4, 8 and 24 h come from it.
     pub hold_hist: Vec<u64>,
     /// To the federation.
     pub federation: u64,
@@ -2503,10 +2507,10 @@ impl MicroWorld {
                 self.stats.mail_delivered += 1;
                 self.stats.mail_wait_s += t - h.since;
                 let wait = t - h.since;
-                if self.stats.hold_hist.len() < 48 {
-                    self.stats.hold_hist.resize(48, 0);
+                if self.stats.hold_hist.len() < HOLD_BINS {
+                    self.stats.hold_hist.resize(HOLD_BINS, 0);
                 }
-                self.stats.hold_hist[((wait / 1800.0) as usize).min(47)] += 1;
+                self.stats.hold_hist[((wait / 1800.0) as usize).min(HOLD_BINS - 1)] += 1;
                 self.stats.late += u64::from(wait > self.params.get(P::LateHoldS));
                 self.record(MsgEvent { t, src: h.holder, dst: h.dst, via, via2, route: Route::MailDelivered, shaped });
             } else {
@@ -2562,11 +2566,28 @@ impl MicroWorld {
                     return (b as f64 + 0.5) * 1800.0;
                 }
             }
-            47.5 * 1800.0
+            (HOLD_BINS as f64 - 0.5) * 1800.0
         };
         let bound = self.params.get(P::LateHoldS);
         let still_late = self.mail.iter().filter(|h| self.t - h.since > bound).count() as u64;
         ([q(0.25), q(0.5), q(0.75)], still_late)
+    }
+
+    /// The share of delivered held rows whose wait was under each of `hours` (multiples of half an hour, at most 24):
+    /// so a reader sees the spread of waits, not one threshold. 0 for each when nothing has been held.
+    #[must_use]
+    pub fn hold_shares_under(&self, hours: &[f64]) -> Vec<f64> {
+        let total: u64 = self.stats.hold_hist.iter().sum();
+        hours
+            .iter()
+            .map(|&h| {
+                if total == 0 {
+                    return 0.0;
+                }
+                let bins = ((h * 2.0).round() as usize).min(HOLD_BINS - 1);
+                self.stats.hold_hist.iter().take(bins).sum::<u64>() as f64 / total as f64
+            })
+            .collect()
     }
 
     /// Whether node `i`'s person is awake now, and the hour's PRESENCE-0 awake share, under the presence tint
@@ -3154,6 +3175,19 @@ mod tests {
         let (q, still) = w.hold_readout();
         assert_eq!(still, 0);
         assert!(q[1] >= 600.0 && q[1] <= 1800.0, "median in its half-hour bin: {q:?}");
+    }
+
+    #[test]
+    fn hold_shares_under_read_the_histogram_cumulatively_and_keep_a_day_apart() {
+        let mut w = world(1200.0, 21);
+        assert_eq!(w.hold_shares_under(&[1.0, 24.0]), vec![0.0, 0.0], "nothing held");
+        // waits of 0.2 h, 3 h, 7.9 h, 23.9 h and 30 h: one each
+        w.stats.hold_hist = vec![0; HOLD_BINS];
+        for h in [0.2_f64, 3.0, 7.9, 23.9, 30.0] {
+            w.stats.hold_hist[((h * 3600.0 / 1800.0) as usize).min(HOLD_BINS - 1)] += 1;
+        }
+        assert_eq!(w.hold_shares_under(&[1.0, 4.0, 8.0, 24.0]), vec![0.2, 0.4, 0.6, 0.8], "a 30 h wait is not under 24 h");
+        assert_eq!(w.hold_readout().0[2], 23.75 * 3600.0, "the third quartile falls in the 23.5 h bin");
     }
 
     #[test]

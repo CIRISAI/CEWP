@@ -487,7 +487,7 @@ pub const PAGE_CLAIMS: &[PageClaim] = &[
         live: true,
         shows: "The focal street's deliveries so far, counted by the street engine: messages taken at once, held at a device of the recipient's home, at the seat or elsewhere, the held messages' waits at the quartiles, how many were delivered after the late bound or are still held past it, and how many relayed messages went through the seat; which reachability is in force; beside CIRISHolon's MESH-0 readings and its limits. Counts under stated assumptions, not a statement that the mesh works.",
         source: "crates/cewp-sim/src/micro.rs MicroStats (at_once, held_home, held_seat, held_other, late, hold_hist, relayed_via_seat) and hold_readout; churn (a phone follows its person's generated day where one exists); kernel-wasm micro_hold_stats; docs/globe.js deliveryLine",
-        param: "late_hold_s = 43,200 s, PROPOSED (MODEL, awaiting a ruling): the longest wait MESH-0 reports a share for; reachability: a phone is on while its person is awake where the person has a generated day (United States streets), else the flat on-off chain (mobile_offline_share, phone_asleep_mean_s); waits at half-hour resolution",
+        param: "MODEL: a held message counts as late after 12 h (late_hold_s = 43,200 s), the longest wait MESH-0 reports a share for; a readout bound, no delivery decision reads it; the shares of held messages delivered under 1, 4, 8 and 24 h are shown beside it; reachability: a phone is on while its person is awake where the person has a generated day (United States streets), else the flat on-off chain (mobile_offline_share, phone_asleep_mean_s); waits at half-hour resolution",
         failure: &[
             "Person to person only, one clock, household members independent: the street's messages are the engine's own draws, not a measured traffic mix.",
             "The late bound is a proposed number; a share over it is not a quality judgement until the bound is ruled.",
@@ -1623,8 +1623,8 @@ mod tests {
             "twin-topology", "twin-hhsize", "twin-integrate", "twin-geodata"];
         // process talk about who decided what: the owner's rulings, approvals and specs (a node's owner is domain language)
         // ("for the owner" alone is domain language too: "a key acting for the owner" of a node)
-        const TERMS: [&str; 13] = ["team-lead", "sub-agent", "subagent", "this session", "relayed via holon", "the lead", "the owner's ruling", "the owner's approval",
-            "(for the owner)", "owner's spec", "the owner approves", "owner's framing", "owner's word"];
+        const TERMS: [&str; 15] = ["team-lead", "sub-agent", "subagent", "this session", "relayed via holon", "the lead", "the owner's ruling", "the owner's approval",
+            "(for the owner)", "owner's spec", "the owner approves", "owner's framing", "owner's word", "awaiting a ruling", "awaiting ruling"];
         let starts = |s: &str, i: usize| s[..i].chars().next_back().is_none_or(|c| !(c.is_alphanumeric() || c == '-' || c == '_'));
         let ends = |s: &str, j: usize, digits: bool| {
             let rest = &s[j..];
@@ -1643,6 +1643,10 @@ mod tests {
                 bad.push(t);
             }
         }
+        // a value still marked as proposed reads as a decision pending (case kept: DIRECT_LINK_PROPOSED is a label)
+        if line.contains("PROPOSED (") || line.contains("PROPOSED:") || line.contains("\"PROPOSED ") {
+            bad.push("a value marked PROPOSED");
+        }
         if line.match_indices("Eric").any(|(i, _)| starts(line, i) && ends(line, i + 4, false) && !line[i..].starts_with("Eric Moore")) {
             bad.push("the owner's first name");
         }
@@ -1652,10 +1656,12 @@ mod tests {
     #[test]
     fn the_jargon_matcher_catches_the_forms_that_occurred() {
         for s in ["twin-globe2", "twin-theory's", "by twin-globe2,", "team-lead's", "(twin-media)", "for the lead.", "in this session", "Eric's approval", "`twin-evidence`",
-            "The map strip in plain words (the owner's ruling).", "needs the owner's approval", "a brief (for the owner)"] {
+            "The map strip in plain words (the owner's ruling).", "needs the owner's approval", "a brief (for the owner)",
+            "late_hold_s = 43,200 s, PROPOSED (MODEL, awaiting a ruling)", "a new MODEL parameter, PROPOSED: 12 h", "(bound 12 h, awaiting ruling)"] {
             assert!(!jargon_in(s).is_empty(), "must trip: {s}");
         }
-        for s in [r#""schema": "cewp-twin-holon-index/v1""#, "stewarded by Eric Moore", "Ericsson Mobility Report", "the leader board", "the leading edge", "twin/globe branch", "the media package", "the node's owner", "isolation of the owner's remaining devices", "or a key acting for the owner)"] {
+        for s in [r#""schema": "cewp-twin-holon-index/v1""#, "stewarded by Eric Moore", "Ericsson Mobility Report", "the leader board", "the leading edge", "twin/globe branch", "the media package", "the node's owner", "isolation of the owner's remaining devices", "or a key acting for the owner)",
+            "label `DIRECT_LINK_PROPOSED` | denominator", "direct-link proposals made"] {
             assert!(jargon_in(s).is_empty(), "must pass: {s} -> {:?}", jargon_in(s));
         }
     }

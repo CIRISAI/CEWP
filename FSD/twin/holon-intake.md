@@ -338,13 +338,19 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   homes with nothing declared; 0.787 of households declare a fixed line or a desktop. The combined home share is
   0.6 x 0.716 = 0.43, not 0.60. Only the older tile path (device rule off) draws an independent 0.60 per household,
   and there MESH-0's finding applies as stated: about 0.21 of hosts sit on households with nothing declared. MESH-0's
-  serve-seat share ranges 0.006 to 0.142 with the host setting; no share is changed until one is chosen.
+  serve-seat share ranges 0.006 to 0.142 with the host setting. No share changes: the device-rule street already places
+  home nodes only where something can host, and that is the default. The MESH-0 disclosure says both numbers plainly
+  (about 0.43 of homes have a home node under the default; 0.60 is the offering draw, an assumption) and that the 0.21
+  misplacement applies only to the older tile path.
+  Late in the evening the day curve stays high while the sleep tables say most people are asleep (above); the Data
+  layer's Advanced text says so in one sentence, and the engine is not changed here.
   (c) Counters: every delivered message is counted as taken at once, or held by a home node, a serve seat or another
   device, with a 48-bin half-hour histogram of hold times, the hold quartiles and the count still held past the late
   bound (`MicroStats` at_once / held_home / held_seat / held_other / late / hold_hist, kernel door micro_hold_stats).
-  The late bound is a new MODEL parameter, micro.late_hold_s = 43,200 s, PROPOSED: 12 h is the longest wait MESH-0
-  reports a share for and half a day's waking cycle, so a message still held past it missed its recipient's whole
-  waking day. It is a readout bound only; no delivery decision reads it. Witness
+  The late bound is a MODEL parameter, micro.late_hold_s = 43,200 s: a held message counts as late after 12 h, the
+  longest wait MESH-0 reports a share for; a readout bound, no delivery decision reads it. Beside the late count the
+  panel shows the shares of held messages delivered under 1, 4, 8 and 24 h (the histogram keeps a bin for 24 h and
+  over), so the reader is not handed one threshold. Witness
   `held_rows_are_counted_by_holder_and_late_past_the_bound`, red without the counters.
   The street detail panel shows the engine's own split (taken at once, held by whom, quartiles, late) beside MESH-0's
   figures, each with its class. Limits stated wherever these are shown: person to person only; one clock; members of a
