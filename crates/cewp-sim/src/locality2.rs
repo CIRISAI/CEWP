@@ -857,6 +857,97 @@ fn scale(a: &mut Acc, k: f64) {
 }
 
 // ---------------------------------------------------------------------------
+// The reference at district grain: CIRISHolon TIES-0 (Germany)
+// ---------------------------------------------------------------------------
+
+/// Where TIES-0 was read.
+pub const TIES0_PIN: &str = "CIRISHolon 8477c00a7d1f4d92f086a44ade4d1c8889109932 conformance/scene/tables/ties0_de/ties_table.json v1 sha256 3ca880e83577204bfd9ede906381b4307f1bb980bed7b16dac0289f67d77a06f";
+/// TIES-0 bands (friendship links of one platform between German districts).
+pub const TIES0_BANDS: [&str; 5] = ["own district", "within 100 km", "100 to 300 km", "farther in Germany", "foreign Europe"];
+/// Population-weighted share of a district's links per band, all districts (users in
+/// proportion to residents; the other convention differs by at most 0.02).
+pub const TIES0_ALL: [f64; 5] = [0.3456, 0.2738, 0.1292, 0.0999, 0.1515];
+/// The same by density fifth, sparsest first.
+pub const TIES0_FIFTHS: [[f64; 5]; 5] = [
+    [0.4347, 0.2580, 0.1294, 0.0874, 0.0905],
+    [0.4069, 0.2746, 0.1191, 0.0797, 0.1196],
+    [0.3761, 0.2700, 0.1234, 0.0814, 0.1491],
+    [0.2842, 0.3229, 0.1322, 0.0979, 0.1628],
+    [0.2300, 0.2433, 0.1416, 0.1518, 0.2333],
+];
+/// TIES-0 `below_the_area`: the share of own-district links within 1 km, median district,
+/// is anywhere in this bracket (no licence below a district; a bracket, not a measurement).
+pub const TIES0_WITHIN_1KM_BRACKET: (f64, f64) = (0.0038, 0.4824);
+
+/// How ties become messages: a member pair of a room of `n` weighs `n^-k` (k = 0 flat: every
+/// tie talks as much; k = 1 strong ties talk more: a pair in a small room outweighs one in a
+/// large room). MODEL: TIES-0 counts links, not messages.
+#[must_use]
+pub fn tie_weight(n: usize, k: f64) -> f64 {
+    (n.max(2) as f64).powf(-k)
+}
+
+fn gc_km(lat1: f32, lon1: f32, lat2: f32, lon2: f32) -> f64 {
+    let r = std::f64::consts::PI / 180.0;
+    let (p1, p2) = (f64::from(lat1) * r, f64::from(lat2) * r);
+    let dl = (f64::from(lon2) - f64::from(lon1)) * r;
+    let c = (p1.sin() * p2.sin() + p1.cos() * p2.cos() * dl.cos()).clamp(-1.0, 1.0);
+    6371.0 * c.acos()
+}
+
+/// The twin's acquaintance and kin ties (member pairs of kin, work, school, neighbourhood and
+/// interest rooms; public follows make no tie), in TIES-0's bands at the twin's grain: "own
+/// district" = the same grid cell (the twin's finest place); "farther in Germany" = over 300 km
+/// in the same world region; "foreign" = another world region. Weighted by [`tie_weight`].
+/// Rooms over 40 members contribute 40 sampled pairs scaled to their pair count.
+#[must_use]
+pub fn tie_bands(w: &SocialWorld, geo: &Geography, k: f64, seed: u64) -> [f64; 5] {
+    let mut r = Rng::new(seed ^ 0x7135);
+    let mut b = [0.0; 5];
+    for room in 0..w.rooms() as u32 {
+        let kind = w.room_kind[room as usize];
+        if matches!(kind, RoomKind::Household | RoomKind::Public) {
+            continue;
+        }
+        let m = w.members(room);
+        let n = m.len();
+        if n < 2 {
+            continue;
+        }
+        let pairs = n * (n - 1) / 2;
+        let wt = tie_weight(n, k);
+        let mut one = |a: u32, c: u32, scale: f64| {
+            let (pa, pc) = (&w.persons[a as usize], &w.persons[c as usize]);
+            let band = if pa.cell == pc.cell {
+                0
+            } else {
+                let (ca, cc) = (&geo.cells[pa.cell as usize], &geo.cells[pc.cell as usize]);
+                let d = gc_km(ca.lat, ca.lon, cc.lat, cc.lon);
+                if pa.region != pc.region { 4 } else if d < 100.0 { 1 } else if d < 300.0 { 2 } else { 3 }
+            };
+            b[band] += wt * scale;
+        };
+        if n <= 40 {
+            for i in 0..n {
+                for j in i + 1..n {
+                    one(m[i], m[j], 1.0);
+                }
+            }
+        } else {
+            for _ in 0..40 {
+                let i = r.below(n);
+                let mut j = r.below(n);
+                if j == i {
+                    j = (j + 1) % n;
+                }
+                one(m[i], m[j], pairs as f64 / 40.0);
+            }
+        }
+    }
+    norm(b)
+}
+
+// ---------------------------------------------------------------------------
 // The sweep over room placement
 // ---------------------------------------------------------------------------
 
@@ -953,6 +1044,14 @@ pub fn sweep(geo: &Geography, persons: usize, horizon_s: f64, seed: u64) -> Vec<
             push(format!("{name} = {x} (sub-kilometre, FRONTIER)"), run(&base, Placement::Placed, &l3));
         }
     }
+    // TIES-0 gives no licence below a district: the close friends' within-1-km share swept over
+    // the whole bracket (own-district share held at tile + locality = 0.65)
+    for x in [0.35 * TIES0_WITHIN_1KM_BRACKET.0, 0.35 * TIES0_WITHIN_1KM_BRACKET.1] {
+        let mut l4 = lp.clone();
+        l4.set(L::CloseFriendsTile, x);
+        l4.set(L::CloseFriendsLocality, 0.65 - x);
+        push(format!("close_friends.tile_share = {x:.4} (TIES-0 below-district bracket, FRONTIER)"), run(&base, Placement::Placed, &l4));
+    }
     push("placeless null model (every non-household room ignores place)".to_string(), run(&base, Placement::Placeless, &lp));
     rows
 }
@@ -1013,9 +1112,38 @@ pub fn report(geo: &Geography, geo_name: &str, persons: usize, days: f64, seed: 
         let lv = |v: &[f64; 5]| v[3] + v[4];
         s.push_str(&format!("| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n", pct(wl(&k.delivery_band)), pct(wl(&k.presence_band)), pct(wl(&k0.presence_band)), pct(k.path_segment[0]), pct(k.presence_segment[0]), pct(k0.presence_segment[0]), pct(lv(&k.path_segment)), pct(lv(&k.presence_segment)), pct(lv(&k0.presence_segment))));
     }
+    s.push_str(&format!("\n## (a) at district grain: the reference, CIRISHolon TIES-0 (Germany)\n\n{TIES0_PIN}. One undifferentiated count of friendship links between German districts on one platform: not kinds of tie, not households, not messages; links beyond Europe are not in the file. The twin's column is its acquaintance and kin ties (member pairs of kin, work, school, neighbourhood and interest rooms) in the same bands at its own grain (own area = one grid cell; 'farther' = over 300 km in the same world region; 'foreign' = another world region). **Not the same quantity**: TIES-0 is links on one platform in one country; the twin is room memberships drawn from FRONTIER placement inputs (the page's 'community rooms 90% local', social.rs diaspora 0.12, interest groups 0.5 in the signer's locality). TIES-0's 0.75 within 300 km is an outer envelope for acquaintance and kin links at the twin's locality grain (a locality's half-width is of the order of 300 km), not a target for message locality.\n\n| ties | own area | within 100 km | 100 to 300 km | farther, same country or region | foreign | within 300 km |\n|---|---|---|---|---|---|---|\n"));
+    let row = |s: &mut String, name: &str, v: &[f64; 5]| {
+        s.push_str(&format!("| {name} |"));
+        for x in v {
+            s.push_str(&format!(" {} |", pct(*x)));
+        }
+        s.push_str(&format!(" {} |\n", pct(v[0] + v[1] + v[2])));
+    };
+    row(&mut s, "TIES-0, all districts (population-weighted)", &TIES0_ALL);
+    row(&mut s, "TIES-0, sparsest fifth", &TIES0_FIFTHS[0]);
+    row(&mut s, "TIES-0, densest fifth", &TIES0_FIFTHS[4]);
+    row(&mut s, "twin, ties weighted flat (k = 0)", &tie_bands(&w, geo, 0.0, seed));
+    row(&mut s, "twin, strong ties talk more (k = 1, MODEL)", &tie_bands(&w, geo, 1.0, seed));
+    s.push_str(&format!("\nBelow a district TIES-0 gives no licence: the share of own-district links within 1 km lies anywhere in [{:.1}%, {:.1}%] for the median district (a bracket, not a measurement). The household, building, tile and close-friends placements stay FRONTIER and are swept below; a distance law carried down one scale failed at Holon (2.8% of the population within 0.05, against 53.5% for a density-fifth mean), so no kernel is used.\n", 100.0 * TIES0_WITHIN_1KM_BRACKET.0, 100.0 * TIES0_WITHIN_1KM_BRACKET.1));
     if with_sweep {
-        s.push_str("\n## Sweep: the headline as a function of the room-placement inputs\n\nAct and delivery locality at the locality band (the page's definition) over social.rs's seven kinds, then over all ten, and the share of delivered bytes that leave the metro. Inputs one at a time from the defaults, then jointly, then the placeless null.\n\n| setting | act locality (7 kinds) | delivery locality (7) | act locality (10) | delivery locality (10) | delivery within the tile (10) | bytes leaving the metro |\n|---|---|---|---|---|---|---|\n");
-        for r in sweep(geo, persons, horizon, seed) {
+        s.push_str("\n## Sweep: the headline as a function of the room-placement inputs\n\nAct and delivery locality at the locality band (the page's definition) over social.rs's seven kinds, then over all ten, and the share of delivered bytes that leave the metro. Inputs one at a time from the defaults, then jointly, then the placeless null.\n");
+        let rows = sweep(geo, persons, horizon, seed);
+        let sub: Vec<f64> = rows.iter().filter(|r| r.setting == "defaults" || r.setting.contains("FRONTIER")).map(|r| r.delivery_within_tile).collect();
+        let (lo, hi) = sub.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |a, &x| (a.0.min(x), a.1.max(x)));
+        let loc: Vec<f64> = rows.iter().filter(|r| r.setting == "defaults" || r.setting.contains("FRONTIER")).map(|r| r.delivery_local_all10).collect();
+        let (llo, lhi) = loc.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |a, &x| (a.0.min(x), a.1.max(x)));
+        let bands_moved = rows.iter().filter(|r| r.setting.starts_with("band.")).any(|r| (r.delivery_within_tile - rows[0].delivery_within_tile).abs() > 1e-3);
+        let verdict = if hi - lo > 0.05 {
+            "it swings by more than 5 points: **the model cannot state a sub-district locality yet**"
+        } else if !bands_moved {
+            "the building and tile inputs do not move it at all: at this world size a grid cell holds fewer households than one building or tile chunk, so those bands are not resolved and what lies 'within the tile' is the household and same-cell placement. **The model cannot state a sub-district locality yet**; it needs a world placed at street grain (the micro tier) and a sub-district tie reference, which TIES-0 says does not exist"
+        } else {
+            "it moves by under 5 points at this world's placement"
+        };
+        s.push_str(&format!("\nAcross the sub-kilometre FRONTIER rows the delivery share within the tile runs {} to {} ({verdict}); delivery locality at the locality band runs {} to {} over the same rows.\n\n", pct(lo), pct(hi), pct(llo), pct(lhi)));
+        s.push_str("| setting | act locality (7 kinds) | delivery locality (7) | act locality (10) | delivery locality (10) | delivery within the tile (10) | bytes leaving the metro |\n|---|---|---|---|---|---|---|\n");
+        for r in rows {
             s.push_str(&format!("| {} | {} | {} | {} | {} | {} | {} |\n", r.setting, pct(r.act_local), pct(r.delivery_local), pct(r.act_local_all10), pct(r.delivery_local_all10), pct(r.delivery_within_tile), pct(r.bytes_leave_metro)));
         }
     }
