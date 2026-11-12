@@ -642,6 +642,24 @@ window.CEWP_LEDGER = {
       "failure": ["A count of verdicts, not a score: one certified and one refused line are not an average."]
     },
     {
+      "id": "energy-street",
+      "class": "MODEL",
+      "code": "MO",
+      "status": "stated",
+      "live": true,
+      "shows": "The focal street's mesh energy delta from the status quo, in kWh per household-year, short and long run: twin-theory's energy pass (delta = A + B - C, expected regime) with its household mix set from this street's own households as CIRISHolon's DEVICEGEN-1 drew them, under the home-node scenario chosen on the page; the point and the lowest and highest found over every input's interval, and the weakest class of any input priced.",
+      "source": "crates/cewp-sim/src/street_energy.rs street_energy (energy::with_mix_from_draws, energy::delta, energy::host_reach; counters at seed 1, the report's); micro.rs household_draws; kernel-wasm micro_energy",
+      "commit": "f73b918",
+      "window": "",
+      "param": "the pass's mix rule (MODEL): a home node in EVERY household that can host it, not the street's drawn 60 %; the household mix from the street's draws (connection, desktop, any computer, persons, phones); every other input at the pass's defaults (FSD/twin/energy.md)",
+      "dataset": "",
+      "blocker": "",
+      "reproduce": "cargo test -p cewp-sim street_energy; cargo run -p cewp-cli -- energy 1",
+      "correction": "",
+      "interval": null,
+      "failure": ["The street's mix is a few dozen households: its shares are a draw, not a rate; the pass's rows carry their own classes and most are FRONTIER or MODEL.", "Not spatial beyond the street: no grid mix or carbon intensity is in the twin, which is why there is no Power map."]
+    },
+    {
       "id": "holon-presencegen2",
       "class": "MODEL",
       "code": "MO",

@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=43"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=44"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2685,6 +2685,24 @@ function rhyDraw(g, A, F, alpha){
       g.fillStyle = "rgba(220,226,236,0.9)"; g.fillText(t, x + 11, ly); x += 15 + g.measureText(t).width + 6; } }
   g.restore();
 }
+// ---- the street's mesh energy delta (kernel micro_energy: twin-theory's energy pass with the household mix from this street's own
+// DEVICEGEN-1 households, under the chosen home-node scenario). The pass's counters are read once (a stand-in day, about a
+// second), so the first street's line fills in an idle slice; afterwards each street is a few milliseconds.
+const EN_WHERE = ["a home node on the gateway in every household with a fixed line", "a home node on an existing computer in every household with a desktop on a fixed line (as the pass reads it)", "a home node on a new box in every household with internet at home", "no home node (phones only)"], EN_CLASS = ["MEASURED", "DERIVED", "MODEL", "PROJECTED", "FRONTIER"];
+function streetEnergy(){
+  if (!M || typeof wasm === "undefined" || !wasm || !wasm.micro_energy) return null; if (M.energy !== undefined) return M.energy;
+  if (!M.energyQ){ M.energyQ = true; const m = M;
+    (window.requestIdleCallback || ((f) => setTimeout(f, 50)))(() => { if (M !== m) return; const t0 = performance.now(), n = wasm.micro_energy(), o = Array.from(new Float64Array(wasm.memory.buffer, wasm.holon_buf_ptr(0) >>> 0, n));
+      m.energy = o[0] === 1 ? { hh: o[1], where: o[2], reach: o[3], short: o.slice(4, 7), long: o.slice(7, 10), cls: o[10] } : null; m.energyMs = performance.now() - t0; const c = $("focal-chip"); if (c) c._t = 0; }, { timeout: 3000 }); }
+  return undefined;
+}
+function energyLine(){
+  const e = streetEnergy();
+  if (e === undefined) return "mesh energy on this street: computing…";
+  if (!e) return `mesh energy on this street: needs CIRISHolon's device rule (this street's households) ${holVd("legacy", "the legacy device draw has no household mix")}`;
+  const f = (x) => { const r = Math.round(x * 10) / 10; return r === 0 ? "0.0" : (r > 0 ? "+" : "−") + Math.abs(r).toFixed(1); }, sign = (v) => v[1] > 0 ? "a cost over every input's range" : v[2] < 0 ? "a saving over every input's range" : "sign open over the inputs";
+  return `mesh energy on this street against the status quo (twin-theory's energy pass, expected regime, the household mix from this street's ${e.hh} households, ${EN_WHERE[e.where | 0]}${(e.where | 0) < 3 ? ", " + Math.round(e.reach * 100) + "% of them" : ""}): short run ${f(e.short[0])} kWh per household-year (${f(e.short[1])} to ${f(e.short[2])}, ${sign(e.short)}), long run ${f(e.long[0])} (${f(e.long[1])} to ${f(e.long[2])}, ${sign(e.long)}); weakest input ${EN_CLASS[e.cls | 0]}`;
+}
 // the chip line: who is where in this hour of the generated day, and what CIRISHolon said of the generator
 function rhyLine(){
   if (!RHY.on) return `street day: off (layer "Street day")`;
@@ -2817,7 +2835,7 @@ function updateFocalChip(F){
   const detail = `<div class="fd-head"><b>Where this street's figures come from</b> <button class="chip-btn" id="fd-close" type="button" aria-label="Close">×</button></div>` +
     (M.denseNote ? `<div class="chip-sub">${fig("dense-fabric", "dense fabric: storeys are the leaf's households over its plots; the density is a 1/8° cell average, and wards inside it are denser")}</div>` : "") +
     `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people inside a 1/8° cell follow CIRISHolon's in-cell table (UNEVEN-0, unresolved)")}</div>` +
-    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devicegen1", holDevGenLine())} · ${fig("holon-devicegen1", hwButtons())}</div><div class="chip-sub">${fig("holon-presencegen2", rhyLine())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
+    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devicegen1", holDevGenLine())} · ${fig("holon-devicegen1", hwButtons())}</div><div class="chip-sub">${fig("holon-presencegen2", rhyLine())}</div><div class="chip-sub">${fig("energy-street", energyLine())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
     `<div class="chip-sub">rows: ${fig("micro-activity", m[10] + " sent · " + m[11] + " direct (" + m[12] + " shaped) · " + m[13] + " relayed · " + m[15] + " held at a mailbox · " + m[16] + " handed over · punches " + m[20] + "/" + m[19] + " up")} · tap a device</div>` +
     `<div class="chip-sub">model's reading: replication rounds ${fig("micro-activity", (m[37] | 0) + " served · " + (m[38] | 0) + " cadences where an unclaimed device announced with no seat as peer")} · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +
     (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? '<span class="inp">design case: 3, k=2</span>' : '<span class="inp">production: 1</span>'}</button>`) + `</div>`;

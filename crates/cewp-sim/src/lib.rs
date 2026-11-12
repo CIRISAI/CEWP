@@ -84,6 +84,7 @@ pub use holon_scene;
 pub mod countries;
 pub mod popchain;
 pub mod street_rhythm;
+pub mod street_energy;
 pub mod regions_table;
 pub mod couplings;
 pub mod energy;

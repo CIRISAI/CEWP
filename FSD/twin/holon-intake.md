@@ -260,3 +260,13 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   PRESENCE-0's share (twin/theory's presence0.rs, merged at 24c6fe0) by a fixed draw. Elsewhere, and under the
   legacy device draw, the stand-in (model.diurnal.v1) runs alone. Test: at 3 a.m. at least 70 % of the street's
   phones are asleep, at 1 p.m. at most 20 %; outside the country none change. Wasm 1,517,600 bytes.
+- **No Power map; the street's energy line instead** (crates/cewp-sim/src/street_energy.rs, kernel `micro_energy`,
+  ledger energy-street). The energy pass varies by scenario and regime, not by place, and no grid mix or carbon
+  intensity is in the twin, so a map would be the People map times a constant. Instead the detail panel gives
+  the focal street's own delta: `energy::with_mix_from_draws` over the street's DEVICEGEN-1 households (micro.rs
+  `household_draws`, the mapping energy::HouseholdDraw documents), the pass's mix scenario for the chosen
+  home-node scenario (a home node in EVERY household that can host it, the pass's rule), expected regime, short
+  and long run, point and range in kWh per household-year. Example (Columbus suburb, 25 households): gateway
+  +6.8 short (+0.8 to +37.5, a cost over every input's range), +7.3 long (sign open); new box +58.1; phones only
+  +3.3 (sign open). The pass's counters are read once at seed 1 (the report's); each street then costs 7 to 11 ms.
+  Wasm 1,635,876 bytes (+118 kB: the energy pass and the stand-in world its counters read).
