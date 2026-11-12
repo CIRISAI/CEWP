@@ -16,7 +16,96 @@ household joining cost or save while the platforms still run? Substitution runs 
 with a prior of 0.005 to 0.16. This is where the idle-cadence lever and "do not add a box"
 matter in the near term. Code: `energy.rs`; CLI: `cewp-cli energy`.
 
-### TEST 1 headline: the TIERED MIX × the AGENT-KIND MIX (the design), kWh per person-year, no new boxes
+### TEST 1 inputs re-sourced from CIRISHolon ESTATE-0 (2026-11-12)
+
+ESTATE-0 is `conformance/scene/tables/estate0/estate_table.json`, 58 rows, read at CIRISHolon
+026936e; its verdicts are unresolved, and every number below is model output with its source row.
+
+* **Baseline:** IEA Energy and AI 2025 Annex A.1 gives 416 TWh in 2024 (hyperscale 166,
+  colocation 144, enterprise 106), modelled, excluding crypto, networks and devices. ITU revised
+  2024 internet users to 5.8 bn. Together: **71.7 kWh per user-year** (rows 0-5), not 75.5.
+* **Stay share** (now a share of the whole estate, AI carved out after it): **0.6, range 0.45-0.75**
+  (row 13, the scout's estimate; enterprise alone is 25% and stays). This is partly a definition of
+  "replace the internet entirely". Lower values are shown separately below, labelled **awaiting
+  Eric's answer**.
+* **Vanish share** of the consumer non-AI part: 0.5 (0.3-0.7), unsourced (row 23). It is not
+  weighted by traffic bytes: video is 54-57% of downstream bytes but about 1.3 Wh per viewing hour
+  at the data centre.
+* **Edge**, now two terms:
+  * (a) a **marginal ratio on devices already on, 0.1-1** (default 0.3; row 40, with media
+    delivery from a gateway already on at about 0.1);
+  * (b) the **fixed draw of anything added**, which is the new-box term (a two-bay home storage
+    box is 39-129 kWh a year, row 36).
+* **AI share:** 0.19 for the 2026 scenario year, range 0.15-0.32. The low end is the IEA 2024
+  proxy without cooling overhead; the high end is 2030 (rows 41-44).
+* **AI carve-out:** consumer AI comes out before the split. Frontier models and training stay
+  hosted (0.3 of consumer AI, range 0.2-0.5). Recommendation was over 79% of one operator's AI
+  inference cycles in 2019 (row 22).
+* **Tier energies:**
+
+| tier | Wh per 1,000 tokens | basis |
+|---|---|---|
+| hosted, mid class | 0.05 (0.03-0.15) | batched data-centre GPUs, 0.15-0.21 J/token for a 32B model; 0.24 Wh per median prompt (rows 47, 50) |
+| phone or laptop | 0.12 (0.025-0.21) | phones 0.58-0.76 J/token, laptops 0.09-0.25 J/token (rows 53-54) |
+| prosumer machine, appliance, edge server | 3-10× the data centre | the "same model" ratio, used for mid and large jobs (row 56) |
+| hosted serving a small job | default 1× the mid class (0.3-1) | the "as served" ratio, used for jobs a small local model can do (row 57) |
+
+**TEST 1 result** (10 agent interactions per person per day, no new boxes, kWh per person-year, model output):
+
+| AI case | removed (vanishes) | relocated at the edge | hosted inference | mesh additions | Proof of Benefit | net | bounds | interactions a day the saving carries |
+|---|---|---|---|---|---|---|---|---|
+| tiered mix (the design) | 27.1 (14.6) | 7.7 | 3.9 | 2.8 | 2.0 | **−10.2** | −43 to +2,623 | **22.5** |
+| all hosted, zero retention (bound) | 27.1 (14.6) | 3.5 | 4.9 | 2.8 | 1.1 | −14.3 | −43 to +1,956 | 39.2 |
+| all on devices (bound) | 27.1 (14.6) | 24.7 | 0 | 2.8 | 5.5 | **+6.3** | −43 to +5,292 | 7.0 |
+| no AI in scope | 23.2 (11.6) | 3.5 | 0 | 2.8 | 0 | −17.0 | −37.6 to +9.5 | — |
+
+**Holon's centre checks out.** Consumer work is 71.7 × (1 − 0.6) = 28.7 kWh per user-year (Holon:
+about 29, range 18-40). Against it the mesh adds 2.8 (gateway mix) to 22 (every home a box), plus
+the AI term (4.9 to 21.2) and Proof of Benefit (1.1 to 5.5).
+
+**The device bound is now a cost.** Same-model inference on devices is 3-10× the data centre, so
+devices no longer pay for themselves on inference.
+
+**The mix now sits above the all-hosted bound.** Its forced-local share (0.2, privacy and offline)
+sends calls to dearer local tiers. With the forced-local share at 0 the mix equals all-hosted
+(−14.3). At 0.5 it is −3.3 to −4.6.
+
+**Stay share, including the values awaiting Eric's answer** (net at the defaults):
+
+| stay share | tiered mix | all hosted | all on devices | no AI |
+|---|---|---|---|---|
+| 0.75 (sourced) | −1.3 | −5.5 | +15.2 | −9.6 |
+| 0.6 (sourced centre) | −10.2 | −14.3 | +6.3 | −17.0 |
+| 0.45 (sourced) | −19.0 | −23.1 | −2.5 | −24.4 |
+| 0.2 (awaiting Eric's answer) | −33.7 | −37.9 | −17.2 | −36.7 |
+| 0.0 (awaiting Eric's answer) | −45.5 | −49.7 | −29.0 | −46.6 |
+
+**Break-even for the mix** (one input, others at default). The saving vanishes if any one of these
+holds:
+* interactions are above 22.5 a day;
+* the stay share is above 0.77;
+* the self-aware share is above 0.155;
+* the forced-local share is above 0.69;
+* the edge marginal ratio is above 1.18 (just past its range);
+* the new-box share of homes is above 0.53;
+* tokens per call are above 4,009;
+* hosted energy per 1,000 tokens is above 0.166 Wh;
+* the mesh additions are above 12.9.
+
+**The agent kinds in the mix** (net at the defaults):
+
+| ethical share | self-aware 0.01 | self-aware 0.05 | self-aware 0.15 |
+|---|---|---|---|
+| 0.05 | −15.9 | −12.1 | −2.4 |
+| 0.15 | −14.0 | −10.2 | −0.5 |
+| 0.40 | −9.3 | −5.5 | +4.2 |
+
+**TEST 2 rerun:** unchanged. ESTATE-0 has no row TEST 2 reads; its term C stays on UPSTREAM-0.
+
+
+#### Earlier framing (before ESTATE-0), kept for the record
+
+#### TEST 1 headline (superseded): the TIERED MIX × the AGENT-KIND MIX (the design), kWh per person-year, no new boxes
 
 **Placement.** Eric: "a hybrid means a mixture of on-device, edge, prosumer, office appliance,
 servers, etc... - the market optimizes".
@@ -106,13 +195,14 @@ data. ZDR removes retention and training on the conversation, not inference ener
 
 | row | unit | lo / default / hi | class | year | source and basis |
 |---|---|---|---|---|---|
-| `estate.all_data_centres_twh_per_year` | TWh/year | 340 / 415 / 460 | MODEL | 2024 | CIRISHolon POWER-0 row 43 (415 TWh, 2024: a model estimate of EVERY data-centre workload); interval ours (estimates of the order of 340 to 460 are commonly quoted; not re-read) |
-| `estate.internet_users_billion` | billion | 5 / 5.5 / 5.8 | FRONTIER | 2024 | Holon's arithmetic: about 5.5 billion internet users, from its memory, not a read figure |
-| `estate.ai_share` | share | 0.05 / 0.15 / 0.3 | FRONTIER | 2024 | the share of the estate that is AI training and inference: the fastest-growing part and the least clearly relocatable (UPSTREAM-0 row 0 includes generative AI); no published split |
-| `estate.stays_share` | share of the non-AI estate | 0.2 / 0.4 / 0.6 | FRONTIER | 2024 | (c) data-centre work that is not the consumer internet (enterprise, science, government) and stays whatever the internet runs on; no published split |
-| `estate.vanish_share` | share of the consumer part | 0.2 / 0.5 / 0.8 | FRONTIER | 2024 | (a) harvesting, profiling, ranking, advertising and the duplication that serves them: UPSTREAM-0 row 25 puts them at 0.5 to 5.5 of one operator's 5.5 kWh per person (9% to 100%), rows 18-24 at 10% to over 40% of server energy; NOBODY PUBLISHES (a) against (b) |
-| `edge.efficiency_ratio` | x data-centre energy per unit of work | 0.3 / 1 / 3 | FRONTIER | 2026 | (b) relocated non-AI work at the edge: storage and serving on devices already on cost only a marginal draw (below 1), compute on a phone or home node is less efficient per unit and has no PUE (above 1) |
-| `ai.wanted_inference_share` | share of the estate's AI energy | 0.2 / 0.5 / 0.8 | FRONTIER | 2021 | accounting only (it splits the removed AI into what vanishes and today's wanted inference, which the mesh's own CIRISProxy-shaped inference replaces; it does not move the net): inference people actually ask for, against ranking, ads and training on harvested data: UPSTREAM-0 rows 18-25 (ML 10-15% of one operator's energy; 10:20:70 experimentation:training:inference for one fleet; the 0.5-5.5 kWh harvesting bracket); no published split |
+| `estate.all_data_centres_twh_per_year` | TWh/year | 380 / 416 / 460 | MODEL | 2024 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 0 and 5: IEA Energy and AI 2025 Annex A.1, 416 TWh in 2024 (hyperscale 166, colocation 144, enterprise 106; modelled; excludes crypto, networks and devices); interval ours |
+| `estate.internet_users_billion` | billion | 5.5 / 5.8 / 6 | MODEL | 2024 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 2-3: ITU revised 2024 to 5.8 bn (first published 5.5; 6.0 in 2025); 416 / 5.8 = 71.7 kWh per user-year (row 4) |
+| `estate.ai_share` | share | 0.15 / 0.19 / 0.32 | MODEL | 2026 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 41-44: 0.15 is the IEA 2024 proxy without cooling overhead; 17-21% with it; about 19% in 2026 and 32% in 2030 at the IEA's rates (the scout's arithmetic); the default is the 2026 scenario year |
+| `estate.stays_share` | share of the estate | 0.45 / 0.6 / 0.75 | MODEL | 2024 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 13: AUTHOR'S ESTIMATE from two derivations, 0.45-0.75, centre 0.6 (enterprise alone is 25% and stays; no source splits consumer from business); partly a DEFINITION of 'replace the internet entirely': lower values are reported separately as awaiting Eric's answer |
+| `estate.vanish_share` | share of the consumer non-AI part | 0.3 / 0.5 / 0.7 | FRONTIER | 2024 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 23: 0.5 stands (0.3-0.7), AUTHOR'S ESTIMATE, unsourceable; NOT weighted by traffic bytes (on-demand video is 54-57% of downstream bytes but about 1.3 Wh per viewing hour at the data centre, rows 14-19) |
+| `edge.marginal_ratio_already_on` | x data-centre energy per unit of work | 0.1 / 0.3 / 1 | MODEL | 2024 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 40: on devices ALREADY ON, 0.1-1 (media delivery from a gateway already on about 0.1, row 32); the fixed draw of anything ADDED is the new-box term (a two-bay home storage box 39-129 kWh a year, row 36; energy.rs home_node.added_box.w) |
+| `ai.wanted_inference_share` | share of the consumer AI energy | 0.1 / 0.21 / 0.35 | MODEL | 2019 | accounting only (it splits the removed consumer AI into what vanishes and the wanted inference the mesh's own replaces; it does not move the net): ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 22: recommendation was over 79% of one operator's AI inference cycles in 2019 |
+| `ai.frontier_and_training_stays_share` | share of the consumer AI energy | 0.2 / 0.3 / 0.5 | FRONTIER | 2021 | frontier models and training are a third category that stays hosted (ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1), the scout's note); 10:20:70 experimentation:training:inference for one fleet (UPSTREAM-0 row 20) |
 | `ai.interactions_per_person_day` | agent interactions (all kinds) | 1 / 10 / 100 | FRONTIER | 2026 | how often a person asks their agent for something; no figure (CIRISProxy's aggregate counters could measure it: see the measurement request) |
 | `ai.ethical.llm_calls_per_interaction` | LLM calls | 12 / 30 / 70 | DERIVED | 2026 | ETHICAL agents: STATED by the project, not measured: CIRISProxy README (CIRISAI/CIRISProxy 6f2f640) '1 credit = 1 user interaction (12-70 LLM calls typical)' |
 | `ai.simple.llm_calls_per_interaction` | LLM calls | 1 / 2 / 5 | FRONTIER | 2026 | SIMPLE agents, 'single-purpose tools' with 'no ethics of their own' (ciris.ai/federation, the project's stated design): 1 to a few calls |
@@ -133,13 +223,13 @@ data. ZDR removes retention and training on the conversation, not inference ener
 | `pob.member_nodes_per_person` | member nodes | 0.01 / 0.1 / 1 | FRONTIER | 2026 | PROOF OF BENEFIT (ciris.ai/federation): membership is earned by 'running a real ethical-reasoning agent over time' (bonded, or sovereign after 'about a month'); member nodes per person |
 | `pob.interactions_per_member_day` | ethical interactions | 1 / 10 / 50 | FRONTIER | 2026 | the ethical-reasoning agent a member node runs to earn and keep standing: interactions a day |
 | `ai.tokens_per_call` | tokens (prompt + completion) | 500 / 2000 / 6000 | FRONTIER | 2026 | agent calls carry long prompts (context, constitution, history) and short completions; CIRISProxy's litellm_config disables reasoning on DeepInfra Qwen (measured there: 1,193 tokens to 29 for one answer) |
-| `ai.tier.hosted.wh_per_1k_tokens.mid` | Wh per 1,000 tokens | 0.01 / 0.05 / 0.3 | FRONTIER | 2026 | hosted tier, zero retention (CIRISProxy today): the mid-size open-weight class it routes (Qwen 3.6/3.5 35B-A3B, about 3B active; Qwen 3.6 27B; Llama 4 Scout/Maverick, 17B active; gpt-oss-20b) at data-centre utilisation; no sourced figure |
-| `ai.tier.hosted.small_class_factor` | x the mid class | 0.2 / 0.3 / 0.5 | MODEL | 2026 | a small (1-4B) model per token against the mid class, hosted |
+| `ai.tier.hosted.wh_per_1k_tokens.mid` | Wh per 1,000 tokens | 0.03 / 0.05 / 0.15 | MODEL | 2025 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 47 and 50: batched data-centre GPUs 0.15-0.21 J/token for a 32 bn open model (0.042-0.058 Wh per 1,000 tokens); 0.24 Wh per median hosted prompt; the high end allows reasoning (1.3 Wh per reply) |
+| `ai.tier.hosted.small_class_factor` | x the mid class | 0.3 / 1 / 1 | MODEL | 2025 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 57, 'as served': a job a small local model can do is served hosted by the hosted model, so the device-to-data-centre ratio for it is 0.3-5 as served; default 1 (the hosted model serves it) |
 | `ai.tier.hosted.large_class_factor` | x the mid class | 2 / 4 / 8 | MODEL | 2026 | a large (70B dense and up) model per token against the mid class, hosted |
-| `ai.tier.device.wh_per_1k_tokens.small` | Wh per 1,000 tokens (ADDED draw) | 0.02 / 0.05 / 0.2 | FRONTIER | 2026 | phone or laptop on-device, small class only; hardware already on: only the added draw counts (mesh side) |
-| `ai.tier.prosumer.wh_per_1k_tokens.mid` | Wh per 1,000 tokens (ADDED draw) | 0.05 / 0.2 / 0.6 | FRONTIER | 2026 | a prosumer machine with a consumer GPU, up to the mid class; often on anyway; added draw (mesh side) |
-| `ai.tier.appliance.wh_per_1k_tokens.mid` | Wh per 1,000 tokens (ADDED draw) | 0.03 / 0.1 / 0.4 | FRONTIER | 2026 | an office or home appliance with an inference accelerator, up to the mid class; on all day; added draw (mesh side) |
-| `ai.tier.edge_server.wh_per_1k_tokens.large` | Wh per 1,000 tokens | 0.1 / 0.4 / 1.5 | FRONTIER | 2026 | an edge or on-premises server, up to the large class, at low utilisation (its idle draw amortised into the figure; hardware added, mesh side) |
+| `ai.tier.device.wh_per_1k_tokens.small` | Wh per 1,000 tokens (ADDED draw) | 0.025 / 0.12 / 0.21 | MODEL | 2025 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 53-54: phones 0.58-0.76 J/token measured at the battery (3 bn model, 0.16-0.21 Wh per 1,000); laptops 0.09-0.25 J/token (0.025-0.07; power assumed); hardware already on, added draw on the mesh side |
+| `ai.tier.prosumer.wh_per_1k_tokens.mid` | Wh per 1,000 tokens (ADDED draw) | 0.15 / 0.3 / 0.6 | MODEL | 2025 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 56, 'same model': a device runs the same model at 3-10x the data centre (laptop class); applied to the hosted mid class |
+| `ai.tier.appliance.wh_per_1k_tokens.mid` | Wh per 1,000 tokens (ADDED draw) | 0.15 / 0.25 / 0.5 | MODEL | 2025 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 56, 'same model' 3-10x the data centre, an accelerator box on all day |
+| `ai.tier.edge_server.wh_per_1k_tokens.large` | Wh per 1,000 tokens | 0.6 / 1 / 2 | MODEL | 2025 | ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 56, 'same model' 3-10x the data centre's large class (0.2 Wh per 1,000 at the default), at low utilisation |
 | `ai.jobs.small_share` | share of calls | 0.2 / 0.5 / 0.8 | FRONTIER | 2026 | share of model calls a small on-device model can serve; no figure |
 | `ai.jobs.large_share` | share of calls | 0 / 0.05 / 0.2 | FRONTIER | 2026 | share of calls that need a large model; the rest need the mid class |
 | `ai.alloc.forced_local_share` | share of calls | 0.2 / 0.2 / 0.2 | FRONTIER | 2026 | the allocation rule's lever: share forced to the most local able tier for privacy or offline use; the rest go to the lowest-energy able tier; swept 0 to 1 in the report |
@@ -153,34 +243,44 @@ AI cases: the **tiered mix (the design)**, Eric: "a hybrid means a mixture of on
 
 | AI case | agent interactions per person-day | new-box share of homes | removed (of which vanishes) | relocated at the edge (AI on edge tiers included) | inference kept in data centres | mesh additions | signed records | Proof of Benefit | self-observation | net (default) | net bounds | sign |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| tiered mix (the design) | 1 | 0 | 49.8 (24.9) | 19.4 | 0.3 | 2.77 | 0.000 | 1.31 | 0.50 | -25.5 | [-75.7, 2677.0] | open: the box spans zero |
-| tiered mix (the design) | 1 | 1 | 49.8 (24.9) | 19.4 | 0.3 | 22.03 | 0.000 | 1.31 | 0.50 | -6.2 | [-64.7, 2719.5] | open: the box spans zero |
-| tiered mix (the design) | 10 | 0 | 49.8 (24.9) | 20.9 | 3.2 | 2.77 | 0.001 | 1.31 | 0.50 | -21.1 | [-75.7, 3253.7] | open: the box spans zero |
-| tiered mix (the design) | 10 | 1 | 49.8 (24.9) | 20.9 | 3.2 | 22.03 | 0.001 | 1.31 | 0.50 | -1.8 | [-64.7, 3296.1] | open: the box spans zero |
-| tiered mix (the design) | 100 | 0 | 49.8 (24.9) | 36.3 | 32.0 | 2.77 | 0.010 | 1.31 | 0.50 | 23.1 | [-75.4, 11397.0] | open: the box spans zero |
-| tiered mix (the design) | 100 | 1 | 49.8 (24.9) | 36.3 | 32.0 | 22.03 | 0.010 | 1.31 | 0.50 | 42.3 | [-64.5, 11439.5] | open: the box spans zero |
-| all hosted, zero retention (bound) | 1 | 0 | 49.8 (24.9) | 19.2 | 0.4 | 2.77 | 0.000 | 1.10 | 0.50 | -25.8 | [-75.7, 2605.9] | open: the box spans zero |
-| all hosted, zero retention (bound) | 1 | 1 | 49.8 (24.9) | 19.2 | 0.4 | 22.03 | 0.000 | 1.10 | 0.50 | -6.5 | [-64.7, 2648.4] | open: the box spans zero |
-| all hosted, zero retention (bound) | 10 | 0 | 49.8 (24.9) | 19.2 | 4.0 | 2.77 | 0.001 | 1.10 | 0.50 | -22.2 | [-75.7, 3923.5] | open: the box spans zero |
-| all hosted, zero retention (bound) | 10 | 1 | 49.8 (24.9) | 19.2 | 4.0 | 22.03 | 0.001 | 1.10 | 0.50 | -2.9 | [-64.7, 3966.0] | open: the box spans zero |
-| all hosted, zero retention (bound) | 100 | 0 | 49.8 (24.9) | 19.2 | 40.0 | 2.77 | 0.010 | 1.10 | 0.50 | 13.8 | [-75.6, 17099.3] | open: the box spans zero |
-| all hosted, zero retention (bound) | 100 | 1 | 49.8 (24.9) | 19.2 | 40.0 | 22.03 | 0.010 | 1.10 | 0.50 | 33.1 | [-64.6, 17141.8] | open: the box spans zero |
-| all on devices (bound) | 1 | 0 | 49.8 (24.9) | 20.1 | 0.0 | 2.77 | 0.000 | 2.19 | 0.50 | -24.3 | [-75.7, 3333.7] | open: the box spans zero |
-| all on devices (bound) | 1 | 1 | 49.8 (24.9) | 20.1 | 0.0 | 22.03 | 0.000 | 2.19 | 0.50 | -5.0 | [-64.7, 3376.2] | open: the box spans zero |
-| all on devices (bound) | 10 | 0 | 49.8 (24.9) | 27.8 | 0.0 | 2.77 | 0.001 | 2.19 | 0.50 | -16.6 | [-75.6, 4298.0] | open: the box spans zero |
-| all on devices (bound) | 10 | 1 | 49.8 (24.9) | 27.8 | 0.0 | 22.03 | 0.001 | 2.19 | 0.50 | 2.7 | [-64.6, 4340.5] | open: the box spans zero |
-| all on devices (bound) | 100 | 0 | 49.8 (24.9) | 104.4 | 0.0 | 2.77 | 0.010 | 2.19 | 0.50 | 60.1 | [-74.9, 13941.1] | open: the box spans zero |
-| all on devices (bound) | 100 | 1 | 49.8 (24.9) | 104.4 | 0.0 | 22.03 | 0.010 | 2.19 | 0.50 | 79.3 | [-63.9, 13983.6] | open: the box spans zero |
-| no AI in scope | - | 0 | 38.5 (19.2) | 19.2 | 0.0 | 2.77 | 0.000 | 0.00 | 0.00 | -16.5 | [-65.4, 110.6] | open: the box spans zero |
-| no AI in scope | - | 1 | 38.5 (19.2) | 19.2 | 0.0 | 22.03 | 0.000 | 0.00 | 0.00 | 2.8 | [-54.4, 153.1] | open: the box spans zero |
+| tiered mix (the design) | 1 | 0 | 27.1 (14.6) | 3.9 | 0.4 | 2.77 | 0.000 | 1.97 | 0.50 | -17.5 | [-43.1, 1835.0] | open: the box spans zero |
+| tiered mix (the design) | 1 | 1 | 27.1 (14.6) | 3.9 | 0.4 | 22.03 | 0.000 | 1.97 | 0.50 | 1.7 | [-32.1, 1877.4] | open: the box spans zero |
+| tiered mix (the design) | 10 | 0 | 27.1 (14.6) | 7.7 | 3.9 | 2.77 | 0.001 | 1.97 | 0.50 | -10.2 | [-43.0, 2622.8] | open: the box spans zero |
+| tiered mix (the design) | 10 | 1 | 27.1 (14.6) | 7.7 | 3.9 | 22.03 | 0.001 | 1.97 | 0.50 | 9.1 | [-32.1, 2665.3] | open: the box spans zero |
+| tiered mix (the design) | 100 | 0 | 27.1 (14.6) | 45.8 | 39.2 | 2.77 | 0.010 | 1.97 | 0.50 | 63.2 | [-42.3, 10501.4] | open: the box spans zero |
+| tiered mix (the design) | 100 | 1 | 27.1 (14.6) | 45.8 | 39.2 | 22.03 | 0.010 | 1.97 | 0.50 | 82.5 | [-31.3, 10543.9] | open: the box spans zero |
+| all hosted, zero retention (bound) | 1 | 0 | 27.1 (14.6) | 3.5 | 0.5 | 2.77 | 0.000 | 1.10 | 0.50 | -18.7 | [-43.1, 1285.0] | open: the box spans zero |
+| all hosted, zero retention (bound) | 1 | 1 | 27.1 (14.6) | 3.5 | 0.5 | 22.03 | 0.000 | 1.10 | 0.50 | 0.5 | [-32.1, 1327.5] | open: the box spans zero |
+| all hosted, zero retention (bound) | 10 | 0 | 27.1 (14.6) | 3.5 | 4.9 | 2.77 | 0.001 | 1.10 | 0.50 | -14.3 | [-43.1, 1955.5] | open: the box spans zero |
+| all hosted, zero retention (bound) | 10 | 1 | 27.1 (14.6) | 3.5 | 4.9 | 22.03 | 0.001 | 1.10 | 0.50 | 5.0 | [-32.1, 1997.9] | open: the box spans zero |
+| all hosted, zero retention (bound) | 100 | 0 | 27.1 (14.6) | 3.5 | 49.0 | 2.77 | 0.010 | 1.10 | 0.50 | 29.8 | [-42.6, 8660.2] | open: the box spans zero |
+| all hosted, zero retention (bound) | 100 | 1 | 27.1 (14.6) | 3.5 | 49.0 | 22.03 | 0.010 | 1.10 | 0.50 | 49.1 | [-31.7, 8702.7] | open: the box spans zero |
+| all on devices (bound) | 1 | 0 | 27.1 (14.6) | 5.6 | 0.0 | 2.77 | 0.000 | 5.48 | 0.50 | -12.7 | [-43.1, 4034.8] | open: the box spans zero |
+| all on devices (bound) | 1 | 1 | 27.1 (14.6) | 5.6 | 0.0 | 22.03 | 0.000 | 5.48 | 0.50 | 6.6 | [-32.1, 4077.3] | open: the box spans zero |
+| all on devices (bound) | 10 | 0 | 27.1 (14.6) | 24.7 | 0.0 | 2.77 | 0.001 | 5.48 | 0.50 | 6.3 | [-42.9, 5292.2] | open: the box spans zero |
+| all on devices (bound) | 10 | 1 | 27.1 (14.6) | 24.7 | 0.0 | 22.03 | 0.001 | 5.48 | 0.50 | 25.6 | [-31.9, 5334.7] | open: the box spans zero |
+| all on devices (bound) | 100 | 0 | 27.1 (14.6) | 215.1 | 0.0 | 2.77 | 0.010 | 5.48 | 0.50 | 196.8 | [-41.1, 17866.1] | open: the box spans zero |
+| all on devices (bound) | 100 | 1 | 27.1 (14.6) | 215.1 | 0.0 | 22.03 | 0.010 | 5.48 | 0.50 | 216.1 | [-30.1, 17908.6] | open: the box spans zero |
+| no AI in scope | - | 0 | 23.2 (11.6) | 3.5 | 0.0 | 2.77 | 0.000 | 0.00 | 0.00 | -17.0 | [-37.6, 9.5] | open: the box spans zero |
+| no AI in scope | - | 1 | 23.2 (11.6) | 3.5 | 0.0 | 22.03 | 0.000 | 0.00 | 0.00 | 2.3 | [-26.6, 52.0] | open: the box spans zero |
+
+**The stay share awaiting Eric's answer.** ESTATE-0 brackets it at 0.45-0.75 (centre 0.6), but it is partly a definition of 'replace the internet entirely': if enterprise, government and science computing also go, it is near zero. Net at the defaults, 10 interactions a day, no new boxes:
+
+| stay share | tiered mix | all hosted | all on devices | no AI |
+|---|---|---|---|---|
+| 0.75 (sourced bracket) | -1.3 | -5.5 | 15.2 | -9.6 |
+| 0.6 (sourced bracket) | -10.2 | -14.3 | 6.3 | -17.0 |
+| 0.45 (sourced bracket) | -19.0 | -23.1 | -2.5 | -24.4 |
+| 0.2 (awaiting Eric's answer) | -33.7 | -37.9 | -17.2 | -36.7 |
+| 0 (awaiting Eric's answer) | -45.5 | -49.7 | -29.0 | -46.6 |
 
 **The AI term by case** (interactions per day x 365.25 x LLM calls per interaction x tokens per call, placed over the tiers; kWh per person-year at the defaults) and where the calls go:
 
 | AI case | AI term | of which on edge tiers (mesh side) | of which hosted (stays in data centres) | phone/laptop on-device | prosumer machine | office or home appliance | edge or on-premises server | hosted, zero retention |
 |---|---|---|---|---|---|---|---|---|
-| tiered mix (the design) | 4.90 | 1.70 | 3.20 | 7% | 0% | 10% | 3% | 80% |
-| all hosted, zero retention (bound) | 4.00 | 0.00 | 4.00 | 0% | 0% | 0% | 0% | 100% |
-| all on devices (bound) | 8.52 | 8.52 | 0.00 | 37% | 0% | 50% | 13% | 0% |
+| tiered mix (the design) | 8.16 | 4.23 | 3.92 | 7% | 0% | 10% | 3% | 80% |
+| all hosted, zero retention (bound) | 4.90 | 0.00 | 4.90 | 0% | 0% | 0% | 0% | 100% |
+| all on devices (bound) | 21.17 | 21.17 | 0.00 | 37% | 0% | 50% | 13% | 0% |
 
 **Agent kinds** (ciris.ai/federation, the project's stated design: people; ethical, self-aware agents, which 'cost more to run, so only a small share of the network needs to be this kind'; ethical agents; simple agents, 'single-purpose tools' with 'no ethics of their own', 'most agents will be this kind'; 'every choice an agent makes goes into a signed record'; membership earned by 'running a real ethical-reasoning agent over time', Proof of Benefit). The page gives no numbers: every number here is FRONTIER, and the shares are MY READING of 'most' and 'a small share'. **Proof of Benefit is a deliberate, standing cost of membership**, the price the design accepts for Sybil resistance, comparable in role to what other networks spend on proof of work or stake; it is reported as its own line.
 
@@ -188,58 +288,58 @@ The tiered mix, net at the defaults, by the share of interactions that are ethic
 
 | ethical share | self-aware 0.01 | 0.05 | 0.15 |
 |---|---|---|---|
-| 0.05 | -24.8 | -22.1 | -15.3 |
-| 0.15 | -23.8 | -21.1 | -14.3 |
-| 0.4 | -21.2 | -18.4 | -11.7 |
+| 0.05 | -15.9 | -12.1 | -2.4 |
+| 0.15 | -14.0 | -10.2 | -0.5 |
+| 0.4 | -9.3 | -5.5 | 4.2 |
 
 **How many agent interactions per person per day the saving can carry** (others at default, no new boxes):
 
 | AI case | interactions per day at zero |
 |---|---|
-| tiered mix (the design) | 53.0 |
-| all hosted, zero retention (bound) | 65.5 |
-| all on devices (bound) | 29.5 |
+| tiered mix (the design) | 22.5 |
+| all hosted, zero retention (bound) | 39.2 |
+| all on devices (bound) | 7.0 |
 
 The tiered mix, the allocation rule's lever (forced-local share) and the job-size distribution (small-model share), net at the defaults, no new boxes:
 
 | forced-local share | small-model share 0.2 | 0.5 | 0.8 |
 |---|---|---|---|
-| 0 | -21.9 | -22.2 | -22.5 |
-| 0.2 | -20.7 | -21.1 | -21.4 |
-| 0.5 | -19.0 | -19.4 | -19.8 |
-| 1 | -16.1 | -16.6 | -17.1 |
+| 0 | -14.3 | -14.3 | -14.3 |
+| 0.2 | -9.9 | -10.2 | -10.4 |
+| 0.5 | -3.3 | -4.0 | -4.6 |
+| 1 | 7.6 | 6.3 | 5.1 |
 
-tiered mix (the design), no new boxes: best corner -75.7; worst corner 11397.0 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.050, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `ai.interactions_per_person_day` = 100.000, `ai.ethical.llm_calls_per_interaction` = 70.000, `ai.simple.llm_calls_per_interaction` = 5.000, `ai.simple.small_model_share` = 0.500, `ai.self_aware.llm_calls_per_interaction` = 200.000, `ai.self_aware.large_model_share` = 0.600, `ai.self_aware.observation_kwh_per_person_year` = 10.000, `ai.kinds.ethical_share` = 0.400, `ai.kinds.self_aware_share` = 0.150, `record.signed_records_per_call` = 1.000, `record.j_per_sig_op` = 0.003, `record.verifies_per_record` = 10.000, `record.bytes` = 10000.000, `record.replicas` = 10.000, `record.keep_years` = 20.000, `record.device_storage_w_per_tb` = 1.000, `record.net_j_per_mb` = 0.500, `pob.member_nodes_per_person` = 1.000, `pob.interactions_per_member_day` = 50.000, `ai.tokens_per_call` = 6000.000, `ai.tier.hosted.wh_per_1k_tokens.mid` = 0.300, `ai.tier.hosted.small_class_factor` = 0.500, `ai.tier.hosted.large_class_factor` = 8.000, `ai.tier.device.wh_per_1k_tokens.small` = 0.200, `ai.tier.prosumer.wh_per_1k_tokens.mid` = 0.600, `ai.tier.appliance.wh_per_1k_tokens.mid` = 0.400, `ai.tier.edge_server.wh_per_1k_tokens.large` = 1.500, `ai.jobs.small_share` = 0.200, `ai.jobs.large_share` = 0.200, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 55.217. (A vertex search from seat_calibration's corner; each bound is attained by a real combination of input ends; the mix's placement makes its net piecewise, so the bounds are a search, not a guarantee.)
+tiered mix (the design), no new boxes: best corner -43.1; worst corner 10501.4 kWh per person-year at `estate.all_data_centres_twh_per_year` = 380.000, `estate.internet_users_billion` = 6.000, `estate.ai_share` = 0.150, `estate.stays_share` = 0.750, `estate.vanish_share` = 0.300, `edge.marginal_ratio_already_on` = 1.000, `ai.frontier_and_training_stays_share` = 0.500, `ai.interactions_per_person_day` = 100.000, `ai.ethical.llm_calls_per_interaction` = 70.000, `ai.simple.llm_calls_per_interaction` = 5.000, `ai.simple.small_model_share` = 0.500, `ai.self_aware.llm_calls_per_interaction` = 200.000, `ai.self_aware.large_model_share` = 0.600, `ai.self_aware.observation_kwh_per_person_year` = 10.000, `ai.kinds.ethical_share` = 0.400, `ai.kinds.self_aware_share` = 0.150, `record.signed_records_per_call` = 1.000, `record.j_per_sig_op` = 0.003, `record.verifies_per_record` = 10.000, `record.bytes` = 10000.000, `record.replicas` = 10.000, `record.keep_years` = 20.000, `record.device_storage_w_per_tb` = 1.000, `record.net_j_per_mb` = 0.500, `pob.member_nodes_per_person` = 1.000, `pob.interactions_per_member_day` = 50.000, `ai.tokens_per_call` = 6000.000, `ai.tier.hosted.wh_per_1k_tokens.mid` = 0.150, `ai.tier.hosted.small_class_factor` = 1.000, `ai.tier.hosted.large_class_factor` = 8.000, `ai.tier.device.wh_per_1k_tokens.small` = 0.210, `ai.tier.prosumer.wh_per_1k_tokens.mid` = 0.600, `ai.tier.appliance.wh_per_1k_tokens.mid` = 0.500, `ai.tier.edge_server.wh_per_1k_tokens.large` = 2.000, `ai.jobs.small_share` = 0.200, `ai.jobs.large_share` = 0.200, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 55.217. (A vertex search from seat_calibration's corner; each bound is attained by a real combination of input ends; the mix's placement makes its net piecewise, so the bounds are a search, not a guarantee.)
 
-all hosted, zero retention (bound), no new boxes: best corner -75.7; worst corner 17099.3 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.050, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `ai.interactions_per_person_day` = 100.000, `ai.ethical.llm_calls_per_interaction` = 70.000, `ai.simple.llm_calls_per_interaction` = 5.000, `ai.simple.small_model_share` = 0.500, `ai.self_aware.llm_calls_per_interaction` = 200.000, `ai.self_aware.large_model_share` = 0.600, `ai.self_aware.observation_kwh_per_person_year` = 10.000, `ai.kinds.ethical_share` = 0.400, `ai.kinds.self_aware_share` = 0.150, `record.signed_records_per_call` = 1.000, `record.j_per_sig_op` = 0.003, `record.verifies_per_record` = 10.000, `record.bytes` = 10000.000, `record.replicas` = 10.000, `record.keep_years` = 20.000, `record.device_storage_w_per_tb` = 1.000, `record.net_j_per_mb` = 0.500, `pob.member_nodes_per_person` = 1.000, `pob.interactions_per_member_day` = 50.000, `ai.tokens_per_call` = 6000.000, `ai.tier.hosted.wh_per_1k_tokens.mid` = 0.300, `ai.tier.hosted.small_class_factor` = 0.500, `ai.tier.hosted.large_class_factor` = 8.000, `ai.jobs.small_share` = 0.200, `ai.jobs.large_share` = 0.200, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 55.217. (A vertex search from seat_calibration's corner; each bound is attained by a real combination of input ends; the mix's placement makes its net piecewise, so the bounds are a search, not a guarantee.)
+all hosted, zero retention (bound), no new boxes: best corner -43.1; worst corner 8660.2 kWh per person-year at `estate.all_data_centres_twh_per_year` = 380.000, `estate.internet_users_billion` = 6.000, `estate.ai_share` = 0.150, `estate.stays_share` = 0.750, `estate.vanish_share` = 0.300, `edge.marginal_ratio_already_on` = 1.000, `ai.frontier_and_training_stays_share` = 0.500, `ai.interactions_per_person_day` = 100.000, `ai.ethical.llm_calls_per_interaction` = 70.000, `ai.simple.llm_calls_per_interaction` = 5.000, `ai.simple.small_model_share` = 1.000, `ai.self_aware.llm_calls_per_interaction` = 200.000, `ai.self_aware.large_model_share` = 0.600, `ai.self_aware.observation_kwh_per_person_year` = 10.000, `ai.kinds.ethical_share` = 0.400, `ai.kinds.self_aware_share` = 0.150, `record.signed_records_per_call` = 1.000, `record.j_per_sig_op` = 0.003, `record.verifies_per_record` = 10.000, `record.bytes` = 10000.000, `record.replicas` = 10.000, `record.keep_years` = 20.000, `record.device_storage_w_per_tb` = 1.000, `record.net_j_per_mb` = 0.500, `pob.member_nodes_per_person` = 1.000, `pob.interactions_per_member_day` = 50.000, `ai.tokens_per_call` = 6000.000, `ai.tier.hosted.wh_per_1k_tokens.mid` = 0.150, `ai.tier.hosted.small_class_factor` = 1.000, `ai.tier.hosted.large_class_factor` = 8.000, `ai.jobs.small_share` = 0.800, `ai.jobs.large_share` = 0.200, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 55.217. (A vertex search from seat_calibration's corner; each bound is attained by a real combination of input ends; the mix's placement makes its net piecewise, so the bounds are a search, not a guarantee.)
 
-all on devices (bound), no new boxes: best corner -75.7; worst corner 13941.1 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.050, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `ai.interactions_per_person_day` = 100.000, `ai.ethical.llm_calls_per_interaction` = 70.000, `ai.simple.llm_calls_per_interaction` = 5.000, `ai.simple.small_model_share` = 0.500, `ai.self_aware.llm_calls_per_interaction` = 200.000, `ai.self_aware.large_model_share` = 0.600, `ai.self_aware.observation_kwh_per_person_year` = 10.000, `ai.kinds.ethical_share` = 0.400, `ai.kinds.self_aware_share` = 0.150, `record.signed_records_per_call` = 1.000, `record.j_per_sig_op` = 0.003, `record.verifies_per_record` = 10.000, `record.bytes` = 10000.000, `record.replicas` = 10.000, `record.keep_years` = 20.000, `record.device_storage_w_per_tb` = 1.000, `record.net_j_per_mb` = 0.500, `pob.member_nodes_per_person` = 1.000, `pob.interactions_per_member_day` = 50.000, `ai.tokens_per_call` = 6000.000, `ai.tier.hosted.small_class_factor` = 0.500, `ai.tier.hosted.large_class_factor` = 8.000, `ai.tier.device.wh_per_1k_tokens.small` = 0.200, `ai.tier.prosumer.wh_per_1k_tokens.mid` = 0.600, `ai.tier.appliance.wh_per_1k_tokens.mid` = 0.400, `ai.tier.edge_server.wh_per_1k_tokens.large` = 1.500, `ai.jobs.small_share` = 0.200, `ai.jobs.large_share` = 0.200, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 55.217. (A vertex search from seat_calibration's corner; each bound is attained by a real combination of input ends; the mix's placement makes its net piecewise, so the bounds are a search, not a guarantee.)
+all on devices (bound), no new boxes: best corner -43.1; worst corner 17866.1 kWh per person-year at `estate.all_data_centres_twh_per_year` = 380.000, `estate.internet_users_billion` = 6.000, `estate.ai_share` = 0.150, `estate.stays_share` = 0.750, `estate.vanish_share` = 0.300, `edge.marginal_ratio_already_on` = 1.000, `ai.frontier_and_training_stays_share` = 0.500, `ai.interactions_per_person_day` = 100.000, `ai.ethical.llm_calls_per_interaction` = 70.000, `ai.simple.llm_calls_per_interaction` = 5.000, `ai.simple.small_model_share` = 0.500, `ai.self_aware.llm_calls_per_interaction` = 200.000, `ai.self_aware.large_model_share` = 0.600, `ai.self_aware.observation_kwh_per_person_year` = 10.000, `ai.kinds.ethical_share` = 0.400, `ai.kinds.self_aware_share` = 0.150, `record.signed_records_per_call` = 1.000, `record.j_per_sig_op` = 0.003, `record.verifies_per_record` = 10.000, `record.bytes` = 10000.000, `record.replicas` = 10.000, `record.keep_years` = 20.000, `record.device_storage_w_per_tb` = 1.000, `record.net_j_per_mb` = 0.500, `pob.member_nodes_per_person` = 1.000, `pob.interactions_per_member_day` = 50.000, `ai.tokens_per_call` = 6000.000, `ai.tier.hosted.small_class_factor` = 1.000, `ai.tier.hosted.large_class_factor` = 8.000, `ai.tier.device.wh_per_1k_tokens.small` = 0.210, `ai.tier.prosumer.wh_per_1k_tokens.mid` = 0.600, `ai.tier.appliance.wh_per_1k_tokens.mid` = 0.500, `ai.tier.edge_server.wh_per_1k_tokens.large` = 2.000, `ai.jobs.small_share` = 0.200, `ai.jobs.large_share` = 0.200, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 55.217. (A vertex search from seat_calibration's corner; each bound is attained by a real combination of input ends; the mix's placement makes its net piecewise, so the bounds are a search, not a guarantee.)
 
-no AI in scope, no new boxes: best corner -65.4; worst corner 110.6 kWh per person-year at `estate.all_data_centres_twh_per_year` = 460.000, `estate.internet_users_billion` = 5.000, `estate.ai_share` = 0.050, `estate.stays_share` = 0.200, `estate.vanish_share` = 0.200, `edge.efficiency_ratio` = 3.000, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 55.217. (A vertex search from seat_calibration's corner; each bound is attained by a real combination of input ends; the mix's placement makes its net piecewise, so the bounds are a search, not a guarantee.)
+no AI in scope, no new boxes: best corner -37.6; worst corner 9.5 kWh per person-year at `estate.all_data_centres_twh_per_year` = 380.000, `estate.internet_users_billion` = 6.000, `estate.ai_share` = 0.320, `estate.stays_share` = 0.750, `estate.vanish_share` = 0.300, `edge.marginal_ratio_already_on` = 1.000, `mesh additions, gateway mix (kWh/person-year)` = 12.741, `mesh additions, new-box mix (kWh/person-year)` = 55.217. (A vertex search from seat_calibration's corner; each bound is attained by a real combination of input ends; the mix's placement makes its net piecewise, so the bounds are a search, not a guarantee.)
 
 ### Break-even for this test (one input, others at default; no new boxes)
 
 | input | tiered mix (the design) | all hosted (bound) | all on devices (bound) | no AI |
 |---|---|---|---|---|
-| `estate.vanish_share` | none in range | none in range | 0.069 | 0.072 |
-| `edge.efficiency_ratio` | 2.095 | 2.154 | 1.862 | 1.856 |
-| `estate.stays_share` | 1.057 | 1.092 | 0.917 | 0.914 |
-| `share of homes with a new always-on box` | none in range | none in range | 0.861 | 0.855 |
-| `ai.interactions_per_person_day` | 52.961 | 65.464 | 29.467 | none in range |
-| `ai.ethical.llm_calls_per_interaction` | 243.636 | 306.139 | 126.589 | none in range |
-| `ai.self_aware.llm_calls_per_interaction` | 576.046 | 709.585 | 308.947 | none in range |
-| `ai.kinds.ethical_share` | 2.104 | 2.711 | 1.026 | none in range |
-| `ai.kinds.self_aware_share` | 0.361 | 0.431 | 0.206 | none in range |
-| `pob.member_nodes_per_person` | 1.702 | 2.125 | 0.857 | none in range |
-| `pob.interactions_per_member_day` | 170.231 | 212.509 | 85.662 | none in range |
-| `ai.tokens_per_call` | 8776.922 | 10709.934 | 5097.081 | none in range |
-| `ai.tier.hosted.wh_per_1k_tokens.mid` | none in range | 0.268 | none in range | none in range |
-| `ai.tier.device.wh_per_1k_tokens.small` | 4.136 | none in range | 0.693 | none in range |
-| `ai.tier.appliance.wh_per_1k_tokens.mid` | none in range | none in range | none in range | none in range |
-| `ai.tier.edge_server.wh_per_1k_tokens.large` | 11.713 | none in range | 2.181 | none in range |
-| `ai.jobs.small_share` | 30.848 | 46.973 | 11.487 | none in range |
-| `ai.alloc.forced_local_share` | 3.955 | none in range | none in range | none in range |
-| `mesh additions (kWh per person-year)` | 23.839 | 24.961 | 19.349 | 19.241 |
+| `estate.vanish_share` | none in range | none in range | 1.410 | none in range |
+| `edge.marginal_ratio_already_on` | 1.176 | 1.531 | none in range | 1.762 |
+| `estate.stays_share` | 0.773 | 0.843 | 0.492 | 0.944 |
+| `share of homes with a new always-on box` | 0.528 | 0.743 | none in range | 0.882 |
+| `ai.interactions_per_person_day` | 22.473 | 39.163 | 7.004 | none in range |
+| `ai.ethical.llm_calls_per_interaction` | 91.685 | 173.668 | 15.129 | none in range |
+| `ai.self_aware.llm_calls_per_interaction` | 232.880 | 482.143 | 33.448 | none in range |
+| `ai.kinds.ethical_share` | 0.690 | 1.331 | 0.014 | none in range |
+| `ai.kinds.self_aware_share` | 0.155 | 0.297 | 0.025 | none in range |
+| `pob.member_nodes_per_person` | 0.616 | 1.405 | none in range | none in range |
+| `pob.interactions_per_member_day` | 61.575 | 140.495 | none in range | none in range |
+| `ai.tokens_per_call` | 4009.041 | 6768.238 | 1523.960 | none in range |
+| `ai.tier.hosted.wh_per_1k_tokens.mid` | 0.166 | 0.169 | none in range | none in range |
+| `ai.tier.device.wh_per_1k_tokens.small` | 2.093 | none in range | none in range | none in range |
+| `ai.tier.appliance.wh_per_1k_tokens.mid` | none in range | none in range | 0.139 | none in range |
+| `ai.tier.edge_server.wh_per_1k_tokens.large` | 6.462 | none in range | 0.319 | none in range |
+| `ai.jobs.small_share` | 5.968 | 9.650 | none in range | none in range |
+| `ai.alloc.forced_local_share` | 0.693 | none in range | none in range | none in range |
+| `mesh additions (kWh per person-year)` | 12.939 | 17.068 | none in range | 19.753 |
 
 
 # TEST 2, THE ADOPTION PATH (substitution 0 to 1; prior 0.005 to 0.16)

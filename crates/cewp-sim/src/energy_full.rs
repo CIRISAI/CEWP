@@ -67,20 +67,22 @@ macro_rules! full_rows {
 }
 
 full_rows! {
-    EstateTwh = "estate.all_data_centres_twh_per_year", "TWh/year", [340.0, 415.0, 460.0], Model, 2024,
-        "CIRISHolon POWER-0 row 43 (415 TWh, 2024: a model estimate of EVERY data-centre workload); interval ours (estimates of the order of 340 to 460 are commonly quoted; not re-read)";
-    InternetUsers = "estate.internet_users_billion", "billion", [5.0, 5.5, 5.8], Frontier, 2024,
-        "Holon's arithmetic: about 5.5 billion internet users, from its memory, not a read figure";
-    AiShare = "estate.ai_share", "share", [0.05, 0.15, 0.30], Frontier, 2024,
-        "the share of the estate that is AI training and inference: the fastest-growing part and the least clearly relocatable (UPSTREAM-0 row 0 includes generative AI); no published split";
-    StaysShare = "estate.stays_share", "share of the non-AI estate", [0.2, 0.4, 0.6], Frontier, 2024,
-        "(c) data-centre work that is not the consumer internet (enterprise, science, government) and stays whatever the internet runs on; no published split";
-    VanishShare = "estate.vanish_share", "share of the consumer part", [0.2, 0.5, 0.8], Frontier, 2024,
-        "(a) harvesting, profiling, ranking, advertising and the duplication that serves them: UPSTREAM-0 row 25 puts them at 0.5 to 5.5 of one operator's 5.5 kWh per person (9% to 100%), rows 18-24 at 10% to over 40% of server energy; NOBODY PUBLISHES (a) against (b)";
-    EdgeRatio = "edge.efficiency_ratio", "x data-centre energy per unit of work", [0.3, 1.0, 3.0], Frontier, 2026,
-        "(b) relocated non-AI work at the edge: storage and serving on devices already on cost only a marginal draw (below 1), compute on a phone or home node is less efficient per unit and has no PUE (above 1)";
-    AiWantedShare = "ai.wanted_inference_share", "share of the estate's AI energy", [0.2, 0.5, 0.8], Frontier, 2021,
-        "accounting only (it splits the removed AI into what vanishes and today's wanted inference, which the mesh's own CIRISProxy-shaped inference replaces; it does not move the net): inference people actually ask for, against ranking, ads and training on harvested data: UPSTREAM-0 rows 18-25 (ML 10-15% of one operator's energy; 10:20:70 experimentation:training:inference for one fleet; the 0.5-5.5 kWh harvesting bracket); no published split";
+    EstateTwh = "estate.all_data_centres_twh_per_year", "TWh/year", [380.0, 416.0, 460.0], Model, 2024,
+        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 0 and 5: IEA Energy and AI 2025 Annex A.1, 416 TWh in 2024 (hyperscale 166, colocation 144, enterprise 106; modelled; excludes crypto, networks and devices); interval ours";
+    InternetUsers = "estate.internet_users_billion", "billion", [5.5, 5.8, 6.0], Model, 2024,
+        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 2-3: ITU revised 2024 to 5.8 bn (first published 5.5; 6.0 in 2025); 416 / 5.8 = 71.7 kWh per user-year (row 4)";
+    AiShare = "estate.ai_share", "share", [0.15, 0.19, 0.32], Model, 2026,
+        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 41-44: 0.15 is the IEA 2024 proxy without cooling overhead; 17-21% with it; about 19% in 2026 and 32% in 2030 at the IEA's rates (the scout's arithmetic); the default is the 2026 scenario year";
+    StaysShare = "estate.stays_share", "share of the estate", [0.45, 0.6, 0.75], Model, 2024,
+        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 13: AUTHOR'S ESTIMATE from two derivations, 0.45-0.75, centre 0.6 (enterprise alone is 25% and stays; no source splits consumer from business); partly a DEFINITION of 'replace the internet entirely': lower values are reported separately as awaiting Eric's answer";
+    VanishShare = "estate.vanish_share", "share of the consumer non-AI part", [0.3, 0.5, 0.7], Frontier, 2024,
+        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 23: 0.5 stands (0.3-0.7), AUTHOR'S ESTIMATE, unsourceable; NOT weighted by traffic bytes (on-demand video is 54-57% of downstream bytes but about 1.3 Wh per viewing hour at the data centre, rows 14-19)";
+    EdgeRatio = "edge.marginal_ratio_already_on", "x data-centre energy per unit of work", [0.1, 0.3, 1.0], Model, 2024,
+        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 40: on devices ALREADY ON, 0.1-1 (media delivery from a gateway already on about 0.1, row 32); the fixed draw of anything ADDED is the new-box term (a two-bay home storage box 39-129 kWh a year, row 36; energy.rs home_node.added_box.w)";
+    AiWantedShare = "ai.wanted_inference_share", "share of the consumer AI energy", [0.1, 0.21, 0.35], Model, 2019,
+        "accounting only (it splits the removed consumer AI into what vanishes and the wanted inference the mesh's own replaces; it does not move the net): ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 22: recommendation was over 79% of one operator's AI inference cycles in 2019";
+    AiStaysShare = "ai.frontier_and_training_stays_share", "share of the consumer AI energy", [0.2, 0.3, 0.5], Frontier, 2021,
+        "frontier models and training are a third category that stays hosted (ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1), the scout's note); 10:20:70 experimentation:training:inference for one fleet (UPSTREAM-0 row 20)";
     InteractionsPerPersonDay = "ai.interactions_per_person_day", "agent interactions (all kinds)", [1.0, 10.0, 100.0], Frontier, 2026,
         "how often a person asks their agent for something; no figure (CIRISProxy's aggregate counters could measure it: see the measurement request)";
     CallsPerInteraction = "ai.ethical.llm_calls_per_interaction", "LLM calls", [12.0, 30.0, 70.0], Derived, 2026,
@@ -121,20 +123,20 @@ full_rows! {
         "the ethical-reasoning agent a member node runs to earn and keep standing: interactions a day";
     TokensPerCall = "ai.tokens_per_call", "tokens (prompt + completion)", [500.0, 2000.0, 6000.0], Frontier, 2026,
         "agent calls carry long prompts (context, constitution, history) and short completions; CIRISProxy's litellm_config disables reasoning on DeepInfra Qwen (measured there: 1,193 tokens to 29 for one answer)";
-    WhPer1kTokens = "ai.tier.hosted.wh_per_1k_tokens.mid", "Wh per 1,000 tokens", [0.01, 0.05, 0.3], Frontier, 2026,
-        "hosted tier, zero retention (CIRISProxy today): the mid-size open-weight class it routes (Qwen 3.6/3.5 35B-A3B, about 3B active; Qwen 3.6 27B; Llama 4 Scout/Maverick, 17B active; gpt-oss-20b) at data-centre utilisation; no sourced figure";
-    HostedSmallFactor = "ai.tier.hosted.small_class_factor", "x the mid class", [0.2, 0.3, 0.5], Model, 2026,
-        "a small (1-4B) model per token against the mid class, hosted";
+    WhPer1kTokens = "ai.tier.hosted.wh_per_1k_tokens.mid", "Wh per 1,000 tokens", [0.03, 0.05, 0.15], Model, 2025,
+        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 47 and 50: batched data-centre GPUs 0.15-0.21 J/token for a 32 bn open model (0.042-0.058 Wh per 1,000 tokens); 0.24 Wh per median hosted prompt; the high end allows reasoning (1.3 Wh per reply)";
+    HostedSmallFactor = "ai.tier.hosted.small_class_factor", "x the mid class", [0.3, 1.0, 1.0], Model, 2025,
+        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 57, 'as served': a job a small local model can do is served hosted by the hosted model, so the device-to-data-centre ratio for it is 0.3-5 as served; default 1 (the hosted model serves it)";
     HostedLargeFactor = "ai.tier.hosted.large_class_factor", "x the mid class", [2.0, 4.0, 8.0], Model, 2026,
         "a large (70B dense and up) model per token against the mid class, hosted";
-    PhoneWhPer1k = "ai.tier.device.wh_per_1k_tokens.small", "Wh per 1,000 tokens (ADDED draw)", [0.02, 0.05, 0.2], Frontier, 2026,
-        "phone or laptop on-device, small class only; hardware already on: only the added draw counts (mesh side)";
-    ProsumerWhPer1k = "ai.tier.prosumer.wh_per_1k_tokens.mid", "Wh per 1,000 tokens (ADDED draw)", [0.05, 0.2, 0.6], Frontier, 2026,
-        "a prosumer machine with a consumer GPU, up to the mid class; often on anyway; added draw (mesh side)";
-    ApplianceWhPer1k = "ai.tier.appliance.wh_per_1k_tokens.mid", "Wh per 1,000 tokens (ADDED draw)", [0.03, 0.1, 0.4], Frontier, 2026,
-        "an office or home appliance with an inference accelerator, up to the mid class; on all day; added draw (mesh side)";
-    EdgeServerWhPer1k = "ai.tier.edge_server.wh_per_1k_tokens.large", "Wh per 1,000 tokens", [0.1, 0.4, 1.5], Frontier, 2026,
-        "an edge or on-premises server, up to the large class, at low utilisation (its idle draw amortised into the figure; hardware added, mesh side)";
+    PhoneWhPer1k = "ai.tier.device.wh_per_1k_tokens.small", "Wh per 1,000 tokens (ADDED draw)", [0.025, 0.12, 0.21], Model, 2025,
+        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) rows 53-54: phones 0.58-0.76 J/token measured at the battery (3 bn model, 0.16-0.21 Wh per 1,000); laptops 0.09-0.25 J/token (0.025-0.07; power assumed); hardware already on, added draw on the mesh side";
+    ProsumerWhPer1k = "ai.tier.prosumer.wh_per_1k_tokens.mid", "Wh per 1,000 tokens (ADDED draw)", [0.15, 0.3, 0.6], Model, 2025,
+        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 56, 'same model': a device runs the same model at 3-10x the data centre (laptop class); applied to the hosted mid class";
+    ApplianceWhPer1k = "ai.tier.appliance.wh_per_1k_tokens.mid", "Wh per 1,000 tokens (ADDED draw)", [0.15, 0.25, 0.5], Model, 2025,
+        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 56, 'same model' 3-10x the data centre, an accelerator box on all day";
+    EdgeServerWhPer1k = "ai.tier.edge_server.wh_per_1k_tokens.large", "Wh per 1,000 tokens", [0.6, 1.0, 2.0], Model, 2025,
+        "ESTATE-0 (CIRISHolon 026936e, conformance/scene/tables/estate0, v1) row 56, 'same model' 3-10x the data centre's large class (0.2 Wh per 1,000 at the default), at low utilisation";
     SmallJobShare = "ai.jobs.small_share", "share of calls", [0.2, 0.5, 0.8], Frontier, 2026,
         "share of model calls a small on-device model can serve; no figure";
     LargeJobShare = "ai.jobs.large_share", "share of calls", [0.0, 0.05, 0.2], Frontier, 2026,
@@ -384,8 +386,10 @@ pub fn ai_demand_kwh(p: &FullParams, case: AiCase) -> f64 {
 #[must_use]
 pub fn eval(p: &FullParams) -> Full {
     let e = p.get(F::EstateTwh) * 1e9 / (p.get(F::InternetUsers) * 1e9); // kWh per user-year
-    let ai = e * p.get(F::AiShare);
-    let consumer = (e - ai) * (1.0 - p.get(F::StaysShare));
+    // the stay share is of the whole estate; AI is carved out of the consumer part first
+    let consumer_all = e * (1.0 - p.get(F::StaysShare));
+    let ai = consumer_all * p.get(F::AiShare) * (1.0 - p.get(F::AiStaysShare));
+    let consumer = consumer_all * (1.0 - p.get(F::AiShare));
     let vanished = consumer * p.get(F::VanishShare);
     let relocated = consumer - vanished;
     let mut removed = consumer;
@@ -568,6 +572,16 @@ pub fn report(seed: u64) -> String {
             }
         }
     }
+    s.push_str("\n**The stay share awaiting Eric's answer.** ESTATE-0 brackets it at 0.45-0.75 (centre 0.6), but it is partly a definition of 'replace the internet entirely': if enterprise, government and science computing also go, it is near zero. Net at the defaults, 10 interactions a day, no new boxes:\n\n| stay share | tiered mix | all hosted | all on devices | no AI |\n|---|---|---|---|---|\n");
+    for st in [0.75, 0.6, 0.45, 0.2, 0.0] {
+        s.push_str(&format!("| {st}{} |", if st < 0.45 { " (awaiting Eric's answer)" } else { " (sourced bracket)" }));
+        for c in AiCase::ALL {
+            let mut p = FullParams::defaults(&a, c);
+            p.set(F::StaysShare, st);
+            s.push_str(&format!(" {:.1} |", eval(&p).net));
+        }
+        s.push('\n');
+    }
     s.push_str("\n**The AI term by case** (interactions per day x 365.25 x LLM calls per interaction x tokens per call, placed over the tiers; kWh per person-year at the defaults) and where the calls go:\n\n| AI case | AI term | of which on edge tiers (mesh side) | of which hosted (stays in data centres) |");
     for t in TIERS {
         s.push_str(&format!(" {t} |"));
@@ -616,7 +630,7 @@ pub fn report(seed: u64) -> String {
         s.push_str(". (A vertex search from seat_calibration's corner; each bound is attained by a real combination of input ends; the mix's placement makes its net piecewise, so the bounds are a search, not a guarantee.)\n");
     }
     s.push_str("\n## Break-even for this test (one input, others at default; no new boxes)\n\n| input | tiered mix (the design) | all hosted (bound) | all on devices (bound) | no AI |\n|---|---|---|---|---|\n");
-    let names: Vec<&str> = ["estate.vanish_share", "edge.efficiency_ratio", "estate.stays_share", "new_box_share", "ai.interactions_per_person_day", "ai.ethical.llm_calls_per_interaction", "ai.self_aware.llm_calls_per_interaction", "ai.kinds.ethical_share", "ai.kinds.self_aware_share", "pob.member_nodes_per_person", "pob.interactions_per_member_day", "ai.tokens_per_call", "ai.tier.hosted.wh_per_1k_tokens.mid", "ai.tier.device.wh_per_1k_tokens.small", "ai.tier.appliance.wh_per_1k_tokens.mid", "ai.tier.edge_server.wh_per_1k_tokens.large", "ai.jobs.small_share", "ai.alloc.forced_local_share", "additions"].to_vec();
+    let names: Vec<&str> = ["estate.vanish_share", "edge.marginal_ratio_already_on", "estate.stays_share", "new_box_share", "ai.interactions_per_person_day", "ai.ethical.llm_calls_per_interaction", "ai.self_aware.llm_calls_per_interaction", "ai.kinds.ethical_share", "ai.kinds.self_aware_share", "pob.member_nodes_per_person", "pob.interactions_per_member_day", "ai.tokens_per_call", "ai.tier.hosted.wh_per_1k_tokens.mid", "ai.tier.device.wh_per_1k_tokens.small", "ai.tier.appliance.wh_per_1k_tokens.mid", "ai.tier.edge_server.wh_per_1k_tokens.large", "ai.jobs.small_share", "ai.alloc.forced_local_share", "additions"].to_vec();
     for n in names {
         let f = |c| break_even(&a, c, n).map_or("none in range".to_string(), |x| format!("{x:.3}"));
         let label = match n {
@@ -641,8 +655,8 @@ mod tests {
     fn holons_arithmetic_and_the_box() {
         let p = FullParams::defaults(&adds(), AiCase::AllOnDevices);
         let r = eval(&p);
-        // 415 TWh over 5.5 billion users: about 75 kWh per user-year (8.6 W)
-        assert!((r.estate_per_user - 75.45).abs() < 0.1);
+        // 416 TWh over 5.8 billion users: about 72 kWh per user-year (ESTATE-0 row 4)
+        assert!((r.estate_per_user - 71.72).abs() < 0.1);
         assert!((r.removed - (r.vanished + (r.removed - r.vanished))).abs() < 1e-9);
         // a 5 W box per home of 2.5 is about 17.5 kWh per person-year
         assert!((5.0_f64 * 8766.0 / 1000.0 / 2.5 - 17.53).abs() < 0.01);
@@ -719,7 +733,7 @@ mod tests {
     #[test]
     fn break_even_is_a_zero() {
         let a = adds();
-        if let Some(z) = break_even(&a, AiCase::NoAi, "edge.efficiency_ratio") {
+        if let Some(z) = break_even(&a, AiCase::NoAi, "edge.marginal_ratio_already_on") {
             let mut p = FullParams::defaults(&a, AiCase::NoAi);
             p.set(F::EdgeRatio, z);
             assert!(eval(&p).net.abs() < 1e-6);
