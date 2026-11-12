@@ -184,7 +184,7 @@ pub const ROWS: &[Row] = &[
         "decoration", "MODEL", "STREETREF-1 via CIRISHolon (OpenStreetMap statistics)", &[],
         "roads only position buildings (micro.rs:building_fits, footprint_meets_road); no model reads street membership. Streets as a graph is owed (item 6 f)"),
     row("leaf.arterial_crossings", A, rel("street tile", "street tile", false), "street tile", "arterials crossing a side",
-        "decoration", "MODEL", "STREETREF-1 via CIRISHolon", &[], "tiling.rs LeafContext.edges and l2_nb place arterials so neighbouring tiles join; nothing reads them. Crossings per side in the sums file are owed (item 6 h)"),
+        "decoration", "MODEL", "STREETREF-1 via CIRISHolon", &[], "tiling.rs LeafContext.edges and l2_nb place arterials so neighbouring tiles join; no model reads them. Counted per side of every split from L2 down (tiling::arterial_crossings, kernel pop_crossings) and written to the sums file with side and peer: the fine crossings under a side sum to the coarse one and both sides agree"),
     row("building.dwellings", A, pop(&["building", "street tile"]), "building", "dwelling units (one household each)",
         "crates/cewp-sim/src/micro.rs:MicroWorld::populate (households in building order)", "MODEL", "GHSL built-up surface and volume; building footprints (Microsoft, CDLA)",
         &[], "units per building follow the class and the leaf's households (tiling.rs). Household.building is stored, not read by any model"),

@@ -12,6 +12,9 @@
 // * at the leaf: its households' persons sum to its people exactly, and its households' devices sum to
 //   the leaf's device population exactly (the node cap is a display sample of it); its households
 //   summed by access network (their second parent, netgraph::attach_access) are its households;
+// * crossings: on each side of every split from L2 down, the arterials crossing the children along
+//   the side sum to those crossing the parent's side, and the holon across the side, answering from
+//   its own split, counts the same (tiling::arterial_crossings; written with "side" and "peer");
 // * where GHS-POP reads under the floor, the street tile holds nobody.
 //
 // Every check is also written in CIRISHolon's sums format, one JSON object per line per (holon, seed,
@@ -47,6 +50,13 @@ const out = (w, n) => Array.from(new Float64Array(w.memory.buffer, w.holon_buf_p
 function root(w, c){ w.pop_root(HOLON.pack(c)); const [p, h] = out(w, 2); return { p, h }; }
 function split(w, c, pop){ const n = w.pop_split(HOLON.pack(c), pop.p, pop.h), o = out(w, 2 * n); return HOLON.children(c).map((k, i) => ({ c: k, p: o[i], h: o[n + i] })); }
 const sum = (a) => a.reduce((x, y) => x + y, 0);
+// the four sides of a split's arterial crossings (kernel pop_crossings): [{ parent, peer, children }]
+function crossings(w, c){
+  const len = w.pop_crossings(HOLON.pack(c)); if (!len) return [];
+  const o = out(w, len), r = []; let k = 0;
+  for (let d = 0; d < 4; d++){ const n = o[k + 2]; r.push({ parent: o[k], peer: o[k + 1], children: o.slice(k + 3, k + 3 + n) }); k += 3 + n; }
+  return r;
+}
 
 const PLACES = [["mid-Urals", 60.0, 59.5], ["central Sahara", 23.5, 12.0], ["Greenland interior", 72.0, -40.0], ["Amazon interior", -3.5, -67.5], ["open Atlantic", 0.0, -30.0],
   ["Zurich", 47.3769, 8.5417], ["Cairo", 30.0444, 31.2357], ["Lagos", 6.5244, 3.3792], ["US suburb (Maryland)", 39.2, -77.25], ["rural French village (Cher)", 46.3, 2.3],
@@ -74,7 +84,7 @@ test("the street tier's world is the cohort tier's GHS total, apportioned", asyn
 });
 
 test("every split from the root to the street tile sums exactly; the leaf's persons and devices sum to it", async () => {
-  const { w, tot } = await kernel(); const lines = [], rows = []; let nets = 0;
+  const { w, tot } = await kernel(); const lines = [], rows = [], seen = new Set(); let nets = 0, ncross = 0;
   const scale = tot[0] / tot[2]; // cohort total over the floored cell total
   const line = (o) => lines.push(JSON.stringify(o));
   for (const [name, la, lo] of PLACES){
@@ -85,6 +95,20 @@ test("every split from the root to the street tile sums exactly; the leaf's pers
       assert.strictEqual(sum(hh), s.pop.h, `${name} L${s.c.level} households`);
       line({ id, level: s.c.level, seed: 0, kind: "people", parent: s.pop.p, children: pp });
       line({ id, level: s.c.level, seed: 0, kind: "households", parent: s.pop.h, children: hh });
+      // arterial crossings of this split, per side, with the holon across it answering from its side
+      if (s.c.level >= 2){
+        for (const [c, back] of [[s.c, null], ...[0, 1, 2, 3].map((d) => [HOLON.neighbour(s.c, d), (d + 2) % 4])]){
+          if (!c) continue;
+          const sides = crossings(w, c);
+          sides.forEach((x, d) => {
+            if (back !== null && d !== back) return;
+            const key = HOLON.pack(c) + ":" + d; if (seen.has(key)) return; seen.add(key);
+            assert.strictEqual(sum(x.children), x.parent, `${name} L${c.level} side ${d} crossings`);
+            if (x.peer >= 0) line({ id: HOLON.pack(c), level: c.level, seed: 0, kind: "crossings", side: d, peer: x.peer, parent: x.parent, children: x.children });
+            ncross += x.parent;
+          });
+        }
+      }
       // cross-check against JavaScript's own overlap (popcond.js), scaled to the cohort total
       const b = HOLON.boundsDeg(s.c), e = pcPeople(P, b[0], b[1], b[2], b[3]) * scale;
       // bound: each overlapped cell was rounded to whole people (0.5 each), one unit per apportionment step, and the scale's float error
@@ -121,5 +145,5 @@ test("every split from the root to the street tile sums exactly; the leaf's pers
     rows.push(`${name}: leaf L${leaf.level}, ${pop.p} people, ${pop.h} households, ${persons} persons, ${dev} devices (${nodes} nodes drawn)`);
   }
   fs.writeFileSync(OUT, lines.join("\n") + "\n");
-  console.log(rows.join("\n")); console.log(`${lines.length} lines -> ${OUT}; ${nets} (leaf, access network) pairs, households summed both ways`);
+  console.log(rows.join("\n")); console.log(`${lines.length} lines -> ${OUT}; ${nets} (leaf, access network) pairs, households summed both ways; ${seen.size} crossing sides carrying ${ncross} arterial crossings`);
 });

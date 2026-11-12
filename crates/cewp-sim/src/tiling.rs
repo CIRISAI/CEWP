@@ -645,6 +645,66 @@ pub fn side_crossings(id: HolonId, d: Dir, ctx: &LeafContext) -> Vec<Line> {
     out
 }
 
+/// Arterials crossing side `d` of holon `id` (level 2 or deeper; 0 above, where no arterial is
+/// laid): the arterials of the L2 lattice whose position lies in the side's half-open interval,
+/// whether or not a leaf draws them (an empty leaf draws no street, the lattice still runs through
+/// it). Across an L2 boundary the arterials are those of the side with fewer, the rule
+/// [`side_crossings`] draws by, so the holon across the side counts the same lines; the children
+/// along a side split its interval, so their counts sum to it (CIRISHolon's edge law). `l2_budget`
+/// gives an L2 cell's households.
+#[must_use]
+pub fn arterial_crossings(id: HolonId, d: Dir, l2_budget: &mut impl FnMut(HolonId) -> u64) -> u64 {
+    if id.level < 2 {
+        return 0;
+    }
+    let Some(b) = id.neighbour(d) else { return 0 };
+    let ns = d.horizontal();
+    let (y0, x0, y1, x1) = id.bounds_units();
+    let (lo, hi) = if ns { (x0 as f64, x1 as f64) } else { (y0 as f64, y1 as f64) };
+    let (o2, t2) = (id.ancestor(2), b.ancestor(2));
+    let mine = cell_lines(o2, &[l2_budget(o2)], ns);
+    let lines = if o2 == t2 {
+        mine
+    } else {
+        let theirs = cell_lines(t2, &[l2_budget(t2)], ns);
+        if mine.len() < theirs.len() || (mine.len() == theirs.len() && o2.pack() < t2.pack()) { mine } else { theirs }
+    };
+    lines.iter().filter(|v| v.1 && v.0 >= lo && v.0 < hi).count() as u64
+}
+
+/// One side of a split for the sums file: the parent's arterial crossings on side `d`, the holon
+/// across it (same level), and the crossings of the children along that side, in `children()`
+/// order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SideSum {
+    /// The side.
+    pub side: Dir,
+    /// Crossings on the parent's side.
+    pub parent: u64,
+    /// The holon across the side, if any.
+    pub peer: Option<HolonId>,
+    /// Crossings of each child along the side.
+    pub children: Vec<u64>,
+}
+
+/// The four sides of `parent`'s split ([`arterial_crossings`] on the parent and on the children
+/// along each side).
+#[must_use]
+pub fn split_crossings(parent: HolonId, l2_budget: &mut impl FnMut(HolonId) -> u64) -> Vec<SideSum> {
+    let kids = parent.children();
+    Dir::ALL
+        .iter()
+        .map(|&d| {
+            let along: Vec<u64> = kids
+                .iter()
+                .filter(|k| k.neighbour(d).is_none_or(|n| n.ancestor(parent.level) != parent))
+                .map(|&k| arterial_crossings(k, d, l2_budget))
+                .collect();
+            SideSum { side: d, parent: arterial_crossings(parent, d, l2_budget), peer: parent.neighbour(d), children: along }
+        })
+        .collect()
+}
+
 // ------------------------------------------------------------------ leaf layout
 
 /// Main road width, metres (an arterial, every class).
@@ -1020,6 +1080,26 @@ impl LeafLayout {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn arterial_crossings_sum_along_a_side_and_agree_across_it() {
+        // households per L2 cell from a smooth field (any budget will do: the law is structural)
+        let mut l2 = |c: HolonId| -> u64 { 2_000 + (c.pack() % 97) * 300 };
+        let mut checked = (0, 0);
+        for &(la, lo) in &[(47.3769, 8.5417), (30.0444, 31.2357), (23.7104, 90.4074), (40.7831, -73.9712)] {
+            for level in 2..=6 {
+                let p = HolonId::at(level, la, lo);
+                for s in split_crossings(p, &mut l2) {
+                    assert_eq!(s.children.iter().sum::<u64>(), s.parent, "{p:?} side {:?}", s.side);
+                    let peer = s.peer.expect("not at a pole");
+                    assert_eq!(arterial_crossings(peer, s.side.flip(), &mut l2), s.parent, "{p:?} and {peer:?} disagree");
+                    checked.0 += 1;
+                    checked.1 += s.parent;
+                }
+            }
+        }
+        assert!(checked.1 > 0, "some side must carry an arterial ({checked:?})");
+    }
 
     #[test]
     fn dense_fabric_fills_the_leaf_and_storeys_follow_density() {

@@ -747,6 +747,27 @@ pub extern "C" fn pop_of(id: f64) -> f64 {
     p.households as f64
 }
 
+/// The arterial crossings of holon `id`'s split (`tiling::split_crossings`, L2 households from the
+/// population chain): holon buffer 0 gets, for each side N, E, S, W, [the parent's crossings, the
+/// packed id across the side (-1 past a pole), the number of children along the side, then their
+/// crossings in `children()` order]. Returns the number of values written, or 0 before `pop_load`
+/// or for a bad id.
+#[no_mangle]
+pub extern "C" fn pop_crossings(id: f64) -> u32 {
+    let (Some((cells, w)), Some(c)) = (pop_state(), HolonId::unpack(id as u64)) else { return 0 };
+    let mut memo: std::collections::BTreeMap<u64, u64> = std::collections::BTreeMap::new();
+    let mut l2 = |h: HolonId| *memo.entry(h.pack()).or_insert_with(|| cewp_sim::popchain::pop_of(cells, w, h).households);
+    let sides = cewp_sim::tiling::split_crossings(c, &mut l2);
+    let mut out = Vec::new();
+    for s in &sides {
+        out.extend([s.parent as f64, s.peer.map_or(-1.0, |p| p.pack() as f64), s.children.len() as f64]);
+        out.extend(s.children.iter().map(|&k| k as f64));
+    }
+    let n = out.len() as u32;
+    holon().out = out;
+    n
+}
+
 /// Build the focal world on leaf `id` (context at `holon_ctx_ptr`): the leaf's own streets and
 /// dwellings, populated by `MicroWorld::from_leaf`. Returns the node count, or 0 for a bad id.
 #[no_mangle]

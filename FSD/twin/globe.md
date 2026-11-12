@@ -257,9 +257,15 @@ consistency): at 27 places (the ten probe places and 17 dense ones), every split
 to the street tile sums exactly in people and households; each holon's people are its GHS overlap
 scaled to the cohort total within the stated rounding bound (cross-checked against popcond.js in
 JavaScript); at the leaf, persons sum to people and household devices to the device population; the
-empty places hold nobody. The test writes CIRISHolon's sums format (one line per holon and kind,
-seed 0: the twin's tree takes no seed) to /tmp/cewp-popchain-sums.jsonl, which
-`cargo run -p holon-scene --example check_sums` accepts; a sample is docs/geo/sums.sample.jsonl.
+empty places hold nobody; the leaf's households summed by access network (their second parent,
+`netgraph::attach_access`) are its households; and on each side of every split from L2 down, the
+arterials crossing the children along the side sum to those crossing the parent's side, while the
+holon across the side, answering from its own split, counts the same (`tiling::arterial_crossings`:
+the L2 lattice's arterials in the side's half-open interval, drawn or not; across an L2 boundary
+the side with fewer arterials, the rule the drawing uses). The test writes CIRISHolon's sums format (one line per holon and kind,
+seed 0: the twin's tree takes no seed; crossings lines carry `side` and `peer`) to
+/tmp/cewp-popchain-sums.jsonl, which `cargo run -p holon-scene --example check_sums` accepts (1,458
+lines; 513 crossing pairs checked from both sides); a sample is docs/geo/sums.sample.jsonl.
 
 Probe (headless, both widths, street and block zoom; devices = the focal patch's devices including
 its off-patch seat and servers):

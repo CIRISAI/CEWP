@@ -102,9 +102,10 @@ integers.
 - The globe renders a Series directly (cells filling and emptying, arrows along flows), not
   converted to the twin's own shape.
 - The page shows each activity curve with its verdict.
-- Item 6 (f) streets as a graph and (h) crossings per side in the sums file, and the NAT seam of
-  `FSD/twin/nat.md` section 8 (router class from the household's access network), which move
-  `leaf.streets`, `leaf.arterial_crossings` and `household.access_network` to models that read them.
+- Item 6 (f) streets as a graph, and the NAT seam of `FSD/twin/nat.md` section 8 (router class
+  from the household's access network), which move `leaf.streets` and `household.access_network`
+  to models that read them. Arterial crossings are counted and summed (item 6 h) but stay
+  decoration: no model reads them.
 
 ## 7. Gaps with no free reference, and what the fleet could measure instead
 
@@ -142,7 +143,7 @@ no-redistribution terms.
 | `node_pair.distance_km` | relationship | locality | km (great circle) | node -- node | kernel-wasm/src/lib.rs:tick (out slot 8 km summed; locality and region crossings) (between node positions drawn inside their locality) | DERIVED | derived from positions; no reference needed |  |
 | `node.room` | relationship | locality | membership | node -> room | docs/globe.js:buildWorld -> kernel-wasm/src/lib.rs:tick (node_rooms: family, community, region and global rooms) (the scale page draws every family in the signer's locality and community rooms 90% local; act mix 65/30/4/1) | MODEL | none known | `micro.family_share` `micro.community_share` |
 | `leaf.streets` | relationship | street tile | frontage (building on street) | building -> street | decoration (roads only position buildings (micro.rs:building_fits, footprint_meets_road); no model reads street membership. Streets as a graph is owed (item 6 f)) | MODEL | STREETREF-1 via CIRISHolon (OpenStreetMap statistics) |  |
-| `leaf.arterial_crossings` | relationship | street tile | arterials crossing a side | street tile -- street tile | decoration (tiling.rs LeafContext.edges and l2_nb place arterials so neighbouring tiles join; nothing reads them. Crossings per side in the sums file are owed (item 6 h)) | MODEL | STREETREF-1 via CIRISHolon |  |
+| `leaf.arterial_crossings` | relationship | street tile | arterials crossing a side | street tile -- street tile | decoration (tiling.rs LeafContext.edges and l2_nb place arterials so neighbouring tiles join; no model reads them. Counted per side of every split from L2 down (tiling::arterial_crossings, kernel pop_crossings) and written to the sums file with side and peer: the fine crossings under a side sum to the coarse one and both sides agree) | MODEL | STREETREF-1 via CIRISHolon |  |
 | `building.dwellings` | population | building | dwelling units (one household each) | parents: building, street tile | crates/cewp-sim/src/micro.rs:MicroWorld::populate (households in building order) (units per building follow the class and the leaf's households (tiling.rs). Household.building is stored, not read by any model) | MODEL | GHSL built-up surface and volume; building footprints (Microsoft, CDLA) |  |
 | `building.storeys` | attribute | building | storeys | of building; with building.dwellings | decoration (glyph height and shadow length; tiling.rs:place_dense_fabric sets storeys from units; nothing reads them) | MODEL | GHSL building height |  |
 | `household.position` | attribute | household | m from the tile centre | of household | decoration (drawing; micro.rs:story_actors picks the Story's four households by distance (presentation only). No model reads neighbour distance or same-street) | MODEL | building footprints (Microsoft, CDLA) |  |
