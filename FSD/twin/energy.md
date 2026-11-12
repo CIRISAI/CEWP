@@ -929,6 +929,13 @@ United States, 2020. By 2024 set-top boxes are +76% and streaming devices −22%
 | US 2020 household mix, new box | 87.4% | 22625 [11548, 57714] cost (interval > 0) | 22885 [9943, 125684] cost (interval > 0) |
 | US 2020 household mix, no home node | 0.0% | 1571 [-0.821, 9122] open (point > 0) | 1822 [-1741, 78419] open (point > 0) |
 
+**Someone home to host (PRESENCEGEN-2).** No energy term in TEST 1 or TEST 2 needs a person to be
+home. A home node runs on a gateway or box that is on regardless, and the phone terms use
+per-phone awake and suspended shares. So no host-availability figure is stated as a number here.
+If a future term depends on "someone is home", it takes PRESENCEGEN-2's bracket: independent
+draws leave nobody home in 0.24-0.27 of weekday hours 10-15, with a ceiling of about 0.5, for the
+US 2022-24 only.
+
 ## 5. Counters read (DERIVED from the packages' events)
 
 | counter | source | value (seed 1) |

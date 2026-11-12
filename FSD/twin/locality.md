@@ -118,6 +118,16 @@ weekday/weekend day shape. CIRISHolon's `presence.people` (awake, place) and
 (c) weights each delivery by the recipient being awake at the act's local hour. It prices the
 path with that hour's home and Wi-Fi shares.
 
+**Host availability is a bracket, not a number** (CIRISHolon PRESENCEGEN-2,
+`holon_scene::world::presence::day`, Generator::Chain certified; US 2022-24 only, and carrying it
+to another year is refused). A household's joint presence is not measured. In (c), the home-LAN
+share of a household delivery assumes both ends at home as **independent** per-person draws
+(`home_wifi²`), which is the independent end of that bracket, not a measurement. Independent draws
+leave nobody home in 0.24-0.27 of weekday hours 10-15; the ceiling is about 0.5. So the (c)
+"home LAN" figures for household and own-devices deliveries rest on an unmeasured joint. The terms
+it touches are `PathModel::segments` band 0 (household) and the own-devices LAN share. The
+awake share (0.623) is confirmed.
+
 ## 6. Registry rows each measure will read (CIRISHolon part A grows by these)
 
 * (a): `household.kin`, `person.work_team`, `person.school_class`,
