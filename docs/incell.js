@@ -14,24 +14,63 @@ const ICV = `attribute vec3 p;attribute vec2 uv;uniform mat3 R;uniform float S;u
 // its local hour), 3 Verdict (HOUSEGEN-1 by country and class), 4 Households (HOUSEGEN-1's row mean at the pixel's class: uT the
 // classes' lower bounds 2..5 in the texture's log scale, uDE0/uUS0 the class-1 means and uDEd/uUSd the steps between classes). C is the block's 12 x 12 cell texture: r country (100/255 United
 // States, 200/255 Germany, 0 elsewhere), g cell class x 50 / 255, b peopled. No reference: a dark hatch, never an invented value.
-const ICF = `precision mediump float;uniform sampler2D T;uniform sampler2D C;uniform float uA;uniform float uMode;uniform float uAwake;uniform vec4 uT;uniform float uDE0;uniform vec4 uDEd;uniform float uUS0;uniform vec4 uUSd;varying vec2 vUv;varying float vz;
+// Each map reads its quantity through its own sequential ramp (DM_RAMPS, one row of the ramp texture Rp), dark to bright, over a
+// dimmed neutral land (the veil; None, mode 0, is the plain view: a faint warm in-cell tint and no veil): People inferno, Awake navy to amber, Households viridis, Verdict teal and hatching.
+// Colour-blind safe: no ramp separates by red against green alone. uR is the ramp's row (texture v).
+const ICF = `precision mediump float;uniform sampler2D T;uniform sampler2D C;uniform sampler2D Rp;uniform float uA;uniform float uMode;uniform float uAwake;uniform vec4 uT;uniform float uDE0;uniform vec4 uDEd;uniform float uUS0;uniform vec4 uUSd;varying vec2 vUv;varying float vz;
+vec3 ramp(float row,float t){return texture2D(Rp,vec2(clamp(t,0.0,1.0)*0.992+0.004,row)).rgb;}
 void main(){if(vz<0.0)discard;float v=texture2D(T,vUv).r;vec4 a=texture2D(C,vUv);
 float hatch=step(0.5,fract((gl_FragCoord.x+gl_FragCoord.y)/6.0));
 bool us=a.r>0.2&&a.r<0.6;bool de=a.r>0.6;float cls=floor(a.g*255.0/50.0+0.5);
-if(uMode<1.5){if(v<0.02)discard;vec3 c=mix(vec3(0.95,0.78,0.42),vec3(1.0,0.93,0.72),smoothstep(0.55,1.0,v));gl_FragColor=vec4(c,uA*(0.10+0.55*v*v)*(1.0-hatch*0.18));return;}
+if(uMode<0.75){if(v<0.02)discard;vec3 c=mix(vec3(0.95,0.78,0.42),vec3(1.0,0.93,0.72),smoothstep(0.55,1.0,v));gl_FragColor=vec4(c,uA*(0.10+0.55*v*v)*(1.0-hatch*0.18));return;}
+if(uMode<1.5){if(v<0.02)discard;gl_FragColor=vec4(ramp(0.125,0.12+0.88*v)*(1.0-hatch*0.10),uA*(0.80+0.20*v));return;}
 if(a.b<0.5)discard;
 if(uMode<2.5){
- if(us){vec3 c=mix(vec3(0.17,0.22,0.52),vec3(1.0,0.80,0.40),uAwake);gl_FragColor=vec4(c,uA*(0.30+0.45*max(v,0.2))*(1.0-hatch*0.15));}
- else{gl_FragColor=vec4(0.42,0.44,0.50,uA*0.40*hatch);}
+ if(us){gl_FragColor=vec4(ramp(0.375,uAwake)*(1.0-hatch*0.08),uA*(0.40+0.55*max(v,0.1)));}
+ else{gl_FragColor=vec4(0.36,0.38,0.44,uA*0.55*hatch);}
  return;}
 if(uMode>3.5){if(v<0.02)discard;
  float m=us?uUS0+dot(step(uT,vec4(v)),uUSd):uDE0+dot(step(uT,vec4(v)),uDEd);
- vec3 c=mix(vec3(0.36,0.45,0.90),vec3(1.0,0.74,0.32),clamp((m-1.6)/1.0,0.0,1.0));
- gl_FragColor=(us||de)?vec4(c,uA*0.60*(1.0-hatch*0.22)):vec4(c,uA*0.45*(0.30+0.70*hatch));return;}
-if(us){gl_FragColor=vec4(0.70,0.74,0.86,uA*0.50*(0.35+0.65*hatch));}
-else if(de&&cls<1.5){gl_FragColor=vec4(0.20,0.72,0.86,uA*0.62);}
-else if(de){gl_FragColor=vec4(0.70,0.74,0.86,uA*0.50*(0.35+0.65*hatch));}
-else{gl_FragColor=vec4(0.30,0.31,0.36,uA*0.45*hatch);}}`;
+ vec3 c=ramp(0.625,(m-1.6)/1.0);
+ gl_FragColor=(us||de)?vec4(c*(1.0-hatch*0.14),uA*(0.55+0.40*v)):vec4(c,uA*(0.30+0.40*v)*(0.25+0.75*hatch));return;}
+vec3 teal=vec3(0.16,0.78,0.80);
+if(de&&cls<1.5){gl_FragColor=vec4(teal,uA*(0.70+0.25*v));}
+else if(us||de){gl_FragColor=vec4(teal*0.62,uA*(0.45+0.40*v)*(0.20+0.80*hatch));}
+else{gl_FragColor=vec4(0.36,0.38,0.44,uA*0.55*hatch);}}`;
+// the ramps, as sRGB stops evenly spaced (People: matplotlib's inferno; Households: viridis; Awake: navy to amber with lightness
+// rising throughout); the legend's bars (globe.js) are drawn from the same stops
+const DM_RAMPS = {
+  people: ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d", "#fcffa4"],
+  awake: ["#0c1a4a", "#1d3383", "#3a4fa6", "#6b65a6", "#9c7a95", "#c98f74", "#eaa64c", "#ffc35a", "#ffe09a"],
+  households: ["#440154", "#482878", "#3e4a89", "#31688e", "#26828e", "#1f9e89", "#35b779", "#6ece58", "#b5de2b", "#fde725"],
+};
+// a stop list sampled at t in [0, 1] (linear between stops), as [r, g, b] 0..255
+function dmRampAt(stops, t){
+  const x = Math.max(0, Math.min(1, t)) * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(x)), f = x - i;
+  const c = (h) => [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16)), a = c(stops[i]), b = c(stops[i + 1]);
+  return a.map((v, k) => Math.round(v + (b[k] - v) * f));
+}
+let rampTex = null;
+function incellRampTex(){
+  if (rampTex) return rampTex;
+  const W = 256, rows = [DM_RAMPS.people, DM_RAMPS.awake, DM_RAMPS.households, DM_RAMPS.households], D = new Uint8Array(W * 4 * 4);
+  rows.forEach((st, r) => { for (let x = 0; x < W; x++){ const c = dmRampAt(st, x / (W - 1)); D.set([c[0], c[1], c[2], 255], (r * W + x) * 4); } });
+  rampTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, rampTex); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, 4, 0, gl.RGBA, gl.UNSIGNED_BYTE, D);
+  for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+  return rampTex;
+}
+// the veil: while a data map is shown, the land and relief under it go to a dim neutral base (a near-opaque dark grey over the
+// land stencil), so the map's ramp is the only colour on the land; it fades in and out with the map, never between two maps
+const VLV = `attribute vec2 p;void main(){gl_Position=vec4(p,0.95,1.0);}`, VLF = `precision mediump float;uniform float uA;void main(){gl_FragColor=vec4(0.050,0.057,0.072,uA);}`;
+let pVeil = null, veilBuf = null;
+function incellVeil(a){
+  if (a <= 0.004) return;
+  if (!pVeil){ pVeil = prog(VLV, VLF); veilBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, veilBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]), gl.STATIC_DRAW); }
+  gl.useProgram(pVeil); gl.uniform1f(gl.getUniformLocation(pVeil, "uA"), a);
+  const vp = gl.getAttribLocation(pVeil, "p"); gl.bindBuffer(gl.ARRAY_BUFFER, veilBuf); gl.enableVertexAttribArray(vp); gl.vertexAttribPointer(vp, 2, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
 // DATAMAP (globe.js): which data map is drawn, and the one fading out (a switch cross-fades over 400 ms; 0 = none)
 let pIncell = null;
 // a block's mesh on the sphere: 1.5 degrees in 0.25-degree steps, texture across it
@@ -98,6 +137,44 @@ function incellAwake(lon){
   const h0 = Math.floor(h), f = h - h0, d1 = h0 === 23 ? (day + 1) % 7 : day;
   return aw(day, h0) * (1 - f) + aw(d1, (h0 + 1) % 24) * f;
 }
+// Awake now at continental zoom (beyond the in-cell blocks, which stop at region zoom): one mesh over North America with each
+// fragment's local solar hour from its longitude, so the day's edge shows across the time zones. The United States from the
+// Natural Earth mask (a 0.5-degree texture built once), the awake share per 0.5-degree longitude column (PRESENCE-0, the same
+// incellAwake as the blocks) updated each frame; no people weighting at this zoom; elsewhere hatched, no reference.
+const AWW = { mesh: null, mask: null, col: null, colData: new Uint8Array(240), box: [15, -170, 72, -50] };
+const AWV = `attribute vec3 p;attribute vec2 ll;uniform mat3 R;uniform float S;uniform vec2 asp;varying vec2 vLL;varying float vz;void main(){vec3 q=R*p;vz=q.z;vLL=ll;gl_Position=vec4(q.x*S*asp.x,q.y*S*asp.y,0.9,1.0);}`;
+const AWF = `precision mediump float;uniform sampler2D M;uniform sampler2D W;uniform sampler2D Rp;uniform float uA;varying vec2 vLL;varying float vz;
+void main(){if(vz<0.0)discard;vec2 uv=vec2((vLL.y+170.0)/120.0,(vLL.x-15.0)/57.0);float hatch=step(0.5,fract((gl_FragCoord.x+gl_FragCoord.y)/6.0));
+if(texture2D(M,uv).r>0.5){float aw=texture2D(W,vec2(uv.x,0.5)).r;gl_FragColor=vec4(texture2D(Rp,vec2(aw*0.992+0.004,0.375)).rgb,uA*0.85);}
+else{gl_FragColor=vec4(0.36,0.38,0.44,uA*0.5*hatch);}}`;
+let pAww = null;
+function awakeWideBuild(){
+  if (AWW.mask || typeof HOLT === "undefined" || !HOLT.countries) return !!AWW.mask;
+  const [a0, o0, a1, o1] = AWW.box, NX = 240, NY = 114, D = new Uint8Array(NX * NY);
+  for (let y = 0; y < NY; y++) for (let x = 0; x < NX; x++){ const la = a0 + (y + 0.5) * 0.5, lo = o0 + (x + 0.5) * 0.5; D[y * NX + x] = countryNear(HOLT.countries, la, lo) === 840 ? 255 : 0; }
+  const tex = (w, h, data, filt) => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, w, h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, data);
+    for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, filt], [gl.TEXTURE_MAG_FILTER, filt], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v); return t; };
+  AWW.mask = tex(NX, NY, D, gl.NEAREST); AWW.col = tex(NX, 1, AWW.colData, gl.LINEAR);
+  const V = []; for (let la = a0; la < a1; la++) for (let lo = o0; lo < o1; lo++){ const q = [[la, lo], [la, lo + 1], [la + 1, lo + 1], [la, lo], [la + 1, lo + 1], [la + 1, lo]]; for (const [y, x] of q) V.push(...xyz(y, x), y, x); }
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(V), gl.STATIC_DRAW); AWW.mesh = { b, n: V.length / 5 };
+  return true;
+}
+// called inside the land stencil after incellDraw; a: this layer's zoom fade (it takes over as the blocks fade out)
+function incellAwakeWide(R, S, asp, a){
+  const k = Math.min(1, (performance.now() - DATAMAP.t0) / 400), f = (DATAMAP.active === 2 ? k : 0) + (DATAMAP.prev === 2 && k < 1 ? 1 - k : 0);
+  if (a <= 0.01 || f <= 0.01 || !awakeWideBuild()) return;
+  incellVeil(a * 0.82 * Math.min(1, f)); // the same veil as the blocks (only Awake draws at this zoom)
+  for (let x = 0; x < 240; x++) AWW.colData[x] = Math.round(255 * incellAwake(AWW.box[1] + (x + 0.5) * 0.5));
+  gl.bindTexture(gl.TEXTURE_2D, AWW.col); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 240, 1, gl.LUMINANCE, gl.UNSIGNED_BYTE, AWW.colData);
+  if (!pAww) pAww = prog(AWV, AWF);
+  gl.useProgram(pAww);
+  gl.uniformMatrix3fv(gl.getUniformLocation(pAww, "R"), false, R); gl.uniform1f(gl.getUniformLocation(pAww, "S"), S); gl.uniform2fv(gl.getUniformLocation(pAww, "asp"), asp); gl.uniform1f(gl.getUniformLocation(pAww, "uA"), a * f);
+  gl.uniform1i(gl.getUniformLocation(pAww, "M"), 0); gl.uniform1i(gl.getUniformLocation(pAww, "W"), 1); gl.uniform1i(gl.getUniformLocation(pAww, "Rp"), 2);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, incellRampTex()); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, AWW.col); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, AWW.mask);
+  const ap = gl.getAttribLocation(pAww, "p"), al = gl.getAttribLocation(pAww, "ll"); gl.bindBuffer(gl.ARRAY_BUFFER, AWW.mesh.b); gl.enableVertexAttribArray(ap); gl.enableVertexAttribArray(al);
+  gl.vertexAttribPointer(ap, 3, gl.FLOAT, false, 20, 0); gl.vertexAttribPointer(al, 2, gl.FLOAT, false, 20, 12); gl.drawArrays(gl.TRIANGLES, 0, AWW.mesh.n); gl.disableVertexAttribArray(al); gl.disableVertexAttribArray(ap);
+  if (typeof gfxDirty === "function") gfxDirty(1000); // the share follows the clock
+}
 // every block the view can see, nearest the centre first
 function incellVisible(w, h, mpp){
   const la = pitch * 180 / Math.PI, lo = ((yaw * 180 / Math.PI + 540) % 360) - 180;
@@ -118,21 +195,23 @@ function incellDraw(R, S, asp, w, h, mpp, a){
   for (const v of vis) keep.add(v.k);
   INCELL.want = vis; if (vis.some((x) => !INCELL.blocks.has(x.k))) incellSchedule(); // built off the frame, in idle slices
   if (INCELL.blocks.size > INCELL.cap) for (const [k, b] of INCELL.blocks){ if (INCELL.blocks.size <= INCELL.cap) break; if (keep.has(k)) continue; if (b && b.tex){ gl.deleteTexture(b.tex); gl.deleteBuffer(b.mesh.buf); if (b.aux) gl.deleteTexture(b.aux); INCELL.bytes -= 180 * 180; } INCELL.blocks.delete(k); }
+  { const k0 = Math.min(1, (performance.now() - DATAMAP.t0) / 400), on = (DATAMAP.active ? k0 : 0) + (DATAMAP.prev && k0 < 1 ? 1 - k0 : 0); incellVeil(a * 0.82 * Math.min(1, on)); } // one veil, faded with the map; None (0) has none
   if (!pIncell) pIncell = prog(ICV, ICF);
   gl.useProgram(pIncell);
   gl.uniformMatrix3fv(gl.getUniformLocation(pIncell, "R"), false, R); gl.uniform1f(gl.getUniformLocation(pIncell, "S"), S); gl.uniform2fv(gl.getUniformLocation(pIncell, "asp"), asp);
   gl.uniform1i(gl.getUniformLocation(pIncell, "T"), 0); gl.uniform1i(gl.getUniformLocation(pIncell, "C"), 1);
+  gl.uniform1i(gl.getUniformLocation(pIncell, "Rp"), 2); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, incellRampTex()); gl.activeTexture(gl.TEXTURE0);
   const ap = gl.getAttribLocation(pIncell, "p"), au = gl.getAttribLocation(pIncell, "uv"), uA = gl.getUniformLocation(pIncell, "uA"), uM = gl.getUniformLocation(pIncell, "uMode"), uW = gl.getUniformLocation(pIncell, "uAwake");
   gl.enableVertexAttribArray(ap); gl.enableVertexAttribArray(au);
   // the active map and, for 400 ms after a switch, the one fading out
   const k = Math.min(1, (performance.now() - DATAMAP.t0) / 400), passes = [[DATAMAP.active, k]];
-  if (k < 1 && DATAMAP.prev) passes.unshift([DATAMAP.prev, 1 - k]);
+  if (k < 1) passes.unshift([DATAMAP.prev, 1 - k]); // None (0) is the plain view: the faint warm in-cell tint, no dimming
   const hm = typeof hhMeans === "function" ? hhMeans() : null;
   if (hm){ const lv = (x) => (Math.log10(x) - 2) / 2.5, d = (a) => [a[1] - a[0], a[2] - a[1], a[3] - a[2], a[4] - a[3]];
     gl.uniform4fv(gl.getUniformLocation(pIncell, "uT"), hm.km2.slice(1).map(lv)); gl.uniform1f(gl.getUniformLocation(pIncell, "uDE0"), hm.de[0]); gl.uniform4fv(gl.getUniformLocation(pIncell, "uDEd"), d(hm.de));
     gl.uniform1f(gl.getUniformLocation(pIncell, "uUS0"), hm.us[0]); gl.uniform4fv(gl.getUniformLocation(pIncell, "uUSd"), d(hm.us)); }
-  for (const [mode, f] of passes){ if (!mode || f <= 0.01 || (mode === 4 && !hm)) continue;
-    gl.uniform1f(uA, a * f); gl.uniform1f(uM, mode);
+  for (const [mode, f] of passes){ if (f <= 0.01 || (mode === 4 && !hm)) continue;
+    gl.uniform1f(uA, a * f); gl.uniform1f(uM, mode === 0 ? 0.5 : mode);
     for (const v of vis){ const b = INCELL.blocks.get(v.k); if (!b || !b.tex) continue;
       let aux = null; if (mode > 1){ aux = incellAux(b); if (!aux) continue; }
       if (mode === 2) gl.uniform1f(uW, incellAwake(-180 + (b.bc + 0.5) * 1.5));

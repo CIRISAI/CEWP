@@ -206,6 +206,32 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   housegen.test.js checks the wasm's means against the rows at the pinned rev. The US rows run only
   2.27 to 2.51 across classes, so US cities and suburbs read nearly alike; the German rows run 1.71 to
   2.27.
+- **Data maps after the review (2026-11-12).** None is the default and the plain view (the faint warm in-cell
+  tint). Any other map lays a veil over the land (a dim neutral base inside the land stencil, faded with the
+  map) and draws its quantity through its own sequential ramp texture: People inferno, Awake navy to amber,
+  Households viridis, Verdict teal with hatching (incell.js DM_RAMPS; the legend bars use the same stops). The
+  night glow is off where a map draws. Legends are two lines (name and ramp with ticks and units, or swatches;
+  the table's badge), the prose behind "where this comes from". The strip and legend are one block with a
+  backdrop (under the tier pill on a phone); the live-mesh banner closes to one line while a map is on; the chip
+  ends clear of the zoom column on a phone. Awake also draws at continental zoom: one mesh over North America,
+  each 0.5-degree longitude column at its local solar hour (lon / 15, not civil time zones), the United States
+  from the Natural Earth mask, so the day's edge crosses the country; no people weighting at that zoom. At
+  street zoom the chip's Awake line counts the street's adults from their own generated days (PRESENCEGEN-2)
+  beside the diaries' share.
+- **No Devices map.** The share of households with nothing to host on (DEVICEGEN-1's certified reading) by
+  class, 4,000 US households per class drawn by HOUSEGEN-1's rows, building type unknown:
+
+  | class | 1 | 2 | 3 | 4 | 5 |
+  |---|---|---|---|---|---|
+  | nothing to host on | 8.5 % | 8.6 % | 8.9 % | 9.9 % | 10.6 % |
+
+  The standard error is about 0.45 points, so only class 1 against class 5 is real; a map would be one colour
+  over the United States, and home nodes per km2 is the People map times about 0.18. Holon certifies the
+  clustering by state, which the twin cannot place. Not built.
+- **Land under the street tier (fix).** Natural Earth 10 m tiles are clipped to 10-degree boxes; a box edge drawn
+  as one chord bows poleward by up to a quarter degree, so the land stencil dropped a strip along every tile's
+  southern edge and streets there (Columbus, 40.06 N) floated on an empty field. Ring edges are now split every
+  0.1 degree (globe.js geoUpload), at most a few metres off the parallel.
 - **Street day: the rhythm Series as it is** (crates/cewp-sim/src/street_rhythm.rs `street_day`, kernel
   `micro_rhythm` / `pop_presence_digest`, on by default at street zoom; layer "Street day: on / off"; ledger
   holon-presencegen2). holon-scene is pinned at CIRISHolon f07a5ee, which adds PRESENCEGEN-2 and leaves
