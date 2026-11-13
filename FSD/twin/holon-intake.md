@@ -329,10 +329,9 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   MESH-0 is a generated population, not a measurement: 0.858 of person-to-person messages taken at once, 0.988 within
   12 h with the sender holding, wait quartiles 2 / 4 / 8 h, 0.196 of adults with no smartphone (unchecked).
   Three changes to the street engine follow from it:
-  (a) A phone whose person has a generated day is online while that person is awake and offline while they sleep
-  (micro.rs churn, `person_day_awake`). A phone with no generated day keeps the flat on/off chain; the chain's draws are
-  still taken, so every later draw is unchanged. Witness `a_phone_is_reachable_while_its_person_is_awake`, red without
-  the change.
+  (a) [Superseded: see "Delivery and reading" below.] A phone whose person had a generated day was online while that
+  person was awake and offline while they slept. That conflated the device with the person: a real phone stays on
+  overnight. Every phone is back on its own on-off cycle; the person's day gates sending and reading.
   (b) Who can hold: measured, not changed. Under the device rule (the default street) a home node exists where the
   household can host one AND the 0.60 offering draw passes; a gateway can host on 0.716 of households and a computer on
   0.386, both zero on households that declare neither; a new box can host on 0.924, of which 0.155 are mobile-only
@@ -407,6 +406,63 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   street's message total (street_energy reads the households' device draws and the baked counters), so it does not
   move. The Data map follows: in the United States people × the PRESENCE-0 awake share × the rate, elsewhere people ×
   the rate × the curve, hatched; a step where the two meet at a border is the rules', and the legend says so.
+
+- **Delivery and reading: two clocks per message (supersedes MESH-0 (a) above).** Whether a DEVICE can receive is the
+  device's own on-off cycle, for every device, day and night alike: a phone is on 0.85 of the time (mobile_offline_share,
+  suspensions of 900 s on average, phone_asleep_mean_s), laptops and home nodes by their own chains. The engine has
+  nothing that makes a phone's night differ from its day, and none is assumed. Whether its PERSON can read is the
+  person's generated day, which also leads sending (unchanged: each awake device at one flat rate, the assumed curve the
+  second setting). Each message to a person's phone or laptop now carries two times: delivered to the device it is
+  addressed to, and readable, the first moment at or after delivery the person is awake (micro.rs `deliver_mail`,
+  `read_done`; `MicroStats` reads, added_device, added_awake, until_awake, until_readable; kernel `micro_hold_stats`
+  [20..37]). The street panel leads with the wait the mesh adds beyond the addressee's own next available moment, under
+  two meanings of available, each named: "a device of theirs is on" (the one the message is addressed to) and "they are
+  awake"; beside it, labelled as sleep and never as a delivery delay, the time until the addressee is awake. Waits are
+  followed to the moment a message is readable; the panel counts messages not yet readable apart (held, or on a device
+  while its person sleeps), never cut off at the end of a day. Where no mailbox can be reached the engine keeps a held
+  message in the addressee's own slot, so it lands when their device is on (the sender need not be on): an assumption,
+  and the reason the device meaning scores zero on this street. Witnesses: `a_powered_phone_receives_while_its_person_sleeps`
+  (red under the old rule), `nothing_is_readable_while_its_person_sleeps`,
+  `the_mesh_adds_nothing_when_an_on_holder_can_pass_it` (and counts the wait when the holder is off).
+  The Columbus street (CIRISHolon's US household sizes, one generated Tuesday, then the street followed with no new
+  messages until every one is readable; street_rhythm reading_clock_table), 4,361 messages to people:
+
+  | | delivery (to the device) | readable (the person) |
+  |---|---|---|
+  | at once | 0.613 | 0.496 |
+  | held / not at once: median, over 8 h | 0.69 h, 0.001 | 1.28 h, 0.113 |
+  | all: median, over 8 h | 0 h, 0.000 | 0.01 h, 0.057 |
+  | the wait the mesh adds: none, 90th percentile, over 8 h | a device of theirs is on: 1.000, 0 h, 0.000 | they are awake: 0.676, 1.30 h, 0.022 |
+
+  Sleep, not delay: 0.809 of these messages were sent while the addressee was awake; for the others, the wait until
+  they are awake has a median of 4.0 h, and it is over 8 h for 0.036 of all. The mesh-added wait under "they are awake"
+  comes from laptops: a message addressed to a closed laptop waits for it to open while its person is awake (to laptops,
+  2,143 messages: none for 0.468, over 1 h 0.256, over 8 h 0.041; to phones, 2,218: none for 0.876, over 1 h 0.004, over
+  8 h 0.003, the last a person awake briefly at night while their phone was off and read at the next waking). The following
+  days' people, drawn independently (as the page does each local day) or the first day repeated (a comparison only,
+  not on the page):
+
+  | following days | readable, not at once: median | readable, not at once: over 8 h | mesh-added, "they are awake": over 8 h |
+  |---|---|---|---|
+  | drawn independently | 1.28 h | 0.113 | 0.022 |
+  | the first day again | 1.28 h | 0.112 | 0.021 |
+
+  Sending (street_rhythm send_rule_table, same street as the sending table above), each person's day / the assumed
+  curve / the stand-in alone: rows a day 4,270 / 6,822 / 7,354; 21:00 to 24:00, 353 / 1,007 / 1,165; the seat's queue
+  peak 99 / 98 / 83 (23:30: 2 / 8 / 29); held then delivered 1,740 / 2,397 / 2,550, none late; delivered under 1 / 4 / 8
+  / 24 h 0.65 / 0.97 / 1.00 / 1.00, 0.69 / 0.99 / 1.00 / 1.00, 0.63 / 0.98 / 1.00 / 1.00. Against the sending table: with
+  people's days fewer rows (4,270 against 4,874, 6,822 against 7,705: an awake person's phone is now off 0.15 of the
+  time by its own cycle, so sends less) and shorter holds (under 1 h 0.65 against 0.52), because a sleeping person's
+  phone now takes its messages; the stand-in alone is unchanged. Against the decomposition table above: reaching the
+  person at their phone gives 0.832 taken at once and a median hold of 0.2 h (0.806 and 2.8 h before), all of MESH-0's
+  assumptions 0.823 and 0.2 h (0.838 and 2.1 h), none over 8 h (0.171 and 0.114): the long holds were the person asleep.
+  Adults with no smartphone: 14 of 49 adults in the street's CIRIS households (0.286), the share of adults with no
+  smartphone as generated for 2020; the generator over-produces one-person households with none (0.297 against 0.230 in
+  the reference) and under-produces larger ones (CIRISHolon's correction, 08d61ec). The twin hands phones to persons in
+  micro.rs `from_leaf_with` (the device-rule path): the generator returns smartphones per group (adults 18 to 64, over
+  64, children), and the twin gives them out one to a person in that order, the last person taking any extra; which
+  person in a group holds which phone is the twin's choice. No share changed. Ledger street-delivery,
+  street-no-smartphone, holon-mesh0.
 
 ## 7. The runtime table door, APPEARANCE-0 and built form
 

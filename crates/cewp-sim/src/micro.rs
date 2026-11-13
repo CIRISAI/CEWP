@@ -819,6 +819,18 @@ pub struct MicroStats {
     /// Delivered held rows by wait, half-hour bins (HOLD_BINS: 48 of half an hour, then one for 24 h and over): the
     /// quartiles and the shares under 1, 4, 8 and 24 h come from it.
     pub hold_hist: Vec<u64>,
+    /// Messages to a person's device followed until the person can read them (`reads_*` below), and those still open.
+    pub reads: u64,
+    /// The wait the mesh adds beyond the addressed device's next moment on: delivered minus the first moment at or after
+    /// sending that device was on ("a device of theirs is on").
+    pub added_device: WaitHist,
+    /// The wait the mesh adds beyond the addressee's next waking moment: readable minus the first moment at or after
+    /// sending they were awake ("they are awake").
+    pub added_awake: WaitHist,
+    /// Sleep, not delivery: from sending to the addressee's next waking moment.
+    pub until_awake: WaitHist,
+    /// From sending to readable (the person awake with the message on their device).
+    pub until_readable: WaitHist,
     /// To the federation.
     pub federation: u64,
     /// Punches proposed.
@@ -857,6 +869,99 @@ struct Held {
     dst: usize,
     holder: usize,
     since: f64,
+    /// Addressed to a person's device (a phone or laptop whose person is awake or asleep by the presence tint).
+    person: bool,
+    /// First moment at or after `since` the addressed device was on (NaN until seen).
+    dev_on: f64,
+    /// First moment at or after `since` the addressee was awake (NaN until seen).
+    awake_at: f64,
+}
+
+/// A message delivered to a person's device whose person has not yet been awake since (the reading clock still runs).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Unread {
+    dst: usize,
+    since: f64,
+    delivered: f64,
+    dev_on: f64,
+    awake_at: f64,
+}
+
+/// One message to a person, followed to the moment they can read it (the report log; `MicroWorld::read_log`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ReadRecord {
+    /// Addressed device.
+    pub dst: usize,
+    /// Sent.
+    pub sent: f64,
+    /// First moment at or after sending the addressed device was on.
+    pub dev_on: f64,
+    /// Delivered to that device.
+    pub delivered: f64,
+    /// First moment at or after sending the addressee was awake.
+    pub awake_at: f64,
+    /// Readable: the first moment at or after delivery the addressee is awake.
+    pub readable: f64,
+}
+
+/// Bins of a reading-clock histogram: five minutes each to 48 h, then one for 48 h and over.
+pub const WAIT_BINS: usize = 577;
+/// A wait histogram: exact zeros apart (within a step), then five-minute bins.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct WaitHist {
+    /// Waits of zero.
+    pub zero: u64,
+    /// Waits over zero, by five-minute bin (`WAIT_BINS`).
+    pub bins: Vec<u64>,
+}
+impl WaitHist {
+    /// Count one wait (seconds).
+    pub fn add(&mut self, s: f64) {
+        if s <= 1e-6 {
+            self.zero += 1;
+            return;
+        }
+        if self.bins.len() < WAIT_BINS {
+            self.bins.resize(WAIT_BINS, 0);
+        }
+        self.bins[((s / 300.0) as usize).min(WAIT_BINS - 1)] += 1;
+    }
+    /// Waits counted.
+    #[must_use]
+    pub fn n(&self) -> u64 {
+        self.zero + self.bins.iter().sum::<u64>()
+    }
+    /// The `f` quantile (seconds; a bin's middle, 0 within the zeros).
+    #[must_use]
+    pub fn quantile(&self, f: f64) -> f64 {
+        let n = self.n();
+        if n == 0 {
+            return 0.0;
+        }
+        let want = (f * n as f64).ceil().max(1.0) as u64;
+        if want <= self.zero {
+            return 0.0;
+        }
+        let mut acc = self.zero;
+        for (b, &c) in self.bins.iter().enumerate() {
+            acc += c;
+            if acc >= want {
+                return (b as f64 + 0.5) * 300.0;
+            }
+        }
+        (WAIT_BINS as f64 - 0.5) * 300.0
+    }
+    /// Share of waits of zero.
+    #[must_use]
+    pub fn zero_share(&self) -> f64 {
+        self.zero as f64 / self.n().max(1) as f64
+    }
+    /// Share of waits longer than `s` seconds (a multiple of five minutes).
+    #[must_use]
+    pub fn share_over(&self, s: f64) -> f64 {
+        let from = ((s / 300.0).round() as usize).min(WAIT_BINS);
+        self.bins.iter().skip(from).sum::<u64>() as f64 / self.n().max(1) as f64
+    }
 }
 
 /// The focal 1:1 world.
@@ -925,6 +1030,9 @@ pub struct MicroWorld {
     punches: Vec<Punch>,
     backoff: BTreeMap<(usize, usize), f64>,
     mail: Vec<Held>,
+    unread: Vec<Unread>,
+    /// Every message to a person, as it becomes readable (None: not logged; reports and witnesses set Some).
+    pub read_log: Option<Vec<ReadRecord>>,
     link_index: BTreeMap<(usize, usize, LinkKind), usize>,
     /// Index of the CI provider's QA maintainer household's home node (receives test rows).
     pub qa_peer: u32,
@@ -1110,6 +1218,8 @@ impl MicroWorld {
             punches: Vec::new(),
             backoff: BTreeMap::new(),
             mail: Vec::new(),
+            unread: Vec::new(),
+            read_log: None,
             link_index: BTreeMap::new(),
             qa_peer: NONE,
             runs: 0,
@@ -2143,20 +2253,15 @@ impl MicroWorld {
             let kind = self.nodes[i].kind;
             match kind {
                 HostKind::Phone => {
+                    // whether a phone can RECEIVE is the device's own duty cycle (mobile_offline_share,
+                    // phone_asleep_mean_s), day and night alike, for every phone: a real phone stays powered and on
+                    // the network while its owner sleeps. The person's day gates sending (generate) and reading
+                    // (track_reads), not reception. The chain has no day-night difference: none is assumed.
                     let awake = self.nodes[i].awake;
-                    // where the person has a generated day (the presence tint), the phone is on while they are awake
-                    // and off while they sleep: reachability follows the person, as sending already does; elsewhere
-                    // the flat on-off chain (mobile_offline_share) stays. The chain's draw is still taken so the other
-                    // draws keep their order.
-                    let flat_off = awake && self.rng.chance(leave_probability(dt, awake_mean));
-                    let flat_on = !awake && self.rng.chance(leave_probability(dt, asleep_mean));
-                    match self.person_day_awake(i) {
-                        Some(true) if !awake => self.resume(i),
-                        Some(false) if awake => self.suspend(i),
-                        Some(_) => {}
-                        None if flat_off => self.suspend(i),
-                        None if flat_on => self.resume(i),
-                        None => {}
+                    if awake && self.rng.chance(leave_probability(dt, awake_mean)) {
+                        self.suspend(i);
+                    } else if !awake && self.rng.chance(leave_probability(dt, asleep_mean)) {
+                        self.resume(i);
                     }
                     let um = self.nodes[i].unmetered;
                     let mean = if um { wifi_mean } else { cell_mean };
@@ -2358,7 +2463,9 @@ impl MicroWorld {
                 _ if holder != dst && self.nodes[holder].household.is_some() && self.nodes[holder].household == self.nodes[dst].household => self.stats.held_home += 1,
                 _ => self.stats.held_other += 1,
             }
-            self.mail.push(Held { src, dst, holder, since: t });
+            let reader = self.reader_awake(dst);
+            let awake_at = if reader == Some(true) { t } else { f64::NAN };
+            self.mail.push(Held { src, dst, holder, since: t, person: reader.is_some(), dev_on: f64::NAN, awake_at });
             self.nodes[holder].holding += 1;
             self.nodes[dst].pending += 1;
             self.stats.mailboxed += 1;
@@ -2371,6 +2478,12 @@ impl MicroWorld {
             return Route::Mailboxed;
         }
         self.stats.at_once += 1;
+        // the reading clock: delivered now; readable now if the person is awake, else at their next waking moment
+        match self.reader_awake(dst) {
+            Some(true) => self.read_done(Unread { dst, since: t, delivered: t, dev_on: t, awake_at: t }, t),
+            Some(false) => self.unread.push(Unread { dst, since: t, delivered: t, dev_on: t, awake_at: f64::NAN }),
+            None => {}
+        }
         if self.nodes[dst].kind == HostKind::ServeSeat {
             self.stats.federation += 1;
             let shaped = self.carry(src, dst);
@@ -2516,6 +2629,15 @@ impl MicroWorld {
         let t = self.t;
         let mut i = 0;
         while i < self.mail.len() {
+            if self.mail[i].person {
+                let d = self.mail[i].dst;
+                if self.mail[i].dev_on.is_nan() && self.nodes[d].online(t) {
+                    self.mail[i].dev_on = t;
+                }
+                if self.mail[i].awake_at.is_nan() && self.reader_awake(d) == Some(true) {
+                    self.mail[i].awake_at = t;
+                }
+            }
             let h = self.mail[i];
             if self.nodes[h.dst].online(t) && self.nodes[h.holder].online(t) {
                 self.mail.swap_remove(i);
@@ -2544,11 +2666,78 @@ impl MicroWorld {
                 }
                 self.stats.hold_hist[((wait / 1800.0) as usize).min(HOLD_BINS - 1)] += 1;
                 self.stats.late += u64::from(wait > self.params.get(P::LateHoldS));
+                if h.person {
+                    let u = Unread { dst: h.dst, since: h.since, delivered: t, dev_on: h.dev_on, awake_at: h.awake_at };
+                    if self.reader_awake(h.dst) == Some(true) {
+                        self.read_done(u, t);
+                    } else {
+                        self.unread.push(u);
+                    }
+                }
                 self.record(MsgEvent { t, src: h.holder, dst: h.dst, via, via2, route: Route::MailDelivered, shaped });
             } else {
                 i += 1;
             }
         }
+        // delivered, not yet read: readable at the person's first waking moment
+        let mut j = 0;
+        while j < self.unread.len() {
+            let u = self.unread[j];
+            if self.reader_awake(u.dst) == Some(true) {
+                self.unread.swap_remove(j);
+                self.read_done(u, t);
+            } else {
+                j += 1;
+            }
+        }
+    }
+
+    /// Whether node `i` is a person's device (a phone or laptop) and its person is awake now (None: not a person's
+    /// device, or no people's days here, so there is no reading clock).
+    fn reader_awake(&self, i: usize) -> Option<bool> {
+        if !matches!(self.nodes[i].kind, HostKind::Phone | HostKind::Laptop) {
+            return None;
+        }
+        self.person_awake(i).map(|p| p.0)
+    }
+
+    /// A message to a person becomes readable at `t`: the person is awake and the message is on their device.
+    fn read_done(&mut self, u: Unread, t: f64) {
+        let awake_at = if u.awake_at.is_nan() { t } else { u.awake_at };
+        let st = &mut self.stats;
+        st.reads += 1;
+        st.added_device.add(u.delivered - u.dev_on);
+        st.added_awake.add(t - awake_at);
+        st.until_awake.add(awake_at - u.since);
+        st.until_readable.add(t - u.since);
+        if let Some(log) = self.read_log.as_mut() {
+            log.push(ReadRecord { dst: u.dst, sent: u.since, dev_on: u.dev_on, delivered: u.delivered, awake_at, readable: t });
+        }
+    }
+
+    /// Messages to a person not yet readable: still held, or delivered while the person sleeps.
+    #[must_use]
+    pub fn reads_open(&self) -> (usize, usize) {
+        (self.mail.iter().filter(|h| h.person).count(), self.unread.len())
+    }
+
+    /// Adults (persons with a generated day) in the street's households that run CIRIS, and how many of them hold no
+    /// smartphone as the twin assigns the device generator's phones to persons (`from_leaf_with`); None without days.
+    #[must_use]
+    pub fn adults_without_smartphone(&self) -> Option<(usize, usize)> {
+        let pr = self.presence.as_ref()?;
+        let (mut adults, mut without) = (0, 0);
+        for (h, d) in pr.days.iter().enumerate() {
+            let hh = &self.households[h];
+            if !hh.adopting || hh.nodes.is_empty() {
+                continue;
+            }
+            for o in 0..d.len() {
+                adults += 1;
+                without += usize::from(!hh.nodes.iter().any(|&j| self.nodes[j].kind == HostKind::Phone && usize::from(self.nodes[j].owner) == o));
+            }
+        }
+        Some((adults, without))
     }
 
     /// Drive the street's devices from its people (the presence tint): only inside the United States under
@@ -2568,17 +2757,13 @@ impl MicroWorld {
         } else {
             None
         };
-    }
-
-    /// Whether node `i`'s person has a generated day and is awake in it now (None: no presence, no household, or a
-    /// device with no person's day, such as a child's, which keeps the flat chain for reachability).
-    #[must_use]
-    pub fn person_day_awake(&self, i: usize) -> Option<bool> {
-        let pr = self.presence.as_ref()?;
-        let n = &self.nodes[i];
-        let st = pr.days.get(n.household?)?.get(usize::from(n.owner))?;
-        let slot = ((self.local_hour() - 4.0).rem_euclid(24.0)) as usize % 24;
-        Some(crate::street_rhythm::is_awake(st[slot]))
+        if self.presence.is_none() {
+            // no people's days: no reading clock
+            self.unread.clear();
+            for h in &mut self.mail {
+                h.person = false;
+            }
+        }
     }
 
     /// Hold-time readout: quartiles of delivered held rows' waits (seconds, half-hour resolution) and how many rows
@@ -3161,32 +3346,122 @@ mod tests {
         assert!(f != NONE && f2 == NONE || w.nodes[a].household == w.nodes[b].household);
     }
 
-    /// MESH-0 (a): where a person has a generated day, their phone is reachable exactly while they are awake (it was the
-    /// flat on-off chain, so a sleeping person's phone stayed reachable and an awake one dropped at random).
-    #[test]
-    fn a_phone_is_reachable_while_its_person_is_awake() {
+    /// The Columbus street of the street_rhythm reports (one leaf, people's days drawn), at `hour` local time.
+    fn columbus(hour: f64) -> MicroWorld {
         use crate::tiling::{HolonId, LeafContext, LeafLayout};
-        for hour in [3.0, 13.0] {
-            let mut p = MicroParams::default();
-            p.set(P::StartLocalHour, hour);
-            let leaf = LeafLayout::build(HolonId::at(8, 40.06, -83.05), &LeafContext { budget: 40, chain: [3_000; 11], ..LeafContext::default() }, &p);
-            let dwellings: usize = leaf.buildings.iter().map(|b| usize::from(b.units)).sum();
-            let sizes: Vec<u8> = (0..dwellings).map(|i| 1 + (i % 4) as u8).collect();
-            let mut w = MicroWorld::from_leaf_with(&leaf, p, sizes, Some(DeviceRule { home_node_where: HOME_ON_GATEWAY, in_country: true }));
-            w.set_presence(7, 1);
+        let mut p = MicroParams::default();
+        p.set(P::StartLocalHour, hour);
+        let leaf = LeafLayout::build(HolonId::at(8, 40.06, -83.05), &LeafContext { budget: 40, chain: [3_000; 11], ..LeafContext::default() }, &p);
+        let dwellings: usize = leaf.buildings.iter().map(|b| usize::from(b.units)).sum();
+        let sizes: Vec<u8> = (0..dwellings).map(|i| 1 + (i % 4) as u8).collect();
+        let mut w = MicroWorld::from_leaf_with(&leaf, p, sizes, Some(DeviceRule { home_node_where: HOME_ON_GATEWAY, in_country: true }));
+        w.set_presence(7, 1);
+        w
+    }
+    /// Whether `w`'s person behind device `i` (one with a generated day) is awake at sim time `t`.
+    fn awake_at(w: &MicroWorld, i: usize, t: f64) -> Option<bool> {
+        let pr = w.presence.as_ref()?;
+        let n = &w.nodes[i];
+        let st = pr.days.get(n.household?)?.get(usize::from(n.owner))?;
+        let hour = (w.params.get(P::StartLocalHour) + t / 3600.0).rem_euclid(24.0);
+        Some(crate::street_rhythm::is_awake(st[((hour - 4.0).rem_euclid(24.0)) as usize % 24]))
+    }
+
+    /// Delivery is the device's, not the person's: at 3 a.m. a phone whose person sleeps stays on by its own duty cycle
+    /// (on 0.85 of the time, mobile_offline_share), and a message to it is taken at once. (Red under the rule that took a
+    /// phone off the network whenever its person slept.)
+    #[test]
+    fn a_powered_phone_receives_while_its_person_sleeps() {
+        let mut w = columbus(3.0);
+        w.quiet = true;
+        w.step(RESUME_ANNOUNCE_WAIT_S + 4.0);
+        let sleepers: Vec<usize> = (0..w.nodes.len()).filter(|&i| w.nodes[i].kind == HostKind::Phone && !w.nodes[i].pinned && awake_at(&w, i, w.t) == Some(false)).collect();
+        let on: Vec<usize> = sleepers.iter().copied().filter(|&i| w.nodes[i].online(w.t)).collect();
+        assert!(sleepers.len() > 10, "{} phones of sleeping people", sleepers.len());
+        assert!(on.len() * 10 >= sleepers.len() * 7, "3 a.m.: {} of {} phones of sleeping people on", on.len(), sleepers.len());
+        let dst = on[0];
+        let src = (0..w.nodes.len()).find(|&i| i != dst && w.nodes[i].kind == HostKind::Phone && w.nodes[i].online(w.t) && w.nodes[i].household != w.nodes[dst].household).expect("a sender");
+        assert_ne!(w.send(src, dst), Route::Mailboxed, "taken at once by the sleeping person's phone");
+    }
+
+    /// Reading is the person's: over a night and a day of the street's own traffic, every message to a person becomes
+    /// readable at a moment its addressee is awake, never earlier than delivery or than their next waking moment; and
+    /// some were delivered while the addressee slept (the reading clock is not the delivery clock).
+    #[test]
+    fn nothing_is_readable_while_its_person_sleeps() {
+        let mut w = columbus(21.0);
+        w.read_log = Some(Vec::new());
+        for _ in 0..30 * 60 {
+            w.step(60.0);
+        }
+        let log = w.read_log.take().unwrap_or_default();
+        assert!(log.len() > 500, "{} messages to people read", log.len());
+        let mut asleep_delivered = 0;
+        for r in &log {
+            assert!(r.sent <= r.dev_on && r.dev_on <= r.delivered && r.delivered <= r.readable && r.sent <= r.awake_at && r.awake_at <= r.readable, "{r:?}");
+            if let Some(a) = awake_at(&w, r.dst, r.readable) {
+                assert!(a, "readable while asleep: {r:?}");
+                asleep_delivered += usize::from(r.delivered < r.readable);
+            }
+        }
+        assert!(asleep_delivered > 20, "{asleep_delivered} messages delivered while the addressee slept");
+        assert_eq!(w.stats.reads as usize, log.len());
+    }
+
+    /// The wait the mesh adds is zero when a holder that is on can pass the message at the addressee's next available
+    /// moment, under both meanings: sent at night to a sleeping person whose phone is off, held at the household's home
+    /// node, delivered the moment the phone is on (before they wake), readable the moment they wake. With the holder off
+    /// when the phone comes on, the device meaning counts the wait (the measure is not zero by construction).
+    #[test]
+    fn the_mesh_adds_nothing_when_an_on_holder_can_pass_it() {
+        for holder_off in [false, true] {
+            let mut w = columbus(23.0);
             w.quiet = true;
             w.step(RESUME_ANNOUNCE_WAIT_S + 4.0);
-            let mut n = 0;
-            for i in 0..w.nodes.len() {
-                if w.nodes[i].kind != HostKind::Phone || w.nodes[i].pinned {
-                    continue;
-                }
-                if let Some(awake) = w.person_day_awake(i) {
-                    assert_eq!(w.nodes[i].awake, awake, "hour {hour}: phone {i} follows its person");
-                    n += 1;
-                }
+            // a phone of a sleeping person whose household has a home node, and a sender elsewhere
+            let (dst, home) = (0..w.nodes.len())
+                .filter(|&i| w.nodes[i].kind == HostKind::Phone && awake_at(&w, i, w.t) == Some(false))
+                .find_map(|i| {
+                    let h = w.nodes[i].household?;
+                    w.households[h].nodes.iter().copied().find(|&j| w.nodes[j].kind == HostKind::HomeNode).map(|j| (i, j))
+                })
+                .expect("a sleeping person's phone with a home node");
+            // their waking: the first hour slot they are awake in, from now
+            let wake = (0..48).map(|k| w.t + f64::from(k) * 3600.0).find(|&t| awake_at(&w, dst, t) == Some(true)).expect("wakes");
+            let wake = (wake / 3600.0).floor() * 3600.0; // slots start on the hour (the street starts at 23:00)
+            let src = (0..w.nodes.len()).find(|&i| w.nodes[i].household != w.nodes[dst].household && w.nodes[i].kind == HostKind::HomeNode).expect("a sender");
+            w.pin(home, true, true, true);
+            w.pin(src, true, true, true);
+            w.pin(dst, false, true, false);
+            w.read_log = Some(Vec::new());
+            w.step(RESUME_ANNOUNCE_WAIT_S + 4.0);
+            assert_eq!(w.send(src, dst), Route::Mailboxed, "held: the phone is off");
+            w.step(1800.0);
+            if holder_off {
+                w.pin(home, false, true, false);
             }
-            assert!(n > 10, "{n} phones with a person's day");
+            // the phone comes on an hour before its person wakes
+            while w.t < wake - 3600.0 {
+                w.step(60.0);
+            }
+            w.pin(dst, true, true, false);
+            w.step(RESUME_ANNOUNCE_WAIT_S + 60.0);
+            if holder_off {
+                w.step(1800.0);
+                w.pin(home, true, true, true);
+            }
+            while w.read_log.as_ref().is_some_and(Vec::is_empty) && w.t < wake + 6.0 * 3600.0 {
+                w.step(60.0);
+            }
+            let r = w.read_log.as_ref().and_then(|l| l.first().copied()).expect("read");
+            if holder_off {
+                assert!(r.delivered - r.dev_on >= 1700.0, "the holder was off when the phone came on: {r:?}");
+            } else {
+                assert_eq!(r.delivered, r.dev_on, "delivered the moment the phone is on: {r:?}");
+                assert!(r.delivered < r.awake_at, "delivered while the person slept: {r:?}");
+                assert_eq!(r.readable, r.awake_at, "readable the moment they wake: {r:?}");
+                assert_eq!((w.stats.added_device.zero, w.stats.added_awake.zero), (1, 1));
+            }
         }
     }
 

@@ -927,8 +927,8 @@ pub extern "C" fn micro_energy() -> u32 {
 
 /// The street's deliveries so far (MESH-0's readings, counted by the engine): holon buffer 0 gets [1, sent, taken at once,
 /// held at a home device, held at a seat, held elsewhere, held rows delivered, hold-time quartiles q1 q2 q3 (s, half-hour
-/// resolution), delivered late, still held past the bound, late_hold_s, relayed, relayed via a seat, reachability from
-/// people's days (1) or the flat chain (0), then the shares of held rows delivered under 1, 4, 8 and 24 h]. [0] with no world.
+/// resolution), delivered late, still held past the bound, late_hold_s, relayed, relayed via a seat, people's days in
+/// force (1: they lead sending and reading; reception is every device's own duty cycle either way) or not (0), then the shares of held rows delivered under 1, 4, 8 and 24 h]. [0] with no world.
 #[no_mangle]
 pub extern "C" fn micro_hold_stats() -> u32 {
     let h = holon();
@@ -938,7 +938,22 @@ pub extern "C" fn micro_hold_stats() -> u32 {
     h.out = vec![1.0, st.sent as f64, st.at_once as f64, st.held_home as f64, st.held_seat as f64, st.held_other as f64, st.mail_delivered as f64,
         q[0], q[1], q[2], st.late as f64, still as f64, w.params.get(MicroP::LateHoldS), st.relayed as f64, st.relayed_via_seat as f64, f64::from(u8::from(w.presence.is_some()))];
     h.out.extend(w.hold_shares_under(&[1.0, 4.0, 8.0, 24.0])); // 16..19: shares of held rows delivered under 1, 4, 8, 24 h
-    20
+    // 20..: the reading clock (messages to a person's phone or laptop, where people have days): read so far, still held,
+    // delivered while the person sleeps; then the wait the mesh adds beyond the addressee's next available moment, for
+    // "a device of theirs is on" (23..26) and "they are awake" (27..30), each as [share zero, median s, 90th s, share
+    // over 8 h]; sleep, from sending to their next waking (31..33: share awake when sent, median s, share over 8 h);
+    // sending to readable (34, 35: median s, share over 8 h); adults in the street's CIRIS households and those with no
+    // smartphone as assigned (36, 37; -1 without days)
+    let (held_p, unread) = w.reads_open();
+    h.out.extend([st.reads as f64, held_p as f64, unread as f64]);
+    for wh in [&st.added_device, &st.added_awake] {
+        h.out.extend([wh.zero_share(), wh.quantile(0.5), wh.quantile(0.9), wh.share_over(8.0 * 3600.0)]);
+    }
+    h.out.extend([st.until_awake.zero_share(), st.until_awake.quantile(0.5), st.until_awake.share_over(8.0 * 3600.0)]);
+    h.out.extend([st.until_readable.quantile(0.5), st.until_readable.share_over(8.0 * 3600.0)]);
+    let (ad, none) = w.adults_without_smartphone().map_or((-1.0, -1.0), |(a, n)| (a as f64, n as f64));
+    h.out.extend([ad, none]);
+    38
 }
 
 /// The engine's day curve (`workload::diurnal_multiplier`, model.diurnal.v1) at local hour `hour`: the Data map reads the

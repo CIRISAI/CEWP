@@ -160,7 +160,7 @@ mod tests {
             w.set_presence(7, 1);
             assert_eq!(w.presence.is_some(), in_country);
             w.step(4.0);
-            // a phone whose person sleeps is offline (it follows its person's day), so count offline or asleep
+            // a phone whose person sleeps stays on by its own cycle and shows asleep (the person); count offline or shown asleep
             let phones: Vec<_> = w.nodes.iter().filter(|n| n.kind == HostKind::Phone && n.household.is_some()).collect();
             let resting = phones.iter().filter(|n| !n.awake || n.activity == Activity::Asleep).count();
             let awake_asleep = phones.iter().filter(|n| n.awake && n.activity == Activity::Asleep).count();
@@ -363,6 +363,81 @@ mod tests {
             let r = mesh0_read(c); let s = m0_summary(&r);
             println!("{name}: sent {}, at once {:.3}, held {} (delivered {}), waits {:.1} / {:.1} / {:.1} h, over 8 h {:.3}; adults with no phone {:.3}",
                 r.0[0], s[0], r.0[2], r.0[3], s[1], s[2], s[3], s[4], r.2);
+        }
+    }
+
+    /// The reading clock on the Columbus street (CIRISHolon's US household sizes, one generated Tuesday, each person's
+    /// day leading sending): every message to a person sent over the day, followed until readable (the street keeps
+    /// running, traffic and all, for up to 72 h more). `same_day`: the following days repeat the first day's people
+    /// instead of an independently drawn day (the page draws a new day each local day). Prints delivery (taken at once,
+    /// held waits until delivery), reading (sending to readable), the wait the mesh adds under both meanings, sleep, and
+    /// the street's adults with no smartphone (a report: cargo test -p cewp-sim reading_clock_table -- --ignored --nocapture).
+    fn reading_clock(same_day: bool) -> (Vec<crate::micro::ReadRecord>, usize, (usize, usize), Vec<bool>) {
+        use crate::micro::P;
+        let p = { let mut p = MicroParams::default(); p.set(P::StartLocalHour, 4.0); p };
+        let leaf = LeafLayout::build(HolonId::at(8, 40.06, -83.05), &LeafContext { budget: 40, chain: [3_000; 11], ..LeafContext::default() }, &p);
+        let dwellings: usize = leaf.buildings.iter().map(|b| usize::from(b.units)).sum();
+        let class = crate::popchain::households::holon_class(3_000.0);
+        let drawn = holon_scene::household::generate(0x00C0_1B05, (dwellings as u64) * 3, class, holon_scene::household::Reference::UnitedStates2024, true).sizes;
+        let sizes: Vec<u8> = (0..dwellings).map(|i| drawn[i % drawn.len().max(1)]).collect();
+        let mut w = MicroWorld::from_leaf_with(&leaf, p, sizes, Some(DeviceRule { home_node_where: HOME_ON_GATEWAY, in_country: true }));
+        w.set_presence(7, 1);
+        let nophone = w.adults_without_smartphone().unwrap_or((0, 0));
+        w.read_log = Some(Vec::new());
+        let day = 86_400.0;
+        // the day's sending, then the street keeps running with no new messages (nothing in delivery depends on load)
+        // until every message is readable or three more days have passed
+        for d in 1..=4u32 {
+            while w.t < day * f64::from(d) {
+                w.step(60.0);
+                let (a, b) = w.reads_open();
+                if d > 1 && a + b == 0 {
+                    break;
+                }
+            }
+            w.quiet = true;
+            if !same_day {
+                w.set_presence(7 + u64::from(d), 1 + d as usize);
+            }
+        }
+        let (a, b) = w.reads_open();
+        let log: Vec<_> = w.read_log.take().unwrap_or_default();
+        assert!(log.iter().all(|r| r.sent < day));
+        let laptop = w.nodes.iter().map(|n| n.kind == crate::micro::HostKind::Laptop).collect();
+        (log, a + b, nophone, laptop)
+    }
+
+    #[test]
+    #[ignore = "a report, not a check"]
+    fn reading_clock_table() {
+        for same_day in [false, true] {
+            let (log, still, (adults, none), laptop) = reading_clock(same_day);
+            let hours = |v: &mut Vec<f64>| { v.sort_by(f64::total_cmp); v.clone() };
+            let q = |v: &[f64], f: f64| if v.is_empty() { 0.0 } else { v[((f * v.len() as f64).ceil() as usize).clamp(1, v.len()) - 1] / 3600.0 };
+            let over = |v: &[f64], h: f64| v.iter().filter(|&&x| x > h * 3600.0).count() as f64 / v.len().max(1) as f64;
+            let zero = |v: &[f64]| v.iter().filter(|&&x| x <= 1e-6).count() as f64 / v.len().max(1) as f64;
+            let n = log.len();
+            let at_once = log.iter().filter(|r| r.delivered <= r.sent).count();
+            let mut held: Vec<f64> = log.iter().filter(|r| r.delivered > r.sent).map(|r| r.delivered - r.sent).collect();
+            let mut readable: Vec<f64> = log.iter().map(|r| r.readable - r.sent).collect();
+            let mut readable_held: Vec<f64> = log.iter().filter(|r| r.readable > r.sent).map(|r| r.readable - r.sent).collect();
+            let mut dev: Vec<f64> = log.iter().map(|r| r.delivered - r.dev_on).collect();
+            let mut awk: Vec<f64> = log.iter().map(|r| r.readable - r.awake_at).collect();
+            let mut sleep: Vec<f64> = log.iter().map(|r| r.awake_at - r.sent).collect();
+            let (held, readable, readable_held, dev, awk, sleep) = (hours(&mut held), hours(&mut readable), hours(&mut readable_held), hours(&mut dev), hours(&mut awk), hours(&mut sleep));
+            println!("{}: messages to people sent over the day {n} (still open at the end {still}); adults with no smartphone {none} of {adults} ({:.3})",
+                if same_day { "second day = the same day again" } else { "second day drawn independently (the page)" }, none as f64 / adults.max(1) as f64);
+            println!("  delivery: taken at once {:.3}; held {}: until delivered median {:.2} h, over 8 h {:.3} of held", at_once as f64 / n.max(1) as f64, held.len(), q(&held, 0.5), over(&held, 8.0));
+            println!("  readable: at once {:.3}; all: median {:.2} h, over 8 h {:.3}; not at once ({}): median {:.2} h, over 8 h {:.3}",
+                1.0 - readable_held.len() as f64 / n.max(1) as f64, q(&readable, 0.5), over(&readable, 8.0), readable_held.len(), q(&readable_held, 0.5), over(&readable_held, 8.0));
+            println!("  mesh adds, a device of theirs is on: none {:.3}, median {:.2} h, 90th {:.2} h, over 8 h {:.4}", zero(&dev), q(&dev, 0.5), q(&dev, 0.9), over(&dev, 8.0));
+            println!("  mesh adds, they are awake: none {:.3}, median {:.2} h, 90th {:.2} h, over 8 h {:.4}", zero(&awk), q(&awk, 0.5), q(&awk, 0.9), over(&awk, 8.0));
+            for (name, lap) in [("phones", false), ("laptops", true)] {
+                let v: Vec<f64> = log.iter().filter(|r| laptop[r.dst] == lap).map(|r| r.readable - r.awake_at).collect();
+                println!("    mesh adds (they are awake), to {name}: {} messages, none {:.3}, over 1 h {:.3}, over 8 h {:.4}", v.len(), zero(&v), over(&v, 1.0), over(&v, 8.0));
+            }
+            println!("  sleep: sent while awake {:.3}; until awake median {:.2} h, over 8 h {:.3}; of the asleep: median {:.2} h",
+                zero(&sleep), q(&sleep, 0.5), over(&sleep, 8.0), { let a: Vec<f64> = sleep.iter().copied().filter(|&x| x > 1e-6).collect(); q(&a, 0.5) });
         }
     }
 
