@@ -71,7 +71,7 @@ a{color:var(--green)}
   <p><b>Transport &amp; ALM Rules:</b> Link class agreement is the lower of the two offers (<code>min(local, peer)</code> per CC §5.4.3). Referrals rank by inbound dial count descending (reachability). Shaped links (<i>L</i> &le; 8) follow the 2026-11-06 rule (form with offering nodes and any node that asks <code>shaped_only</code> / Anonymous Tier; chat and files ride shaped links only when one end is <code>shaped_only</code>; 9th peer refused only on <code>shaped_only</code> nodes, running unshaped otherwise). Sybil resistance is trust gating (CC 1.13.3.3) and stated residual (CC 5.4.6), not link shaping. Sticky guards are kept while answering (<code>onion_tier_unavailable_floor</code> below relay floor). Proxy pull only proxies federation-tier rows (CC 5.4.6). <code>CONP</code> 15,296 B frames, 3&times;1,264 B onion headers, and TCP MDU 16,272 B / 500 are attributed to CIRISEdge v44. In CC §6.1.6 ALM, the stream key pins the single publisher at depth 0, the relay tree is strictly a member relay tree (seats/forwarders are never fan-out hubs per CC §5.4.6), <i>k</i>=8 and 50M-viewer figures are CEWP scaling model assumptions (<code>MODEL</code>), and <code>CLM-alm-live-tree-verified</code> is staged (CIRISEdge#945).</p>
 </footer>
 <script type="module">
-import { loadTables, Mesh } from "./kernel/kernel.js?v=3";
+import { loadTables, Mesh } from "./kernel/kernel.js?v=4";
 const [tr, gp] = await Promise.all([fetch("kernel/tables/transitions.json").then(r=>r.json()), fetch("kernel/tables/governance_policy.json").then(r=>r.json())]);
 const tables = loadTables(tr, gp);
 const C = {alice:"#2f5d50",bob:"#b5542d",carol:"#4a5fa0",dave:"#8a6d1f",erin:"#7a3f8a",frank:"#3f7a8a",nobody:"#8c8a84"};
