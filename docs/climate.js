@@ -213,6 +213,8 @@ function climateValue(lat, lon){
 const STATE = { want: false, state: "idle", code: null, share: null, count: null, err: null, k: { code: "idle", count: "idle" } };
 const STATE_FILES = ["us_state_cell.bin.gz", "us_state_cell_share.bin.gz", "us_state_cell_classed.bin.gz"], STATE_MIN_POINTS = 13;
 const STATE_WHY = ["its own", "no state table", "no state code here (small islands and the westernmost Aleutians are not on the map): the country's row", "fewer than 13 of 25 points in any state (coast or border): the country's row", "outside the twin's United States: no state", "water in the twin's land cover (a lake inside a state's outline carries its code): no state drawn"];
+// the same reasons in plain words for the street panel
+const STATE_PLAIN = ["", "the state map is not loaded", "this spot is not on the state map: small islands and the far Aleutians are left off it", "this spot is too close to a coast or border to say which state", "outside the United States", "this spot is water on the twin's map"];
 function stateMeta(){ return typeof HOLT !== "undefined" && HOLT.t && HOLT.t.region0 ? HOLT.t.region0 : null; }
 function stateLoad(){
   if (STATE.want) return; STATE.want = true;
@@ -251,8 +253,9 @@ function formLine(){
   // the state used for this street, by the twin's rules on REGION-0 (shown even though no generator reads it yet)
   if (M.lat0 > 15 && M.lat0 < 72 && (M.lon0 < -60 || M.lon0 > 170)) stateLoad();
   const st = stateAt(M.lat0, M.lon0);
-  const stRaw = !st ? "" : st.used ? `; state used for this street: ${st.name} (its own: ${st.points} of 25 points in a state, ${Math.round(st.whole * 100)}% of the cell in ${st.postal})` :
-    st.inUs ? `; state used for this street: none, the country's row (${STATE_WHY[st.why]}${st.raw ? "; the cell's code is " + stateMeta().data.states[st.raw].postal + " from " + st.points + " of 25 points" : ""})` : "";
+  // plain words: the state's name, or "none" and why; the pooling words wait for a generator that returns them
+  const stRaw = !st ? "" : st.used ? `; state for this street: ${st.name}` :
+    st.inUs ? `; state for this street: none, the United States as a whole is used (${STATE_PLAIN[st.why]})` : "";
   const stLine = stRaw && typeof fig === "function" ? fig("holon-region0", stRaw) : stRaw;
   // with no form table in the kernel every street reads the built-in rows; with one, the street's own record says which
   if (!f) return (v[1] ? "built form: this street's layout is not in the cache yet" : "built form: the built-in default (MODEL, visual rules: widths, storeys, setbacks by street class; no table of built form exists)") + stLine + (st ? " (state lines: Natural Earth, public domain, via CIRISHolon REGION-0)" : "");

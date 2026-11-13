@@ -454,8 +454,9 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   state only with 13 or more of 25 points in any state (2,064 coded cells have fewer: coast, Canada, Mexico), inside the
   twin's own United States mask and on its land; lake water inside a state's outline carries its code and the twin's land
   cover (no land pixel, or permanent water the majority) decides; US land with no code (small islands, the westernmost
-  Aleutians) and cells under the count fall back to the country's row, and the street panel says which ("state used for
-  this street: Ohio (its own) / none, the country's row"); DC is one cell; the winner's share of the whole cell is its
+  Aleutians) and cells under the count fall back to the country's row, and the street panel says which in plain words ("state
+  for this street: Ohio", or "none, the United States as a whole is used" with the reason; the pooling words wait for a
+  generator that returns them); DC is one cell; the winner's share of the whole cell is its
   points over 25, recovered from the share and the count. The grids load when a US street's panel is shown and go to the
   kernel's `state` and `state_count` slots; `door_leaf_key` applies the same rules per leaf (the leaf is on land by
   construction). region.test.js: the 50 labelled points of CIRISHolon's freeze read their state, each hazard, and the
