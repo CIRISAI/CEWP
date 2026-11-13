@@ -196,6 +196,30 @@ the media package's basis (a source read): integer µs/bytes engine, exact `Rng:
 iteration; the one transcendental (`f64::ln` in `BackgroundModel::next_gap_us`) runs only with household
 contention on, which the view scenario leaves off. A view with contention on may differ by an ulp in wasm.
 
+### Data maps at every zoom (docs/incell.js, docs/tiling.js)
+
+Each map in the layer strip (People, Awake, Data, Households, Power, Checked?, Climate) changes the picture at every zoom
+from the whole globe to one street. Before, the per-km2 maps were drawn only where the in-cell blocks fade in (3,000 to
+1,200 m a pixel); from about 400 m a pixel down the street tiling's mosaic, and below 26 m the leaves' ground, covered
+every map, Power and Climate included; at the globe only Awake (North America), Power and Climate drew.
+
+- Far out: one world texture of the same quantity per 1/8-degree cell, people per km2 from the population grid the page
+  already holds, log-scaled as the blocks scale their ~1 km pixels, so the two share one ramp and one unit and cross-fade
+  over the same band (incell.js WIDE, wideDraw). Built in idle slices after the grid loads (a few rows a slice), drawn
+  when whole; the United States and Germany painted from the admin-0 mask; each half-degree of longitude's local-hour
+  values (the awake share, the day curve) refreshed every half second. A peopled cell under the ramp's first value (100
+  per km2: most land at this scale, a cell's people spread over ~200 km2) is drawn at the ramp's bottom, faint.
+- One veil dims the land under any map at every zoom (dmVeil), so a map on never looks like Off.
+- Close up: the maps are drawn again over the tiling's mosaic, and over the leaves' ground in a second detail pass,
+  under arterials, streets, homes and roofs (tiling.js marks the leaves' ground in stencil bit 2; dmOverMosaic). The tint
+  over the leaves fades with the detail disc's own edge (DM_RING), so the rim is not tinted twice.
+- Legends say what is true at both scales: "per ~14 km cell from far away, per ~1 km square close up".
+
+Witness: tools/page/layer_zoom/run.py, over Columbus, Ohio, at 7,000, 1,500, 600, 100 and 10 m a pixel, each map against
+Off with the interface hidden: the share of the picture moved, the share moved to a lit colour the map can produce (its
+ramp or hatch over the Off picture or the veil), and the noise between two Off shots. On the tree before, red at 1440 and
+390 wide (People, Data, Households and Checked? at 7,000; every map at 100 and 10); green on this one at both widths.
+
 ## What the globe cannot say
 
 * The world the tick runs on is built in JavaScript (`buildWorld`) from the population grid. The
