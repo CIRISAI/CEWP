@@ -190,6 +190,7 @@ test("partition & re-merge convergence fuzzing: fold & queue permutation invaria
       holders: [...f.holders].sort(),
       nodesOf: [...f.nodesOf.entries()].map(([k, v]) => [k, [...v].sort()]),
       halt: f.halt,
+      inert: [...f.inert.keys()].sort(),
       queues,
     };
   };
@@ -214,21 +215,15 @@ test("partition & re-merge convergence fuzzing: fold & queue permutation invaria
     if (!baseline) baseline = snap;
     else assert.deepEqual(snap, baseline, `permutation ${i} diverged on jittered held fold/queue`);
 
-    // 2) Causal re-merge through door() in multi-hop retry passes (as in Mesh.tick)
+    // 2) The same rows through door(), each delivered ONCE in this permutation's order (rc19: the door keeps a row that
+    // waits for another, inert, and settles it when its cure arrives; no retry pass is needed)
     const doorHeld = new Map();
-    let pending = [...perm];
-    let passes = 0;
-    while (pending.length > 0 && passes < 6) {
-      passes++;
-      const retry = [];
-      for (const r of pending) {
-        const arrival = 10_000 + passes * 1000 + Math.floor(rng() * 900);
-        const s = door(doorHeld, tables, r, arrival);
-        if (!s.ok) retry.push(r);
-      }
-      pending = retry;
+    for (const r of perm) {
+      const s = door(doorHeld, tables, r, 10_000 + Math.floor(rng() * 900));
+      assert.ok(s.ok || s.inert, `permutation ${i}: ${r.id} kept (${s.refusal})`);
     }
-    assert.equal(pending.length, 0, `permutation ${i} admitted all ${allRows.length} rows via door() within ${passes} passes`);
+    assert.equal(doorHeld.size, allRows.length, `permutation ${i} keeps all ${allRows.length} rows`);
+    assert.equal(fold(doorHeld.values(), tables, evalNow).inert.size, 0, `permutation ${i}: every waiting row cured by the end`);
     const doorSnap = snapshotFoldAndQueue(doorHeld, evalNow);
     assert.deepEqual(doorSnap, baseline, `permutation ${i} diverged after door() admission passes`);
   }
@@ -322,8 +317,12 @@ test("churn, mobile sleep/wake & stranger refusal under partition healing", () =
   assert.ok(signChecked("alice-phone", makeRow({ family: "chat:*", verb: "recant", signer: "alice", object: "post:alpha:1", scope: { tier: "room", room: "room:alpha" } })).ok);
 
   // Stranger (mallory-phone) tries to post in room:alpha and withdraw bob's post: refused by both preview and door
-  assert.equal(signChecked("mallory-phone", makeRow({ family: "chat:*", verb: "attest", signer: "mallory", object: "post:mallory:1", scope: { tier: "room", room: "room:alpha" } })).ok, false);
-  assert.equal(signChecked("mallory-phone", makeRow({ family: "chat:*", verb: "withdraw", signer: "mallory", object: "post:alpha:2", scope: { tier: "room", room: "room:alpha" } })).ok, false);
+  // rc19: a row refused only for want of another row is kept inert on its signer's own node, with the row it waits for
+  const mp = signChecked("mallory-phone", makeRow({ family: "chat:*", verb: "attest", signer: "mallory", object: "post:mallory:1", scope: { tier: "room", room: "room:alpha" } }));
+  assert.equal(mp.ok, false); assert.equal(mp.inert, true); assert.equal(mp.missing.family, "group:roster", "it waits for room:alpha's roster");
+  const mw = signChecked("mallory-phone", makeRow({ family: "chat:*", verb: "withdraw", signer: "mallory", object: "post:alpha:2", scope: { tier: "room", room: "room:alpha" } }));
+  assert.equal(mw.ok, false); assert.equal(mw.inert, true);
+  const malloryRows = [mp.plan.row.id, mw.plan.row.id];
 
   m.tick();
   m.tick();
@@ -389,8 +388,10 @@ test("churn, mobile sleep/wake & stranger refusal under partition healing", () =
   for (const { row } of malloryNode.held.values()) {
     const isConsentFree = consentFreeFamilies.has(row.family) || (row.scope && row.scope.tier === "federation") || row.signer === "mallory";
     assert.equal(isConsentFree, true, `stranger mallory-phone must not hold private/room row ${row.id} (${row.family})`);
-    assert.notEqual(row.scope?.tier, "room", `stranger mallory-phone must never hold room-scoped row ${row.id}`);
+    // the only room rows a stranger holds are her own, inert there: concluding nothing and carried to nobody
+    if (row.scope?.tier === "room"){ assert.equal(row.signer, "mallory"); assert.ok(m.foldOf("mallory-phone").inert.has(row.id), `${row.id} is inert on mallory-phone`); }
   }
+  for (const [id, n] of m.nodes) if (id !== "mallory-phone") for (const r of malloryRows) assert.equal(n.held.has(r) || n.sealed.has(r), false, `${id} was never offered mallory's inert row ${r}`);
   assert.equal(m.foldOf("mallory-phone").rooms.size, 0, "stranger folds zero rooms");
 });
 
@@ -664,4 +665,69 @@ test("ranked choice: a person whose ballots disagree has none, and a tie for wea
   assert.equal(w1, w2); assert.equal(w1, "a");
   // the fold's call: ballots by person in any order
   assert.equal(irvFn([{ signer: "p1", ranking: ["a"] }, { signer: "p2", ranking: ["b"] }, { signer: "p3", ranking: ["b"] }, { signer: "p1", ranking: ["c"] }], "poll:f", OPTS), "b");
+});
+
+// ---------------------------------------------------------------- the door keeps (formal/KERNEL.md; CC 5.2 at 820a7a0)
+test("an inert row is offered to its signers only; the row it waits for reaches it only under that row's own audience, in every delivery order", () => {
+  const orders = [["seat", "alice-phone", "alice-laptop", "bob-phone", "carol-phone", "dave-phone"], ["dave-phone", "carol-phone", "bob-phone", "alice-laptop", "alice-phone", "seat"], ["bob-phone", "seat", "dave-phone", "alice-phone", "carol-phone", "alice-laptop"]];
+  const results = [];
+  for (const order of orders){
+    const m = new Mesh(tables), owner = { "seat": "nobody", "alice-phone": "alice", "alice-laptop": "alice", "bob-phone": "bob", "carol-phone": "carol", "dave-phone": "dave" };
+    for (const id of order) m.addNode(id, owner[id], id === "seat" ? "server" : "phone");
+    for (const id of order) if (id !== "seat") m.link(id, "seat");
+    m.link("alice-phone", "alice-laptop"); // a person's two devices see each other; an inert row cannot ride the seat
+    let n = 0; const row = (o) => ({ id: "w" + (++n), scope: { tier: "self" }, ...o }), room = { tier: "room", room: "room:1" };
+    for (const [node, p] of [["alice-phone", "alice"], ["bob-phone", "bob"], ["carol-phone", "carol"], ["dave-phone", "dave"]]) assert.ok(m.sign(node, row({ family: "key:record", verb: "attest", signer: p, object: "key:" + p })).ok);
+    for (let k = 0; k < 3; k++) m.tick();
+    assert.ok(m.sign("bob-phone", row({ family: "group:roster", verb: "attest", signer: "bob", object: "room:1", scope: room })).ok);
+    // carol and dave each post in room:1 before anyone admits them: kept inert on their own node, waiting for the roster
+    const cp = m.sign("carol-phone", row({ family: "chat:*", verb: "attest", signer: "carol", object: "post:carol", scope: room }));
+    const dp = m.sign("dave-phone", row({ family: "chat:*", verb: "attest", signer: "dave", object: "post:dave", scope: room }));
+    assert.ok(cp.inert && dp.inert); assert.equal(cp.missing.family, "group:roster");
+    // alice, not a member, posts on her phone while her laptop is linked: inert there, carried to her laptop only
+    const ap = m.sign("alice-phone", row({ family: "chat:*", verb: "attest", signer: "alice", object: "post:alice", scope: room }));
+    assert.ok(ap.inert);
+    // bob invites dave (dave is then a subject of a live proposal: in the roster's audience); carol is never invited
+    assert.ok(m.sign("bob-phone", row({ family: "membership:{stage}", verb: "attest", signer: "bob", object: "invite:dave", subject: "dave", scope: room })).ok);
+    for (let k = 0; k < 4; k++) m.tick();
+    { const y = m.sign("dave-phone", row({ family: "membership:{stage}", verb: "attest", signer: "dave", object: "invite:dave", subject: "dave", stance: "for", scope: room })); assert.ok(y.ok || y.inert, y.refusal); }
+    for (let k = 0; k < 6; k++) m.tick();
+    const fd = m.foldOf("dave-phone"), fc = m.foldOf("carol-phone");
+    // the waiter in the cure's audience is cured: dave's post is live on dave's node
+    assert.equal(fd.objects.get("post:dave")?.state, "admitted", "dave's waiting post is cured once the roster reaches him");
+    // the waiter outside it waits: carol never receives the roster, her post stays inert, naming it
+    assert.equal(m.nodes.get("carol-phone").held.has("w5"), false, "the roster never reaches carol");
+    assert.ok(fc.inert.has(cp.plan.row.id) && fc.inert.get(cp.plan.row.id).missing.family === "group:roster");
+    // inert rows went to their signers' nodes only: no member, no stranger, no seat (not even sealed)
+    for (const [id, node] of m.nodes){
+      const mine = owner[id];
+      for (const r of [cp.plan.row, ap.plan.row]) if (r.signer !== mine) assert.equal(node.held.has(r.id) || node.sealed.has(r.id), false, `${id} holds ${r.signer}'s inert ${r.id}`);
+    }
+    assert.ok(m.nodes.get("alice-laptop").held.has(ap.plan.row.id), "the signer's own other device holds it");
+    assert.ok(m.foldOf("alice-laptop").inert.has(ap.plan.row.id), "and it is inert there too");
+    results.push([fd.objects.get("post:dave")?.state, [...fc.inert.keys()].sort(), [...m.foldOf("bob-phone").objects.keys()].sort()]);
+  }
+  for (const r of results) assert.deepEqual(r, results[0], "the same outcome in every delivery order");
+});
+test("an inert row confers nothing, and a row bad on its own form is refused in every order", () => {
+  const held = new Map(); let t = 100;
+  const d = (r) => door(held, tables, { scope: { tier: "self" }, asserted_at: (t += 10), ...r }, t);
+  // zed has no key: zed's grant to himself, his room and his post are kept inert and confer nothing
+  assert.ok(d({ id: "z1", family: "trust:{job}:{version}", verb: "authorize", signer: "zed", object: "trust:steward:1" }).inert);
+  assert.ok(d({ id: "z2", family: "group:roster", verb: "attest", signer: "zed", object: "room:z", scope: { tier: "room", room: "room:z" } }).inert);
+  let f = fold(held.values(), tables, t);
+  assert.equal(f.rolesOf.get("zed"), undefined, "no standing from an inert row");
+  assert.equal(f.rooms.has("room:z"), false, "no room from an inert row");
+  assert.deepEqual([...f.inert.values()].map((v) => v.missing.family), ["key:record", "key:record"]);
+  // the cure arrives: both conclude
+  assert.ok(d({ id: "z0", family: "key:record", verb: "attest", signer: "zed", object: "key:zed" }).ok);
+  f = fold(held.values(), tables, t);
+  assert.equal(f.inert.size, 0); assert.ok(f.rolesOf.get("zed")?.has("steward")); assert.ok(f.rooms.has("room:z"));
+  // own form: malformed, a private family, a verb the family never takes, a transition nobody may sign
+  const bad = [{ id: "b1", family: "chat:*", verb: "attest", object: "post:b1" }, { id: "b2", family: "x_private:mine", verb: "attest", signer: "zed", object: "x:1" },
+    { id: "b3", family: "chat:*", verb: "authorize", signer: "zed", object: "post:b3" }, { id: "b4", family: "duty:{kind}", verb: "attest", signer: "zed", object: "duty:1" }];
+  for (let k = 0; k < 4; k++){ const h2 = new Map(); const order = bad.slice(k).concat(bad.slice(0, k)); const t0 = { t: 500 };
+    for (const r of [{ id: "k", family: "key:record", verb: "attest", signer: "zed", object: "key:zed" }, ...order]){ const s = door(h2, tables, { scope: { tier: "self" }, asserted_at: (t0.t += 10), ...r }, t0.t); if (r.id !== "k"){ assert.equal(s.ok, false); assert.ok(!s.inert, `${r.id} refused on its own form (${s.refusal})`); } }
+    assert.deepEqual([...h2.keys()], ["k"], "no row bad on its own form is held"); }
+  assert.equal(door(new Map(), tables, bad[0], 1).refusal, "malformed");
 });

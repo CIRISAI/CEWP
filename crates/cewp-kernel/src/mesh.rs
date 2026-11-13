@@ -142,9 +142,26 @@ impl Mesh {
         out
     }
 
+    /// THE CARRY RULE, in one function (CC 5.2 "What a row carries"; formal/causal_kernel/route.py at 820a7a0): who a node
+    /// may offer `row` to, and whether the row is inert there. An inert row carries nobody but its signers (no member,
+    /// stranger or seat); it waits for its cure, which reaches it only under the cure's own audience, by this rule applied
+    /// where the cure is held. A live row: `audience`. The same rule as docs/kernel/kernel.js `Mesh.carry`.
+    pub fn carry(&self, origin_node_id: &str, row: &Row) -> (Option<HashSet<String>>, bool) {
+        let Some(node) = self.nodes.get(origin_node_id) else { return (Some(HashSet::new()), false) };
+        let f = fold(&node.held, &self.tables, self.now);
+        if f.inert.contains_key(&row.id) {
+            return (Some(std::iter::once(row.signer.clone()).collect()), true);
+        }
+        (self.audience_in(&f, row), false)
+    }
+
     pub fn audience(&self, origin_node_id: &str, row: &Row) -> Option<HashSet<String>> {
         let node = self.nodes.get(origin_node_id)?;
         let f = fold(&node.held, &self.tables, self.now);
+        self.audience_in(&f, row)
+    }
+
+    fn audience_in(&self, f: &FoldState, row: &Row) -> Option<HashSet<String>> {
         let tier = row.scope.as_ref().map(|s| s.tier.as_str()).unwrap_or("self");
         let m = self.tables.match_family(&row.family);
         let fam_key = m.family.as_deref().unwrap_or(&row.family);
@@ -266,10 +283,13 @@ impl Mesh {
                         }
                     }
 
-                    let aud = self.audience(&origin, &row);
+                    let (aud, inert) = self.carry(&origin, &row);
                     let other_carrier = self.nodes[&nb].carrier;
                     let other_owner = self.nodes[&nb].owner.clone();
                     let other_id = self.nodes[&nb].id.clone();
+                    if inert && !aud.as_ref().is_some_and(|a| a.contains(&other_owner)) {
+                        continue; // an inert row goes to its signers only: no member, no seat
+                    }
 
                     if let Some(aud_set) = aud {
                         if !aud_set.contains(&other_owner) {
@@ -306,8 +326,8 @@ impl Mesh {
                         door(&mut other_node.held, &self.tables, &row, self.now)
                     };
 
-                    if s.is_ok() {
-                        self.nodes.get_mut(&node_id).unwrap().offered.insert(key);
+                    if s.is_ok() || s.as_ref().err().is_some_and(|r| r.is_waiting()) {
+                        self.nodes.get_mut(&node_id).unwrap().offered.insert(key); // kept, live or inert
                     }
                     moves.push(MeshMove {
                         from: node_id.clone(),

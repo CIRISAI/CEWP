@@ -30,7 +30,8 @@ pub fn irv_poll(poll: &str, ballots: &[Ballot]) -> Option<String> {
     crate::ranked::elect(poll, &rows, None, 3, 2)
 }
 
-pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
+/// The fold over rows already known live (each passed the door against the others); `fold` settles first.
+fn fold_live(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
     let mut rows: Vec<HeldRow> = held.to_vec();
     rows.sort_by(|a, b| {
         a.row
@@ -588,6 +589,7 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
         owners_of,
         attesters,
         now,
+        inert: HashMap::new(),
     }
 }
 
@@ -916,12 +918,127 @@ pub fn enabled(
     out
 }
 
+// ---------------------------------------------------------------- the door keeps (formal/KERNEL.md, rc19)
+// A row is kept on its own form and never refused because of another row: a refusal on its own form (malformed, an
+// unregistered or private family, a verb the family never takes, a transition nobody may sign, already held) stays a
+// refusal; one that depends on another row keeps the row INERT, concluding and conferring nothing, carried to nobody
+// but its signer, with a verdict naming the row that would cure it. Which held rows are live is a fixed point over the
+// held set (`settle`), the same in any arrival order. The same rule as docs/kernel/kernel.js.
+
+fn own_form_refusal(tables: &Tables, row: &Row) -> Option<Refusal> {
+    if [&row.id, &row.family, &row.verb, &row.signer, &row.object].iter().any(|s| s.is_empty()) {
+        return Some(Refusal::Other("malformed".to_string()));
+    }
+    let mut fam_key = row.family.clone();
+    if !tables.families.contains_key(&fam_key) {
+        let m = tables.match_family(&row.family);
+        if let Some(r) = m.refusal {
+            return Some(Refusal::from(r.as_str()));
+        }
+        if let Some(f) = m.family {
+            fam_key = f;
+        }
+    }
+    let is_vote = row.stance.is_some() || row.ranking.is_some() || matches!(row.verb.as_str(), "voice" | "assent" | "raised" | "object");
+    let ts: Vec<&Transition> = tables.families.get(&fam_key).map(|v| v.iter().filter(|t| t.verb == row.verb).collect()).unwrap_or_default();
+    if !is_vote && ts.is_empty() {
+        return Some(Refusal::NoTransition);
+    }
+    if !is_vote && ts.iter().all(|t| t.roles.is_empty()) {
+        return Some(Refusal::Closed);
+    }
+    None
+}
+
+fn cure_of(r: &Refusal, row: &Row) -> crate::types::Waiting {
+    let room = row.scope.as_ref().and_then(|s| s.room.clone()).unwrap_or_default();
+    let (family, missing) = match r {
+        Refusal::Unregistered => (Some("key:record"), format!("{}'s key record", row.signer)),
+        Refusal::NoSuchRoom => (Some("group:roster"), format!("the roster of {room}")),
+        Refusal::SubjectOutsideAudience => (Some("membership:{stage}"), format!("a seat in {room}")),
+        Refusal::NoStanding => (None, format!("a row giving {} standing to {} {}", row.signer, row.verb, row.object)),
+        Refusal::Halted => (Some("accord:invoke:constitutional:{halt_id}"), "the halt's lifting".to_string()),
+        Refusal::FamilyMismatch => (None, format!("none: {} is another family's object", row.object)),
+        other => (None, other.to_string()),
+    };
+    crate::types::Waiting { refusal: r.clone(), family: family.map(str::to_string), missing }
+}
+
+type Settled = (Vec<HeldRow>, HashMap<String, crate::types::Waiting>);
+thread_local! {
+    static SETTLED: std::cell::RefCell<HashMap<(u64, u64, usize), std::rc::Rc<Settled>>> = std::cell::RefCell::new(HashMap::new());
+}
+
+/// Which held rows are live (a fixed point: rows in instant order; a row whose check fails waits and is tried again
+/// after any other row becomes live) and the verdict of each inert one. Cached by the set and `now`.
+pub fn settle(held: &[HeldRow], tables: &Tables, now: u64) -> std::rc::Rc<Settled> {
+    use std::hash::{Hash, Hasher};
+    let mut rows: Vec<HeldRow> = held.to_vec();
+    rows.sort_by(|a, b| a.row.asserted_at.cmp(&b.row.asserted_at).then_with(|| a.row.id.cmp(&b.row.id)));
+    let mut hs = std::collections::hash_map::DefaultHasher::new();
+    for h in &rows {
+        h.row.id.hash(&mut hs);
+        h.first_held.hash(&mut hs);
+    }
+    let key = (hs.finish(), now, tables as *const Tables as usize);
+    if let Some(v) = SETTLED.with(|c| c.borrow().get(&key).cloned()) {
+        return v;
+    }
+    let mut live: Vec<HeldRow> = Vec::new();
+    let mut pending: Vec<(HeldRow, Option<Refusal>)> = rows.into_iter().map(|h| (h, None)).collect();
+    let mut progress = true;
+    while progress && !pending.is_empty() {
+        progress = false;
+        let mut next = Vec::new();
+        for (h, _) in pending {
+            match check_row(&live, tables, &h.row, now) {
+                Ok(_) => {
+                    live.push(h);
+                    progress = true;
+                }
+                Err(r) => next.push((h, Some(r))),
+            }
+        }
+        pending = next;
+    }
+    let inert = pending.into_iter().map(|(h, r)| {
+        let r = r.unwrap_or(Refusal::NoStanding);
+        (h.row.id.clone(), cure_of(&r, &h.row))
+    }).collect();
+    let v = std::rc::Rc::new((live, inert));
+    SETTLED.with(|c| {
+        let mut c = c.borrow_mut();
+        if c.len() > 256 {
+            c.clear();
+        }
+        c.insert(key, v.clone());
+    });
+    v
+}
+
+/// The fold of the held set: the live rows folded, the inert ones listed with their verdicts.
+pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
+    let s = settle(held, tables, now);
+    let mut f = fold_live(&s.0, tables, now);
+    f.inert = s.1.clone();
+    f
+}
+
+/// The door before it commits: Ok, or a refusal; `Refusal::is_waiting` says the row is kept inert (`door` holds it).
 pub fn step(held: &[HeldRow], tables: &Tables, row: &Row, now: u64) -> StepResult {
     if held.iter().any(|h| h.row.id == row.id) {
         return Err(Refusal::AlreadyHeld);
     }
+    if let Some(r) = own_form_refusal(tables, row) {
+        return Err(r);
+    }
+    let s = settle(held, tables, now);
+    check_row(&s.0, tables, row, now)
+}
 
-    let f = fold(held, tables, now);
+/// The door's check of one row against rows known live.
+fn check_row(held: &[HeldRow], tables: &Tables, row: &Row, now: u64) -> StepResult {
+    let f = fold_live(held, tables, now);
 
     // Resolve wire family
     let mut fam_key = row.family.clone();
@@ -1041,8 +1158,10 @@ pub fn commit(held: &mut Vec<HeldRow>, plan: Plan) {
 
 pub fn door(held: &mut Vec<HeldRow>, tables: &Tables, row: &Row, now: u64) -> StepResult {
     let s = step(held, tables, row, now);
-    if let Ok(plan) = &s {
-        commit(held, plan.clone());
+    match &s {
+        Ok(plan) => commit(held, plan.clone()),
+        Err(r) if r.is_waiting() => held.push(HeldRow { row: row.clone(), first_held: now }), // kept inert
+        Err(_) => {}
     }
     s
 }
@@ -1147,8 +1266,10 @@ pub fn preview(held: &[HeldRow], tables: &Tables, rows: &[Row], now: u64) -> Pre
         let ok = s.is_ok();
         let plan = s.as_ref().ok().cloned();
         let refusal = s.as_ref().err().map(|r| r.to_string());
-        if let Ok(plan) = s {
-            commit(&mut copy, plan);
+        match s {
+            Ok(plan) => commit(&mut copy, plan),
+            Err(r) if r.is_waiting() => copy.push(HeldRow { row: row.clone(), first_held: now }),
+            Err(_) => {}
         }
         verdicts.push(PreviewVerdict {
             row: row.id.clone(),
