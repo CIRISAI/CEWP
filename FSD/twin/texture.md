@@ -65,3 +65,30 @@ gone at 2. The luminance is multiplied by 1 + the sum:
 The mean colour comes from what the twin already holds: the land-cover class's ground colour (or the terrain band's)
 for the ground, the tree's own colour for canopy, the roof's colour or tone for roofs. It is off by default, behind the
 Advanced switch "ground texture: flat / procedural".
+
+## 4. Known limits
+
+**Precision on phones.** The street fragment shader asks for `highp` where `GL_FRAGMENT_PRECISION_HIGH` is defined and
+`mediump` otherwise. The vertex shader builds the grid coordinate `vN` in `highp`; the fragment stage receives it in its
+own precision.
+
+- **The range.** `uNO` is the world grid taken modulo 4,096 m in double precision, once per L3 tile. The vertex's offset in
+  the tile's frame is at most about 1.11 km, because an L3 tile is 0.02 degrees, about 2.23 km, across. So `vN` spans
+  about -1,115 to 5,210 m per fragment, which needs 13 integer bits.
+- **The bits the fine octaves need.** The 1 m (roof) and 1.5 m (canopy) octaves draw at 0.25 to 0.75 m a pixel. To
+  interpolate inside a cell they need a step of about a sixteenth of a cell, so about 17 bits of significand.
+  - `highp` (24 bits) gives about 0.5 mm.
+  - `mediump` as phones without `highp` implement it (fp16, 11 bits) gives 1 m steps at 1 to 2 km, 2 m at 2 to 4 km,
+    and 4 m above 4 km. The 1 m and 1.5 m octaves cannot be resolved anywhere on a tile, and the 3, 4 and 6 m
+    octaves become stairs.
+  - No split of the coordinate rescues `mediump`. A sixteenth of a metre needs a coordinate below about 128 m, and one
+    draw covers a whole L3 tile.
+- **The hash's argument overflows at `mediump`.** The lattice hash takes `sin` of up to about 91 x (4,096 / cell), which
+  exceeds fp16's largest value (65,504) for the 1, 1.5, 3 and 4 m octaves. The colour then goes to NaN: a dark or
+  garbage pixel, once that octave fades in. Under `highp` the same large arguments are computed with reduced accuracy on
+  some mobile GPUs: a risk of visible pattern in the hash, not a failure.
+- **What is not yet done:** hash `mod(i, m) / m`, a value in [0, 1), instead of the raw lattice index. `sin` would then
+  see at most about 91 on every device. This changes the rival's pattern but not its statistics, so its frames would be
+  taken again.
+- **The witnesses cannot see this.** The page witnesses run desktop Chrome, whose fragment stage is `highp` even under
+  mobile emulation, and desktop GPUs run `mediump` as fp32.
