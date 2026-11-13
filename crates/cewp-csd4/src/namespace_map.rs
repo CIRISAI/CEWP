@@ -552,7 +552,7 @@ mod tests {
 
         assert_eq!(map.summary.total_families, 184); // rc19 at 1da70f0 (rc17: 191 families, 474 transitions, 12 policies, 94 mapped); tools/kernel/remap_csd.mjs
         assert_eq!(map.summary.total_transitions, 459);
-        assert_eq!(map.summary.total_policies, 16);
+        assert_eq!(map.summary.total_policies, 18);
         assert_eq!(map.summary.total_csd_cards, 105);
         assert_eq!(map.summary.csd_mapped_families, 87);
         assert_eq!(map.summary.substrate_autonomous_families, 97);

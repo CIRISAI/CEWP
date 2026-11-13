@@ -104,6 +104,7 @@ mod tests {
         }
         let unknown: Vec<&str> = got.lines().filter(|l| l.starts_with("UNKNOWN ")).collect();
         assert!(unknown.is_empty(), "table shapes the parser does not know:\n{}", unknown.join("\n"));
+        assert!(!got.contains("unknown rule kind"), "a policy rule kind the parser does not know");
         assert_eq!(got, include_str!("unread_cells.txt"), "the unread cells changed: regenerate src/unread_cells.txt and read the diff");
     }
 
@@ -113,9 +114,10 @@ mod tests {
         let trace = &tables.story_trace;
         let steps = trace.get("steps").and_then(|s| s.as_array()).expect("steps array");
 
-        // rc17: 14 steps, 13 rows; rc19 (db3cacf): 96 steps, 68 rows. Every step's queue is checked (part A); the
+        // rc17: 14 steps, 13 rows; rc19: 96 steps (db3cacf), 98 steps and 69 rows (2fb305c, the owner binding before the
+        // node reports on itself). Every step's queue is checked (part A); the
         // door replay (part B) runs the first 13 rows, which rc19 keeps (row3, Bob's device, is identity:occurrence now)
-        assert!(steps.len() >= 96, "mesh_story_trace.json at rc19 has 96 steps");
+        assert!(steps.len() >= 98, "mesh_story_trace.json at rc19 2fb305c has 98 steps");
 
         let mut states: HashMap<String, String> = HashMap::new();
 
@@ -1926,6 +1928,15 @@ mod tests {
             "bob devices queue starts parity"
         );
 
+        // a room row's audience is the room's members at its own head (CC 5.2; route.py at 2fb305c): dave joined after
+        // the first two posts and is not offered them; every other room row of his time agrees with alice-phone's
+        let (dv, al) = (canon_fold("dave-phone", true), canon_fold("alice-phone", true));
+        let al_objs: Vec<_> = al.0.iter().filter(|o| o.0 != "post:alpha:1" && o.0 != "post:alpha:2").cloned().collect();
+        assert_eq!((dv.0.clone(), dv.1.clone()), (al_objs, al.1.clone()), "dave-phone matches alice-phone on every room row of his time");
+        for id in ["post:alpha:1", "post:alpha:2"] {
+            assert!(!m.fold_of("dave-phone").objects.contains_key(id), "dave-phone was never offered {id}");
+        }
+
         // Stranger isolation on mallory-phone
         let mallory_node = m.nodes.get("mallory-phone").unwrap();
         assert_eq!(mallory_node.sealed.len(), 0, "stranger phone never carries sealed rows");
@@ -2380,7 +2391,7 @@ mod tests {
             .and_then(|v| v.as_array())
             .expect("rule_vectors array in governance_policy_vectors.json");
 
-        assert!(rule_vectors.len() >= 180, "rc19 has 240 rule vectors (rc17 had 180)");
+        assert!(rule_vectors.len() >= 270, "rc19 at 2fb305c has 270 rule vectors (1da70f0 240, rc17 180)");
 
         for (idx, rv) in rule_vectors.iter().enumerate() {
             let family = rv.get("family").and_then(|v| v.as_str()).expect("family");
@@ -2547,6 +2558,103 @@ mod tests {
                 assert!(s.as_ref().err().is_some_and(|e| !e.is_waiting()), "{} refused on its own form: {s:?}", r.id);
             }
             assert_eq!(h2.len(), 1, "no row bad on its own form is held");
+        }
+    }
+
+
+    /// The same witness as docs/kernel/kernel.test.js: a later joiner is not offered earlier posts, a removed member still
+    /// receives the rows of her time and not later ones, the same rows held in every node order.
+    #[test]
+    fn a_room_row_is_for_the_members_at_its_own_head() {
+        let tables = Tables::load_vendored();
+        let owner = |id: &str| match id { "seat" => "nobody", "bob-phone" => "bob", "carol-phone" => "carol", "dave-phone" => "dave", _ => "erin" };
+        let orders = [
+            ["seat", "bob-phone", "carol-phone", "dave-phone", "erin-phone"],
+            ["erin-phone", "dave-phone", "carol-phone", "bob-phone", "seat"],
+            ["carol-phone", "seat", "erin-phone", "bob-phone", "dave-phone"],
+        ];
+        let mut out = Vec::new();
+        for order in orders {
+            let mut m = Mesh::new(tables.clone());
+            for id in order {
+                m.add_node(id, owner(id), if id == "seat" { "server" } else { "phone" });
+            }
+            for id in order {
+                if id != "seat" {
+                    m.link(id, "seat");
+                }
+            }
+            let rm = Some("room:h");
+            let mut n = 0;
+            let mut sign = |m: &mut Mesh, node: &str, mut r: Row| {
+                n += 1;
+                r.id = format!("h{n}");
+                let id = r.id.clone();
+                let s = m.sign(node, r);
+                assert!(s.is_ok(), "{node}: {s:?}");
+                id
+            };
+            for p in ["bob", "carol", "dave", "erin"] {
+                sign(&mut m, &format!("{p}-phone"), kr("", "key:record", "attest", p, &format!("key:{p}"), None, None, None));
+            }
+            for _ in 0..3 {
+                m.tick(1000);
+            }
+            sign(&mut m, "bob-phone", kr("", "group:roster", "attest", "bob", "room:h", rm, None, None));
+            for p in ["carol", "dave"] {
+                sign(&mut m, "bob-phone", kr("", "membership:{stage}", "attest", "bob", &format!("invite:{p}"), rm, Some(p), None));
+            }
+            for _ in 0..4 {
+                m.tick(1000);
+            }
+            for p in ["carol", "dave"] {
+                sign(&mut m, &format!("{p}-phone"), kr("", "membership:{stage}", "attest", p, &format!("invite:{p}"), rm, Some(p), Some("for")));
+            }
+            for _ in 0..4 {
+                m.tick(1000);
+            }
+            m.unlink("carol-phone", "seat");
+            let p1 = sign(&mut m, "bob-phone", kr("", "chat:*", "attest", "bob", "post:h1", rm, None, None));
+            for _ in 0..3 {
+                m.tick(1000);
+            }
+            sign(&mut m, "bob-phone", kr("", "membership:{stage}", "attest", "bob", "invite:erin", rm, Some("erin"), None));
+            for _ in 0..4 {
+                m.tick(1000);
+            }
+            sign(&mut m, "erin-phone", kr("", "membership:{stage}", "attest", "erin", "invite:erin", rm, Some("erin"), Some("for")));
+            for _ in 0..4 {
+                m.tick(1000);
+            }
+            sign(&mut m, "bob-phone", kr("", "membership:{stage}", "withdraw", "bob", "invite:carol", rm, Some("carol"), None));
+            for _ in 0..3 {
+                m.tick(1000);
+            }
+            let p2 = sign(&mut m, "bob-phone", kr("", "chat:*", "attest", "bob", "post:h2", rm, None, None));
+            for _ in 0..3 {
+                m.tick(1000);
+            }
+            m.link("carol-phone", "seat");
+            for _ in 0..6 {
+                m.tick(1000);
+            }
+            let has = |node: &str, id: &str| m.nodes[node].held.iter().any(|h| h.row.id == id);
+            assert!(m.fold_of("bob-phone").rooms["room:h"].removed.contains("carol"));
+            assert!(has("carol-phone", &p1), "a removed member still receives a row of her time");
+            assert!(!has("carol-phone", &p2), "and not one signed after her removal");
+            assert!(!has("erin-phone", &p1), "a later joiner is not offered an earlier post");
+            assert!(has("erin-phone", &p2));
+            assert!(has("dave-phone", &p1) && has("dave-phone", &p2));
+            let mut held: Vec<(String, Vec<String>)> = m.nodes.iter().map(|(id, nd)| {
+                let mut v: Vec<String> = nd.held.iter().map(|h| h.row.id.clone()).collect();
+                v.sort();
+                (owner(id).to_string(), v)
+            }).collect();
+            held.sort();
+            out.push(held);
+        }
+        for o in &out {
+            assert_eq!(o, &out[0], "the same rows held in every node order");
         }
     }
 

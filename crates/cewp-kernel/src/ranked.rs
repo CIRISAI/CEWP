@@ -152,6 +152,71 @@ pub fn finish(poll: &str, options: &[String], cells: &Summary, ranks: usize, flo
     }
 }
 
+/// An ELECTION (CC 4.5.13 at 2fb305c): the same count, but an election declares no order, so a tie for weakest in any
+/// round seats nobody (`Finish::NoWinner`) and the count runs again over the ballots then held. The general count
+/// (`finish`) keeps the declared-order tie rule. The same as docs/kernel/kernel.js `electionFinish`.
+#[must_use]
+pub fn finish_election(poll: &str, options: &[String], cells: &Summary, ranks: usize, floor: u64) -> Finish {
+    match finish(poll, options, cells, ranks, floor) {
+        Finish::Winner(w, r) => {
+            // replay the rounds: any tie for weakest along the way seats nobody
+            let ids: Vec<String> = options.iter().map(|o| option_id(poll, o)).collect();
+            let mut by_cell: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+            let mut stack: Vec<Vec<usize>> = vec![Vec::new()];
+            while let Some(p) = stack.pop() {
+                let pid: Vec<String> = p.iter().map(|&i| ids[i].clone()).collect();
+                by_cell.insert(cell_id(poll, &pid), p.clone());
+                if p.len() < ranks {
+                    for i in 0..options.len() {
+                        if !p.contains(&i) {
+                            let mut q = p.clone();
+                            q.push(i);
+                            stack.push(q);
+                        }
+                    }
+                }
+            }
+            let mut standing: Vec<usize> = (0..options.len()).collect();
+            loop {
+                let mut first = vec![0u64; options.len()];
+                for (k, n) in cells {
+                    if let Some(&top) = by_cell[k].iter().find(|i| standing.contains(i)) {
+                        first[top] += n;
+                    }
+                }
+                let live: u64 = standing.iter().map(|&i| first[i]).sum();
+                let lead = standing.iter().copied().max_by_key(|&i| first[i]).unwrap_or(0);
+                if 2 * first[lead] > live || standing.len() == 1 {
+                    return Finish::Winner(w, r);
+                }
+                let least = standing.iter().map(|&i| first[i]).min().unwrap_or(0);
+                let weakest: Vec<usize> = standing.iter().copied().filter(|&i| first[i] == least).collect();
+                if weakest.len() > 1 {
+                    return Finish::NoWinner(r);
+                }
+                standing.retain(|&i| i != weakest[0]);
+            }
+        }
+        other => other,
+    }
+}
+
+/// The fold's election: (person, ranking) ballots, options named in option-id order only to name the cells (an election
+/// declares no order and its shown order decides nothing); a tie seats nobody.
+#[must_use]
+pub fn elect_election(poll: &str, ballots: &[(String, Vec<String>)], ranks: usize, floor: u64) -> Option<String> {
+    if ballots.is_empty() {
+        return None;
+    }
+    let mut opts: Vec<String> = ballots.iter().flat_map(|b| b.1.iter().cloned()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+    opts.sort_by_key(|o| option_id(poll, o));
+    let (s, _) = summary(poll, &opts, ballots, ranks);
+    match finish_election(poll, &opts, &s, ranks, floor) {
+        Finish::Winner(w, _) => Some(w),
+        _ => None,
+    }
+}
+
 /// The fold's election: (person, ranking) ballots; the declared order is `options` if given, else the offered options in
 /// option-id order (a fixed rule: the twin's rows carry no worthiness order).
 #[must_use]
@@ -194,12 +259,17 @@ mod tests {
             let a = p.as_array().unwrap();
             let rounds = a[a.len() - 1].as_u64().unwrap() as usize;
             let winner = a[a.len() - 2].as_str().unwrap();
-            let rows: Vec<(String, Vec<String>)> = a[..a.len() - 2].iter().enumerate().map(|(i, b)| (format!("p{i}"), b.as_str().unwrap().chars().map(|c| c.to_string()).collect())).collect();
+            let elected = a[a.len() - 3].as_str().unwrap();
+            let rows: Vec<(String, Vec<String>)> = a[..a.len() - 3].iter().enumerate().map(|(i, b)| (format!("p{i}"), b.as_str().unwrap().chars().map(|c| c.to_string()).collect())).collect();
             let (s, _) = summary("poll:x", &opts, &rows, 3);
             let got = finish("poll:x", &opts, &s, 3, floor);
             match got {
                 Finish::Winner(w, r) => assert_eq!((w.as_str(), r), (winner, rounds), "{rows:?}"),
                 _ => assert_eq!(winner, "", "{rows:?}: {got:?}"),
+            }
+            match finish_election("poll:x", &opts, &s, 3, floor) {
+                Finish::Winner(w, _) => assert_eq!(w.as_str(), elected, "election {rows:?}"),
+                e => assert_eq!(elected, "", "election {rows:?}: {e:?}"),
             }
             n += 1;
         }

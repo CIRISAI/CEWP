@@ -377,9 +377,14 @@ test("churn, mobile sleep/wake & stranger refusal under partition healing", () =
   assert.deepEqual(m.queueOf("bob-phone").starts, m.queueOf("bob-tablet").starts, "bob devices reach 100% queue starts parity");
 
   // All 5 member devices agree 100% on room:alpha state, roster, and posts
-  for (const dev of ["alice-laptop", "bob-phone", "bob-tablet", "dave-phone"]) {
+  for (const dev of ["alice-laptop", "bob-phone", "bob-tablet"]) {
     assert.deepEqual(canonFold(dev, true), canonFold("alice-phone", true), `${dev} matches alice-phone on all room folds`);
   }
+  // a room row's audience is the room's members at the row's own head (CC 5.2; route.py at 2fb305c): dave joined after
+  // alice's and bob's first posts, so he is not offered them (nothing he can see names them); everything else agrees
+  const before = new Set(["post:alpha:1", "post:alpha:2"]), dv = canonFold("dave-phone", true), al = canonFold("alice-phone", true);
+  assert.deepEqual({ ...dv, objs: dv.objs }, { ...al, objs: al.objs.filter(([id]) => !before.has(id)) }, "dave-phone matches alice-phone on every room row of his time");
+  for (const id of before) assert.equal(m.foldOf("dave-phone").objects.has(id), false, `dave-phone was never offered ${id}, signed before he joined`);
 
   // Verify stranger refusal invariant on mallory-phone across all partition-healing bursts
   const malloryNode = m.nodes.get("mallory-phone");
@@ -593,8 +598,14 @@ test("every family's every transition, every role token & csd_namespace_map.json
   assert.ok(regularTested > 400 && gapCellsTested > 0);
 });
 
+test("every rule kind in the policy table and its vectors is one the kernel reads", () => {
+  const kinds = new Set();
+  for (const p of policies.families) for (const c of ["enact_rule", "cancel_rule", "floor_rule"]) if (p[c] && typeof p[c] === "object") kinds.add(p[c].kind);
+  for (const v of policyVectors.rule_vectors) if (v.rule && typeof v.rule === "object") kinds.add(v.rule.kind);
+  assert.deepEqual([...kinds].filter((k) => !RULE_KINDS.includes(k)), [], "a rule kind the kernel does not read");
+});
 test("CC §4.5.13 governance_policy_vectors.json conformance: replay every rule vector", () => {
-  assert.ok(policyVectors.rule_vectors.length >= 180, "rc19 has 240 rule vectors (rc17 had 180)");
+  assert.ok(policyVectors.rule_vectors.length >= 270, "rc19 at 2fb305c has 270 rule vectors (1da70f0 had 240, rc17 180)");
   for (const v of policyVectors.rule_vectors) {
     const strict = v.cell === "enact";
     const got = ruleVotes(v.rule, v.base, strict);
@@ -608,17 +619,19 @@ test("CC §4.5.13 governance_policy_vectors.json conformance: replay every rule 
 });
 
 // ---------------------------------------------------------------- ranked choice (CC 4.5.13, formal/ranked_choice)
-import { rankedSummary, rankedMerge, rankedFinish, irv as irvFn, optionId, cellId } from "./kernel.js";
+import { rankedSummary, rankedMerge, rankedFinish, electionFinish, irv as irvFn, optionId, cellId, RULE_KINDS } from "./kernel.js";
 const RV = J("../ranked_choice_vectors.json");
 const OPTS = RV.options_declared;
 const rowsOf = (ballots) => ballots.map((b, i) => ({ person: "p" + i, ranking: [...b] }));
 test("ranked choice gives the constitution's model's winner and rounds on every profile of up to four ballots", () => {
   let n = 0;
   for (const v of RV.profiles){
-    const rounds = v[v.length - 1], winner = v[v.length - 2] || null, ballots = v.slice(0, -2);
+    const rounds = v[v.length - 1], winner = v[v.length - 2] || null, elected = v[v.length - 3] || null, ballots = v.slice(0, -3);
     const s = rankedSummary("poll:x", OPTS, rowsOf(ballots));
     const f = rankedFinish("poll:x", OPTS, s.cells, 3, RV.floor);
-    assert.equal(f.winner, winner, JSON.stringify(ballots)); if (winner) assert.equal(f.rounds, rounds, JSON.stringify(ballots)); n++;
+    assert.equal(f.winner, winner, JSON.stringify(ballots)); if (winner) assert.equal(f.rounds, rounds, JSON.stringify(ballots));
+    // an election: a tie for weakest in any round seats nobody (the count runs again over the ballots then held)
+    assert.equal(electionFinish("poll:x", OPTS, s.cells, 3, RV.floor).winner, elected, "election " + JSON.stringify(ballots)); n++;
   }
   assert.equal(n, RV.profiles.length); assert.ok(n > 3000);
   for (const c of RV.persons){ const s = rankedSummary("poll:x", OPTS, c.rows.map(([person, ranking]) => ({ person, ranking })));
@@ -663,8 +676,9 @@ test("ranked choice: a person whose ballots disagree has none, and a tie for wea
   const flip = [{ person: "p1", ranking: ["a"] }, { person: "p1", ranking: ["b"] }, { person: "p2", ranking: ["b"] }, { person: "p3", ranking: ["a"] }];
   const w1 = rankedFinish("poll:o", OPTS, rankedSummary("poll:o", OPTS, flip).cells).winner, w2 = rankedFinish("poll:o", OPTS, rankedSummary("poll:o", OPTS, flip.slice().reverse()).cells).winner;
   assert.equal(w1, w2); assert.equal(w1, "a");
-  // the fold's call: ballots by person in any order
+  // the fold's call is an election: ballots by person in any order; a tie seats nobody
   assert.equal(irvFn([{ signer: "p1", ranking: ["a"] }, { signer: "p2", ranking: ["b"] }, { signer: "p3", ranking: ["b"] }, { signer: "p1", ranking: ["c"] }], "poll:f", OPTS), "b");
+  assert.equal(irvFn(flip.map((r) => ({ signer: r.person, ranking: r.ranking })), "poll:o", OPTS), null, "p2 b and p3 a tie: an election seats nobody");
 });
 
 // ---------------------------------------------------------------- the door keeps (formal/KERNEL.md; CC 5.2 at 820a7a0)
@@ -730,4 +744,49 @@ test("an inert row confers nothing, and a row bad on its own form is refused in 
     for (const r of [{ id: "k", family: "key:record", verb: "attest", signer: "zed", object: "key:zed" }, ...order]){ const s = door(h2, tables, { scope: { tier: "self" }, asserted_at: (t0.t += 10), ...r }, t0.t); if (r.id !== "k"){ assert.equal(s.ok, false); assert.ok(!s.inert, `${r.id} refused on its own form (${s.refusal})`); } }
     assert.deepEqual([...h2.keys()], ["k"], "no row bad on its own form is held"); }
   assert.equal(door(new Map(), tables, bad[0], 1).refusal, "malformed");
+});
+
+// ---------------------------------------------------------------- a room row's audience at its own head (CC 5.2; route.py at 2fb305c)
+test("a later joiner is not offered earlier posts, a removed member still receives the rows of its time, in every node order", () => {
+  const out = [];
+  for (const order of [["seat", "bob-phone", "carol-phone", "dave-phone", "erin-phone"], ["erin-phone", "dave-phone", "carol-phone", "bob-phone", "seat"], ["carol-phone", "seat", "erin-phone", "bob-phone", "dave-phone"]]){
+    const m = new Mesh(tables), owner = { "seat": "nobody", "bob-phone": "bob", "carol-phone": "carol", "dave-phone": "dave", "erin-phone": "erin" };
+    for (const id of order) m.addNode(id, owner[id], id === "seat" ? "server" : "phone");
+    const links = () => { for (const id of order) if (id !== "seat") m.link(id, "seat"); };
+    links();
+    let n = 0; const row = (o) => ({ id: "h" + (++n), scope: { tier: "self" }, ...o }), room = { tier: "room", room: "room:h" };
+    const sign = (node, o) => { const s = m.sign(node, row(o)); assert.ok(s.ok, `${o.signer} ${o.family} ${o.verb}: ${s.refusal}`); return s.plan.row.id; };
+    for (const p of ["bob", "carol", "dave", "erin"]) sign(p + "-phone", { family: "key:record", verb: "attest", signer: p, object: "key:" + p });
+    for (let k = 0; k < 3; k++) m.tick();
+    sign("bob-phone", { family: "group:roster", verb: "attest", signer: "bob", object: "room:h", scope: room });
+    for (const p of ["carol", "dave"]){ sign("bob-phone", { family: "membership:{stage}", verb: "attest", signer: "bob", object: "invite:" + p, subject: p, scope: room }); }
+    for (let k = 0; k < 4; k++) m.tick();
+    for (const p of ["carol", "dave"]) sign(p + "-phone", { family: "membership:{stage}", verb: "attest", signer: p, object: "invite:" + p, subject: p, stance: "for", scope: room });
+    for (let k = 0; k < 4; k++) m.tick();
+    // carol goes offline; bob posts once while she is a member
+    m.links.delete(["carol-phone", "seat"].sort().join("|"));
+    const p1 = sign("bob-phone", { family: "chat:*", verb: "attest", signer: "bob", object: "post:h1", scope: room });
+    for (let k = 0; k < 3; k++) m.tick();
+    // erin is invited and joins after that post: she is not offered it
+    sign("bob-phone", { family: "membership:{stage}", verb: "attest", signer: "bob", object: "invite:erin", subject: "erin", scope: room });
+    for (let k = 0; k < 4; k++) m.tick();
+    sign("erin-phone", { family: "membership:{stage}", verb: "attest", signer: "erin", object: "invite:erin", subject: "erin", stance: "for", scope: room });
+    for (let k = 0; k < 4; k++) m.tick();
+    // carol is removed (her membership withdrawn by the room), then bob posts again
+    sign("bob-phone", { family: "membership:{stage}", verb: "withdraw", signer: "bob", object: "invite:carol", subject: "carol", scope: room });
+    for (let k = 0; k < 3; k++) m.tick();
+    const p2 = sign("bob-phone", { family: "chat:*", verb: "attest", signer: "bob", object: "post:h2", scope: room });
+    for (let k = 0; k < 3; k++) m.tick();
+    // carol comes back
+    links(); for (let k = 0; k < 6; k++) m.tick();
+    const has = (node, id) => m.nodes.get(node).held.has(id);
+    assert.ok(m.foldOf("bob-phone").rooms.get("room:h").removed.has("carol"), "carol is removed");
+    assert.ok(has("carol-phone", p1), "a removed member still receives a row of her time (signed at a head where she was seated)");
+    assert.equal(has("carol-phone", p2), false, "and not a row signed after her removal");
+    assert.equal(has("erin-phone", p1), false, "a later joiner is not offered a post signed before she joined");
+    assert.ok(has("erin-phone", p2), "and is offered the posts of her time");
+    assert.ok(has("dave-phone", p1) && has("dave-phone", p2), "a member throughout receives both");
+    out.push(Object.fromEntries([...m.nodes].map(([id, nd]) => [owner[id], [...nd.held.keys()].sort()])));
+  }
+  for (const o of out) assert.deepEqual(o, out[0], "the same rows held in every node order");
 });

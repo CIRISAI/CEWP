@@ -54,6 +54,10 @@ pub enum Rule {
     WitnessesPriorSeal,
     AllNamedParties,
     SingleRoleSignature { roles: Vec<String> },
+    /// rc19 (2fb305c): a strict majority of those who voted, never fewer than `count` voices.
+    VotedMajority { count: u64 },
+    /// Counted under the room's declared consensus protocol (no number of its own).
+    Protocol,
     Prose(String),
 }
 
@@ -64,7 +68,9 @@ impl Rule {
                 if *den == 0 {
                     return None;
                 }
-                if strict {
+                if strict && num >= den {
+                    Some((num * base + den - 1) / den) // n/n needs the whole set, never one more
+                } else if strict {
                     Some((num * base) / den + 1)
                 } else {
                     Some((num * base + den - 1) / den)
@@ -80,7 +86,8 @@ impl Rule {
             Rule::WitnessesPriorSeal => Some(if base > 3 { base / 2 + 1 } else { 2.min(base) }),
             Rule::AllNamedParties => Some(base),
             Rule::SingleRoleSignature { .. } => Some(1),
-            Rule::RankedIrv { .. } | Rule::None | Rule::Prose(_) => None,
+            Rule::VotedMajority { count } => Some((*count).max(base / 2 + 1)),
+            Rule::RankedIrv { .. } | Rule::None | Rule::Protocol | Rule::Prose(_) => None,
         }
     }
 }

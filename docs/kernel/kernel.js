@@ -344,14 +344,22 @@ export function ruleVotes(rule, base, strict = false) {
   if (k === "fraction") {
     const { num, den } = rule;
     if (!den) return null;
+    // n/n needs the whole set (2fb305c): a strict fraction of the whole is all of it, never one more
+    if (strict && num >= den) return Math.ceil((num * base) / den);
     return strict ? Math.floor((num * base) / den) + 1 : Math.ceil((num * base) / den);
   }
   if (k === "one_of_n") return 1;
   if (k === "strict_majority") return Math.floor(base / 2) + 1;
   if (k === "strict_majority_of_others") return Math.floor((base - 1) / 2) + 1;
   if (k === "role_at" || k === "voices") return rule.count;
+  // rc19 (2fb305c): a strict majority of those who voted, never fewer than `count` voices; `base` is the voters
+  if (k === "voted_majority") return Math.max(rule.count || 0, Math.floor(base / 2) + 1);
+  // the room's declared consensus protocol decides; the twin's rooms declare none, so no number is given (never a default)
+  if (k === "protocol" || k === "none" || k === "ranked_irv") return null;
   return null;
 }
+// every rule kind the kernel reads (kernel.test.js holds the tables' kinds to this list, so a new kind fails loudly)
+export const RULE_KINDS = ["fraction", "one_of_n", "strict_majority", "strict_majority_of_others", "role_at", "voices", "voted_majority", "ranked_irv", "protocol", "none"];
 
 export function loadTables(transitions, policies, registry = null, aliases = null) {
   const families = new Map();
@@ -606,7 +614,10 @@ function foldLive(held, tables, now) {
         missing = { until: windowEnd };
       }
     } else if (p.kind === "cosigned") {
+      // `protocol`: counted under the room's declared consensus protocol. The twin's rooms declare none, so the twin's
+      // stand-in is the floor of two voices (a proposal and the newcomer's yes); listed in the kernel's unread cells
       const required = (p.enact_rule ? ruleVotes(p.enact_rule, base, true) : null)
+        ?? (p.enact_rule && p.enact_rule.kind === "protocol" ? minCount : null)
         ?? (enactFrac ? Math.floor((enactFrac.num * base) / enactFrac.den) + 1 : 2);
       if (forCount >= required) outcome = "enacted";
       else missing = { voices: required - forCount };
@@ -762,13 +773,37 @@ export function rankedFinish(poll, options, cells, ranks = 3, floor = 2){
     standing.splice(standing.indexOf(weak), 1); rounds++;
   }
 }
-// The fold's election: ballots are { signer (the person), ranking }; the declared order is `options` if given, else the
-// offered options in option-id order (a fixed rule: the twin's rows carry no worthiness order).
+// An ELECTION (CC 4.5.13 at 2fb305c): the same count, but an election declares no order, so a tie for weakest in any
+// round seats nobody and the count runs again over the ballots then held (the fold recomputes as ballots change). The
+// general count above keeps the declared-order tie rule. Returns { winner, rounds, tie } like rankedFinish.
+export function electionFinish(poll, options, cells, ranks = 3, floor = 2){
+  const byCell = new Map(), ids = options.map((o) => optionId(poll, o));
+  const walk = (prefix) => { if (prefix.length) byCell.set(cellId(poll, prefix.map((i) => ids[i])), prefix.slice()); if (prefix.length === ranks) return;
+    for (let i = 0; i < options.length; i++) if (!prefix.includes(i)){ prefix.push(i); walk(prefix); prefix.pop(); } };
+  walk([]); byCell.set(cellId(poll, []), []);
+  const unknown = [...cells.keys()].filter((k) => !byCell.has(k));
+  if (unknown.length) return { winner: null, rounds: 0, refused: "summary_cell_unknown", unknown };
+  let total = 0; for (const [k, n] of cells) if (byCell.get(k).length) total += n;
+  if (total < Math.min(floor, Math.max(options.length, 1))) return { winner: null, rounds: 0, belowFloor: true };
+  const standing = options.map((_, i) => i); let rounds = 0;
+  for (;;){
+    const first = new Map(standing.map((i) => [i, 0]));
+    for (const [k, n] of cells){ const top = byCell.get(k).find((i) => standing.includes(i)); if (top !== undefined) first.set(top, first.get(top) + n); }
+    let live = 0, lead = standing[0], least = Infinity; for (const i of standing){ live += first.get(i); if (first.get(i) > first.get(lead)) lead = i; least = Math.min(least, first.get(i)); }
+    if (live === 0) return { winner: null, rounds };
+    if (2 * first.get(lead) > live || standing.length === 1) return { winner: options[lead], rounds };
+    const weakest = standing.filter((i) => first.get(i) === least);
+    if (weakest.length > 1) return { winner: null, rounds, tie: weakest.map((i) => options[i]) };
+    standing.splice(standing.indexOf(weakest[0]), 1); rounds++;
+  }
+}
+// The fold's election: ballots are { signer (the person), ranking }; an election declares no order (its shown order
+// decides nothing), so the options are listed in option-id order only to name the cells, and a tie seats nobody.
 export function irv(ballots, poll = "poll", options = null, ranks = 3, floor = 2){
   if (!ballots.length) return null;
   const opts = options || [...new Set(ballots.flatMap((b) => b.ranking || []))].sort((x, y) => (optionId(poll, x) < optionId(poll, y) ? -1 : 1));
   const s = rankedSummary(poll, opts, ballots.map((b) => ({ person: b.signer, ranking: b.ranking })), ranks);
-  return rankedFinish(poll, opts, s.cells, ranks, floor).winner;
+  return electionFinish(poll, opts, s.cells, ranks, floor).winner;
 }
 
 // ---------------------------------------------------------------- standing
@@ -1175,8 +1210,40 @@ export class Mesh {
     if (f.inert && f.inert.has(row.id)) return { who: new Set([row.signer]), inert: true };
     return { who: this.audience(node, row, f), inert: false };
   }
+  // A ROOM ROW'S AUDIENCE (CC 5.2 "What a row carries"; formal/causal_kernel/route.py `closed` and Carry.lean at 2fb305c):
+  // its own audience, the room's members at the row's own HEAD (the roster and membership rows its signer's node held when
+  // it was signed, `row.head`), its signer and the key it names; then carriage: a concluded row of the same room (or by the
+  // same signer) that names it in its head, whose signer is already in its audience, adds that row's audience. So a later
+  // joiner is offered what its admission and the rows it can see name, and a member removed later still receives the rows
+  // of its time. Judged from the rows the carrier holds: a head the carrier does not hold whole is not judged, and the row
+  // waits there, held and not yet carried. A row with no head (signed outside a mesh) keeps the earlier rule.
+  roomAudience(node, row, f, seen = new Set()) {
+    if (seen.has(row.id)) return new Set(); seen.add(row.id);
+    const room = row.scope.room, held = node.held;
+    if (!row.head.every((id) => held.has(id))) return undefined;
+    // the room as the head names it: every row the carrier holds, but of this room's roster and membership rows only those
+    // the head names (keys and the rest are what the head's own rows stand on)
+    const head = new Set(row.head), isRoster = (x) => x.scope && x.scope.room === room && (x.family === "group:roster" || x.family === "membership:{stage}");
+    const fh = fold([...held.values()].filter((h) => !isRoster(h.row) || head.has(h.row.id)), this.tables, this.now), r = fh.rooms.get(room);
+    const who = new Set(r ? [...r.members, ...r.founders] : []); who.add(row.signer); if (row.subject) who.add(row.subject);
+    for (const { row: d } of held.values()){
+      if (d.id === row.id || !d.head || !d.head.includes(row.id) || f.inert.has(d.id)) continue;
+      if (!((d.scope && d.scope.room === room) || d.signer === row.signer) || !who.has(d.signer)) continue; // Carry.lean `may`
+      const a = this.roomAudience(node, d, f, seen); if (a) for (const k of a) who.add(k);
+    }
+    return who;
+  }
+  headOf(node, room){ // the live roster and membership rows of `room` this node holds, as the head a new row names
+    const f = fold(node.held.values(), this.tables, this.now);
+    return [...node.held.values()].map((h) => h.row).filter((r) => !f.inert.has(r.id) && r.scope && r.scope.room === room && (r.family === "group:roster" || r.family === "membership:{stage}")).map((r) => r.id).sort();
+  }
   audience(node, row, folded = null) {
     const f = folded || fold(node.held.values(), this.tables, this.now);
+    // the roster is the one ledger every member concludes (route.py: "a member concludes the roster"): roster and
+    // membership rows keep the room's members as the carrier folds them (and the subject of a live proposal); every
+    // other room row is judged at its own head
+    const rosterRow = row.family === "group:roster" || row.family === "membership:{stage}";
+    if (row.head && !rosterRow && row.scope && row.scope.tier === "room" && !CONSENT_FREE.has(row.family)) return this.roomAudience(node, row, f) || new Set(); // an undetermined head carries to nobody yet
     const tier = (row.scope && row.scope.tier) || "self";
     const m = this.tables.matchFamily ? this.tables.matchFamily(row.family) : matchFamily(row.family, this.tables);
     const famKey = m?.family || row.family;
@@ -1193,6 +1260,7 @@ export class Mesh {
   sign(nodeId, row) {
     const node = this.nodes.get(nodeId);
     row.asserted_at = row.asserted_at ?? this.now;
+    if (row.scope && row.scope.tier === "room" && row.scope.room && !row.head) row.head = this.headOf(node, row.scope.room);
     const s = door(node.held, this.tables, row, this.now);
     this.log.push({ t: this.now, node: nodeId, row: row.id, ...(s.ok ? { admitted: true } : s.inert ? { held: true, waiting: s.missing.text, refusal: s.refusal } : { refused: s.refusal }) });
     return s;

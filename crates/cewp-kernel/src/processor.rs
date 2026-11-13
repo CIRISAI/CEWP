@@ -27,7 +27,7 @@ pub fn irv(ballots: &[Ballot]) -> Option<String> {
 /// `irv` for a named poll (the fold passes the object's id).
 pub fn irv_poll(poll: &str, ballots: &[Ballot]) -> Option<String> {
     let rows: Vec<(String, Vec<String>)> = ballots.iter().map(|b| (b.signer.clone(), b.ranking.clone())).collect();
-    crate::ranked::elect(poll, &rows, None, 3, 2)
+    crate::ranked::elect_election(poll, &rows, 3, 2)
 }
 
 /// The fold over rows already known live (each passed the door against the others); `fold` settles first.
@@ -338,7 +338,10 @@ fn fold_live(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
                 }
             }
             "cosigned" => {
+                // `protocol`: the room's declared consensus protocol; the twin's rooms declare none, so the stand-in is
+                // the floor of two voices (listed in src/unread_cells.txt), as docs/kernel/kernel.js
                 let required = p.enact_rule.votes(base, true)
+                    .or_else(|| matches!(p.enact_rule, crate::types::Rule::Protocol).then_some(min_count))
                     .or_else(|| p.enact.map(|frac| (frac.num * base) / frac.den + 1))
                     .unwrap_or(2);
                 if for_count >= required {

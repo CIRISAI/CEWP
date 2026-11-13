@@ -170,7 +170,7 @@ svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--acce
   </p>
   <ol style="font-size:15px;line-height:1.6;margin:0 0 18px;padding-left:22px">
     <li style="margin-bottom:8px"><b>One signed row.</b> Identity, device pairing, contacts, rooms, quorums, moderation, agent charters and the halt itself travel as the same canonical hybrid-signed row (Ed25519 + ML-DSA-65), in five closed kinds. Frames, sealed chunks and onion packets carry rows; they are not rows.</li>
-    <li style="margin-bottom:8px"><b>The rules are data.</b> The legal transitions of every family of row, 184 families under 16 typed governance policy rows (rc19), are one table. The table generates the conformance vectors (1,299 for the namespace, 732 for the policies) and the model instances for the policy corridor, and it is the input the CEWP kernel runs. The shipping implementations are measured against the same table through the evidence register.</li>
+    <li style="margin-bottom:8px"><b>The rules are data.</b> The legal transitions of every family of row, 184 families under 18 typed governance policy rows (rc19), are one table. The table generates the conformance vectors (1,299 for the namespace, 732 for the policies) and the model instances for the policy corridor, and it is the input the CEWP kernel runs. The shipping implementations are measured against the same table through the evidence register.</li>
     <li style="margin-bottom:8px"><b>The queue is the door.</b> Whether a row is admitted at a node's boundary, what a user or agent may do next, and what an act would change if signed are one function run three ways, and the equivalence is a checked theorem of the kernel.</li>
     <li style="margin-bottom:8px"><b>No consensus protocol.</b> No node runs Paxos, Raft or proof of stake. Every node admits verifiable rows in any order and folds the set it holds; two nodes holding the same rows reach the same state and the same queues, checked over hundreds of arrival orders and partition splits. Windows run per node, so nodes agree once their windows close.</li>
   </ol>
@@ -584,7 +584,7 @@ admits(view, standing, t) = (t.from = view.state) and (t.roles meets standing)  
 </div>
 <p class="rule" style="margin-top:24px"><a href="https://github.com/CIRISAI/CEWP">CEWP on GitHub</a> · <a href="https://github.com/CIRISAI/CIRISConstitution">the Constitution</a></p>
 <script>
-// Transitions: a subset of manifests/transitions.json (CIRISConstitution rc19, commit 1da70f0, as vendored in kernel/tables), verbatim:
+// Transitions: a subset of manifests/transitions.json (CIRISConstitution rc19, commit 2fb305c, as vendored in kernel/tables), verbatim:
 // verb, from, to, the signers (the union over stages), the policy, widens. At rc19 a person's device is an identity:occurrence.
 const T = {
  "trust:{job}:{version}": [["authorize","none","admitted",["self"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false],["supersede","admitted","superseded",["author"],"selfAct",true]],
