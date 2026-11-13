@@ -267,7 +267,7 @@ function incellDraw(R, S, asp, w, h, mpp, a){
     gl.uniform4fv(gl.getUniformLocation(pIncell, "uT"), hm.km2.slice(1).map(lv)); gl.uniform1f(gl.getUniformLocation(pIncell, "uDE0"), hm.de[0]); gl.uniform4fv(gl.getUniformLocation(pIncell, "uDEd"), d(hm.de));
     gl.uniform1f(gl.getUniformLocation(pIncell, "uUS0"), hm.us[0]); gl.uniform4fv(gl.getUniformLocation(pIncell, "uUSd"), d(hm.us)); }
   gl.uniform1f(gl.getUniformLocation(pIncell, "uRate"), dataRate());
-  for (const [mode, f] of passes){ if (f <= 0.01 || mode === 5 || (mode === 4 && !hm)) continue;
+  for (const [mode, f] of passes){ if (f <= 0.01 || mode === 5 || mode === 7 || (mode === 4 && !hm)) continue; // Power and Climate draw their own
     gl.uniform1f(uA, a * f); gl.uniform1f(uM, mode === 0 ? 0.5 : mode);
     for (const v of vis){ const b = INCELL.blocks.get(v.k); if (!b || !b.tex) continue;
       let aux = null; if ((mode > 1 && mode < 5) || mode === 6){ aux = incellAux(b); if (!aux) continue; } // Data reads the country too

@@ -58,6 +58,8 @@ pub mod holon_demo;
 pub mod holon_view;
 pub mod micro;
 pub mod tiling;
+pub mod builtform;
+pub mod door;
 pub mod capacity;
 pub mod reach;
 pub mod netgraph;

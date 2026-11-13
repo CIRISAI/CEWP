@@ -635,7 +635,105 @@ fn holon_layout_of(id: f64) -> Option<LeafLayout> {
         ctx.budget = sizes.len() as u64;
         ctx.people = sizes.iter().map(|&s| u64::from(s)).sum();
     }
-    Some(LeafLayout::build(c, &ctx, &MicroParams { values: micro().params }))
+    Some(LeafLayout::build_with(c, &ctx, &MicroParams { values: micro().params }, door()))
+}
+
+// ------------------------------------------------------------------ the runtime table door (cewp_sim::door)
+// The page hands the kernel a named, versioned table in pieces: `door_begin` with the header text (name, Holon's
+// reference, version, sha256, one per line), `door_feed` with the bytes a slice at a time from the staging buffer,
+// `door_finish` checks the sha256 over every byte received and parses. Layouts read the slots through `door()`; each
+// layout's meta says which slots it read at which versions, so the page keeps a cached layout exactly while they hold.
+static mut DOOR: Option<cewp_sim::door::Door> = None;
+fn door() -> &'static mut cewp_sim::door::Door {
+    // SAFETY: one thread, the page calls in turn.
+    unsafe { (*std::ptr::addr_of_mut!(DOOR)).get_or_insert_with(cewp_sim::door::Door::default) }
+}
+static mut STAGE: Vec<u8> = Vec::new();
+
+/// A staging buffer of `bytes` the page writes a table's header or a slice of its bytes into (kept, regrown only when
+/// asked for more). Returns its address.
+#[no_mangle]
+pub extern "C" fn door_stage(bytes: u32) -> u32 {
+    // SAFETY: one thread.
+    let v = unsafe { &mut *std::ptr::addr_of_mut!(STAGE) };
+    if v.len() < bytes as usize { *v = vec![0; bytes as usize]; }
+    v.as_ptr() as usize as u32
+}
+fn stage(len: u32) -> &'static [u8] {
+    // SAFETY: one thread; the page wrote `len` bytes at `door_stage`'s address.
+    let v = unsafe { &*std::ptr::addr_of!(STAGE) };
+    &v[..(len as usize).min(v.len())]
+}
+
+/// Start a table: the header text (`name\nreference\nversion\nsha256`) is in the staging buffer. Returns 0, or a
+/// negative refusal code (`door::Refusal::code`).
+#[no_mangle]
+pub extern "C" fn door_begin(len: u32) -> i32 {
+    let Ok(text) = std::str::from_utf8(stage(len)) else { return -1 };
+    match cewp_sim::door::Header::parse(text).and_then(|h| door().begin(h)) { Ok(()) => 0, Err(e) => e.code() }
+}
+
+/// The next `len` bytes of the pending table, from the staging buffer. Returns the bytes received so far, or a negative
+/// refusal code.
+#[no_mangle]
+pub extern "C" fn door_feed(len: u32) -> i32 {
+    match door().feed(stage(len)) { Ok(n) => n.min(i32::MAX as usize) as i32, Err(e) => e.code() }
+}
+
+/// Check the pending table's sha256 and parse it into its slot. Returns the slot (0 climate, 1 form, 2 state, 3 state
+/// count), or a negative
+/// refusal code (-5 the sha256 differs); a refused table leaves the slot as it was. The text buffer gets the reason.
+#[no_mangle]
+pub extern "C" fn door_finish() -> i32 {
+    match door().finish() {
+        Ok(s) => { holon().text = Vec::new(); s as i32 }
+        Err(e) => { holon().text = format!("{e:?}").into_bytes(); e.code() }
+    }
+}
+
+/// Empty slot `slot` (0 climate, 1 form, 2 state, 3 state count): its version becomes 0. Returns the slot.
+#[no_mangle]
+pub extern "C" fn door_unload(slot: u32) -> u32 {
+    use cewp_sim::door::Slot;
+    door().unload([Slot::Climate, Slot::Form, Slot::State, Slot::StateCount][slot.min(3) as usize]);
+    slot
+}
+
+/// The version held in each slot (0 absent) into holon buffer 0: [climate, form, state, state count, a built-form
+/// generator compiled in (1/0)]. Returns 5.
+#[no_mangle]
+pub extern "C" fn door_versions() -> u32 {
+    let d = door();
+    let mut out: Vec<f64> = d.versions().iter().map(|&v| f64::from(v)).collect();
+    out.push(f64::from(u8::from(d.generator.present())));
+    holon().out = out;
+    5
+}
+
+/// The climate class (APPEARANCE-0, 1..30; 0 none or not loaded) at a point. Not land.
+#[no_mangle]
+pub extern "C" fn door_climate_at(lat: f64, lon: f64) -> u32 { u32::from(door().climate_at(lat, lon)) }
+
+/// What a leaf keys on (its L3 tile's centre cell) into holon buffer 0: [climate class, region, row, column, the US state
+/// used (0 none: the country's row), the cell's published code, its sample points in any state (of 25), why
+/// (door::StateWhy: 0 its own, 1 no state table, 2 no code, 3 under 13 points, 4 not in the twin's US mask)]. Returns 8,
+/// or 0 for a bad id.
+#[no_mangle]
+pub extern "C" fn door_leaf_key(id: f64) -> u32 {
+    let Some(c) = HolonId::unpack(id as u64) else { return 0 };
+    let (r, col) = cewp_sim::door::key_cell(c);
+    let s = door().state_of(c);
+    holon().out = vec![f64::from(door().climate_of(c)), f64::from(cewp_sim::door::region_of_cell(r, col)), r as f64, col as f64, f64::from(s.code), f64::from(s.raw), f64::from(s.points), f64::from(s.why as u8)];
+    8
+}
+
+/// The US state code published for the cell at a point (REGION-0 as held; 0 none or not loaded), and in holon buffer 0
+/// [code, points in any state]. Not land and not "mostly this state": `door_leaf_key` applies the twin's rules.
+#[no_mangle]
+pub extern "C" fn door_state_at(lat: f64, lon: f64) -> u32 {
+    let (code, n) = door().state_cell(lat, lon);
+    holon().out = vec![f64::from(code), f64::from(n)];
+    u32::from(code)
 }
 
 // ------------------------------------------------------------------ the household seam (popchain::households)
@@ -885,7 +983,8 @@ pub extern "C" fn holon_text_len() -> u32 { holon().text.len() as u32 }
 /// Lay out leaf `id` from the context at `holon_ctx_ptr` (parameters from the micro block).
 /// Buffers: 1 roads (x0 y0 x1 y1 width, metres from the leaf centre), 2 buildings (cx cy w d
 /// angle floors units 0), 3 ports (dir pos main), 4 meta (w h households class density digest-lo
-/// digest-hi). Returns the road count, or -1 for a bad id.
+/// digest-hi, then the built form's record: source, climate class, region, slots read, their versions, generated).
+/// Returns the road count, or -1 for a bad id.
 #[no_mangle]
 pub extern "C" fn holon_layout(id: f64) -> i32 {
     let Some(l) = holon_layout_of(id) else { return -1 };
@@ -900,6 +999,19 @@ pub extern "C" fn holon_layout(id: f64) -> i32 {
     h.ports = l.ports.iter().flat_map(|p| [p.dir as u8 as f64, p.pos, p.main as u8 as f64]).collect();
     let d = l.digest();
     h.meta = vec![l.w, l.h, l.households as f64, l.class as u8 as f64, l.density_km2, (d & 0xFFFF_FFFF) as f64, (d >> 32) as f64];
+    // the built form's record (cewp_sim::builtform::FormUse), meta 7..: source (0 built-in, 1 world row, 2 class x zone row),
+    // climate class, region, the door slots read (bit k slot k: 0 climate, 1 form, 2 state, 3 state count), the version of
+    // each of the four slots at the read, buildings a generator drew, the state used (0 none) and why (door::StateWhy), the
+    // first generated building's pooling per field (footprint, storeys, units, spacing: 0 own, 1 division, 2 borrowed; -1
+    // none) and whether later ones differed
+    let f = l.form;
+    h.meta.extend([f64::from(f.source as u8), f64::from(f.climate), f64::from(f.region), f64::from(f.stamp.read)]);
+    h.meta.extend(f.stamp.versions.iter().map(|&v| f64::from(v)));
+    h.meta.extend([f64::from(f.generated), f64::from(f.state.code), f64::from(f.state.why as u8)]);
+    match f.pooling {
+        Some((p, mixed)) => h.meta.extend([p.footprint as u8, p.storeys as u8, p.units as u8, p.spacing as u8, u8::from(mixed)].map(f64::from)),
+        None => h.meta.extend([-1.0, -1.0, -1.0, -1.0, 0.0]),
+    }
     l.roads.len() as i32
 }
 

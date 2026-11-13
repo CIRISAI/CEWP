@@ -70,6 +70,17 @@ function tlDevices(on){
   if (typeof wasm === "undefined" || !wasm || !wasm.micro_device_rule) return; MICRO_GEN++; wasm.micro_device_rule(on ? 1 : 0, typeof homeWhere === "number" ? homeWhere : 0); TL.devicegen = !!on;
   if (typeof M !== "undefined") M = null; if (typeof gfxDirty === "function") gfxDirty(800);
 }
+// the runtime table door (kernel door_*): after a table arrives, a layout is kept exactly while every slot it read is at the
+// version it read; the others (and their tiles' buffers, and the focal world on one) go and are laid out again
+function tlDoorChanged(){
+  if (typeof wasm === "undefined" || !wasm || !wasm.door_versions) return 0;
+  const n = wasm.door_versions(), v = new Float64Array(wasm.memory.buffer, wasm.holon_buf_ptr(0) >>> 0, n); let gone = 0;
+  for (const [k, e] of TL.lay){ const f = e.form; if (!f || [0, 1, 2, 3].every((s) => !(f.read & (1 << s)) || f.v[s] === v[s])) continue;
+    TL.lay.delete(k); TL.bytes -= e.bytes; gone++; const bt = TL.batch.get(e.tile); if (bt){ gl.deleteBuffer(bt.vbo); TL.batch.delete(e.tile); }
+    if (typeof M !== "undefined" && M && M.leaf === k){ M = null; MICRO_GEN++; } }
+  if (gone && typeof gfxDirty === "function") gfxDirty(800);
+  return gone;
+}
 function tlRebuild(){
   TL.T = null; TL.l0.clear(); tlPP.clear(); TL.lay.clear(); TL.bytes = 0;
   for (const [, bt] of TL.batch) gl.deleteBuffer(bt.vbo); TL.batch.clear();
@@ -203,7 +214,10 @@ function tlBuildLeaf(leaf){
     else { quad([[-bw, -bd], [0, -bd], [0, bd], [-bw, bd]].map(([u, v]) => at(u, v, 0, 0)), lit, 1, 3); quad([[0, -bd], [bw, -bd], [bw, bd], [0, bd]].map(([u, v]) => at(u, v, 0, 0)), dark, 1, 3); }
   }
   const data = new Float32Array(V);
-  return { id, tile: HOLON.pack(t), t, data, bytes: data.byteLength, hh: meta[2] };
+  // the built form's record (kernel holon_layout meta 7..22): its source, climate class, region, the door slots read and their
+  // versions, buildings a generator drew, the state used and why, the generator's pooling
+  const form = meta.length >= 23 ? { source: meta[7], climate: meta[8], region: meta[9], read: meta[10], v: Array.from(meta.slice(11, 15)), generated: meta[15], state: meta[16], why: meta[17], pooling: meta[18] >= 0 ? Array.from(meta.slice(18, 22)) : null, mixed: meta[22] } : null;
+  return { id, tile: HOLON.pack(t), t, data, bytes: data.byteLength, hh: meta[2], form };
 }
 function tlFrameOf(la, lo){ const a = la * Math.PI / 180, o = lo * Math.PI / 180;
   return { c: [Math.cos(a) * Math.sin(o), Math.sin(a), Math.cos(a) * Math.cos(o)], E: [Math.cos(o), 0, -Math.sin(o)], N: [-Math.sin(a) * Math.sin(o), Math.cos(a), -Math.sin(a) * Math.cos(o)] }; }

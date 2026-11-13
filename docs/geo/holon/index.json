@@ -1,6 +1,54 @@
 {
  "schema": "cewp-twin-holon-index/v1",
  "tables": {
+  "appearance0": {
+   "asset": "docs/geo/holon/appearance0.json",
+   "asset_bytes": 6764,
+   "asset_sha256": "4e8457930cc7b29cdba3e53de1a9ffe16f5ce552f5d0a44ab42a9d88644e0b1f",
+   "binary_assets": {
+    "docs/geo/holon/appearance0/koppen_1991_2020_cell.bin.gz": {
+     "bytes_packed": 114114,
+     "bytes_unpacked": 4147200,
+     "sha256_packed": "08258b2ffa1e494695edf5970dd2ba5725dfdb8cc225c030f8e5ddc6de54c336",
+     "sha256_unpacked": "a28bd4e389355b81c2782e06d29a5fa2c7d83c2058b70484fbe578e524ee6267"
+    },
+    "docs/geo/holon/appearance0/koppen_1991_2020_cell_share.bin.gz": {
+     "bytes_packed": 349880,
+     "bytes_unpacked": 4147200,
+     "sha256_packed": "f33d6f0881ecb80effc89412c789fa99df7d08d65182ad3491d0a98745665d64",
+     "sha256_unpacked": "73b417c48f28fe3929284a44a82183111041b734a5b101f893a8929fbaf0273c"
+    }
+   },
+   "class": "MODEL",
+   "dataset": "K\u00f6ppen-Geiger 1 km maps, 1991 to 2020 (Beck et al. 2023, https://doi.org/10.6084/m9.figshare.21789074 (version 2, the edition corrected in January 2026)) via CIRISHolon",
+   "envelope": {
+    "cells": "every cell of the twin's 1/8-degree grid; a class is not land (the twin's own land and population decide)",
+    "period": "1991 to 2020 (other periods and scenarios exist in the archive and were not read)"
+   },
+   "holon_commit": "bfab1d8e3fc5da6fdc1c1f2da8736cb76e6f2565",
+   "ledger": "holon-appearance0",
+   "notice": "Beck, H. E., T. R. McVicar, N. Vergopolan, A. Berg, N. J. Lutsko, A. Dufour, Z. Zeng, X. Jiang, A. I. J. M. van Dijk, and D. G. Miralles. High-resolution (1 km) K\u00f6ppen-Geiger maps for 1901\u20132099 based on constrained CMIP6 projections, Scientific Data 10, 724 (2023). CC BY 4.0, https://creativecommons.org/licenses/by/4.0/; reduced from 1 km pixels to one majority class per 1/8 degree cell; class codes unaltered; endorsement none implied",
+   "reference": "APPEARANCE-0 (a climate class per cell; a key, not an appearance)",
+   "renormalised_vectors": 0,
+   "serves_registry_rows": [],
+   "source_files": {
+    "koppen_1991_2020_cell.bin.gz": {
+     "bytes": 114114,
+     "path": "conformance/scene/tables/appearance0/koppen_1991_2020_cell.bin.gz",
+     "sha256": "08258b2ffa1e494695edf5970dd2ba5725dfdb8cc225c030f8e5ddc6de54c336"
+    },
+    "koppen_1991_2020_cell_share.bin.gz": {
+     "bytes": 349880,
+     "path": "conformance/scene/tables/appearance0/koppen_1991_2020_cell_share.bin.gz",
+     "sha256": "f33d6f0881ecb80effc89412c789fa99df7d08d65182ad3491d0a98745665d64"
+    }
+   },
+   "verdict": {
+    "all_cells": "unresolved",
+    "reason": "a reduction of a published map; reading checks met; nothing scored against observations"
+   },
+   "version": 1
+  },
   "devices0_us": {
    "asset": "docs/geo/holon/devices0_us.json",
    "asset_bytes": 4155,
@@ -239,6 +287,65 @@
     "twin_at_work_8_to_18_everyone": "a reading: at most 0.51 of the employed are at a workplace at once (Monday to Thursday), above half that peak from 7 to 17",
     "twin_awake_0.85": "refused (0.623; 15.0 hours a day against 20.4)",
     "twin_on_wifi_0.65": "inside the bracket 0.61 to 0.79 of awake time (at home; at home or at a workplace or school): a statement about places, not networks"
+   },
+   "version": 1
+  },
+  "region0": {
+   "asset": "docs/geo/holon/region0.json",
+   "asset_bytes": 8113,
+   "asset_sha256": "2cca07301522bbcb6e2a3221f4d39f189e859a3d9c68627560e09a65e255670e",
+   "binary_assets": {
+    "docs/geo/holon/region0/us_state_cell.bin.gz": {
+     "bytes_packed": 8092,
+     "bytes_unpacked": 4147200,
+     "sha256_packed": "3285215421d08eeb071631c4764d5e1eb95a38048120a20f2340f61641613285",
+     "sha256_unpacked": "ee4a112ae9241072f07a0ec18942bc50977057244ced1db06baf220211ca21dd"
+    },
+    "docs/geo/holon/region0/us_state_cell_classed.bin.gz": {
+     "bytes_packed": 10718,
+     "bytes_unpacked": 4147200,
+     "sha256_packed": "dbfd41f8506703c220885836c135a3b155f78acdeb7307e58c1ee4cda504102c",
+     "sha256_unpacked": "7da2e4f51cc3fc8f61a32c3c9e7c9eec01ec22a9f7b4d4bc02bc906c166ee254"
+    },
+    "docs/geo/holon/region0/us_state_cell_share.bin.gz": {
+     "bytes_packed": 9288,
+     "bytes_unpacked": 4147200,
+     "sha256_packed": "0d81e6db42147956744bc544e5435636b441ef51059bb940683f0d379b40c40f",
+     "sha256_unpacked": "5a4a3c89ce212ceab00832eb5bf0d3f32d27ae752f76bef6a8e5868a6469dbe5"
+    }
+   },
+   "class": "MODEL",
+   "dataset": "Natural Earth admin-1 states and provinces 1:50m, version 5.1.1 (the 51 US shapes) via CIRISHolon",
+   "envelope": {
+    "cells": "a code is not land and not mostly this state: the twin takes a state only at 13 or more of 25 points, inside its own US mask and land",
+    "country": "United States: 50 states and the District of Columbia"
+   },
+   "holon_commit": "8adf573ecf8abc254973de9f66c4f27cd13e1e5e",
+   "ledger": "holon-region0",
+   "notice": "Made with Natural Earth. Natural Earth admin-1 states and provinces 1:50m, version 5.1.1, public domain; 51 US shapes rasterised to 25 sample points per 1/8 degree cell and reduced to a majority code",
+   "reference": "REGION-0 (a US state per cell; a key)",
+   "renormalised_vectors": 0,
+   "serves_registry_rows": [],
+   "source_files": {
+    "us_state_cell.bin.gz": {
+     "bytes": 8092,
+     "path": "conformance/scene/tables/region0/us_state_cell.bin.gz",
+     "sha256": "3285215421d08eeb071631c4764d5e1eb95a38048120a20f2340f61641613285"
+    },
+    "us_state_cell_classed.bin.gz": {
+     "bytes": 10718,
+     "path": "conformance/scene/tables/region0/us_state_cell_classed.bin.gz",
+     "sha256": "dbfd41f8506703c220885836c135a3b155f78acdeb7307e58c1ee4cda504102c"
+    },
+    "us_state_cell_share.bin.gz": {
+     "bytes": 9288,
+     "path": "conformance/scene/tables/region0/us_state_cell_share.bin.gz",
+     "sha256": "0d81e6db42147956744bc544e5435636b441ef51059bb940683f0d379b40c40f"
+    }
+   },
+   "verdict": {
+    "all_cells": "unresolved",
+    "reason": "a reduction of a published map; reading checks met"
    },
    "version": 1
   },

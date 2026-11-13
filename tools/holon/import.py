@@ -2,7 +2,7 @@
 """Import one CIRISHolon statistics table into the twin (FSD/twin/holon-intake.md section 1).
 
 Usage: python3 -I tools/holon/import.py <CIRISHolon checkout> <commit> <ref>
-       ref: uneven0 | household0_us | household0_de | power0 | devices0_us | presence0_us | grid0 | mesh0
+       ref: uneven0 | household0_us | household0_de | power0 | devices0_us | presence0_us | grid0 | mesh0 | appearance0 | region0
 
 Reads the table and its sidecar from the checkout at the pinned commit (`git show`; nothing is
 fetched from the network), validates it (integers where the table promises integers; no key that
@@ -13,7 +13,7 @@ docs/geo/holon/<ref>.json and its entry in docs/geo/holon/index.json. The ledger
 (crates/cewp-evidence/src/page_ledger.rs, id "holon-<ref>") carries the sidecar's notice;
 docs/geo/holon/intake.test.js ties the two together.
 """
-import hashlib, json, os, subprocess, sys
+import gzip, hashlib, json, os, subprocess, sys
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 OUT = os.path.join(ROOT, "docs", "geo", "holon")
@@ -29,6 +29,37 @@ SOURCES = {
     "grid0": ("conformance/scene/tables/grid0", ["grid_table.json"]),
     "mesh0": ("conformance/scene/tables/mesh0", ["mesh0_table.json"]),
 }
+# Tables published as binary grids in the twin's own 1/8-degree cell order (one byte per cell): copied verbatim, each
+# file's packed and unpacked sha256 and size checked against the sidecar; the JSON asset carries the sidecar's meaning,
+# legend, warning, source and verdict, never a cell value.
+BINARY = {
+    # APPEARANCE-0: the Koppen-Geiger class (1..30, 0 none) and the majority's share (in 255ths). The classed-pixel count
+    # is left at Holon: the twin masks with its own land and population data, never with "has a class".
+    "appearance0": ("conformance/scene/tables/appearance0", ["koppen_1991_2020_cell.bin.gz", "koppen_1991_2020_cell_share.bin.gz"]),
+    # REGION-0: a US state code per cell (its 2-digit federal code, 0 none), the winner's share of the points in any state (in
+    # 255ths) and the count of the cell's 25 sample points in any state (the twin needs it: a cell has a state only at 13 or more)
+    "region0": ("conformance/scene/tables/region0", ["us_state_cell.bin.gz", "us_state_cell_share.bin.gz", "us_state_cell_classed.bin.gz"]),
+}
+# The one allowance in the gate. A US state's federal code is a coarse statistical key, not a feature's id, and it is
+# accepted ONLY as a one-byte state key per cell from a sidecar that declares it: key "cell", a code_table of entries with
+# exactly code (1..56), postal (two capitals) and name, and a code grid whose every non-zero byte is in that table. The
+# refused-names list (FORBIDDEN) is unchanged, and no other table may carry a state code.
+STATE_KEY = {"region0": "us_state_cell.bin.gz"}
+
+
+def state_key_allowed(side, ref):
+    t = side.get("code_table")
+    if ref not in STATE_KEY or side.get("key") != "cell" or not isinstance(t, list) or not t:
+        raise SystemExit("refused: a state code needs a sidecar that declares a one-byte state key per cell")
+    out = {}
+    for e in t:
+        name = str(e.get("name", "")).rstrip("\x00")  # the published names are padded with NUL bytes; the padding is dropped
+        if set(e) != {"code", "postal", "name"} or not (isinstance(e["code"], int) and 1 <= e["code"] <= 56) or not (len(e["postal"]) == 2 and e["postal"].isupper()) or not name:
+            raise SystemExit(f"refused: code_table entry {e!r} is not a state key (code, postal, name)")
+        out[e["code"]] = {"postal": e["postal"], "name": name}
+    return out
+
+TWIN_GRID = {"columns": 2880, "rows": 1440, "cell_degrees": 0.125, "bytes_per_cell": 1}
 
 
 def show(holon, commit, path):
@@ -212,12 +243,73 @@ def grid(t):
     return {"conventions": t.get("conventions"), "rows": rows, "not_in_mask": sorted(set(unmapped)), "strings": strings}
 
 
+def koppen_group(symbol):
+    return {"A": "tropical", "B": "arid", "C": "temperate", "D": "cold", "E": "polar"}[symbol[0]]
+
+
+def binary_table(holon, commit, ref):
+    """APPEARANCE-0 and any later per-cell grid: the gate (no feature-like key anywhere in the sidecar, a true
+    holds_no_real_feature, the twin's own grid declared), then each file copied with its sha256 verified packed and
+    unpacked; the values checked against the meaning (class 0..30, share any byte)."""
+    base, files = BINARY[ref]
+    side = json.loads(show(holon, commit, f"{base}/sidecar.json"))
+    # the whole sidecar is scanned except its provenance block (`source`: citation, download address, licence), which the
+    # JSON tables' path never scans either; REGION-0's names its download "address"
+    no_real_features({k: v for k, v in side.items() if k != "source"}, "sidecar.json")
+    if side.get("holds_no_real_feature") is not True:
+        raise SystemExit("refused: the sidecar does not state that the table holds no real feature")
+    g = side.get("grid", {})
+    for k, v in TWIN_GRID.items():
+        if g.get(k) != v:
+            raise SystemExit(f"refused: grid {k} is {g.get(k)!r}, the twin's cells need {v!r}")
+    if "r * 2880 + c" not in g.get("order", "") or "northernmost" not in g.get("order", ""):
+        raise SystemExit("refused: the grid's order is not the twin's (flat r * 2880 + c, row 0 northernmost)")
+    n = TWIN_GRID["columns"] * TWIN_GRID["rows"]
+    states = state_key_allowed(side, ref) if ref in STATE_KEY else None
+    out_dir = os.path.join(OUT, ref)
+    os.makedirs(out_dir, exist_ok=True)
+    shas, published = {}, {}
+    for f in files:
+        meta = side["files"][f]
+        packed = show(holon, commit, f"{base}/{f}")
+        if len(packed) != meta["bytes_packed"] or hashlib.sha256(packed).hexdigest() != meta["sha256_packed"]:
+            raise SystemExit(f"refused: {f} packed bytes or sha256 differ from the sidecar")
+        raw = gzip.decompress(packed)
+        if len(raw) != n or len(raw) != meta["bytes_unpacked"] or hashlib.sha256(raw).hexdigest() != meta["sha256_unpacked"]:
+            raise SystemExit(f"refused: {f} unpacked bytes or sha256 differ from the sidecar")
+        if ref == "appearance0" and "_share" not in f and max(raw) > 30:
+            raise SystemExit(f"refused: {f} holds a class code above 30")
+        if states is not None and f == STATE_KEY[ref] and not set(raw) <= set(states) | {0}:
+            raise SystemExit(f"refused: {f} holds a code not in the sidecar's code_table")
+        if f.endswith("_classed.bin.gz") and max(raw) > 25:
+            raise SystemExit(f"refused: {f} counts more than 25 sample points")
+        with open(os.path.join(out_dir, f), "wb") as fh:
+            fh.write(packed)
+        shas[f] = {"path": f"{base}/{f}", "sha256": meta["sha256_packed"], "bytes": len(packed)}
+        published[f"docs/geo/holon/{ref}/{f}"] = {"sha256_packed": meta["sha256_packed"], "bytes_packed": len(packed),
+                                                  "sha256_unpacked": meta["sha256_unpacked"], "bytes_unpacked": len(raw)}
+    src = side["source"]
+    data = {"grid": g, "files": {f: {"published": f"docs/geo/holon/{ref}/{f}", "meaning": side["meaning"][f], **published[f"docs/geo/holon/{ref}/{f}"]} for f in files},
+            "left_at_holon": sorted(set(side["files"]) - set(files)), "source": src, "stakes": side.get("stakes")}
+    if ref == "appearance0":
+        notice = f"{src['citation']} {src['licence']}; {src['changed']}; endorsement {src['endorsement']}"
+        data.update({"legend": {k: {"symbol": v["symbol"], "name": v["name"], "group": koppen_group(v["symbol"])} for k, v in side["legend"].items()},
+                     "warning": side["warning"], "period": side["period"], "single_class_fair": side.get("single_class_fair"),
+                     "cells_by_class": side.get("cells_by_class"), "ties": side.get("ties")})
+    else:
+        notice = f"{src['credit']} Natural Earth admin-1 states and provinces 1:50m, version 5.1.1, public domain; {src['changed']}"
+        data.update({"states": {str(k): v for k, v in sorted(states.items())}, "notes": side["notes"], "cells_by_state": side.get("cells_by_state")})
+    return side, shas, published, notice, data
+
+
 def main():
     if sys.argv[1] == "--check-rust":
         same = os.path.exists(RUST) and open(RUST).read() == rust_tables()
         print("holon_tables.rs current" if same else "holon_tables.rs stale: run tools/holon/import.py ... uneven0")
         sys.exit(0 if same else 1)
     holon, commit, ref = sys.argv[1], sys.argv[2], sys.argv[3]
+    if ref in BINARY:
+        return main_binary(holon, commit, ref)
     base, files = SOURCES[ref]
     side_b = show(holon, commit, f"{base}/sidecar.json")
     side = json.loads(side_b)
@@ -275,6 +367,38 @@ def main():
         with open(RUST, "w") as fh:
             fh.write(rust_tables())
     print(f"{ref}: {len(text)} bytes -> {path}; {len(moved)} vectors renormalised")
+
+
+def main_binary(holon, commit, ref):
+    side, shas, published, notice, data = binary_table(holon, commit, ref)
+    base = BINARY[ref][0]
+    full = subprocess.run(["git", "-C", holon, "rev-parse", commit], check=True, capture_output=True, text=True).stdout.strip()
+    if ref == "appearance0":
+        dataset = "Köppen-Geiger 1 km maps, 1991 to 2020 (Beck et al. 2023, " + side["source"]["record"] + ") via CIRISHolon"
+        envelope = {"period": side["period"], "cells": "every cell of the twin's 1/8-degree grid; a class is not land (the twin's own land and population decide)"}
+        limits = [side["warning"]]
+    else:
+        dataset = "Natural Earth admin-1 states and provinces 1:50m, version 5.1.1 (the 51 US shapes) via CIRISHolon"
+        envelope = {"country": "United States: 50 states and the District of Columbia", "cells": "a code is not land and not mostly this state: the twin takes a state only at 13 or more of 25 points, inside its own US mask and land"}
+        limits = side["notes"]
+    asset = {"ref": side["reference"], "version": side["version"], "holon_commit": full, "notice": notice, "class": "MODEL", "dataset": dataset,
+             "envelope": envelope, "verdict": side["verdict"], "limits": limits, "renormalised": [], "data": data}
+    text = json.dumps(asset, separators=(",", ":"), sort_keys=True, ensure_ascii=False) + "\n"
+    path = os.path.join(OUT, f"{ref}.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    idx_path = os.path.join(OUT, "index.json")
+    idx = json.load(open(idx_path))
+    idx["tables"][ref] = {
+        "reference": asset["ref"], "version": asset["version"], "holon_commit": full, "source_files": shas, "binary_assets": published,
+        "asset": f"docs/geo/holon/{ref}.json", "asset_sha256": hashlib.sha256(text.encode()).hexdigest(), "asset_bytes": len(text.encode()),
+        "serves_registry_rows": side.get("serves_registry_rows", []), "class": "MODEL", "dataset": dataset, "notice": notice,
+        "envelope": asset["envelope"], "verdict": side["verdict"], "ledger": "holon-" + ref.replace("_", "-"), "renormalised_vectors": 0,
+    }
+    with open(idx_path, "w") as fh:
+        json.dump(idx, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+    print(f"{ref}: {len(text)} bytes -> {path}; " + ", ".join(f"{k} {v['bytes_packed']} bytes" for k, v in published.items()))
 
 
 if __name__ == "__main__":

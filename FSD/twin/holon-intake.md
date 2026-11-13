@@ -407,3 +407,75 @@ missing clamp after apportionment (micro.rs populate) and are fixed with the new
   street's message total (street_energy reads the households' device draws and the baked counters), so it does not
   move. The Data map follows: in the United States people × the PRESENCE-0 awake share × the rate, elsewhere people ×
   the rate × the curve, hatched; a step where the two meet at a border is the rules', and the legend says so.
+
+## 7. The runtime table door, APPEARANCE-0 and built form
+
+- **APPEARANCE-0** (CIRISHolon bfab1d8, `conformance/scene/tables/appearance0/`, imported by `tools/holon/import.py ...
+  appearance0`; ledger holon-appearance0). A Köppen-Geiger class (Beck et al. 2023, 1991 to 2020, CC BY 4.0) for each of the
+  twin's 4,147,200 cells, one byte a cell in the twin's own order (row 0 north, `r × 2880 + c`, as `geoCell`), and the
+  majority's share of the cell in 255ths. The importer refuses a feature-like key anywhere in the sidecar, requires
+  `holds_no_real_feature: true` and the twin's grid, and copies each gzip file verbatim after checking its sha256 packed
+  and unpacked against the sidecar (`binary_assets` in the index; intake.test.js and climate.test.js check them again).
+  The classed-pixel count is left at Holon: the twin masks with its own land and population, never with "has a class"
+  (18,604 cells have a class from under 23 of 225 pixels). The share is shipped: it hatches the 0.089 of classed cells whose
+  majority holds under 0.8 of the cell.
+- **Lookup.** The page's `climateAt(lat, lon)` (docs/climate.js) gives the class, its group in plain words, the share and
+  the twin's own land cover beside it (false at sea); the kernel's `door_climate_at` and, per leaf, `door_leaf_key` (the
+  leaf's L3 tile's centre cell, so a street tile has one climate class and one region) read the same cells; climate.test.js
+  checks Holon's twelve places through the page's lookup (cells and classes as Holon's results list them) and the kernel
+  against the page at 58,965 points and 4,000 leaves.
+- **Loading is lazy.** Nothing at first paint. The grid (114,114 bytes packed) loads when the Climate map is opened, or
+  when a built-form table that keys on climate reaches the kernel; the share (349,880 bytes) only with the map. The
+  browser's stream decoder unpacks them and crypto.subtle checks each sha256 before a lookup answers. The kernel's copy is
+  fed through the door in 64 kB slices in idle callbacks; the map's texture (2,880 × 1,440, class and share) is uploaded in
+  strips of rows in idle callbacks.
+- **The Climate map (Advanced).** One equirectangular texture inside the land stencil over the veil: one hue per main group
+  (tropical, dry, temperate, cold, polar; Okabe-Ito, never red against green alone), lighter by the class's place in its
+  group; mixed cells hatched; no class a dark hatch. The legend names the groups in plain words and carries the credit and
+  the CC BY link, as does the chip line wherever a class is shown. Nothing else drawn follows the class yet: it is a key.
+- **The door** (crates/cewp-sim/src/door.rs, kernel `door_stage`, `door_begin`, `door_feed`, `door_finish`, `door_unload`,
+  `door_versions`). The page hands the kernel a named, versioned table: the header (slot name, Holon's reference, version,
+  sha256), then the bytes in slices; the kernel hashes every byte it receives, refuses a table whose sha256 differs (the
+  slot keeps what it held), parses it into a typed table, and from then on a layout may read it. Four slots: `climate`
+  (APPEARANCE-0), `form` (a built-form table; none exists), `state` and `state_count` (REGION-0). The page feeds one table at
+  a time (the door holds one pending table). A layout is a pure function of (leaf, context, parameters,
+  the versions of the slots it read); each layout records the slots it read and the version it saw (reading an absent slot
+  is a read, version 0), the page keeps a cached layout exactly while those hold (tiling.js `tlDoorChanged`), so a table
+  invalidates what read its slot and nothing else, and the same tables give the same world in any order of arrival
+  (cewp-sim tests/door.rs). With no table every street reads the code's constants and says so.
+- **REGION-0** (CIRISHolon 8adf573, `conformance/scene/tables/region0/`, imported by `tools/holon/import.py ... region0`;
+  ledger holon-region0). A US state per cell (its 2-digit federal code as a byte, 0 none), the winner's share of the points
+  in any state, and the count of the cell's 25 sample points in any state, from Natural Earth 1:50m admin-1 (version 5.1.1,
+  public domain); 8,092, 9,288 and 10,718 bytes packed. The gate's one allowance: a state code is accepted only as a
+  one-byte state key per cell from a sidecar that declares it (key `cell`, a `code_table` of code 1..56, postal, name, and
+  every code in the grid in that table); the refused-names list is unchanged. The sidecar's provenance block (`source`,
+  which names the download "address") is not scanned, as the JSON tables' sidecars never are. The published names are
+  padded with NUL bytes; the padding is dropped. The twin's rules, one for each hazard the sidecar states: a cell takes its
+  state only with 13 or more of 25 points in any state (2,064 coded cells have fewer: coast, Canada, Mexico), inside the
+  twin's own United States mask and on its land; lake water inside a state's outline carries its code and the twin's land
+  cover (no land pixel, or permanent water the majority) decides; US land with no code (small islands, the westernmost
+  Aleutians) and cells under the count fall back to the country's row, and the street panel says which ("state used for
+  this street: Ohio (its own) / none, the country's row"); DC is one cell; the winner's share of the whole cell is its
+  points over 25, recovered from the share and the count. The grids load when a US street's panel is shown and go to the
+  kernel's `state` and `state_count` slots; `door_leaf_key` applies the same rules per leaf (the leaf is on land by
+  construction). region.test.js: the 50 labelled points of CIRISHolon's freeze read their state, each hazard, and the
+  kernel against the page on 3,000 leaves and 40 border cells. No map layer: the panel line is the check.
+- **The generator seam.** No built-form generator ships (CIRISHolon's first was refused by its own tests). The call is kept
+  as a stub with the key the next one will take: `builtform::FormGenerator::draw(FormQuery { state, climate, class,
+  vintage, seed })` (the state as `Door::state_of` decides it, 0 for the country's row; climate class; the twin's density
+  class; an optional vintage band; a seed of the building's own) gives one building (width, depth, storeys, dwellings,
+  gap, setback) with the pooling level of each field (the state's own rows, its division's, or borrowed), or `Absent`. The
+  layout asks it per building on frontage only when one is compiled in (then it reads the state and climate slots, and
+  its stamp says so); the layout's random stream never moves, and an absent answer leaves the row's draw. Only the stub
+  exists (`NoGenerator`). The holon-scene pin is unchanged and its buildings module is not linked.
+- **Built form as a table** (crates/cewp-sim/src/builtform.rs). The per-class numbers the layout drew with (widths, depths,
+  storeys, dwellings, gaps, setbacks, the village's 18 % barns, street widths 5 / 6 / 8 / 8 m and 4 m lanes, the dense
+  fabric's plots) are one table of five rows by form class (village, suburban, terraced, blocks, dense fabric), each row
+  stating the order its draws are taken in. Lookup by (class, climate class, region): a loaded table's class × zone row,
+  else its world row, else the built-in row; the leaf records which, and the street panel says it. Street spacing stays a
+  world constant of the table: neighbouring leaves place the streets crossing their shared side from either side, so a
+  spacing that moved with a leaf's zone would break there. With no table loaded every layout is byte-identical to before:
+  layout_xcheck (2,000 or more real leaves, natively and in the wasm) and 600 synthetic leaves at every form class whose
+  digests the previous kernel wrote (tools/holon/form_identity.mjs, crates/cewp-sim/tests/form_identity.txt). A synthetic
+  table (in the test only) that gives suburban streets in one climate class three or four storeys changes exactly those
+  leaves. No regional or climate value is in the twin: no table of built form exists yet.

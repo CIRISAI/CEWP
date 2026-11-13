@@ -621,6 +621,8 @@ pub fn check_page(docs: &std::path::Path) -> Vec<Finding> {
         ("evidence/evidence.js", read("evidence/evidence.js")),
         ("globe.html", read("globe.html")),
         ("index.html", read("index.html")),
+        // the climate and state lookups, their data map's legend and the street's built-form line
+        ("climate.js", read("climate.js")),
     ];
     let mut out = Vec::new();
     for (f, s) in &files {

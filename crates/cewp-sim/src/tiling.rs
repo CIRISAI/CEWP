@@ -486,10 +486,12 @@ impl LeafContext {
 // ------------------------------------------------------------------ edges
 
 /// Street spacing (metres) for a household density (households per km²): about 90 m in a dense
-/// core, 230 m suburban, 1.4 km in open country. MODEL, a visual rule; no CIRIS source.
+/// core, 230 m suburban, 1.4 km in open country. MODEL, a visual rule; no CIRIS source. Its numbers are the
+/// built-form table's world constants (`builtform::SPACING`); no loaded table changes them (neighbours must agree).
 #[must_use]
 pub fn street_spacing_m(hh_per_km2: f64) -> f64 {
-    (3400.0 / crate::detmath::pow(hh_per_km2.max(0.01), 0.4)).clamp(60.0, 3000.0)
+    let s = crate::builtform::SPACING;
+    (s.k / crate::detmath::pow(hh_per_km2.max(0.01), s.e)).clamp(s.min, s.max)
 }
 
 /// A street crossing a side, at an absolute lattice position along it (longitude units for a
@@ -902,6 +904,9 @@ pub struct LeafLayout {
     pub ports: Vec<Port>,
     /// True when no spot in the leaf clears its streets for even one small house.
     pub unplaced: bool,
+    /// What its built form was read from (`builtform`, through `door`): the row's source, the leaf's climate class and
+    /// region, and the door slots read with their versions. Not in `digest`: it says where the numbers came from.
+    pub form: crate::builtform::FormUse,
 }
 
 impl LeafLayout {
@@ -1022,16 +1027,25 @@ impl LeafLayout {
         h
     }
 
-    /// Lay out a leaf from its context. A pure function of `(id, ctx, params)`.
+    /// Lay out a leaf from its context with no table loaded (the built-in rows). A pure function of `(id, ctx, params)`.
     #[must_use]
     pub fn build(id: HolonId, ctx: &LeafContext, params: &MicroParams) -> Self {
+        Self::build_with(id, ctx, params, &crate::door::EMPTY)
+    }
+
+    /// Lay out a leaf from its context, reading its built form through `door`. A pure function of `(id, ctx, params,
+    /// the versions of the door's slots it read)`; `form.stamp` names those slots and versions.
+    #[must_use]
+    pub fn build_with(id: HolonId, ctx: &LeafContext, params: &MicroParams, door: &crate::door::Door) -> Self {
+        use crate::builtform::{FormClass, FormRow};
         let (w, h) = id.size_m();
         let pph = params.get(P::PersonsPerHousehold).max(1.0);
         let area = (w * h / 1e6).max(1e-9);
         let density_km2 = ctx.budget as f64 * pph / area;
         let class = DensityClass::of(density_km2, params);
+        let (row, form) = door.form(id, FormClass::of(class, density_km2));
         let rng = Rng::new(id.seed());
-        let mut out = Self { id, w, h, households: ctx.budget, people: ctx.people, density_km2, class, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), unplaced: false };
+        let mut out = Self { id, w, h, households: ctx.budget, people: ctx.people, density_km2, class, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), unplaced: false, form };
         let (hw, hh) = (w / 2.0, h / 2.0);
 
         // ports: where streets cross each side (the shallower side's rule; see side_crossings)
@@ -1049,12 +1063,7 @@ impl LeafLayout {
 
         // streets: the leaf's own lines, run on to a side where that side has a port there, and a
         // stub in from every port that is not on a line; the grid closes over all of them
-        let width = match class {
-            DensityClass::UrbanCore if density_km2 >= DENSE_FABRIC_KM2 => DENSE_LANE_M,
-            DensityClass::UrbanCore | DensityClass::Urban => 8.0,
-            DensityClass::Suburban => 6.0,
-            DensityClass::Village => 5.0,
-        };
+        let width = row.street_m();
         let has = |dir: Dir, v: f64| out.ports.iter().any(|p| p.dir == dir && p.pos.to_bits() == v.to_bits());
         let mut xs: Vec<Line> = cell_lines(id, &ctx.chain, true);
         let mut ys: Vec<Line> = cell_lines(id, &ctx.chain, false);
@@ -1098,10 +1107,9 @@ impl LeafLayout {
         }
         let mut rng = rng;
         out.roads = roads;
-        if class == DensityClass::UrbanCore && density_km2 >= DENSE_FABRIC_KM2 {
-            out.place_dense_fabric(&mut rng);
-        } else {
-            out.place_buildings(&mut rng);
+        match row {
+            FormRow::Dense(d) => out.place_dense_fabric(&mut rng, &d),
+            FormRow::Frontage(f) => out.place_buildings(&mut rng, &f, door),
         }
         out.fit_households(&mut rng);
         out.link_streets();
@@ -1111,13 +1119,13 @@ impl LeafLayout {
     /// Dense fabric (see [`DENSE_FABRIC_KM2`]): plots of 8 to 13 m by 8 to 12 m on a grid that
     /// fills the leaf, 1 to 2.5 m apart, wherever they clear the lanes; then the leaf's households
     /// are shared evenly over them and each building gets the storeys its flats need.
-    fn place_dense_fabric(&mut self, rng: &mut Rng) {
+    fn place_dense_fabric(&mut self, rng: &mut Rng, row: &crate::builtform::DenseRow) {
         if self.households == 0 {
             return;
         }
         // a side keeps the full SIDE_INSET only where a main road crosses it (a neighbour's main road
         // may run beside it); elsewhere plots come to a lane's half-width of the leaf's edge
-        let inset = |dir: Dir| if self.ports.iter().any(|p| p.dir == dir && p.main) { SIDE_INSET } else { DENSE_LANE_M / 2.0 + 0.5 };
+        let inset = |dir: Dir| if self.ports.iter().any(|p| p.dir == dir && p.main) { SIDE_INSET } else { row.street_m / 2.0 + 0.5 };
         let (x0, x1) = (-self.w / 2.0 + inset(Dir::W), self.w / 2.0 - inset(Dir::E));
         let (y0, y1) = (-self.h / 2.0 + inset(Dir::S), self.h / 2.0 - inset(Dir::N));
         let fits = |l: &Self, b: &Building| {
@@ -1131,17 +1139,17 @@ impl LeafLayout {
         // and a plot or row that does not fit at its drawn size tries the smallest size first
         let mut y = y0;
         while y < y1 {
-            let drawn = rng.range(8.0, 12.0);
+            let drawn = row.plot_d.draw(rng);
             let mut placed = false;
             let mut row_d = drawn;
-            for d in [drawn, 8.0] {
+            for d in [drawn, row.plot_min] {
                 let mut x = x0;
                 while x < x1 {
-                    let drawn_w = rng.range(8.0, 13.0);
-                    let at = |w: f64| Building { cx: x + w / 2.0, cy: y + d / 2.0, w, d, angle: 0.0, floors: DENSE_MIN_FLOORS, units: 1, street: NO_STREET };
-                    let hit = [drawn_w, 8.0].into_iter().map(at).find(|b| fits(self, b));
+                    let drawn_w = row.plot_w.draw(rng);
+                    let at = |w: f64| Building { cx: x + w / 2.0, cy: y + d / 2.0, w, d, angle: 0.0, floors: row.min_storeys, units: 1, street: NO_STREET };
+                    let hit = [drawn_w, row.plot_min].into_iter().map(at).find(|b| fits(self, b));
                     if let Some(b) = hit {
-                        x += b.w + rng.range(1.0, 2.5);
+                        x += b.w + row.gap.draw(rng);
                         self.buildings.push(b);
                         placed = true;
                     } else {
@@ -1153,7 +1161,7 @@ impl LeafLayout {
                     break;
                 }
             }
-            y += if placed { row_d + rng.range(1.0, 2.5) } else { 1.0 };
+            y += if placed { row_d + row.gap.draw(rng) } else { 1.0 };
         }
         if self.buildings.is_empty() {
             return; // fit_households places one block on the first free spot
@@ -1168,8 +1176,8 @@ impl LeafLayout {
         for (k, b) in self.buildings.iter_mut().enumerate() {
             let units = each + u64::from((k as u64) < extra);
             b.units = units.min(u64::from(u16::MAX)) as u16;
-            let per_floor = (b.w / 6.0).round().max(1.0) as u64;
-            b.floors = (units.div_ceil(per_floor).min(60) as u8).max(DENSE_MIN_FLOORS);
+            let per_floor = (b.w / row.flat_w).round().max(1.0) as u64;
+            b.floors = (units.div_ceil(per_floor).min(60) as u8).max(row.min_storeys);
         }
     }
 
@@ -1191,10 +1199,15 @@ impl LeafLayout {
         !self.buildings.iter().any(|o| rects_overlap(b, o, 0.6))
     }
 
-    fn place_buildings(&mut self, rng: &mut Rng) {
+    fn place_buildings(&mut self, rng: &mut Rng, row: &crate::builtform::FrontageRow, door: &crate::door::Door) {
+        use crate::builtform::{FormClass, FormQuery};
         if self.households == 0 {
             return;
         }
+        // a built-form generator, when one is compiled in, is asked per building with a seed of its own (the layout's
+        // stream is never moved by it); absent, the row draws as before
+        let gen = door.generator.present().then_some(door.generator);
+        let fclass = FormClass::of(self.class, self.density_km2);
         let roads = self.roads.clone();
         for (ri, r) in roads.iter().enumerate() {
             let (dx, dy) = (r.x1 - r.x0, r.y1 - r.y0);
@@ -1205,28 +1218,27 @@ impl LeafLayout {
             let (ux, uy) = (dx / len, dy / len);
             let angle = uy.atan2(ux);
             for side in [-1.0f64, 1.0] {
-                let mut s = rng.range(2.0, 10.0);
+                let mut s = row.first.draw(rng);
+                let mut k: u64 = 0;
                 while s < len {
-                    let (w, d, floors, units, gap, setback) = match self.class {
-                        DensityClass::UrbanCore => {
-                            let w = rng.range(16.0, 28.0);
-                            let floors = 4 + rng.below(4) as u8;
-                            let per = (w / 9.0).round().max(1.0) as u16;
-                            (w, rng.range(11.0, 15.0), floors, per * u16::from(floors), rng.range(0.5, 3.0), 1.5)
-                        }
-                        DensityClass::Urban => {
-                            let floors = 2 + rng.below(2) as u8;
-                            (rng.range(6.5, 9.0), rng.range(8.5, 11.0), floors, 1 + rng.below(2) as u16, 0.4, 3.0)
-                        }
-                        DensityClass::Suburban => (rng.range(9.5, 13.0), rng.range(8.5, 12.0), 1 + rng.below(2) as u8, 1, rng.range(9.0, 15.0), rng.range(7.0, 11.0)),
-                        DensityClass::Village => {
-                            if rng.chance(0.18) {
-                                (rng.range(14.0, 22.0), rng.range(10.0, 14.0), 1, 0, rng.range(12.0, 40.0), rng.range(8.0, 14.0))
-                            } else {
-                                (rng.range(8.5, 13.0), rng.range(8.0, 11.0), 1 + rng.below(2) as u8, 1, rng.range(14.0, 50.0), rng.range(6.0, 13.0))
-                            }
-                        }
+                    let draws = match row.barn {
+                        Some((share, barn)) if rng.chance(share) => barn,
+                        _ => row.house,
                     };
+                    let (mut w, mut d, mut floors, mut units, mut gap, mut setback) = draws.draw(rng);
+                    if let Some(g) = gen {
+                        let seed = mix64(self.id.seed() ^ (ri as u64) << 33 ^ u64::from(side > 0.0) << 32 ^ k);
+                        let q = FormQuery { state: self.form.state.code, climate: self.form.climate, class: fclass, vintage: None, seed };
+                        if let Ok(b) = g.draw(&q) {
+                            (w, d, floors, units, gap, setback) = (b.width, b.depth, b.storeys, b.units, b.gap, b.setback);
+                            self.form.generated += 1;
+                            self.form.pooling = Some(match self.form.pooling {
+                                None => (b.pooling, false),
+                                Some((p, mixed)) => (p, mixed || p != b.pooling),
+                            });
+                        }
+                    }
+                    k += 1;
                     let mid = s + w / 2.0;
                     if mid > len {
                         break;
@@ -1367,7 +1379,7 @@ mod tests {
         // every pair of the 5 nodes takes one path, so each arm carries the 4 pairs through its end
         let id = HolonId::at(9, 47.3769, 8.5417);
         let (w, h) = id.size_m();
-        let mut l = LeafLayout { id, w, h, households: 0, people: 0, density_km2: 0.0, class: DensityClass::Village, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), unplaced: false };
+        let mut l = LeafLayout { id, w, h, households: 0, people: 0, density_km2: 0.0, class: DensityClass::Village, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), unplaced: false, form: Default::default() };
         l.roads = vec![Road { x0: 0.0, y0: -10.0, x1: 0.0, y1: 10.0, width: 5.0 }, Road { x0: -10.0, y0: 0.0, x1: 10.0, y1: 0.0, width: 5.0 }];
         let g = l.street_graph();
         assert_eq!(g.junctions.iter().filter(|j| j.kind == JunctionKind::Cross).count(), 1);

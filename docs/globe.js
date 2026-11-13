@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=51"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=52"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -1021,6 +1021,7 @@ function draw(){
     if (typeof incellDraw==="function") incellDraw(R,S,asp,w,h,mpp,sstep(3000,1200,mpp)*(1-sstep(60,25,mpp)));
     if (typeof incellAwakeWide==="function") incellAwakeWide(R,S,asp,sstep(1200,3000,mpp)*(1-sstep(12000,25000,mpp))); // continental zoom: the veil, and Awake by longitude
     if (typeof incellPower==="function") incellPower(R,S,asp,1-sstep(60,25,mpp)); // Power: GRID-0 by country, every zoom above the street
+    if (typeof climateDraw==="function") climateDraw(R,S,asp,1-sstep(60,25,mpp)); // Climate (Advanced): APPEARANCE-0 by cell, inside the land
     // 5. the night side: the population grid (MODEL input) glows where the kernel's sun has set
     if (typeof gfxNightGlow==="function" && (typeof LAYERS==="undefined" || LAYERS.on("glow")) && !(typeof DATAMAP!=="undefined" && DATAMAP.active && mpp>25 && (mpp<25000 || DATAMAP.active===5))) gfxNightGlow(R,S,asp,mpp,1.0); // a data map replaces the glow where it draws
     gl.disable(gl.STENCIL_TEST); }
@@ -2587,7 +2588,7 @@ function drawScaleBar(g, F, ppm){
 const pad2 = (n) => String(n).padStart(2, "0"); // the street clock's two-digit fields
 // ---- CIRISHolon's tables on the page (FSD/twin/holon-intake.md): loaded lazily, never at first paint
 const HOLT = { want: false, idx: null, t: {}, reg: null, regAt: null };
-const HOL_V = 7; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
+const HOL_V = 8; // bump with docs/geo/holon/*.json (the service worker caches them per commit)
 // a table whose rows share long strings carries them once (data.strings, tools/holon/import.py) and each row an index:
 // put the strings back, so every string shown is the one published
 function holExpand(t){ const S = t && t.data && t.data.strings; if (!S) return t;
@@ -2817,9 +2818,10 @@ const DM_MAPS = [
   { id: 4, icon: "⌂", name: "Households", ref: "holon-housegen1" },
   { id: 5, icon: "ϟ", name: "Power", ref: "holon-grid0" },
   { id: 6, icon: "⇅", name: "Data", ref: "data-activity" },
+  { id: 7, icon: "◐", name: "Climate", ref: "holon-appearance0" },
 ];
 const DM_MAP = (id) => DM_MAPS.find((m) => m.id === id);
-const DM_TOP = [0, 1, 2, 6, 4, 5], DM_ADV = [3], DM_ADV_OPEN = { open: false };
+const DM_TOP = [0, 1, 2, 6, 4, 5], DM_ADV = [3, 7], DM_ADV_OPEN = { open: false };
 // ---- Power: CIRISHolon GRID-0 (grid carbon intensity priors) by COUNTRY on the Natural Earth admin-0 mask. GRID-0's rules:
 // one kind per map (never two), the year on the legend, trust C hatched, no averaging of disagreeing rows (the higher-trust row
 // shown, the other named), a country with no row is "no reference" (no inherited region value). Each choice is one exact kind.
@@ -2899,6 +2901,7 @@ function dmLegend(){
   if (id === 6){ const lg = (x) => (Math.log10(x) - 2.5) / 3.2 * 0.94 + 0.06, rate = typeof dataRate === "function" ? dataRate() : 0;
     return `<div class="dm-l1 dm-wrap"><b>Data</b> ${fig("data-activity", "messages people send here in this hour; an estimate under two assumptions, not a measurement: in the United States by who is awake, elsewhere (hatched) by an assumed daily curve")}</div>` +
       `<div class="dm-l2 dm-wrap">${fig("data-activity", dmBar("dm-data", [[lg(1000), "1k"], [lg(10000), "10k"], [lg(100000), "100k"]]) + " per hour per km²")} ${more(fig("data-activity", "Sending by hour has no reference; shown under two assumptions. People per km² in each ~1 km square (the People layer) × " + rate.toFixed(1) + " messages an hour per awake person (the street engine's assumed mean gap of " + Math.round(3600 / Math.max(rate, 1e-9)) + " s between messages from a person's device) × in the United States, the share of people awake at the place's local solar hour (CIRISHolon PRESENCE-0, US time diaries): each person's day leads sending, as on the street; elsewhere (hatched), the engine's assumed daily curve instead (lowest around 03:00, highest around 19:30, the same everywhere: no other country has day tables yet). Where the two rules meet at a border the colour can step; that step is the rules', not a real difference. Devices also sync in the background at a steady rate; that is not drawn here. Not a measurement."))}</div>`; }
+  if (id === 7) return typeof climateLegend === "function" ? climateLegend() : "";
   if (id === 3) return `<div class="dm-l1 dm-wrap"><b>Checked?</b> ${fig("holon-housegen1", "whether the twin's household mix here has been compared with a real census")}</div>` +
     `<div class="dm-l2 dm-wrap">${holVd("certified", "matches the census")} ${holVd("unresolved", "read, not yet checked")} <span class="vd dm-noref">nothing to check against</span> ${more(fig("holon-housegen1", "CIRISHolon's household generator (HOUSEGEN-1) per ~1 km tile: German village tiles certified (composition), other German and all US tiles unresolved, elsewhere outside every reference") + " · " + fig("countries-source", "country from Natural Earth's mask, for envelopes only"))}</div>`;
   if (id === 4){ const h = hhMeans(), r = (a) => a ? Math.min(...a).toFixed(2) + " (dense) to " + Math.max(...a).toFixed(2) : "…";
@@ -2934,6 +2937,7 @@ function dmValue(){
   if (id === 1){ const u = HOLT.t.uneven0, cls = HOL_CLS[(M.meta[2] | 0) === 0 && M.meta[4] >= 12000 ? "dense fabric" : MDCLASS[M.meta[2] | 0]] || "village", k = ["village", "suburban", "terraced", "apartment blocks", "dense fabric"].indexOf(cls);
     if (!u || k < 0) return "people: loading CIRISHolon's in-cell table…"; const r = holRegion(M.lat0, M.lon0), e = r === null ? null : u.data.regional[r][k], v = e && e.people ? e.people : u.data.world.people[k];
     return `people here: in ${/^[aeiou]/.test(cls) ? "an" : "a"} ${cls} area like this one, ${Math.round(v.slice(k + 2).reduce((a, b) => a + b, 0) / 1e4)}% of people live in denser ~1 km squares nearby`; }
+  if (id === 7) return typeof climateValue === "function" ? climateValue(M.lat0, M.lon0) : "";
   const s = holSeam(), c = s ? s.country : -1;
   if (id === 6){ const d = M.meta[4] || 0, r = typeof dataRate === "function" ? dataRate() : 0, us = HOLT.countries && countryNear(HOLT.countries, M.lat0, M.lon0) === 840;
     const h = us ? incellAwake(M.lon0) : (typeof dataDiurnal === "function" ? dataDiurnal(M.lon0) : 1);
@@ -3005,7 +3009,7 @@ function updateFocalChip(F){
   const detail = `<div class="fd-head"><b>Where this street's figures come from</b> <button class="chip-btn" id="fd-close" type="button" aria-label="Close">×</button></div>` +
     (M.denseNote ? `<div class="chip-sub">${fig("dense-fabric", "dense fabric: storeys are the leaf's households over its plots; the density is a 1/8° cell average, and wards inside it are denser")}</div>` : "") +
     `<div class="chip-sub">${fig("micro-population", (microSnapKm > 0 ? "the view centre is on water or an empty tile: this is the nearest settled land in its 1/8° cell, " + microSnapKm.toFixed(1) + " km away · " : "") + "this tile: " + P.persons.toLocaleString() + " people in " + P.hh.toLocaleString() + " households with " + P.dev.toLocaleString() + " devices; " + P.nodes.toLocaleString() + " nodes drawn, a display sample capped at 1,000 · households and persons sum exactly to GHS-POP; household size, device mix and router class have no reference (MODEL) · people inside a 1/8° cell follow CIRISHolon's in-cell table (UNEVEN-0, unresolved)")}</div>` +
-    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devicegen1", holDevGenLine())} · ${fig("holon-devicegen1", hwButtons())}</div><div class="chip-sub">${fig("holon-presencegen2", rhyLine())}</div><div class="chip-sub">${fig("energy-street", energyLine())}</div><div class="chip-sub">${fig("street-delivery", deliveryLine())}${fig("street-delivery", M.presOn ? " · " + sendButtons() : "")}</div><div class="chip-sub">${fig("holon-mesh0", meshLine())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div>` +
+    `<div class="chip-sub">${fig("holon-housegen1", holGenLine())}</div><div class="chip-sub">${fig("holon-devicegen1", holDevGenLine())} · ${fig("holon-devicegen1", hwButtons())}</div><div class="chip-sub">${fig("holon-presencegen2", rhyLine())}</div><div class="chip-sub">${fig("energy-street", energyLine())}</div><div class="chip-sub">${fig("street-delivery", deliveryLine())}${fig("street-delivery", M.presOn ? " · " + sendButtons() : "")}</div><div class="chip-sub">${fig("holon-mesh0", meshLine())}</div><div class="chip-sub">${fig("holon-devices0-us", holDevLine())}</div><div class="chip-sub">${fig("holon-presence0-us", holPresLine())}</div><div class="chip-sub">${fig("holon-household0-us", holUs(hcls))} · ${fig("holon-household0-de", holDe(hcls))} · ${fig("holon-household0-us", holEnvelope())}</div><div class="chip-sub">${fig("holon-uneven0", holUnevenLine(hcls, M.lat0, M.lon0))}</div><div class="chip-sub">${fig("built-form", typeof formLine === "function" ? formLine() : "")}</div>` +
     `<div class="chip-sub">rows: ${fig("micro-activity", m[10] + " sent · " + m[11] + " direct (" + m[12] + " shaped) · " + m[13] + " relayed · " + m[15] + " held at a mailbox · " + m[16] + " handed over · punches " + m[20] + "/" + m[19] + " up")} · tap a device</div>` +
     `<div class="chip-sub">model's reading: replication rounds ${fig("micro-activity", (m[37] | 0) + " served · " + (m[38] | 0) + " cadences where an unclaimed device announced with no seat as peer")} · bundle bootstrap (edge #881) <button class="chip-btn" id="bs-tg" type="button" title="${BS_TITLE[microBootstrap]} (tap for the next release)">${BS_LABEL[microBootstrap]}</button>` +
     (microStory ? "" : ` · seats: <button class="chip-btn" id="ds-tg" type="button" title="production's shape is one seat; the design case is three seats, k = 2">${microDesign ? '<span class="inp">design case: 3, k=2</span>' : '<span class="inp">production: 1</span>'}</button>`) + `</div>`;

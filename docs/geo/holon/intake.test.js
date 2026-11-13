@@ -17,6 +17,11 @@ test("index, assets and ledger agree", () => {
     const c = byId.get(e.ledger); assert.ok(c, `${ref}: no ledger entry ${e.ledger}`);
     assert.ok(String(c.dataset).includes(e.notice), `${ref}: the ledger entry carries the notice`);
     assert.strictEqual(c.class, "MODEL");
+    // a table shipped as binary grids: each file is the sidecar's, byte for byte (docs/geo/holon/climate.test.js reads them)
+    for (const [p, b] of Object.entries(e.binary_assets || {})){
+      const raw = fs.readFileSync(path.join(ROOT, p));
+      assert.strictEqual(raw.length, b.bytes_packed, `${p}: bytes`); assert.strictEqual(crypto.createHash("sha256").update(raw).digest("hex"), b.sha256_packed, `${p}: sha256`);
+    }
   }
   // every ledger entry sourced from an imported table names a table in the index
   for (const c of list) if (/^docs\/geo\/holon\/[a-z0-9_]+\.json, imported/.test(String(c.source))) assert.ok(Object.values(idx).some((e) => e.ledger === c.id), `${c.id} names no table in the index`);

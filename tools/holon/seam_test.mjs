@@ -18,7 +18,7 @@ const split = (p, pb, ext) => {
 };
 const T = H.tree(rootF, extF, split, 60);
 const layout = (leaf) => {
-  const ctx = T.context(leaf); const ptr = w.holon_ctx_ptr(); new Float64Array(mem.buffer, ptr, 32).set(ctx);
+  const ctx = T.context(leaf); const ptr = w.holon_ctx_ptr(); new Float64Array(mem.buffer, ptr, 33).set(ctx);
   w.holon_layout(H.pack(leaf));
   const pp = w.holon_buf_ptr(3), pn = w.holon_buf_len(3), P = new Float64Array(mem.buffer, pp, pn), ports = [];
   for (let k = 0; k < pn; k += 3) ports.push({ d: P[k], pos: P[k + 1], main: P[k + 2] });
