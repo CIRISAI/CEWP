@@ -440,7 +440,8 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
         if o.family == "key:record" && live {
             registered.insert(o.author.clone());
         }
-        if o.family == "transport:{kind}" && live {
+        // rc19: a person's device binding is identity:occurrence; transport:{kind} is an infrastructure node's
+        if (o.family == "transport:{kind}" || o.family == "identity:occurrence") && live {
             nodes_of.entry(o.author.clone()).or_default().insert(o.id.clone());
         }
         if o.family == "trust:{job}:{version}" && live {
@@ -763,6 +764,12 @@ pub fn standing(f: &FoldState, person: &str, object: &str) -> Vec<String> {
 }
 
 pub fn enabled_for(tables: &Tables, family: &str, state: &str, roles: &[String]) -> Vec<Transition> {
+    enabled_for_at(tables, family, state, roles, None)
+}
+
+/// `enabled_for` for a view that knows its stage: each transition's signers are the stage's own where the table gives
+/// one (transitions.json `_meta.stages`), else the union.
+pub fn enabled_for_at(tables: &Tables, family: &str, state: &str, roles: &[String], stage: Option<&str>) -> Vec<Transition> {
     let mut fam_key = family;
     let resolved;
     if !tables.families.contains_key(fam_key) {
@@ -781,10 +788,11 @@ pub fn enabled_for(tables: &Tables, family: &str, state: &str, roles: &[String])
     let rs: HashSet<&str> = roles.iter().map(|s| s.as_str()).collect();
     ts.iter()
         .filter(|t| {
+            let tr = t.roles_at(stage);
             t.from == state
-                && !t.roles.is_empty()
-                && (t.roles.iter().any(|r| rs.contains(r.as_str()))
-                    || (t.roles.iter().any(|r| r == "registered") && !rs.is_empty() && rs.contains("registered")))
+                && !tr.is_empty()
+                && (tr.iter().any(|r| rs.contains(r.as_str()))
+                    || (tr.iter().any(|r| r == "registered") && !rs.is_empty() && rs.contains("registered")))
         })
         .cloned()
         .collect()
@@ -880,6 +888,7 @@ pub fn enabled(
                     policy: pol.clone(),
                     policy_rows: Vec::new(),
                     widens: false,
+                    ..Default::default()
                 });
             }
         }
@@ -944,6 +953,7 @@ pub fn enabled(
                     policy: "two_path".to_string(),
                     policy_rows: Vec::new(),
                     widens: false,
+                    ..Default::default()
                 });
             }
         }

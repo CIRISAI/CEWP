@@ -1,7 +1,7 @@
 {
   "_meta": {
     "title": "CEWP CSD-to-Namespace Map (Synthesis)",
-    "description": "CEWP's synthesis of CIRISClient/CEWPOS cards against CC rc17's namespace_registry.json (191 families) and csd4_chain.json (156 vocabulary atoms, 152 state-table atoms, 110 promised atoms across T0..T19, catalogue v6)",
+    "description": "CEWP's synthesis of CIRISClient/CEWPOS cards against CC rc19's namespace_registry.json (184 families) and csd4_chain.json (156 vocabulary atoms, 152 state-table atoms, 110 promised atoms across T0..T19, catalogue v6)",
     "cards_provenance": "CIRISClient (101 cards across 22 files: 43 CSD/4 four-field + 58 earlier bullet cards) + CEWPOS (4 cards CSD-CEWPOS-001..004) = 105 total cards",
     "vocabulary_catalogue_version": 6,
     "vocabulary_atoms_total": 156,
@@ -14,13 +14,13 @@
       "refused_retired_holds_bytes_vectors": 3
     }
   },
-  "version": "cewp-synthesis-rc17-v6",
+  "version": "cewp-synthesis-rc19-v6",
   "summary": {
-    "total_families": 191,
-    "total_transitions": 474,
-    "total_policies": 12,
+    "total_families": 184,
+    "total_transitions": 459,
+    "total_policies": 16,
     "total_csd_cards": 105,
-    "csd_mapped_families": 94,
+    "csd_mapped_families": 87,
     "substrate_autonomous_families": 97,
     "total_csd_shows_fields": 660,
     "resolved_csd_shows_fields": 152,
@@ -40,7 +40,7 @@
   "cards": [
     {
       "id": "CSD-001",
-      "title": "CSD-001 \u2014 Delegation card and screen (Family layer)",
+      "title": "CSD-001 — Delegation card and screen (Family layer)",
       "domain": "client",
       "section": "Surface",
       "topologies": [
@@ -55,9 +55,9 @@
     },
     {
       "id": "CSD-002",
-      "title": "CSD-002 \u2014 Environment graph (what this circle has, wants and can lend)",
+      "title": "CSD-002 — Environment graph (what this circle has, wants and can lend)",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -113,9 +113,9 @@
     },
     {
       "id": "CSD-003",
-      "title": "CSD-003 \u2014 Constitutional card (is the halt authority armed, who holds it)",
+      "title": "CSD-003 — Constitutional card (is the halt authority armed, who holds it)",
       "domain": "constitution",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T12"
       ],
@@ -159,9 +159,9 @@
     },
     {
       "id": "CSD-004",
-      "title": "CSD-004 \u2014 Federation capacity attestations",
+      "title": "CSD-004 — Federation capacity attestations",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -172,31 +172,31 @@
       "shows": [
         {
           "field": "capacity:core_identity",
-          "canonical_family": "capacity:core_identity",
+          "canonical_family": "capacity:{factor}",
           "use": "display-only",
           "type": "float"
         },
         {
           "field": "capacity:integrity",
-          "canonical_family": "capacity:integrity",
+          "canonical_family": "capacity:{factor}",
           "use": "display-only",
           "type": "float"
         },
         {
           "field": "capacity:resilience",
-          "canonical_family": "capacity:resilience",
+          "canonical_family": "capacity:{factor}",
           "use": "display-only",
           "type": "float"
         },
         {
           "field": "capacity:incompleteness_awareness",
-          "canonical_family": "capacity:incompleteness_awareness",
+          "canonical_family": "capacity:{factor}",
           "use": "display-only",
           "type": "float"
         },
         {
           "field": "capacity:sustained_coherence",
-          "canonical_family": "capacity:sustained_coherence",
+          "canonical_family": "capacity:{factor}",
           "use": "display-only",
           "type": "float"
         },
@@ -223,9 +223,9 @@
     },
     {
       "id": "CSD-005",
-      "title": "CSD-005 \u2014 People (Contacts on the primitives)",
+      "title": "CSD-005 — People (Contacts on the primitives)",
       "domain": "identity",
-      "section": "Circle \u203a People",
+      "section": "Circle › People",
       "topologies": [
         "T2"
       ],
@@ -304,9 +304,9 @@
     },
     {
       "id": "CSD-006",
-      "title": "CSD-006 \u2014 The receipt (what every CEG item asserts)",
+      "title": "CSD-006 — The receipt (what every CEG item asserts)",
       "domain": "receipt",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T1"
       ],
@@ -355,9 +355,9 @@
     },
     {
       "id": "CSD-007",
-      "title": "CSD-007 \u2014 Files (the drive plane)",
+      "title": "CSD-007 — Files (the drive plane)",
       "domain": "storage",
-      "section": "Circle \u203a Files",
+      "section": "Circle › Files",
       "topologies": [
         "T1"
       ],
@@ -396,9 +396,9 @@
     },
     {
       "id": "CSD-008",
-      "title": "CSD-008 \u2014 Notes to self",
+      "title": "CSD-008 — Notes to self",
       "domain": "client",
-      "section": "Just me / Pair / Circle \u203a Chats",
+      "section": "Just me / Pair / Circle › Chats",
       "topologies": [
         "T1"
       ],
@@ -419,9 +419,9 @@
     },
     {
       "id": "CSD-010",
-      "title": "CSD-010 \u2014 Interact (the agent conversation)",
+      "title": "CSD-010 — Interact (the agent conversation)",
       "domain": "agent",
-      "section": "My things \u203a This agent",
+      "section": "My things › This agent",
       "topologies": [
         "T16"
       ],
@@ -494,9 +494,9 @@
     },
     {
       "id": "CSD-011",
-      "title": "CSD-011 \u2014 Cognitive Sessions (the agent's own state)",
+      "title": "CSD-011 — Cognitive Sessions (the agent's own state)",
       "domain": "agent",
-      "section": "My things \u203a This agent",
+      "section": "My things › This agent",
       "topologies": [
         "T0"
       ],
@@ -539,9 +539,9 @@
     },
     {
       "id": "CSD-012",
-      "title": "CSD-012 \u2014 Scheduler (what the agent will do later)",
+      "title": "CSD-012 — Scheduler (what the agent will do later)",
       "domain": "agent",
-      "section": "My things \u203a This agent",
+      "section": "My things › This agent",
       "topologies": [
         "T7"
       ],
@@ -609,9 +609,9 @@
     },
     {
       "id": "CSD-013",
-      "title": "CSD-013 \u2014 Tickets (duties other people's requests put on this node)",
+      "title": "CSD-013 — Tickets (duties other people's requests put on this node)",
       "domain": "identity",
-      "section": "Circle \u203a People",
+      "section": "Circle › People",
       "topologies": [
         "T0"
       ],
@@ -673,9 +673,9 @@
     },
     {
       "id": "CSD-014",
-      "title": "CSD-014 \u2014 Tools (what the agent can reach for)",
+      "title": "CSD-014 — Tools (what the agent can reach for)",
       "domain": "agent",
-      "section": "My things \u203a This agent",
+      "section": "My things › This agent",
       "topologies": [
         "T7"
       ],
@@ -735,9 +735,9 @@
     },
     {
       "id": "CSD-015",
-      "title": "CSD-015 \u2014 Skills (importing someone else's code)",
+      "title": "CSD-015 — Skills (importing someone else's code)",
       "domain": "client",
-      "section": "My things \u203a This agent",
+      "section": "My things › This agent",
       "topologies": [
         "T7"
       ],
@@ -809,9 +809,9 @@
     },
     {
       "id": "CSD-016",
-      "title": "CSD-016 \u2014 Services (what is running here)",
+      "title": "CSD-016 — Services (what is running here)",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -872,9 +872,9 @@
     },
     {
       "id": "CSD-020",
-      "title": "CSD-020 \u2014 Adapters (channels the agent acts through)",
+      "title": "CSD-020 — Adapters (channels the agent acts through)",
       "domain": "agent",
-      "section": "My things \u203a This agent",
+      "section": "My things › This agent",
       "topologies": [
         "T7"
       ],
@@ -965,9 +965,9 @@
     },
     {
       "id": "CSD-021",
-      "title": "CSD-021 \u2014 LLM (what the agent thinks with)",
+      "title": "CSD-021 — LLM (what the agent thinks with)",
       "domain": "agent",
-      "section": "My things \u203a This agent",
+      "section": "My things › This agent",
       "topologies": [
         "T0"
       ],
@@ -1034,9 +1034,9 @@
     },
     {
       "id": "CSD-022",
-      "title": "CSD-022 \u2014 Settings (every build's, and the agent's)",
+      "title": "CSD-022 — Settings (every build's, and the agent's)",
       "domain": "agent",
-      "section": "My things \u203a This agent",
+      "section": "My things › This agent",
       "topologies": [
         "T0"
       ],
@@ -1103,9 +1103,9 @@
     },
     {
       "id": "CSD-023",
-      "title": "CSD-023 \u2014 Config (what this node runs, what a root asks)",
+      "title": "CSD-023 — Config (what this node runs, what a root asks)",
       "domain": "node",
-      "section": "Everyone \u203a Safety / Rules / Decisions",
+      "section": "Everyone › Safety / Rules / Decisions",
       "topologies": [
         "T1"
       ],
@@ -1166,9 +1166,9 @@
     },
     {
       "id": "CSD-024",
-      "title": "CSD-024 \u2014 Runtime (reasoning stopped mid-thought)",
+      "title": "CSD-024 — Runtime (reasoning stopped mid-thought)",
       "domain": "client",
-      "section": "My things \u203a This agent",
+      "section": "My things › This agent",
       "topologies": [
         "T7"
       ],
@@ -1240,9 +1240,9 @@
     },
     {
       "id": "CSD-025",
-      "title": "CSD-025 \u2014 System (is this node well)",
+      "title": "CSD-025 — System (is this node well)",
       "domain": "node",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -1322,9 +1322,9 @@
     },
     {
       "id": "CSD-026",
-      "title": "CSD-026 \u2014 Interface (how this device draws the agent)",
+      "title": "CSD-026 — Interface (how this device draws the agent)",
       "domain": "agent",
-      "section": "My things \u203a This agent",
+      "section": "My things › This agent",
       "topologies": [
         "T0"
       ],
@@ -1387,9 +1387,9 @@
     },
     {
       "id": "CSD-027",
-      "title": "CSD-027 \u2014 Memory (what the node holds, as a list)",
+      "title": "CSD-027 — Memory (what the node holds, as a list)",
       "domain": "node",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T1"
       ],
@@ -1452,9 +1452,9 @@
     },
     {
       "id": "CSD-028",
-      "title": "CSD-028 \u2014 Graph (the same memory, drawn)",
+      "title": "CSD-028 — Graph (the same memory, drawn)",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T1"
       ],
@@ -1523,9 +1523,9 @@
     },
     {
       "id": "CSD-029",
-      "title": "CSD-029 \u2014 Logs (from the node or the brain)",
+      "title": "CSD-029 — Logs (from the node or the brain)",
       "domain": "node",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -1585,9 +1585,9 @@
     },
     {
       "id": "CSD-030",
-      "title": "CSD-030 \u2014 Telemetry (what the agent costs, where it goes)",
+      "title": "CSD-030 — Telemetry (what the agent costs, where it goes)",
       "domain": "agent",
-      "section": "My things \u203a This agent",
+      "section": "My things › This agent",
       "topologies": [
         "T0"
       ],
@@ -1660,9 +1660,9 @@
     },
     {
       "id": "CSD-031",
-      "title": "CSD-031 \u2014 Transport (how this node is reachable)",
+      "title": "CSD-031 — Transport (how this node is reachable)",
       "domain": "node",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -1741,9 +1741,9 @@
     },
     {
       "id": "CSD-032",
-      "title": "CSD-032 \u2014 This node's federation identity",
+      "title": "CSD-032 — This node's federation identity",
       "domain": "identity",
-      "section": "My things \u203a Devices & keys",
+      "section": "My things › Devices & keys",
       "topologies": [
         "T0"
       ],
@@ -1788,9 +1788,9 @@
     },
     {
       "id": "CSD-033",
-      "title": "CSD-033 \u2014 The peers this node holds",
+      "title": "CSD-033 — The peers this node holds",
       "domain": "node",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T1"
       ],
@@ -1833,9 +1833,9 @@
     },
     {
       "id": "CSD-035",
-      "title": "CSD-035 \u2014 Nodes (My things \u203a This node \u203a Nodes)",
+      "title": "CSD-035 — Nodes (My things › This node › Nodes)",
       "domain": "node",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -1891,9 +1891,9 @@
     },
     {
       "id": "CSD-036",
-      "title": "CSD-036 \u2014 Network (My things \u203a This node \u203a Network)",
+      "title": "CSD-036 — Network (My things › This node › Network)",
       "domain": "node",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T1"
       ],
@@ -1960,9 +1960,9 @@
     },
     {
       "id": "CSD-037",
-      "title": "CSD-037 \u2014 My Identity (devices that are me)",
+      "title": "CSD-037 — My Identity (devices that are me)",
       "domain": "identity",
-      "section": "My things \u203a Devices & keys",
+      "section": "My things › Devices & keys",
       "topologies": [
         "T3"
       ],
@@ -2048,9 +2048,9 @@
     },
     {
       "id": "CSD-039",
-      "title": "CSD-039 \u2014 Data (Everything I shared)",
+      "title": "CSD-039 — Data (Everything I shared)",
       "domain": "client",
-      "section": "My things \u203a Everything I shared",
+      "section": "My things › Everything I shared",
       "topologies": [
         "T17"
       ],
@@ -2204,9 +2204,9 @@
     },
     {
       "id": "CSD-040",
-      "title": "CSD-040 \u2014 Storage",
+      "title": "CSD-040 — Storage",
       "domain": "storage",
-      "section": "My things \u203a Everything I shared",
+      "section": "My things › Everything I shared",
       "topologies": [
         "T0"
       ],
@@ -2279,9 +2279,9 @@
     },
     {
       "id": "CSD-041",
-      "title": "CSD-041 \u2014 Wise Authority (Someone I trust)",
+      "title": "CSD-041 — Wise Authority (Someone I trust)",
       "domain": "client",
-      "section": "My things \u203a Someone I trust",
+      "section": "My things › Someone I trust",
       "topologies": [
         "T7"
       ],
@@ -2360,9 +2360,9 @@
     },
     {
       "id": "CSD-042",
-      "title": "CSD-042 \u2014 Help",
+      "title": "CSD-042 — Help",
       "domain": "client",
-      "section": "My things \u203a Help & principles",
+      "section": "My things › Help & principles",
       "topologies": [
         "T0"
       ],
@@ -2407,9 +2407,9 @@
     },
     {
       "id": "CSD-043",
-      "title": "CSD-043 \u2014 Users (accounts on this node)",
+      "title": "CSD-043 — Users (accounts on this node)",
       "domain": "node",
-      "section": "Communities & Businesses \u203a Rules / People / Safety",
+      "section": "Communities & Businesses › Rules / People / Safety",
       "topologies": [
         "T0"
       ],
@@ -2488,9 +2488,9 @@
     },
     {
       "id": "CSD-044",
-      "title": "CSD-044 \u2014 Health & Reputation in its circles",
+      "title": "CSD-044 — Health & Reputation in its circles",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T17"
       ],
@@ -2552,9 +2552,9 @@
     },
     {
       "id": "CSD-045",
-      "title": "CSD-045 \u2014 This node's own standing (shed, stop, compulsion)",
+      "title": "CSD-045 — This node's own standing (shed, stop, compulsion)",
       "domain": "node",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T1"
       ],
@@ -2608,9 +2608,9 @@
     },
     {
       "id": "CSD-046",
-      "title": "CSD-046 \u2014 The peer set as a graph",
+      "title": "CSD-046 — The peer set as a graph",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T1"
       ],
@@ -2637,9 +2637,9 @@
     },
     {
       "id": "CSD-047",
-      "title": "CSD-047 \u2014 Fetch content by digest",
+      "title": "CSD-047 — Fetch content by digest",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T1"
       ],
@@ -2672,9 +2672,9 @@
     },
     {
       "id": "CSD-048",
-      "title": "CSD-048 \u2014 Interfaces (transports carrying traffic)",
+      "title": "CSD-048 — Interfaces (transports carrying traffic)",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -2707,9 +2707,9 @@
     },
     {
       "id": "CSD-049",
-      "title": "CSD-049 \u2014 Queue (sent, received, carrying)",
+      "title": "CSD-049 — Queue (sent, received, carrying)",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -2772,9 +2772,9 @@
     },
     {
       "id": "CSD-050",
-      "title": "CSD-050 \u2014 The layer hub (one card, four scopes)",
+      "title": "CSD-050 — The layer hub (one card, four scopes)",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T5"
       ],
@@ -2817,9 +2817,9 @@
     },
     {
       "id": "CSD-051",
-      "title": "CSD-051 \u2014 Everyone's Rules card opens radio settings",
+      "title": "CSD-051 — Everyone's Rules card opens radio settings",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -2846,9 +2846,9 @@
     },
     {
       "id": "CSD-052",
-      "title": "CSD-052 \u2014 Trust (the attestation ladder)",
+      "title": "CSD-052 — Trust (the attestation ladder)",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -2904,9 +2904,9 @@
     },
     {
       "id": "CSD-053",
-      "title": "CSD-053 \u2014 Manage Consent (a grant and the way back)",
+      "title": "CSD-053 — Manage Consent (a grant and the way back)",
       "domain": "client",
-      "section": "My things \u203a Everything I shared",
+      "section": "My things › Everything I shared",
       "topologies": [
         "T14"
       ],
@@ -2962,9 +2962,9 @@
     },
     {
       "id": "CSD-054",
-      "title": "CSD-054 \u2014 Consent (the subject's half)",
+      "title": "CSD-054 — Consent (the subject's half)",
       "domain": "client",
-      "section": "My things \u203a Everything I shared",
+      "section": "My things › Everything I shared",
       "topologies": [
         "T14"
       ],
@@ -3064,9 +3064,9 @@
     },
     {
       "id": "CSD-055",
-      "title": "CSD-055 \u2014 Delegations (offer, approve, refuse, revoke)",
+      "title": "CSD-055 — Delegations (offer, approve, refuse, revoke)",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T18"
       ],
@@ -3123,9 +3123,9 @@
     },
     {
       "id": "CSD-056",
-      "title": "CSD-056 \u2014 Billing (off the wire)",
+      "title": "CSD-056 — Billing (off the wire)",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -3179,9 +3179,9 @@
     },
     {
       "id": "CSD-057",
-      "title": "CSD-057 \u2014 Wallet (real money in a circle)",
+      "title": "CSD-057 — Wallet (real money in a circle)",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T18"
       ],
@@ -3235,9 +3235,9 @@
     },
     {
       "id": "CSD-065",
-      "title": "CSD-065 \u2014 Moderation (duty, existence invariant, brake)",
+      "title": "CSD-065 — Moderation (duty, existence invariant, brake)",
       "domain": "client",
-      "section": "Communities & Businesses \u203a Rules / People / Safety",
+      "section": "Communities & Businesses › Rules / People / Safety",
       "topologies": [
         "T15"
       ],
@@ -3351,9 +3351,9 @@
     },
     {
       "id": "CSD-066",
-      "title": "CSD-066 \u2014 Child Safety (posture and watchlist)",
+      "title": "CSD-066 — Child Safety (posture and watchlist)",
       "domain": "client",
-      "section": "Family \u203a People / Rules / Safety",
+      "section": "Family › People / Rules / Safety",
       "topologies": [
         "T4"
       ],
@@ -3427,9 +3427,9 @@
     },
     {
       "id": "CSD-067",
-      "title": "CSD-067 \u2014 Accord (Trust Root) \u2014 kill switch, roster, four kinds",
+      "title": "CSD-067 — Accord (Trust Root) — kill switch, roster, four kinds",
       "domain": "constitution",
-      "section": "Everyone \u203a Safety / Rules / Decisions",
+      "section": "Everyone › Safety / Rules / Decisions",
       "topologies": [
         "T19"
       ],
@@ -3498,9 +3498,9 @@
     },
     {
       "id": "CSD-068",
-      "title": "CSD-068 \u2014 Provision Accord Holder (custody floor)",
+      "title": "CSD-068 — Provision Accord Holder (custody floor)",
       "domain": "constitution",
-      "section": "Everyone \u203a Safety / Rules / Decisions",
+      "section": "Everyone › Safety / Rules / Decisions",
       "topologies": [
         "T8"
       ],
@@ -3555,9 +3555,9 @@
     },
     {
       "id": "CSD-069",
-      "title": "CSD-069 \u2014 Accord Genesis Ceremony",
+      "title": "CSD-069 — Accord Genesis Ceremony",
       "domain": "constitution",
-      "section": "Everyone \u203a Safety / Rules / Decisions",
+      "section": "Everyone › Safety / Rules / Decisions",
       "topologies": [
         "T13"
       ],
@@ -3606,9 +3606,9 @@
     },
     {
       "id": "CSD-070",
-      "title": "CSD-070 \u2014 Commons (1-of-N to protect, m-of-n to undo)",
+      "title": "CSD-070 — Commons (1-of-N to protect, m-of-n to undo)",
       "domain": "client",
-      "section": "Everyone \u203a Safety / Rules / Decisions",
+      "section": "Everyone › Safety / Rules / Decisions",
       "topologies": [
         "T5"
       ],
@@ -3684,9 +3684,9 @@
     },
     {
       "id": "CSD-071",
-      "title": "CSD-071 \u2014 Audit (one card, five homes)",
+      "title": "CSD-071 — Audit (one card, five homes)",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T1"
       ],
@@ -3746,9 +3746,9 @@
     },
     {
       "id": "CSD-080",
-      "title": "CSD-080 \u2014 Startup",
+      "title": "CSD-080 — Startup",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -3803,9 +3803,9 @@
     },
     {
       "id": "CSD-081",
-      "title": "CSD-081 \u2014 Login",
+      "title": "CSD-081 — Login",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -3885,9 +3885,9 @@
     },
     {
       "id": "CSD-082",
-      "title": "CSD-082 \u2014 Setup, the with-AI pass",
+      "title": "CSD-082 — Setup, the with-AI pass",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T7"
       ],
@@ -3968,9 +3968,9 @@
     },
     {
       "id": "CSD-083",
-      "title": "CSD-083 \u2014 Setup, the run-without-AI pass",
+      "title": "CSD-083 — Setup, the run-without-AI pass",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -4033,9 +4033,9 @@
     },
     {
       "id": "CSD-084",
-      "title": "CSD-084 \u2014 Server connection",
+      "title": "CSD-084 — Server connection",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -4090,9 +4090,9 @@
     },
     {
       "id": "CSD-085",
-      "title": "CSD-085 \u2014 Claim a node",
+      "title": "CSD-085 — Claim a node",
       "domain": "node",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -4160,9 +4160,9 @@
     },
     {
       "id": "CSD-086",
-      "title": "CSD-086 \u2014 Add Federation ID (the catch-up)",
+      "title": "CSD-086 — Add Federation ID (the catch-up)",
       "domain": "client",
-      "section": "My things \u203a This node",
+      "section": "My things › This node",
       "topologies": [
         "T0"
       ],
@@ -4223,9 +4223,9 @@
     },
     {
       "id": "CSD-087",
-      "title": "CSD-087 \u2014 Verify an agent build",
+      "title": "CSD-087 — Verify an agent build",
       "domain": "agent",
-      "section": "My things \u203a This agent",
+      "section": "My things › This agent",
       "topologies": [
         "T0"
       ],
@@ -4286,9 +4286,9 @@
     },
     {
       "id": "CSD-090",
-      "title": "CSD-090 \u2014 Duty Conferral (two holders hand someone moderation)",
+      "title": "CSD-090 — Duty Conferral (two holders hand someone moderation)",
       "domain": "client",
-      "section": "Communities & Businesses \u203a Rules / People / Safety",
+      "section": "Communities & Businesses › Rules / People / Safety",
       "topologies": [
         "T8"
       ],
@@ -4401,9 +4401,9 @@
     },
     {
       "id": "CSD-091",
-      "title": "CSD-091 \u2014 User chat (one room, two people)",
+      "title": "CSD-091 — User chat (one room, two people)",
       "domain": "identity",
-      "section": "Just me / Pair / Circle \u203a Chats",
+      "section": "Just me / Pair / Circle › Chats",
       "topologies": [
         "T2"
       ],
@@ -4510,9 +4510,9 @@
     },
     {
       "id": "CSD-092",
-      "title": "CSD-092 \u2014 Share my contact code",
+      "title": "CSD-092 — Share my contact code",
       "domain": "identity",
-      "section": "Circle \u203a People",
+      "section": "Circle › People",
       "topologies": [
         "T3"
       ],
@@ -4572,9 +4572,9 @@
     },
     {
       "id": "CSD-093",
-      "title": "CSD-093 \u2014 Show approval code (new device)",
+      "title": "CSD-093 — Show approval code (new device)",
       "domain": "node",
-      "section": "My things \u203a Devices & keys",
+      "section": "My things › Devices & keys",
       "topologies": [
         "T11"
       ],
@@ -4636,9 +4636,9 @@
     },
     {
       "id": "CSD-094",
-      "title": "CSD-094 \u2014 Approve a new device",
+      "title": "CSD-094 — Approve a new device",
       "domain": "node",
-      "section": "My things \u203a Devices & keys",
+      "section": "My things › Devices & keys",
       "topologies": [
         "T3"
       ],
@@ -4708,9 +4708,9 @@
     },
     {
       "id": "CSD-095",
-      "title": "CSD-095 \u2014 Self-key roster (held additions and quorum evictions)",
+      "title": "CSD-095 — Self-key roster (held additions and quorum evictions)",
       "domain": "security",
-      "section": "My things \u203a Devices & keys",
+      "section": "My things › Devices & keys",
       "topologies": [
         "T10"
       ],
@@ -4783,9 +4783,9 @@
     },
     {
       "id": "CSD-096",
-      "title": "CSD-096 \u2014 Unified session handler (one device handles each exchange)",
+      "title": "CSD-096 — Unified session handler (one device handles each exchange)",
       "domain": "agent",
-      "section": "My things \u203a Devices & keys",
+      "section": "My things › Devices & keys",
       "topologies": [
         "T1"
       ],
@@ -4799,9 +4799,9 @@
     },
     {
       "id": "CSD-100",
-      "title": "CSD-100 \u2014 The household (Family hub)",
+      "title": "CSD-100 — The household (Family hub)",
       "domain": "client",
-      "section": "Family \u203a People / Rules / Safety",
+      "section": "Family › People / Rules / Safety",
       "topologies": [
         "T4"
       ],
@@ -4906,9 +4906,9 @@
     },
     {
       "id": "CSD-101",
-      "title": "CSD-101 \u2014 Household members (the roster)",
+      "title": "CSD-101 — Household members (the roster)",
       "domain": "client",
-      "section": "Family \u203a People / Rules / Safety",
+      "section": "Family › People / Rules / Safety",
       "topologies": [
         "T4"
       ],
@@ -4958,9 +4958,9 @@
     },
     {
       "id": "CSD-102",
-      "title": "CSD-102 \u2014 Communities and affiliations: the community itself",
+      "title": "CSD-102 — Communities and affiliations: the community itself",
       "domain": "client",
-      "section": "Communities & Businesses \u203a Rules / People / Safety",
+      "section": "Communities & Businesses › Rules / People / Safety",
       "topologies": [
         "T5"
       ],
@@ -5039,9 +5039,9 @@
     },
     {
       "id": "CSD-103",
-      "title": "CSD-103 \u2014 Community roster and rooms",
+      "title": "CSD-103 — Community roster and rooms",
       "domain": "social",
-      "section": "Communities & Businesses \u203a Rules / People / Safety",
+      "section": "Communities & Businesses › Rules / People / Safety",
       "topologies": [
         "T5"
       ],
@@ -5109,9 +5109,9 @@
     },
     {
       "id": "CSD-104",
-      "title": "CSD-104 \u2014 Verify someone's key (short-code ceremony)",
+      "title": "CSD-104 — Verify someone's key (short-code ceremony)",
       "domain": "security",
-      "section": "Circle \u203a People",
+      "section": "Circle › People",
       "topologies": [
         "T1"
       ],
@@ -5179,9 +5179,9 @@
     },
     {
       "id": "CSD-105",
-      "title": "CSD-105 \u2014 This node's trust root (posture, adopt, un-trust)",
+      "title": "CSD-105 — This node's trust root (posture, adopt, un-trust)",
       "domain": "node",
-      "section": "Everyone \u203a Safety / Rules / Decisions",
+      "section": "Everyone › Safety / Rules / Decisions",
       "topologies": [
         "T8"
       ],
@@ -5284,9 +5284,9 @@
     },
     {
       "id": "CSD-106",
-      "title": "CSD-106 \u2014 Invitations to a household or community",
+      "title": "CSD-106 — Invitations to a household or community",
       "domain": "client",
-      "section": "Family \u203a People / Rules / Safety",
+      "section": "Family › People / Rules / Safety",
       "topologies": [
         "T15"
       ],
@@ -5338,9 +5338,9 @@
     },
     {
       "id": "CSD-107",
-      "title": "CSD-107 \u2014 Where is this file (custody)",
+      "title": "CSD-107 — Where is this file (custody)",
       "domain": "storage",
-      "section": "Circle \u203a Files",
+      "section": "Circle › Files",
       "topologies": [
         "T1"
       ],
@@ -5410,9 +5410,9 @@
     },
     {
       "id": "CSD-108",
-      "title": "CSD-108 \u2014 Steward purge (rows that never belonged)",
+      "title": "CSD-108 — Steward purge (rows that never belonged)",
       "domain": "client",
-      "section": "Everyone \u203a Safety / Rules / Decisions",
+      "section": "Everyone › Safety / Rules / Decisions",
       "topologies": [
         "T17"
       ],
@@ -5581,7 +5581,7 @@
     },
     {
       "id": "CSD-109",
-      "title": "CSD-109 \u2014 Contact requests (someone added you; you say yes, or ignore it)",
+      "title": "CSD-109 — Contact requests (someone added you; you say yes, or ignore it)",
       "domain": "identity",
       "section": "Surface",
       "topologies": [
@@ -5625,9 +5625,9 @@
     },
     {
       "id": "CSD-110",
-      "title": "CSD-110 \u2014 The rooms you talk in",
+      "title": "CSD-110 — The rooms you talk in",
       "domain": "social",
-      "section": "Just me / Pair / Circle \u203a Chats",
+      "section": "Just me / Pair / Circle › Chats",
       "topologies": [
         "T5"
       ],
@@ -5666,9 +5666,9 @@
     },
     {
       "id": "CSD-111",
-      "title": "CSD-111 \u2014 Steward shutdown dialogue",
+      "title": "CSD-111 — Steward shutdown dialogue",
       "domain": "client",
-      "section": "My things \u203a This agent \u203a Decisions",
+      "section": "My things › This agent › Decisions",
       "topologies": [
         "T7"
       ],
@@ -5682,9 +5682,9 @@
     },
     {
       "id": "CSD-112",
-      "title": "CSD-112 \u2014 Identity record and drift review",
+      "title": "CSD-112 — Identity record and drift review",
       "domain": "identity",
-      "section": "My things \u203a This agent \u203a Rules",
+      "section": "My things › This agent › Rules",
       "topologies": [
         "T7"
       ],
@@ -5698,9 +5698,9 @@
     },
     {
       "id": "CSD-113",
-      "title": "CSD-113 \u2014 Retirement floor",
+      "title": "CSD-113 — Retirement floor",
       "domain": "client",
-      "section": "My things \u203a This agent \u203a Record",
+      "section": "My things › This agent › Record",
       "topologies": [
         "T16"
       ],
@@ -5719,9 +5719,9 @@
     },
     {
       "id": "CSD-114",
-      "title": "CSD-114 \u2014 Upgrade offer",
+      "title": "CSD-114 — Upgrade offer",
       "domain": "client",
-      "section": "My things \u203a This agent \u203a Rules",
+      "section": "My things › This agent › Rules",
       "topologies": [
         "T7"
       ],
@@ -5735,9 +5735,9 @@
     },
     {
       "id": "CSD-115",
-      "title": "CSD-115 \u2014 Steward bond, tier and intent",
+      "title": "CSD-115 — Steward bond, tier and intent",
       "domain": "client",
-      "section": "My things \u203a This agent \u203a Rules",
+      "section": "My things › This agent › Rules",
       "topologies": [
         "T16"
       ],
@@ -5751,9 +5751,9 @@
     },
     {
       "id": "CSD-116",
-      "title": "CSD-116 \u2014 Principles and order",
+      "title": "CSD-116 — Principles and order",
       "domain": "client",
-      "section": "My things \u203a Help & principles",
+      "section": "My things › Help & principles",
       "topologies": [
         "T7"
       ],
@@ -5767,9 +5767,9 @@
     },
     {
       "id": "CSD-117",
-      "title": "CSD-117 \u2014 The judges are judged (WA rulings, audits, appeals)",
+      "title": "CSD-117 — The judges are judged (WA rulings, audits, appeals)",
       "domain": "client",
-      "section": "My things \u203a Someone I trust",
+      "section": "My things › Someone I trust",
       "topologies": [
         "T7"
       ],
@@ -5783,9 +5783,9 @@
     },
     {
       "id": "CSD-118",
-      "title": "CSD-118 \u2014 Never allowed, and the operator's declaration",
+      "title": "CSD-118 — Never allowed, and the operator's declaration",
       "domain": "client",
-      "section": "My things \u203a This node \u203a Rules",
+      "section": "My things › This node › Rules",
       "topologies": [
         "T0"
       ],
@@ -5800,9 +5800,9 @@
     },
     {
       "id": "CSD-119",
-      "title": "CSD-119 \u2014 Guardian bond and confidential help channel",
+      "title": "CSD-119 — Guardian bond and confidential help channel",
       "domain": "client",
-      "section": "Family \u203a Safety",
+      "section": "Family › Safety",
       "topologies": [
         "T4"
       ],
@@ -5817,9 +5817,9 @@
     },
     {
       "id": "CSD-120",
-      "title": "CSD-120 \u2014 Affiliation (found an organization)",
+      "title": "CSD-120 — Affiliation (found an organization)",
       "domain": "client",
-      "section": "Communities & Businesses \u203a Rules",
+      "section": "Communities & Businesses › Rules",
       "topologies": [
         "T6"
       ],
@@ -5842,9 +5842,9 @@
     },
     {
       "id": "CSD-121",
-      "title": "CSD-121 \u2014 Members and roles",
+      "title": "CSD-121 — Members and roles",
       "domain": "client",
-      "section": "Communities & Businesses \u203a People",
+      "section": "Communities & Businesses › People",
       "topologies": [
         "T15"
       ],
@@ -5865,9 +5865,9 @@
     },
     {
       "id": "CSD-122",
-      "title": "CSD-122 \u2014 Licensure",
+      "title": "CSD-122 — Licensure",
       "domain": "client",
-      "section": "Communities & Businesses \u203a Rules",
+      "section": "Communities & Businesses › Rules",
       "topologies": [
         "T6"
       ],
@@ -5885,9 +5885,9 @@
     },
     {
       "id": "CSD-123",
-      "title": "CSD-123 \u2014 Partners",
+      "title": "CSD-123 — Partners",
       "domain": "client",
-      "section": "Communities & Businesses \u203a People",
+      "section": "Communities & Businesses › People",
       "topologies": [
         "T6"
       ],
@@ -5905,9 +5905,9 @@
     },
     {
       "id": "CSD-124",
-      "title": "CSD-124 \u2014 Authority delegations (licence and grant rights)",
+      "title": "CSD-124 — Authority delegations (licence and grant rights)",
       "domain": "client",
-      "section": "Communities & Businesses \u203a Rules",
+      "section": "Communities & Businesses › Rules",
       "topologies": [
         "T6"
       ],
@@ -5921,9 +5921,9 @@
     },
     {
       "id": "CSD-125",
-      "title": "CSD-125 \u2014 Grants",
+      "title": "CSD-125 — Grants",
       "domain": "client",
-      "section": "Communities & Businesses \u203a Files",
+      "section": "Communities & Businesses › Files",
       "topologies": [
         "T18"
       ],
@@ -5940,9 +5940,9 @@
     },
     {
       "id": "CSD-126",
-      "title": "CSD-126 \u2014 Affiliation keys",
+      "title": "CSD-126 — Affiliation keys",
       "domain": "security",
-      "section": "Communities & Businesses \u203a Safety",
+      "section": "Communities & Businesses › Safety",
       "topologies": [
         "T19"
       ],
@@ -5961,9 +5961,9 @@
     },
     {
       "id": "CSD-127",
-      "title": "CSD-127 \u2014 First contact, and leaving a root",
+      "title": "CSD-127 — First contact, and leaving a root",
       "domain": "identity",
-      "section": "Everyone \u203a Decisions",
+      "section": "Everyone › Decisions",
       "topologies": [
         "T9"
       ],
@@ -5977,9 +5977,9 @@
     },
     {
       "id": "CSD-128",
-      "title": "CSD-128 \u2014 The protected reporter channel",
+      "title": "CSD-128 — The protected reporter channel",
       "domain": "client",
-      "section": "Neighbours / Communities \u203a Safety",
+      "section": "Neighbours / Communities › Safety",
       "topologies": [
         "T5"
       ],
@@ -5993,9 +5993,9 @@
     },
     {
       "id": "CSD-129",
-      "title": "CSD-129 \u2014 Accord halt latch, quorum confirmation, and resume",
+      "title": "CSD-129 — Accord halt latch, quorum confirmation, and resume",
       "domain": "constitution",
-      "section": "Everyone \u203a Safety",
+      "section": "Everyone › Safety",
       "topologies": [
         "T8"
       ],
@@ -6010,7 +6010,7 @@
     },
     {
       "id": "CSD-131",
-      "title": "CSD-131 \u2014 Requests from your nodes (sign or decide)",
+      "title": "CSD-131 — Requests from your nodes (sign or decide)",
       "domain": "node",
       "section": "Surface",
       "topologies": [
@@ -6042,7 +6042,7 @@
     },
     {
       "id": "CSD-132",
-      "title": "CSD-132 \u2014 Agents you own (My things \u203a Devices & keys)",
+      "title": "CSD-132 — Agents you own (My things › Devices & keys)",
       "domain": "agent",
       "section": "Surface",
       "topologies": [
@@ -6189,22 +6189,7 @@
       "topologies": []
     },
     {
-      "pattern": "accord:lifecycle:active",
-      "authority": "registry",
-      "rule_ids": [
-        "CC 3.1.1",
-        "CC 3.4.1"
-      ],
-      "transitions_count": 1,
-      "roles_required": [
-        "holder"
-      ],
-      "category": "substrate_autonomous",
-      "referenced_by_csd_cards": [],
-      "topologies": []
-    },
-    {
-      "pattern": "accord:lifecycle:confirmed",
+      "pattern": "accord:lifecycle:{kind}",
       "authority": "registry",
       "rule_ids": [
         "CC 3.1.1",
@@ -6325,7 +6310,9 @@
         "CC 3.1.5"
       ],
       "transitions_count": 1,
-      "roles_required": [],
+      "roles_required": [
+        "wa"
+      ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
       "topologies": []
@@ -6521,7 +6508,10 @@
         "CC 3.4.3"
       ],
       "transitions_count": 2,
-      "roles_required": [],
+      "roles_required": [
+        "author",
+        "member"
+      ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
       "topologies": []
@@ -6534,7 +6524,9 @@
         "CC 3.4.3"
       ],
       "transitions_count": 1,
-      "roles_required": [],
+      "roles_required": [
+        "winner"
+      ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
       "topologies": []
@@ -6549,8 +6541,8 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
-        "subject"
+        "subject",
+        "tally"
       ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
@@ -6670,93 +6662,6 @@
       ]
     },
     {
-      "pattern": "capacity:core_identity",
-      "authority": "lens",
-      "rule_ids": [
-        "CC 3.1.8.1",
-        "CC 3.4.5"
-      ],
-      "transitions_count": 3,
-      "roles_required": [
-        "author",
-        "registered"
-      ],
-      "category": "csd_ui_surface",
-      "referenced_by_csd_cards": [
-        "CSD-004",
-        "CSD-010",
-        "CSD-013",
-        "CSD-039",
-        "CSD-044",
-        "CSD-052",
-        "CSD-104"
-      ],
-      "topologies": [
-        "T0",
-        "T1",
-        "T16",
-        "T17"
-      ]
-    },
-    {
-      "pattern": "capacity:incompleteness_awareness",
-      "authority": "lens",
-      "rule_ids": [
-        "CC 3.1.8.1",
-        "CC 3.4.5"
-      ],
-      "transitions_count": 3,
-      "roles_required": [
-        "author",
-        "registered"
-      ],
-      "category": "csd_ui_surface",
-      "referenced_by_csd_cards": [
-        "CSD-004",
-        "CSD-010",
-        "CSD-013",
-        "CSD-039",
-        "CSD-044",
-        "CSD-052",
-        "CSD-104"
-      ],
-      "topologies": [
-        "T0",
-        "T1",
-        "T16",
-        "T17"
-      ]
-    },
-    {
-      "pattern": "capacity:integrity",
-      "authority": "lens",
-      "rule_ids": [
-        "CC 3.1.8.1",
-        "CC 3.4.5"
-      ],
-      "transitions_count": 3,
-      "roles_required": [
-        "author",
-        "registered"
-      ],
-      "category": "csd_ui_surface",
-      "referenced_by_csd_cards": [
-        "CSD-004",
-        "CSD-010",
-        "CSD-013",
-        "CSD-039",
-        "CSD-044",
-        "CSD-052",
-        "CSD-104"
-      ],
-      "topologies": [
-        "T0",
-        "T1",
-        "T16",
-        "T17"
-      ]
-    },
-    {
       "pattern": "capacity:relay_delivery",
       "authority": "transport-delivery",
       "rule_ids": [
@@ -6786,36 +6691,7 @@
       ]
     },
     {
-      "pattern": "capacity:resilience",
-      "authority": "lens",
-      "rule_ids": [
-        "CC 3.1.8.1",
-        "CC 3.4.5"
-      ],
-      "transitions_count": 3,
-      "roles_required": [
-        "author",
-        "registered"
-      ],
-      "category": "csd_ui_surface",
-      "referenced_by_csd_cards": [
-        "CSD-004",
-        "CSD-010",
-        "CSD-013",
-        "CSD-039",
-        "CSD-044",
-        "CSD-052",
-        "CSD-104"
-      ],
-      "topologies": [
-        "T0",
-        "T1",
-        "T16",
-        "T17"
-      ]
-    },
-    {
-      "pattern": "capacity:sustained_coherence",
+      "pattern": "capacity:{factor}",
       "authority": "lens",
       "rule_ids": [
         "CC 3.1.8.1",
@@ -6943,7 +6819,7 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "registered",
+        "serve",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -6960,8 +6836,8 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "registered",
-        "subject"
+        "subject",
+        "tally"
       ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
@@ -6977,8 +6853,8 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
-        "subject"
+        "subject",
+        "tally"
       ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
@@ -6994,7 +6870,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
+        "member",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -7011,7 +6887,7 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "registered",
+        "serve",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -7028,7 +6904,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
+        "self",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -7101,7 +6977,7 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "registered",
+        "self",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -7282,7 +7158,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered"
+        "self"
       ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
@@ -7297,7 +7173,7 @@
       ],
       "transitions_count": 1,
       "roles_required": [
-        "registered"
+        "self"
       ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
@@ -7313,7 +7189,7 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "registered",
+        "self",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -7330,7 +7206,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
+        "self",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -7347,7 +7223,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
+        "self",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -7381,7 +7257,7 @@
       ],
       "transitions_count": 1,
       "roles_required": [
-        "registered"
+        "self"
       ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
@@ -7415,7 +7291,7 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "registered",
+        "self",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -7432,7 +7308,8 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "registered",
+        "owner",
+        "self",
         "subject"
       ],
       "category": "csd_ui_surface",
@@ -7516,24 +7393,19 @@
       ]
     },
     {
-      "pattern": "credits:{domain}:{language}:substrate_building",
-      "authority": "node",
+      "pattern": "cosign:{state}",
+      "authority": "registry",
       "rule_ids": [
-        "CC 3.1.9.6"
+        "CC 3.1.3"
       ],
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
-        "subject"
+        "member"
       ],
-      "category": "csd_ui_surface",
-      "referenced_by_csd_cards": [
-        "CSD-056"
-      ],
-      "topologies": [
-        "T0"
-      ]
+      "category": "substrate_autonomous",
+      "referenced_by_csd_cards": [],
+      "topologies": []
     },
     {
       "pattern": "credits:{domain}:{language}:{subject}",
@@ -7601,7 +7473,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
+        "self",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -7617,7 +7489,8 @@
       ],
       "transitions_count": 1,
       "roles_required": [
-        "registered"
+        "steward",
+        "wa"
       ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
@@ -7633,7 +7506,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
+        "infra:attest",
         "subject"
       ],
       "category": "csd_ui_surface",
@@ -7653,61 +7526,17 @@
       ],
       "transitions_count": 1,
       "roles_required": [
-        "registered"
+        "member"
       ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
       "topologies": []
     },
     {
-      "pattern": "detection:conscience_override_rate",
-      "authority": "lens",
-      "rule_ids": [
-        "CC 3.1.8.2",
-        "CC 3.4.8"
-      ],
-      "transitions_count": 3,
-      "roles_required": [
-        "author",
-        "identity:lenscore_detector"
-      ],
-      "category": "csd_ui_surface",
-      "referenced_by_csd_cards": [
-        "CSD-025",
-        "CSD-039"
-      ],
-      "topologies": [
-        "T0",
-        "T17"
-      ]
-    },
-    {
       "pattern": "detection:correlated_action:{axis}",
       "authority": "lens",
       "rule_ids": [
         "CC 3.1.8.4",
-        "CC 3.4.8"
-      ],
-      "transitions_count": 3,
-      "roles_required": [
-        "author",
-        "identity:lenscore_detector"
-      ],
-      "category": "csd_ui_surface",
-      "referenced_by_csd_cards": [
-        "CSD-025",
-        "CSD-039"
-      ],
-      "topologies": [
-        "T0",
-        "T17"
-      ]
-    },
-    {
-      "pattern": "detection:cross_agent_divergence",
-      "authority": "lens",
-      "rule_ids": [
-        "CC 3.1.8.2",
         "CC 3.4.8"
       ],
       "transitions_count": 3,
@@ -7792,7 +7621,7 @@
       ]
     },
     {
-      "pattern": "detection:temporal_drift",
+      "pattern": "detection:{detector}",
       "authority": "lens",
       "rule_ids": [
         "CC 3.1.8.2",
@@ -7823,7 +7652,7 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "registered",
+        "owner",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -8091,7 +7920,7 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "registered",
+        "self",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -8120,7 +7949,7 @@
       "rule_ids": [
         "CC 3.1.9.7"
       ],
-      "transitions_count": 3,
+      "transitions_count": 4,
       "roles_required": [
         "author",
         "registered",
@@ -8154,8 +7983,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "identity:substrate_persist",
-        "subject"
+        "identity:substrate_persist"
       ],
       "category": "csd_ui_surface",
       "referenced_by_csd_cards": [
@@ -8397,7 +8225,8 @@
       ],
       "transitions_count": 2,
       "roles_required": [
-        "author"
+        "author",
+        "self"
       ],
       "category": "csd_ui_surface",
       "referenced_by_csd_cards": [
@@ -8417,7 +8246,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
+        "infra:attest",
         "subject"
       ],
       "category": "csd_ui_surface",
@@ -8440,7 +8269,10 @@
         "CC 3.3.2"
       ],
       "transitions_count": 1,
-      "roles_required": [],
+      "roles_required": [
+        "member",
+        "owner"
+      ],
       "category": "csd_ui_surface",
       "referenced_by_csd_cards": [
         "CSD-125",
@@ -8458,7 +8290,9 @@
         "CC 3.1.5"
       ],
       "transitions_count": 1,
-      "roles_required": [],
+      "roles_required": [
+        "steward"
+      ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
       "topologies": []
@@ -8556,9 +8390,12 @@
         "CC 3.1.3",
         "CC 3.2"
       ],
-      "transitions_count": 1,
+      "transitions_count": 2,
       "roles_required": [
-        "registered"
+        "author",
+        "founder",
+        "owner",
+        "subject"
       ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
@@ -8607,7 +8444,9 @@
       ],
       "transitions_count": 3,
       "roles_required": [
-        "member"
+        "founder",
+        "member",
+        "self"
       ],
       "category": "csd_ui_surface",
       "referenced_by_csd_cards": [
@@ -8680,8 +8519,7 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "moderate",
-        "subject"
+        "moderate"
       ],
       "category": "csd_ui_surface",
       "referenced_by_csd_cards": [
@@ -8702,8 +8540,7 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "registered",
-        "subject"
+        "registered"
       ],
       "category": "csd_ui_surface",
       "referenced_by_csd_cards": [
@@ -8739,7 +8576,7 @@
       "rule_ids": [
         "CC 3.1.9.3"
       ],
-      "transitions_count": 3,
+      "transitions_count": 4,
       "roles_required": [
         "author",
         "registered",
@@ -8815,7 +8652,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
+        "self",
         "subject"
       ],
       "category": "substrate_autonomous",
@@ -8832,7 +8669,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered"
+        "self"
       ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
@@ -8906,7 +8743,7 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "registered",
+        "infra:attest",
         "subject"
       ],
       "category": "csd_ui_surface",
@@ -8925,7 +8762,11 @@
         "CC 3.1.5"
       ],
       "transitions_count": 2,
-      "roles_required": [],
+      "roles_required": [
+        "author",
+        "custodian",
+        "self"
+      ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
       "topologies": []
@@ -8937,7 +8778,9 @@
         "CC 3.1.5"
       ],
       "transitions_count": 1,
-      "roles_required": [],
+      "roles_required": [
+        "operator"
+      ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
       "topologies": []
@@ -9239,7 +9082,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered"
+        "self"
       ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
@@ -9251,8 +9094,14 @@
       "rule_ids": [
         "CC 3.1.5"
       ],
-      "transitions_count": 1,
-      "roles_required": [],
+      "transitions_count": 2,
+      "roles_required": [
+        "author",
+        "custodian",
+        "operator",
+        "self",
+        "wa"
+      ],
       "category": "substrate_autonomous",
       "referenced_by_csd_cards": [],
       "topologies": []
@@ -9266,6 +9115,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
+        "registered",
         "self"
       ],
       "category": "csd_ui_surface",
@@ -9399,8 +9249,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
-        "subject"
+        "registered"
       ],
       "category": "csd_ui_surface",
       "referenced_by_csd_cards": [
@@ -9445,7 +9294,6 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "subject",
         "takedown"
       ],
       "category": "substrate_autonomous",
@@ -9521,7 +9369,7 @@
       "transitions_count": 2,
       "roles_required": [
         "author",
-        "registered",
+        "self",
         "subject"
       ],
       "category": "csd_ui_surface",
@@ -9624,7 +9472,7 @@
       "transitions_count": 3,
       "roles_required": [
         "author",
-        "registered",
+        "infra:attest",
         "subject"
       ],
       "category": "csd_ui_surface",
@@ -9830,28 +9678,21 @@
         "attestation:self_verify",
         "build:registered:{target}",
         "capacity:composite",
-        "capacity:core_identity",
-        "capacity:incompleteness_awareness",
-        "capacity:integrity",
         "capacity:relay_delivery",
-        "capacity:resilience",
-        "capacity:sustained_coherence",
+        "capacity:{factor}",
         "capacity_assurance:reversible_excluded:{domain}:{version}",
         "capacity_assurance:reversible_pending:{domain}:{version}",
         "capacity_assurance:{level}:{domain}:{band}:{version}",
         "config:{scope}",
         "consent:{kind}",
         "corpus_health:n_eff_measurable",
-        "credits:{domain}:{language}:substrate_building",
         "credits:{domain}:{language}:{subject}",
         "delivery:{class}",
-        "detection:conscience_override_rate",
         "detection:correlated_action:{axis}",
-        "detection:cross_agent_divergence",
         "detection:distributive:access:{resource_type}",
         "detection:hash_chain_integrity",
         "detection:intra_agent_consistency",
-        "detection:temporal_drift",
+        "detection:{detector}",
         "duty:{kind}",
         "hardware_custody:{platform}",
         "health:liveness:{version}",
@@ -9900,12 +9741,8 @@
         "accord:*",
         "audit_chain:hash_continuity",
         "capacity:composite",
-        "capacity:core_identity",
-        "capacity:incompleteness_awareness",
-        "capacity:integrity",
         "capacity:relay_delivery",
-        "capacity:resilience",
-        "capacity:sustained_coherence",
+        "capacity:{factor}",
         "capacity_assurance:reversible_excluded:{domain}:{version}",
         "capacity_assurance:reversible_pending:{domain}:{version}",
         "capacity_assurance:{level}:{domain}:{band}:{version}",
@@ -10239,12 +10076,8 @@
       ],
       "families": [
         "capacity:composite",
-        "capacity:core_identity",
-        "capacity:incompleteness_awareness",
-        "capacity:integrity",
         "capacity:relay_delivery",
-        "capacity:resilience",
-        "capacity:sustained_coherence",
+        "capacity:{factor}",
         "capacity_assurance:reversible_excluded:{domain}:{version}",
         "capacity_assurance:reversible_pending:{domain}:{version}",
         "capacity_assurance:{level}:{domain}:{band}:{version}",
@@ -10281,24 +10114,18 @@
       ],
       "families": [
         "capacity:composite",
-        "capacity:core_identity",
-        "capacity:incompleteness_awareness",
-        "capacity:integrity",
         "capacity:relay_delivery",
-        "capacity:resilience",
-        "capacity:sustained_coherence",
+        "capacity:{factor}",
         "capacity_assurance:reversible_excluded:{domain}:{version}",
         "capacity_assurance:reversible_pending:{domain}:{version}",
         "capacity_assurance:{level}:{domain}:{band}:{version}",
         "coherence_standing:{cohort}",
         "consent:{kind}",
-        "detection:conscience_override_rate",
         "detection:correlated_action:{axis}",
-        "detection:cross_agent_divergence",
         "detection:distributive:access:{resource_type}",
         "detection:hash_chain_integrity",
         "detection:intra_agent_consistency",
-        "detection:temporal_drift",
+        "detection:{detector}",
         "duty:{kind}",
         "hard_case:{kind}",
         "manifold_conformity:{cohort}",

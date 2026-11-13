@@ -12,6 +12,94 @@ pub const VENDORED_MESH_STORY_TRACE: &str = include_str!("../../../docs/kernel/t
 pub const VENDORED_NAMESPACE_REGISTRY: &str = include_str!("../../../docs/kernel/tables/namespace_registry.json");
 pub const VENDORED_NAMESPACE_MATCH_VECTORS: &str = include_str!("../../../docs/kernel/tables/namespace_match_vectors.json");
 pub const VENDORED_CSD_NAMESPACE_MAP: &str = include_str!("../../../docs/kernel/tables/csd_namespace_map.json");
+/// rc19: expiries, clocks and reactions (durations as named constants). Read into types; none is evaluated yet.
+pub const VENDORED_REACTIONS: &str = include_str!("../../../docs/kernel/tables/reactions.json");
+/// rc19: the family model transitions.json is derived from; the kernel reads its fold cells (the group:roster fold).
+pub const VENDORED_FAMILY_MODEL: &str = include_str!("../../../docs/kernel/tables/family_model.json");
+
+/// One reaction of reactions.json: an expiry rule, a named clock or a reaction of one family, kept as published.
+#[derive(Debug, Clone)]
+pub struct Reaction {
+    pub family: String,
+    pub kind: String,
+    pub cc_ref: Vec<String>,
+    pub value: JsonValue,
+}
+
+fn strs(v: Option<&JsonValue>) -> Vec<String> {
+    v.and_then(|x| x.as_array()).map(|a| a.iter().filter_map(|e| e.as_str().map(str::to_string)).collect()).unwrap_or_default()
+}
+
+/// The rc19 cells of one transition from its JSON object (types.rs `TransitionCells`).
+fn transition_cells(t: &JsonValue) -> crate::types::TransitionCells {
+    let mut c = crate::types::TransitionCells::default();
+    const KNOWN: [&str; 10] = ["verb", "from", "to", "roles", "policy", "widens", "undo", "confirm", "guard", "change"];
+    if let Some(o) = t.as_object() {
+        for (k, _) in o {
+            if !KNOWN.contains(&k.as_str()) {
+                c.unknown.push(k.clone());
+            }
+        }
+    }
+    let known_sub = |cell: &str, keys: &[&str], c: &mut crate::types::TransitionCells| {
+        if let Some(o) = t.get(cell).and_then(|v| v.as_object()) {
+            for (k, _) in o {
+                if !keys.contains(&k.as_str()) {
+                    c.unknown.push(format!("{cell}.{k}"));
+                }
+            }
+        }
+    };
+    known_sub("roles", &["value", "source", "cc_ref", "stages", "conditions", "cites"], &mut c);
+    known_sub("policy", &["value", "source", "cc_ref", "count", "cases", "stages", "cites"], &mut c);
+    known_sub("widens", &["value", "source", "cc_ref", "when", "cites"], &mut c);
+    known_sub("confirm", &["value", "source", "cc_ref", "when", "cites"], &mut c);
+    known_sub("undo", &["value", "source", "cc_ref", "via", "policy", "cites"], &mut c);
+    known_sub("guard", &["value", "source", "cc_ref", "cites"], &mut c);
+    known_sub("change", &["value", "source", "cc_ref", "cites"], &mut c);
+    if let Some(st) = t.get("roles").and_then(|v| v.get("stages")).and_then(|v| v.as_object()) {
+        c.role_stages = st.iter().map(|(k, v)| (k.clone(), strs(Some(v)))).collect();
+    }
+    c.role_conditions = strs(t.get("roles").and_then(|v| v.get("conditions")));
+    c.widens_when = t.get("widens").and_then(|v| v.get("when")).and_then(|v| v.as_str()).map(str::to_string);
+    c.confirm = t.get("confirm").and_then(|v| Some((v.get("value")?.as_bool()?, v.get("when").and_then(|w| w.as_str()).map(str::to_string))));
+    c.undo = t.get("undo").and_then(|v| {
+        Some((v.get("value")?.as_bool()?, v.get("via").and_then(|w| w.as_str()).map(str::to_string), v.get("policy").and_then(|w| w.as_str()).map(str::to_string)))
+    });
+    if let Some(g) = t.get("guard").and_then(|v| v.get("value")).and_then(|v| v.as_array()) {
+        for e in g {
+            match (e.get("guard").and_then(|v| v.as_str()), e.get("reach").and_then(|v| v.as_str())) {
+                (Some(text), Some(reach)) => c.guards.push((text.to_string(), reach.to_string())),
+                _ => c.unknown.push(format!("guard item {}", e.to_json_string())),
+            }
+        }
+    }
+    if let Some(g) = t.get("change").and_then(|v| v.get("value")).and_then(|v| v.as_array()) {
+        for e in g {
+            match e.get("item").and_then(|v| v.as_str()) {
+                Some(text) => c.changes.push(text.to_string()),
+                None => c.unknown.push(format!("change item {}", e.to_json_string())),
+            }
+        }
+    }
+    let pol = t.get("policy");
+    c.policy_count = pol.and_then(|v| v.get("count")).and_then(|v| v.as_str()).map(str::to_string);
+    if let Some(cs) = pol.and_then(|v| v.get("cases")).and_then(|v| v.as_array()) {
+        for e in cs {
+            c.policy_cases.push((
+                e.get("when").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                e.get("policy").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                strs(e.get("rows")),
+            ));
+        }
+    }
+    if let Some(st) = pol.and_then(|v| v.get("stages")).and_then(|v| v.as_object()) {
+        for (k, e) in st {
+            c.policy_stages.push((k.clone(), e.get("policy").and_then(|v| v.as_str()).unwrap_or("").to_string(), strs(e.get("rows"))));
+        }
+    }
+    c
+}
 
 // ---------------------------------------------------------------- CC RC17 dimension matcher
 
@@ -1174,6 +1262,12 @@ pub struct Tables {
     pub rules: Rules,
     pub min_count: HashMap<String, u64>,
     pub policy_vectors: JsonValue,
+    /// rc19 reactions.json, as published (none evaluated: `unread_cells`).
+    pub reactions: Vec<Reaction>,
+    /// rc19 family_model.json fold clauses of group:roster (the roster fold), as published.
+    pub roster_fold: Vec<String>,
+    /// rc19 governance_policy.json `protocols.kinds`, as published.
+    pub protocols: JsonValue,
 }
 
 impl Tables {
@@ -1303,6 +1397,7 @@ impl Tables {
                             policy,
                             policy_rows,
                             widens,
+                            cells: transition_cells(t),
                         });
                     }
                 }
@@ -1368,6 +1463,11 @@ impl Tables {
                 let window_secs = p.get("window_secs").and_then(|v| v.as_u64());
                 let window_class = p.get("window_class").and_then(|v| v.as_str()).map(|s| s.to_string());
                 let corridor = p.get("corridor").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let counted: Vec<(String, String)> = p
+                    .get("counted")
+                    .and_then(|v| v.as_object())
+                    .map(|o| o.iter().map(|(k, v)| (k.clone(), v.get("value").and_then(|x| x.as_str()).unwrap_or("").to_string())).collect())
+                    .unwrap_or_default();
 
                 policies.insert(
                     fam.clone(),
@@ -1389,6 +1489,7 @@ impl Tables {
                         window_secs,
                         window_class,
                         corridor,
+                        counted,
                     },
                 );
             }
@@ -1420,6 +1521,43 @@ impl Tables {
             }
         }
 
+        // rc19: reactions and the group:roster fold, read and checked against VERSION like the rest
+        let expected_hashes2 = parse_version_hashes(version_str);
+        for (filename, content) in [("reactions.json", VENDORED_REACTIONS), ("family_model.json", VENDORED_FAMILY_MODEL)] {
+            if let Some(expected) = expected_hashes2.get(filename) {
+                let computed = sha256_digest(content.as_bytes());
+                if &computed != expected {
+                    return Err(format!("SHA-256 digest mismatch for {}: expected {}, computed {}", filename, expected, computed));
+                }
+            }
+        }
+        let reactions_json = parse(VENDORED_REACTIONS).map_err(|e| format!("reactions.json parse error: {}", e))?;
+        let reactions = reactions_json
+            .get("reactions")
+            .and_then(|v| v.as_array())
+            .map(|a| {
+                a.iter()
+                    .map(|r| Reaction {
+                        family: r.get("family").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                        kind: r.get("kind").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                        cc_ref: strs(r.get("cc_ref")),
+                        value: r.clone(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let model_json = parse(VENDORED_FAMILY_MODEL).map_err(|e| format!("family_model.json parse error: {}", e))?;
+        let roster_fold = model_json
+            .get("rows")
+            .and_then(|v| v.as_array())
+            .and_then(|rows| rows.iter().find(|r| r.get("family").and_then(|f| f.as_str()) == Some("group:roster")))
+            .and_then(|r| r.get("fold"))
+            .and_then(|f| f.get("value"))
+            .and_then(|v| v.as_array())
+            .map(|a| a.iter().filter_map(|e| e.get("fold").and_then(|x| x.as_str()).map(str::to_string)).collect())
+            .unwrap_or_default();
+        let protocols = policy_json.get("protocols").cloned().unwrap_or(JsonValue::Null);
+
         Ok(Tables {
             families,
             family_order,
@@ -1434,7 +1572,85 @@ impl Tables {
             rules,
             min_count,
             policy_vectors: policy_vectors_json,
+            reactions,
+            roster_fold,
+            protocols,
         })
+    }
+
+    /// Every table cell this kernel reads but does not evaluate, and every cell it does not know, one line each, sorted:
+    /// pinned by a test (`unread_cells_are_listed`) so that a re-vendor which adds one, or a change that starts evaluating
+    /// one, shows as a diff and is never silent. Lines starting UNKNOWN are shapes the parser does not know at all.
+    #[must_use]
+    pub fn unread_cells(&self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        let mut agg: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+        for fam in &self.family_order {
+            for t in &self.families[fam] {
+                let c = &t.cells;
+                for k in &c.unknown {
+                    out.push(format!("UNKNOWN {fam} {}: {k}", t.verb));
+                }
+                for (g, reach) in &c.guards {
+                    out.push(format!("guard {fam} {}: {g} [reach {reach}]", t.verb));
+                }
+                for ch in &c.changes {
+                    out.push(format!("change {fam} {}: {ch}", t.verb));
+                }
+                if !c.role_conditions.is_empty() {
+                    out.push(format!("roles.conditions {fam} {}: {}", t.verb, c.role_conditions.join(",")));
+                }
+                for (w, p, rows) in &c.policy_cases {
+                    out.push(format!("policy.cases {fam} {}: when {w} -> {p} {}", t.verb, rows.join(",")));
+                }
+                for (st, p, rows) in &c.policy_stages {
+                    if p != &t.policy {
+                        out.push(format!("policy.stages {fam} {}: {st} -> {p} {}", t.verb, rows.join(",")));
+                    }
+                }
+                if let Some(pc) = &c.policy_count {
+                    *agg.entry(format!("policy.count (derivation of the policy cell, informational): {pc}")).or_default() += 1;
+                }
+                if let Some((_, Some(w))) = &c.confirm {
+                    *agg.entry(format!("confirm.when {w} (the kernel has no confirmation step)")).or_default() += 1;
+                }
+                if let Some(w) = &c.widens_when {
+                    *agg.entry(format!("widens.when {w} (the kernel reads the boolean only)")).or_default() += 1;
+                }
+                if let Some((true, via, pol)) = &c.undo {
+                    *agg.entry(format!("undo via {} under {} (offered only as the table's own transition)", via.as_deref().unwrap_or("?"), pol.as_deref().unwrap_or("?"))).or_default() += 1;
+                }
+            }
+        }
+        let mut fams: Vec<&String> = self.policies.keys().collect();
+        fams.sort();
+        for f in fams {
+            let p = &self.policies[f];
+            for (col, val) in &p.counted {
+                *agg.entry(format!("counted {col}={val}")).or_default() += 1;
+            }
+            for (cell, r) in [("enact", &p.enact_rule), ("cancel", &p.cancel_rule), ("floor", &p.floor_rule)] {
+                if let crate::types::Rule::Prose(text) = r {
+                    out.push(format!("rule prose {f} {cell}: {text}"));
+                }
+            }
+        }
+        for r in &self.reactions {
+            *agg.entry(format!("reaction {} (none evaluated: no clock, expiry or reaction runs in this kernel)", r.kind)).or_default() += 1;
+        }
+        for f in &self.roster_fold {
+            out.push(format!("roster fold (the kernel's room roster is its founders and seated members, no head chain): {f}"));
+        }
+        if let Some(k) = self.protocols.get("kinds").and_then(|v| v.as_array()) {
+            for e in k {
+                out.push(format!("protocol kind {} (policy protocols, not evaluated)", e.get("kind").and_then(|v| v.as_str()).unwrap_or("?")));
+            }
+        }
+        for (k, n) in agg {
+            out.push(format!("{k}: {n}"));
+        }
+        out.sort();
+        out
     }
 
     pub fn match_family(&self, wire_namespace: &str) -> MatchResult {
@@ -1588,6 +1804,7 @@ pub fn transition_of(tables: &Tables, family: &str, verb: &str, state: &str) -> 
             policy: "two_path".to_string(),
             policy_rows: Vec::new(),
             widens: false,
+            ..Default::default()
         })
     } else {
         res

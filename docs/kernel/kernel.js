@@ -359,6 +359,8 @@ export function loadTables(transitions, policies, registry = null, aliases = nul
     families.set(r.family, r.transitions.map((t) => ({
       verb: t.verb, from: t.from, to: t.to,
       roles: t.roles.value || [],
+      // rc19: per-stage signers (a view that knows its stage is served from the stage; `roles` is their union)
+      roleStages: t.roles.stages || null,
       policy: t.policy.value.policy || "selfAct",
       policyRows: t.policy.value.rows || [],
       widens: !!t.widens.value,
@@ -629,7 +631,7 @@ export function fold(held, tables, now) {
     const { family, state } = o;
     const live = state === "admitted";
     if (family === "key:record" && live) registered.add(o.author);
-    if (family === "transport:{kind}" && live) { if (!nodesOf.has(o.author)) nodesOf.set(o.author, new Set()); nodesOf.get(o.author).add(o.node || o.id); }
+    if ((family === "transport:{kind}" || family === "identity:occurrence") && live) { if (!nodesOf.has(o.author)) nodesOf.set(o.author, new Set()); nodesOf.get(o.author).add(o.node || o.id); }
     if (family === "trust:{job}:{version}" && live) {
       holders.add(o.author);
       for (const { row } of o.rows) if (row.stance === "for") holders.add(row.signer);
@@ -887,7 +889,7 @@ export function enabled(f, tables, person, target, familyFilter = null) {
   return out;
 }
 
-export function enabledFor(tables, family, state, roles) {
+export function enabledFor(tables, family, state, roles, stage = null) {
   let famKey = family;
   if (!tables.families.has(famKey)) {
     const m = tables.matchFamily ? tables.matchFamily(family) : matchFamily(family, tables);
@@ -895,7 +897,8 @@ export function enabledFor(tables, family, state, roles) {
   }
   const ts = tables.families.get(famKey) || [];
   const rs = roles instanceof Set ? roles : new Set(roles);
-  return ts.filter((t) => t.from === state && t.roles.length > 0 && (t.roles.some((r) => rs.has(r)) || (t.roles.includes("registered") && rs.size > 0 && rs.has("registered"))));
+  const rolesAt = (t) => (stage && t.roleStages && Object.prototype.hasOwnProperty.call(t.roleStages, stage) ? t.roleStages[stage] : t.roles);
+  return ts.filter((t) => { const tr = rolesAt(t); return t.from === state && tr.length > 0 && (tr.some((r) => rs.has(r)) || (tr.includes("registered") && rs.size > 0 && rs.has("registered"))); });
 }
 
 // ---------------------------------------------------------------- the one function
@@ -1026,7 +1029,8 @@ export function preview(held, tables, rows, now) {
 // and only to a node whose owner is in the row's audience as the SENDER folds it; a stranger carries
 // only the consent-free set (keys, bindings, requests, the halt).
 
-const CONSENT_FREE = new Set(["key:record", "transport:{kind}", "consent:{kind}", "accord:invoke:constitutional:{halt_id}", "trust:{job}:{version}"]);
+// rc19: a person's device binding is identity:occurrence (transport:{kind} is an infrastructure node's, infra:attest)
+const CONSENT_FREE = new Set(["key:record", "transport:{kind}", "identity:occurrence", "consent:{kind}", "accord:invoke:constitutional:{halt_id}", "trust:{job}:{version}"]);
 
 export class Mesh {
   constructor(tables) { this.tables = tables; this.nodes = new Map(); this.links = new Set(); this.now = 0; this.log = []; }

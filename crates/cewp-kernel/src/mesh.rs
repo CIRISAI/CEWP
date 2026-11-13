@@ -10,6 +10,8 @@ use std::collections::{HashMap, HashSet};
 pub const CONSENT_FREE: &[&str] = &[
     "key:record",
     "transport:{kind}",
+    // rc19: a person's device binding (transport:{kind} is now an infrastructure node's)
+    "identity:occurrence",
     "consent:{kind}",
     "accord:invoke:constitutional:{halt_id}",
     "trust:{job}:{version}",
