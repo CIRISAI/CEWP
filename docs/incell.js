@@ -266,7 +266,9 @@ function dmVeil(){
 // opacity times the tint's share (buildings and streets are drawn after, so they stay readable).
 function dmOverMosaic(R, S, asp, w, h, mpp, a){
   if (typeof DATAMAP === "undefined" || (!DATAMAP.active && !DATAMAP.prev) || a <= 0.01) return;
-  incellDraw(R, S, asp, w, h, mpp, a, true); incellPower(R, S, asp, a); if (typeof climateDraw === "function") climateDraw(R, S, asp, a, true);
+  // Power's mid purples and Checked?'s teal hatch are close to the street ground's grey, so over the street they are drawn
+  // 1.3 and 1.8 times as strong as the other maps to read at all (streets and homes are drawn over them either way)
+  incellDraw(R, S, asp, w, h, mpp, a, true); incellPower(R, S, asp, Math.min(1, a * 1.3)); if (typeof climateDraw === "function") climateDraw(R, S, asp, a, true);
 }
 // Power (the data-map strip's GRID-0 map): one equirectangular RGBA texture of the chosen kind's country rows, painted on a
 // 2D canvas from the Natural Earth admin-0 mask (each country's rings, even-odd): r the value over 0..1,000 g/kWh, g a row
@@ -341,7 +343,7 @@ function incellDraw(R, S, asp, w, h, mpp, a, over){
     gl.uniform1f(gl.getUniformLocation(pIncell, "uUS0"), hm.us[0]); gl.uniform4fv(gl.getUniformLocation(pIncell, "uUSd"), d(hm.us)); }
   gl.uniform1f(gl.getUniformLocation(pIncell, "uRate"), dataRate());
   for (const [mode, f] of passes){ if (f <= 0.01 || mode === 5 || mode === 7 || (mode === 4 && !hm) || (over && mode === 0)) continue; // Power and Climate draw their own; None's faint tint stays under the mosaic
-    gl.uniform1f(uA, a * f); gl.uniform1f(uM, mode === 0 ? 0.5 : mode);
+    gl.uniform1f(uA, Math.min(1, a * f * (over && mode === 3 ? 1.8 : 1))); gl.uniform1f(uM, mode === 0 ? 0.5 : mode);
     for (const v of vis){ const b = INCELL.blocks.get(v.k); if (!b || !b.tex) continue;
       let aux = null; if ((mode > 1 && mode < 5) || mode === 6){ aux = incellAux(b); if (!aux) continue; } // Data reads the country too
       if (mode === 2) gl.uniform1f(uW, incellAwake(-180 + (b.bc + 0.5) * 1.5));

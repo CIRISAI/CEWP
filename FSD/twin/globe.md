@@ -213,6 +213,12 @@ every map, Power and Climate included; at the globe only Awake (North America), 
 - Close up: the maps are drawn again over the tiling's mosaic, and over the leaves' ground in a second detail pass,
   under arterials, streets, homes and roofs (tiling.js marks the leaves' ground in stencil bit 2; dmOverMosaic). The tint
   over the leaves fades with the detail disc's own edge (DM_RING), so the rim is not tinted twice.
+- Opacity by zoom, as a share of each map's own opacity: the world layer full above 3,000 m a pixel, gone by 1,200; the
+  ~1 km tint under the mosaic full from 1,200 to 60 m a pixel, gone by 25; over the mosaic, the mosaic's own opacity (0 at
+  400 m a pixel, full by 120) times 0.8, easing to 0.5 between 26 and 12 m a pixel; over the leaves' ground inside the
+  detail disc, the detail's opacity (0 at 26 m a pixel, full by 12) times 0.4, so at one street the ground carries the
+  map's colour and streets, homes and devices stay the subject. Power's mid purples and Checked?'s teal hatch sit close to
+  the street ground's grey, so over the street they are drawn 1.3 and 1.8 times as strong as the other maps.
 - Legends say what is true at both scales: "per ~14 km cell from far away, per ~1 km square close up".
 
 Witness: tools/page/layer_zoom/run.py, over Columbus, Ohio, at 7,000, 1,500, 600, 100 and 10 m a pixel, each map against

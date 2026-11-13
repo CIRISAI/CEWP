@@ -351,9 +351,11 @@ function tlDraw(w, h, mpp, sun){
   // the terrain over the mosaic, as on the land below it (relief.js multiply, inside the land stencil)
   if (relA > 0.01 && aggA > 0.01 && landVerts){ const asp = w > h ? [h / w, 1] : [1, w / h]; tlNoAttribs();
     reliefDraw(rot(), 0.86 * zoom, asp, w, h, mpp, relA * aggA, sun); gl.useProgram(tlProg); gl.uniform2f(tlLoc.view, F.w, F.h); gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL, 1, 1); }
-  // a data map over the mosaic, under arterials, streets and buildings (incell.js dmOverMosaic), so it shows to one street
+  // a data map over the mosaic, under arterials, streets and buildings (incell.js dmOverMosaic), so it shows to one street;
+  // at street scale (26 to 12 m a pixel) it lightens from 0.8 to 0.5 of the map's own opacity, and over the leaves' ground
+  // inside the detail disc it is 0.4, so the ground carries the map's colour and the streets, homes and devices stay the subject
   if (aggA > 0.01 && landVerts && typeof dmOverMosaic === "function" && typeof DATAMAP !== "undefined" && (DATAMAP.active || DATAMAP.prev)){ const asp = w > h ? [h / w, 1] : [1, w / h]; tlNoAttribs();
-    dmOverMosaic(rot(), 0.86 * zoom, asp, w, h, mpp, aggA * 0.8); gl.useProgram(tlProg); gl.uniform2f(tlLoc.view, F.w, F.h); gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL, 1, 1); gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP); }
+    dmOverMosaic(rot(), 0.86 * zoom, asp, w, h, mpp, aggA * (0.8 - 0.3 * sstep(26, 12, mpp))); gl.useProgram(tlProg); gl.uniform2f(tlLoc.view, F.w, F.h); gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL, 1, 1); gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP); }
   // arterials over the mosaic: each L2 cell's own lines, at least a pixel wide
   const artA = sstep(30, 18, mpp);
   if (artA > 0.01 && tiles.size){
@@ -428,7 +430,7 @@ function tlDraw(w, h, mpp, sun){
       pass([kA[0], 0, 0, 0]);
       gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP); gl.stencilFunc(gl.EQUAL, 3, 3); tlNoAttribs();
       if (typeof DM_RING !== "undefined"){ const d = gl.drawingBufferWidth / Math.max(1, F.w); DM_RING[0] = F.w / 2 * d; DM_RING[1] = F.h / 2 * d; DM_RING[2] = edge ? Re * d : 0; }
-      dmOverMosaic(rot(), 0.86 * zoom, w > h ? [h / w, 1] : [1, w / h], w, h, mpp, detA * 0.8);
+      dmOverMosaic(rot(), 0.86 * zoom, w > h ? [h / w, 1] : [1, w / h], w, h, mpp, detA * 0.4); // translucent: the street stays the subject
       if (typeof DM_RING !== "undefined") DM_RING[2] = 0;
       gl.useProgram(tlProg); gl.uniform2f(tlLoc.view, F.w, F.h); gl.uniform4f(tlLoc.minHalf, 0, mh + 0.5, mh, 0); gl.uniform3f(tlLoc.ring, F.w / 2, F.h / 2, edge ? Re : 0);
       gl.stencilFunc(gl.EQUAL, 1, 1);
