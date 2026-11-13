@@ -471,7 +471,7 @@ test("every family's every transition, every role token & csd_namespace_map.json
   }
   assert.equal(resolvedShowsCount, 660, "all 660 csd:shows fields resolved");
 
-  // 2. Verify all 17 role tokens across all 474 transitions & 3 equivalences
+  // 2. Verify all 23 role tokens across all 459 transitions & 3 equivalences
   let testedTransitions = 0;
   const cannot = []; // transitions whose signer the twin kernel's standing cannot confer (listed below, never skipped silently)
   let gapCellsTested = 0;

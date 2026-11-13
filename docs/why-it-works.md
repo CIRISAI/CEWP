@@ -15,9 +15,9 @@ properties that earlier systems treated as a choice between them.
    agent charters and the halt itself travel as the same canonical hybrid-signed row
    (Ed25519 + ML-DSA-65), in five closed kinds. Frames, sealed chunks and onion
    packets carry rows; they are not rows.
-2. **The rules are data.** The legal transitions of every family of row, 191 families
-   under 12 typed governance policies, are one table. The table generates the
-   conformance vectors (1,256 for the namespace, 732 for the policies) and the model
+2. **The rules are data.** The legal transitions of every family of row, 184 families
+   under 18 typed governance policy rows (rc19), are one table. The table generates the
+   conformance vectors (1,299 for the namespace, 954 for the policies) and the model
    instances for the policy corridor, and it is the input the CEWP kernel runs. The
    shipping implementations are measured against the same table through the evidence
    register.
