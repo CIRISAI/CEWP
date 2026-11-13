@@ -1228,7 +1228,12 @@ pub fn parse_rule(val: Option<&JsonValue>) -> Rule {
                 let choices = val.get("choices").and_then(|v| v.as_u64()).unwrap_or(3);
                 return Rule::RankedIrv { choices };
             }
-            _ => {}
+            "voted_majority" => {
+                return Rule::VotedMajority { count: val.get("count").and_then(|v| v.as_u64()).unwrap_or(2) };
+            }
+            "protocol" => return Rule::Protocol,
+            // a rule kind this parser does not know is never read as no rule: it is kept as prose and listed loudly
+            other => return Rule::Prose(format!("unknown rule kind {other}")),
         }
     }
     if let (Some(num), Some(den)) = (
@@ -1633,6 +1638,12 @@ impl Tables {
                 if let crate::types::Rule::Prose(text) = r {
                     out.push(format!("rule prose {f} {cell}: {text}"));
                 }
+                if matches!(r, crate::types::Rule::Protocol) {
+                    out.push(format!("rule protocol {f} {cell}: the room's declared consensus protocol; the twin's rooms declare none, so the twin counts the floor of two voices"));
+                }
+            }
+            if !matches!(p.kind.as_str(), "two_path" | "mirror" | "cosigned" | "ranked") {
+                out.push(format!("policy kind {} {f}: not evaluated (no fold branch in this kernel)", p.kind));
             }
         }
         for r in &self.reactions {

@@ -18,7 +18,7 @@
   "summary": {
     "total_families": 184,
     "total_transitions": 459,
-    "total_policies": 16,
+    "total_policies": 18,
     "total_csd_cards": 105,
     "csd_mapped_families": 87,
     "substrate_autonomous_families": 97,

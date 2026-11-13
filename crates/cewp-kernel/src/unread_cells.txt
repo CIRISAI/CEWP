@@ -46,26 +46,27 @@ change trust:{job}:{version} supersede: replace: by=cosigned_prior
 confirm.when always (the kernel has no confirmation step): 47
 confirm.when if_widens (the kernel has no confirmation step): 206
 counted changes_set=adds: 2
-counted changes_set=no: 12
+counted changes_set=no: 14
 counted changes_set=removes: 2
 counted count_set=deciding+outside: 1
 counted count_set=holder: 2
-counted count_set=member: 9
+counted count_set=member: 10
 counted count_set=operator+wa: 1
 counted count_set=protocol: 1
 counted count_set=self: 2
+counted count_set=wa: 1
 counted counted_at=act: 1
-counted counted_at=named: 4
+counted counted_at=named: 6
 counted counted_at=signed: 3
 counted counted_at=unstated: 8
-counted target_silent=no: 15
+counted target_silent=no: 17
 counted target_silent=yes: 1
 counted voice=key: 2
-counted voice=person: 11
+counted voice=person: 13
 counted voice=unstated: 3
-counted voices=ballot: 1
+counted voices=ballot: 2
 counted voices=objection: 7
-counted voices=scrubs: 7
+counted voices=scrubs: 8
 counted voices=unstated: 1
 guard accord:lifecycle:{kind} attest: when(leaf=active) one accord:invoke:constitutional:{halt_id}@admitted[leaf:halt_id=val:resumes_halt_id] else refuse [reach partial]
 guard accord:lifecycle:{kind} attest: when(leaf=confirmed) one accord:invoke:constitutional:{halt_id}@admitted[object=object] within(accord_halt) else refuse [reach whole]
@@ -110,6 +111,7 @@ guard slashing:{outcome} attest: one other(testimonial_witness:{kind})@admitted[
 guard takedown_notice:{basis} attest: when(not moderate(signer,object)) subject(signer,ref:content_sha256) else refuse [reach whole]
 guard transport:{kind} supersede: when(verb=replace,serve(signer,federation)) one transport:canonical_rebind@landed[attested=signer] else refuse(serve_transit_pair_rotation_before_rebind) [reach partial]
 guard trust:{job}:{version} authorize: when(leaf=charter) each(val:witnesses) (not founder(key,object) else refuse & not member(key,object) else refuse) [reach partial]
+policy kind tally poll: not evaluated (no fold branch in this kernel)
 policy.cases accord:lifecycle:{kind} attest: when leaf=active -> cosigned accord_majority
 policy.cases accord:lifecycle:{kind} attest: when leaf=confirmed -> mirror accord_halt
 policy.cases identity:occurrence attest: when identity=user -> two_path self_roster_add
@@ -142,7 +144,8 @@ protocol kind quorum:{m}/{n} (policy protocols, not evaluated)
 protocol kind unanimous (policy protocols, not evaluated)
 protocol kind weighted:{rubric} (policy protocols, not evaluated)
 reaction clock (none evaluated: no clock, expiry or reaction runs in this kernel): 19
-reaction expiry (none evaluated: no clock, expiry or reaction runs in this kernel): 20
+reaction expiry (none evaluated: no clock, expiry or reaction runs in this kernel): 21
+reaction land (none evaluated: no clock, expiry or reaction runs in this kernel): 17
 reaction react (none evaluated: no clock, expiry or reaction runs in this kernel): 58
 roles.conditions age_assurance:{level}:{band}:{version} attest: not_subject
 roles.conditions capacity:composite attest: not_subject
@@ -166,6 +169,9 @@ roster fold (the kernel's room roster is its founders and seated members, no hea
 roster fold (the kernel's room roster is its founders and seated members, no head chain): reads=head+membership:{stage}&at(now)&seat:human
 roster fold (the kernel's room roster is its founders and seated members, no head chain): reads=head+membership:{stage}&seat:human
 roster fold (the kernel's room roster is its founders and seated members, no head chain): reads=head; pick=chain(prev_head_digest)
+rule protocol community_remove enact: the room's declared consensus protocol; the twin's rooms declare none, so the twin counts the floor of two voices
+rule protocol cosigned_act enact: the room's declared consensus protocol; the twin's rooms declare none, so the twin counts the floor of two voices
+rule protocol wa_adjudication enact: the room's declared consensus protocol; the twin's rooms declare none, so the twin counts the floor of two voices
 undo via attest under cosigned (offered only as the table's own transition): 4
 undo via attest under mirror (offered only as the table's own transition): 2
 undo via attest under ranked (offered only as the table's own transition): 1

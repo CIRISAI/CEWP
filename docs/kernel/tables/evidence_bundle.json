@@ -3,10 +3,10 @@
   "run_id": "01JBD051FE9B7B2AF3EDCC8B61",
   "provenance": {
     "constitution_commit": "b363b6e54dcd2efc7a8df16a335cb84f42869366",
-    "constitution_tables_pin": "rc19-1da70f0",
+    "constitution_tables_pin": "rc19-2fb305c",
     "csd4_catalogue_version": 6,
     "csd4_vocabulary_sha256": "c37f6f9651579932835ff700a2ec376a0c5c928545c3ed476362ec4bd4ac0769",
-    "cewp_commit": "999c98f2f6b205654400074ea681336cf7f168ae",
+    "cewp_commit": "fa241487fad6e77de120e0e544536cb0e95fbc2c",
     "substrate_versions": {
       "ciris_server": "v0.5.238 (8c1dec21)",
       "ciris_edge": "v44.0.0 (310aa7e)",

@@ -37,7 +37,7 @@ pub const CEWP_COMMIT: &str = env!("CEWP_GIT_COMMIT");
 pub const CONSTITUTION_COMMIT: &str = "b363b6e54dcd2efc7a8df16a335cb84f42869366";
 
 /// Canonical pin tag for the constitutional tables the kernel vendors (docs/kernel/tables/VERSION).
-pub const CONSTITUTION_TABLES_PIN: &str = "rc19-1da70f0";
+pub const CONSTITUTION_TABLES_PIN: &str = "rc19-2fb305c";
 
 /// Canonical CSD/4 catalogue version (CC Section 6).
 pub const CSD4_CATALOGUE_VERSION: u32 = 6;

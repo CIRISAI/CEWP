@@ -62,6 +62,9 @@ pub struct Mesh {
     pub links: HashSet<String>,
     pub now: u64,
     pub log: Vec<MeshLogEntry>,
+    /// Each room row's head, fixed when it is signed: the live roster and membership rows of its room on the signing
+    /// node (the twin's rows carry no digest of their own, so the mesh keeps the head beside the row).
+    pub heads: HashMap<String, Vec<String>>,
 }
 
 impl Mesh {
@@ -73,6 +76,7 @@ impl Mesh {
             links: HashSet::new(),
             now: 0,
             log: Vec::new(),
+            heads: HashMap::new(),
         }
     }
 
@@ -152,7 +156,72 @@ impl Mesh {
         if f.inert.contains_key(&row.id) {
             return (Some(std::iter::once(row.signer.clone()).collect()), true);
         }
+        let roster_row = row.family == "group:roster" || row.family == "membership:{stage}";
+        let room_tier = row.scope.as_ref().is_some_and(|s| s.tier == "room");
+        let consent_free = CONSENT_FREE.contains(&row.family.as_str());
+        if let (Some(_), false, true, false) = (self.heads.get(&row.id), roster_row, room_tier, consent_free) {
+            // judged at the row's own head; an undetermined head carries to nobody yet
+            return (Some(self.room_audience(node, row, &f, &mut HashSet::new()).unwrap_or_default()), false);
+        }
         (self.audience_in(&f, row), false)
+    }
+
+    /// A ROOM ROW'S AUDIENCE (CC 5.2 "What a row carries"; formal/causal_kernel/route.py `closed` and Carry.lean at
+    /// 2fb305c): the room's members at the row's own head, its signer and the key it names; then carriage: a concluded
+    /// row of the same room (or by the same signer) that names it in its head, whose signer is already in its audience,
+    /// adds that row's audience. Judged from the rows the carrier holds: a head not held whole is not judged (None).
+    /// Roster and membership rows are the one ledger every member concludes and keep `audience_in`. As
+    /// docs/kernel/kernel.js `roomAudience`.
+    fn room_audience(&self, node: &MeshNode, row: &Row, f: &FoldState, seen: &mut HashSet<String>) -> Option<HashSet<String>> {
+        if !seen.insert(row.id.clone()) {
+            return Some(HashSet::new());
+        }
+        let head = self.heads.get(&row.id)?;
+        let room = row.scope.as_ref().and_then(|s| s.room.clone()).unwrap_or_default();
+        if !head.iter().all(|id| node.held.iter().any(|h| &h.row.id == id)) {
+            return None;
+        }
+        let is_roster = |x: &Row| x.scope.as_ref().and_then(|s| s.room.as_deref()) == Some(room.as_str()) && (x.family == "group:roster" || x.family == "membership:{stage}");
+        let at_head: Vec<HeldRow> = node.held.iter().filter(|h| !is_roster(&h.row) || head.contains(&h.row.id)).cloned().collect();
+        let fh = fold(&at_head, &self.tables, self.now);
+        let mut who: HashSet<String> = HashSet::new();
+        if let Some(r) = fh.rooms.get(&room) {
+            who.extend(r.members.iter().cloned());
+            who.extend(r.founders.iter().cloned());
+        }
+        who.insert(row.signer.clone());
+        if let Some(s) = &row.subject {
+            who.insert(s.clone());
+        }
+        for h in &node.held {
+            let d = &h.row;
+            if d.id == row.id || f.inert.contains_key(&d.id) || !self.heads.get(&d.id).is_some_and(|dh| dh.contains(&row.id)) {
+                continue;
+            }
+            let same_room = d.scope.as_ref().and_then(|s| s.room.as_deref()) == Some(room.as_str());
+            if !(same_room || d.signer == row.signer) || !who.contains(&d.signer) {
+                continue; // Carry.lean `may`, and the namer's signer already in the audience
+            }
+            if let Some(a) = self.room_audience(node, d, f, seen) {
+                who.extend(a);
+            }
+        }
+        Some(who)
+    }
+
+    /// The live roster and membership rows of `room` a node holds: the head a new room row names.
+    pub fn head_of(&self, node_id: &str, room: &str) -> Vec<String> {
+        let Some(node) = self.nodes.get(node_id) else { return Vec::new() };
+        let f = fold(&node.held, &self.tables, self.now);
+        let mut v: Vec<String> = node
+            .held
+            .iter()
+            .map(|h| &h.row)
+            .filter(|r| !f.inert.contains_key(&r.id) && r.scope.as_ref().and_then(|s| s.room.as_deref()) == Some(room) && (r.family == "group:roster" || r.family == "membership:{stage}"))
+            .map(|r| r.id.clone())
+            .collect();
+        v.sort();
+        v
     }
 
     pub fn audience(&self, origin_node_id: &str, row: &Row) -> Option<HashSet<String>> {
@@ -214,6 +283,12 @@ impl Mesh {
     pub fn sign(&mut self, node_id: &str, mut row: Row) -> StepResult {
         if row.asserted_at == 0 {
             row.asserted_at = self.now;
+        }
+        if let Some(room) = row.scope.as_ref().filter(|s| s.tier == "room").and_then(|s| s.room.clone()) {
+            if !self.heads.contains_key(&row.id) {
+                let h = self.head_of(node_id, &room);
+                self.heads.insert(row.id.clone(), h);
+            }
         }
         let (res, row_id) = {
             let node = match self.nodes.get_mut(node_id) {
