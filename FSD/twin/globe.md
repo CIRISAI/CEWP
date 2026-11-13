@@ -398,9 +398,9 @@ leaves the street act's views show around that street (the whole street, 600 m o
 screen's short side, on this screen, plus the street's half-width: about 250 leaves at 390 px and 270 at
 1440 px), which the street act waits on as it waits on the search (the same 15 s bound); then, once the
 street steps are over, the square around the centre that the default zoom lands in (leaf layouts and
-arterials within 0.018°; about 220 more leaves). The Story now finishes
-turning to Zurich before it dives (no zoom in while more than about 3° off), so the dive comes
-straight down and needs only the Zurich tiles. `docs/sw.js` serves versioned and geo/kernel files
+arterials within 0.018°; about 220 more leaves). The Story turns to Zurich during its opening step
+and its camera (below, "The Story's camera") comes straight down onto the street, so the dive needs
+only the Zurich tiles. `docs/sw.js` serves versioned and geo/kernel files
 from its cache on a return visit (return visit measured: 0 network responses, 78 from the service
 worker). A precomputed Zurich asset (option c) was not needed.
 
@@ -463,6 +463,59 @@ tlLcGround, sea cells left out, cached by corner), and each holon keeps its own 
 the cause: its tiles are filtered linearly and the level drawn is the finest loaded. What still steps is data and
 a display rule: the holons' household densities, and land with nobody on it drawn 1.6 times brighter so it stays
 readable at night.
+
+### The Story's camera (docs/globe.js storyCamStep)
+
+Every camera move in the Story follows one rule. Position and zoom move together toward the Story's target: the
+camera is never zoomed in further than leaves the target within 0.4 screen widths of the centre (STORY_K), so it
+stays out while it crosses ground and descends as the remaining distance shrinks; never further out than the
+globe's widest view. The centre's ground speed on screen is at most 0.6 screen widths a second (STORY_VMAX) and
+the zoom at most 1.6 octaves a second (STORY_ZMAX), and at globe scale, where a screen width is most of a
+hemisphere, the globe turns at most 0.4 radians a second (STORY_TURN); each is eased in and out (1.2 widths and 2.4
+octaves a second squared) and braked so it stops on the target without overshoot. It runs in time, not frames, on the loop's step
+(at most 0.1 s, so a slow frame slows the move rather than jumping it). Before, position eased 5% a frame and
+zoom 12% a frame, apart (the zoom held only while more than about 3° off): the zoom reached the street first, the
+last kilometres were crossed at street scale, and act changes zoomed at up to 22 octaves a second.
+
+- The opening step faces the visitor's side of the world, then turns toward Zurich over most of its length
+  (eased in and out), so the street step does not open with a sweep across an ocean.
+- While the street step waits for its street, the target is the city: the camera holds over it at 450 m a pixel
+  (the place names and lakes read there on any screen, and the street tiling is not yet drawn, so the wait spends no
+  frame time laying out leaves; held at 40 km across, a wait showed only the tiling's blurred mosaic, and held at 120 km
+  across, the tiling laid out leaves through the wait and once, at 1440 px and 4x CPU, the street's search ran past the
+  act's 15 s bound), then descends onto the street. The
+  street's target is fixed before the descent below the city begins; the street step's first beats wait for the
+  camera to settle (at most 12 s).
+- A step on the globe starts its clock (its captions and what it lights) once the camera has arrived, or after
+  6 s, so a caption never runs ahead of a camera still travelling.
+- A visitor who wheels, pinches, drags or uses the keys takes the camera (storyHold); the Story's move starts again
+  from rest when they press play.
+- The street's free roam (a patch built under the centre at street zoom, and its glide toward that patch) stays
+  off while the Story drives the camera: at the street step's end the pull-back passes street zoom with the
+  Story's street let go, and the patch's glide then pulled the camera back toward it for the rest of the Story,
+  a back-and-forth at 4x CPU throttle (on the tree before, it held the closing turn to about a third of its arc).
+
+Measured over the whole Story from navigation (tools/page/story_zoom/run.py, cold, 0.25 s windows of the camera's
+own time; peak on-screen ground speed in screen widths a second / peak zoom rate in octaves a second):
+
+| | 390 px, 1x | 390 px, 4x | 1440 px, 1x | 1440 px, 4x |
+|---|---|---|---|---|
+| before: ground speed | 1.95 (street step) | 13.3 (street step) | 3.13 (street step) | 0.93 (street step) |
+| before: zoom rate | 16.2 (street step) | 17.3 (street step) | 16.4 (street step) | 21.8 (local community) |
+| after: ground speed | 0.53 | 0.54 | 0.39 | 0.39 |
+| after: zoom rate | 1.60 | 1.60 | 1.60 | 1.60 |
+| after: camera on the street, s from navigation | 19.2 | 21.7 | 20.8 | 42.1 (held over the city 9 s for its street) |
+
+After, every step stays under the caps; the largest ground speeds are the street step's pan to the second home and
+the pull-back to the local community, and the turn across the ocean peaks at 0.12 to 0.22.
+
+The witness asserts, over the whole Story: ground speed at most 0.75 screen widths a second, zoom at most 2.0
+octaves a second, the Story's target moving at most 0.05 screen widths once the camera is below the city (under
+20 km across the screen) until it settles on the street (before: up to 0.57), and no back-and-forth (over any second
+in which the centre travels more than 0.05 screen widths, the straight-line distance on the ground is at least 0.7
+of the path: straight runs score 0.94 or more, the free-roam glide scored 0.0 to 0.02). It fails on the tree before
+this rule and passes on this one. Film strips (a frame every 250 ms) of the approach and of the street step's
+pull-back are written with --out.
 
 ## Street classes, the floor and the region rule (one table; machine-readable: docs/geo/classes.json)
 

@@ -866,7 +866,7 @@ const startTime=performance.now(); const getTime=()=>(performance.now()-startTim
 // the first view faces the visitor's own longitude, read from their time zone (15° an hour east of UTC);
 // no location is asked for or stored
 const HOME_LON = (() => { try { const v = -new Date().getTimezoneOffset() / 60 * 15; return isFinite(v) ? ((v + 540) % 360) - 180 : 8.54; } catch (e) { return 8.54; } })();
-let yaw=HOME_LON*Math.PI/180, pitch=30*Math.PI/180, zoom=2.35, targetZoom=2.35, velYaw=0, velPitch=0, drag=null, lastTouchTime=performance.now(), npts=0;
+let yaw=HOME_LON*Math.PI/180, pitch=34*Math.PI/180, zoom=2.35, targetZoom=2.35, velYaw=0, velPitch=0, drag=null, lastTouchTime=performance.now(), npts=0;
 let storyCamDist=1.35, storyTargetCamDist=1.35, storyTargetYaw=HOME_LON*Math.PI/180, storyTargetPitch=47.37*Math.PI/180, storyTargetZoom=2.35;
 let storyActive=true, storyPaused=false, storyCurrentAct=0, storyActElapsed=0, storyMinimized=false;
 // a pinch or wheel during the story hands the camera to the reader and pauses; play, next or previous hands it back
@@ -1751,6 +1751,7 @@ function storySetupAct(actIx){
   storyCurrentAct = actIx;
   storyActElapsed = 0;
   storyUserCam = false;
+  SCAM.arriving = 0; SCAM.settled = false; // the camera has a new target: the step's clock waits for it (loop)
   const cfg = STORY_ACTS[actIx];
   storyTargetCamDist = cfg.camDist;
   storyTargetZoom = cfg.targetZoom;
@@ -1822,6 +1823,11 @@ function storyTickAct(actIx, dt) {
   if (!W || !storyActivity) return;
   const nowSec = getTime();
   const cfg = STORY_ACTS[actIx];
+  // the opening faces the visitor's side of the world, then, while its caption is read, turns slowly toward the street
+  // act's view (eased in and out over the step), so the next act does not start with a sweep across an ocean
+  if (cfg.intro && !storyUserCam){ const nx = STORY_ACTS[actIx + 1], u = Math.max(0, Math.min(1, (storyActElapsed / cfg.duration - 0.15) / 0.85)), e = u * u * (3 - 2 * u);
+    let dy = nx.yaw - cfg.yaw; while (dy < -Math.PI) dy += 2 * Math.PI; while (dy > Math.PI) dy -= 2 * Math.PI;
+    storyTargetYaw = cfg.yaw + dy * e; storyTargetPitch = cfg.pitch + (nx.pitch - cfg.pitch) * e; }
   if (cfg.intro || cfg.outro) return;
   if (cfg.micro) { storyMicroTick(actIx - STORY_LEAD, storyActElapsed); return; }
   actIx = actIx - 1 - STORY_LEAD; // original planetary numbering below
@@ -2162,7 +2168,9 @@ function seatCapPatch(){
 }
 // free roam: the tile under the screen centre (the centre of an orthographic view is lat = pitch, lon = yaw)
 function microFreeRoam(){
-  if (!microOk() || microStory) return;
+  // not while the Story drives the camera: at the street step's end the pull-back passes street zoom with the Story's street
+  // let go, and a patch built here (and its glide, microStep) would pull the camera back toward it for the rest of the Story
+  if (!microOk() || microStory || (storyActive && !storyUserCam)) return;
   if (zoom < FOCAL_ZOOM){ return; }
   if (drag) return;
   // at street scale keep the patch you are exploring; a patch built before the tiling was ready
@@ -2250,7 +2258,7 @@ function microStep(now){
     if (!(storyActive && storyPaused) && (typeof microRunning!=="function" || microRunning())) wasm.micro_step(dtReal * microTimeScale);
     microRead();
   }
-  if (microGlide > 0 && !drag && !microStory){
+  if (microGlide > 0 && !drag && !microStory && !(storyActive && !storyUserCam)){
     const tl = M.lat0 * Math.PI / 180, to = M.lon0 * Math.PI / 180;
     let dy = to - yaw; while (dy < -Math.PI) dy += 2 * Math.PI; while (dy > Math.PI) dy -= 2 * Math.PI;
     yaw += dy * 0.08; pitch += (tl - pitch) * 0.08; velYaw = 0; velPitch = 0;
@@ -3191,6 +3199,49 @@ function storyMicroLeaf(){
 }
 function actorXY(i){ return [M.nf[i * 4], M.nf[i * 4 + 1]]; }
 function localToLL(x, y){ return [M.lat0 + y / 111320, M.lon0 + x / (111320 * Math.cos(M.lat0 * Math.PI / 180))]; }
+// The Story's camera: one rule for every move. Position and zoom move together toward the target (storyTargetPitch/Yaw/
+// Zoom): the camera is never zoomed in further than leaves the target within STORY_K screen widths, so it stays out while it
+// crosses ground and descends as the remaining distance shrinks; on-screen ground speed stays under STORY_VMAX screen widths a
+// second and zoom under STORY_ZMAX octaves a second, both eased in and out (STORY_VACC, STORY_ZACC), in time, not frames
+// (the loop's step is at most 0.1 s, so a slow frame slows the move instead of jumping it). (Before, position eased 5% a
+// frame and zoom 12% a frame, apart, once within 0.05 rad: zoom reached the street first and the last kilometres were crossed
+// at street scale, up to 13 screen widths a second, and act changes zoomed at up to 22 octaves a second.)
+// tools/page/story_zoom/run.py --assert holds the Story to these bounds.
+const STORY_VMAX = 0.6, STORY_ZMAX = 1.6, STORY_K = 0.4, STORY_VACC = 1.2, STORY_ZACC = 2.4;
+const SCAM = { v: 0, z: 0, settled: false, arriving: 0 }; // the move's current ground speed (screen widths a second) and zoom rate (octaves a second, + out)
+const STORY_ARRIVE_MAX = 6, STORY_TURN = 0.4;
+const mppOfZoom = (z, F) => EARTH_M / (0.86 * z * Math.min(F.w, F.h) / 2);
+function storyCamStep(dt){
+  if (!(dt > 0)) return; const F = camFrame(); if (!F.w) return;
+  const wrap = (a) => { while (a < -Math.PI) a += 2 * Math.PI; while (a > Math.PI) a -= 2 * Math.PI; return a; };
+  const P = xyz(pitch * 180 / Math.PI, yaw * 180 / Math.PI), Q = xyz(storyTargetPitch * 180 / Math.PI, storyTargetYaw * 180 / Math.PI);
+  const ang = Math.acos(Math.max(-1, Math.min(1, P[0] * Q[0] + P[1] * Q[1] + P[2] * Q[2]))), d = ang * EARTH_M;
+  const mppNow = mppOfZoom(zoom, F), mppT = mppOfZoom(Math.min(zoomMax(), storyTargetZoom), F);
+  // zoom: toward the deepest zoom the remaining distance allows, braking so it never overshoots
+  // (never further out than the globe's own widest view)
+  const mppAim = Math.min(mppOfZoom(ZOOM_MIN, F), Math.max(mppT, d / (STORY_K * F.w))), oct = Math.log2(mppAim / mppNow);
+  const zWant = Math.sign(oct) * Math.min(STORY_ZMAX, Math.sqrt(2 * STORY_ZACC * Math.abs(oct)));
+  SCAM.z += Math.max(-STORY_ZACC * dt, Math.min(STORY_ZACC * dt, zWant - SCAM.z));
+  let dz = SCAM.z * dt; if (Math.sign(dz) === Math.sign(oct) && Math.abs(dz) >= Math.abs(oct)){ dz = oct; SCAM.z = 0; } // arrive, no overshoot
+  const mppNew = mppNow * Math.pow(2, dz);
+  // position: along the great circle, braking so it stops on the target
+  // (and at globe scale, where a screen width is a hemisphere, the globe turns at most STORY_TURN radians a second)
+  const dW = d / (mppNew * F.w), vWant = Math.min(STORY_VMAX, STORY_TURN * EARTH_M / (mppNew * F.w), Math.sqrt(2 * STORY_VACC * dW));
+  SCAM.v += Math.max(-STORY_VACC * dt, Math.min(STORY_VACC * dt, vWant - SCAM.v));
+  const step = Math.min(d, Math.max(0, SCAM.v) * F.w * mppNew * dt);
+  if (d > 1e-3 && step > 0){
+    const f = step >= d ? 1 : step / d, s0 = Math.sin(ang), wa = Math.sin((1 - f) * ang) / s0, wb = Math.sin(f * ang) / s0;
+    const x = P[0] * wa + Q[0] * wb, y = P[1] * wa + Q[1] * wb, z = P[2] * wa + Q[2] * wb;
+    pitch = Math.asin(Math.max(-1, Math.min(1, y))); yaw = yaw + wrap(Math.atan2(x, z) - yaw);
+  } else if (d <= 1e-3){ SCAM.v = 0; }
+  zoom = EARTH_M / (0.86 * mppNew * Math.min(F.w, F.h) / 2); targetZoom = zoom;
+  SCAM.settled = d / (mppNew * F.w) < 0.01 && Math.abs(Math.log2(mppT / mppNew)) < 0.05;
+}
+// while the street act waits for its street, the camera holds over the city and its lakes at 450 m a pixel (place names and
+// lakes read there, on any screen, and the street tiling is not yet drawn, so the wait spends no frame time laying out
+// leaves and the search for the street keeps its idle time; held at 40 km across, a wait showed only the tiling's blurred
+// mosaic, and at 120 km the tiling laid out leaves through the wait), so the descent that follows starts where the street is
+function storyCityZoom(){ const F = camFrame(); return EARTH_M / (0.86 * 450 * Math.min(F.w, F.h) / 2); }
 function storyCam(x, y, z){ const [la, lo] = localToLL(x, y); storyTargetPitch = la * Math.PI / 180; storyTargetYaw = lo * Math.PI / 180; storyTargetZoom = z; }
 const expLerp = (a, b, t) => a * Math.pow(b / a, Math.max(0, Math.min(1, t)));
 function storyMicroSetup(act){
@@ -3243,8 +3294,8 @@ const streetNear = () => Math.max(160, M.half * 0.9), streetWide = () => Math.ma
 const MICRO_BEATS = [
   [ // two neighbours connect
     { cap: () => `We zoom in on one neighbourhood near Zurich. <span class="fig" data-claim="all-simulated">Every phone and computer here is simulated</span>`,
-      cam: (c, u) => storyCam(c.axh, c.ayh, u < 0.15 ? 2.25 : expLerp(2.25, c.frameZ(70), (u - 0.15) / 0.85)) },
-    { run: (c) => wasm.micro_cmd(1, c.ap, 1 | 2), cap: () => "Alice's phone wakes up at home. Her home server is always on", cam: camAlice },
+      cam: camAlice }, // the camera's own rule paces the descent (storyCamStep)
+    { run: (c) => wasm.micro_cmd(1, c.ap, 1 | 2), wait: () => !!SCAM.settled, waitMax: 12, cap: () => "Alice's phone wakes up at home. Her home server is always on", cam: camAlice },
     { run: (c) => wasm.micro_cmd(3, c.ap, c.ah), cap: () => "Her phone finds the home server over Wi-Fi: a direct link, with no company in between", cam: camAlice },
     { cap: (c) => `Both also check in with ${helperPhrase(c, homesOf(c.ap))}, so friends can find them`, cam: camAlice },
     { run: (c) => { wasm.micro_cmd(1, c.bp, 1 | 2); wasm.micro_cmd(4, c.ap, c.bp); }, cap: (c) => `Bob lives ${fig("micro-generated", Math.round(c.span) + " m")} away. He and Alice swap contact details`, cam: camPair },
@@ -3289,7 +3340,8 @@ function storyMicroTick(act, t){
     // the tiling came in while the act waited: now wait on the street search too (started in idle slices if it has not), with its own 15 s
     if (tlReady() && !MSTORY.leaf && !MSTORY.waitSearch && typeof ZP !== "undefined" && typeof zpStory === "function" && !(ZP.cand && ZP.cand.length === 0)){ MSTORY.waitSearch = true; MSTORY.waitTiled = performance.now(); zpIdle(zpStory, 200); }
     const searching = MSTORY.waitSearch && ((!MSTORY.leaf && typeof ZP !== "undefined" && !(ZP.cand && ZP.cand.length === 0)) || (MSTORY.leaf && typeof zpStreetReady === "function" && !zpStreetReady()));
-    if ((!tlReady() || searching) && performance.now() - MSTORY.waitTiled < 15000){ cfg.duration = Math.max(cfg.duration, t + 1); return; }
+    if ((!tlReady() || searching) && performance.now() - MSTORY.waitTiled < 15000){ cfg.duration = Math.max(cfg.duration, t + 1);
+      storyTargetYaw = cfg.yaw; storyTargetPitch = cfg.pitch; storyTargetZoom = storyCityZoom(); return; } // hold over the city
     // the act starts now: its clock (and so the hour the world is checked against) goes back to 0 BEFORE the setup
     MSTORY.waitTiled = 0; MSTORY.waitSearch = false; MSTORY.waitDone = true; storyActElapsed = 0; storyMicroSetup(0); MSTORY.waitDone = false; storyActElapsed = 0; return;
   }
@@ -3319,7 +3371,7 @@ function storyPunchOutcome(ap, bp){
   let punched = false; for (let l = 0; l < M.links.length; l += 4){ const a = M.links[l], b = M.links[l + 1]; if ((M.links[l + 2] & 0xff) === 4 && ((a === ap && b === bp) || (a === bp && b === ap))) punched = true; }
   MSTORY.outcome = punched ? "ok" : (MSTORY.route1 === 0 ? "direct" : "fail"); microTimeScale = 10;
 }
-function storyMicroEnd(){ microStory = false; microStoryDim = null; if (M) M.key = null; microTimeScale = 20; if (M && MSTORY.actors) MSTORY.actors.forEach(i => wasm.micro_cmd(2, i, 0)); if (wasm && wasm.micro_quiet) wasm.micro_quiet(0); }
+function storyMicroEnd(){ microStory = false; microGlide = 0; microStoryDim = null; if (M) M.key = null; microTimeScale = 20; if (M && MSTORY.actors) MSTORY.actors.forEach(i => wasm.micro_cmd(2, i, 0)); if (wasm && wasm.micro_quiet) wasm.micro_quiet(0); }
 
 // The idle turn of the globe: one turn in six minutes (ROT_DEG_PER_S), time-based, after ROT_IDLE_MS
 // with no input, stopped for the rest of the visit by any input (pointer, wheel, touch, key), off
@@ -3335,24 +3387,17 @@ function loop(){
   const storyDt=Math.min(0.1,Math.max(0,(now-lastLoopNow)/1000)); lastLoopNow=now; // story time is real time, whatever the refresh rate
   if (storyActive) {
     if (!drag && !storyUserCam) {
-      let dyaw = storyTargetYaw - yaw;
-      while (dyaw < -Math.PI) dyaw += Math.PI * 2;
-      while (dyaw > Math.PI) dyaw -= Math.PI * 2;
-      yaw += dyaw * 0.05;
-      pitch += (storyTargetPitch - pitch) * 0.05;
       if (storyCurrentAct === STORY_ACTS.length - 1 && !storyPaused) {
         storyTargetYaw += STORY_ROT_RAD_PER_S * storyDt; // time-based: the same speed on a 60 Hz and a 120 Hz screen
       }
-    }
-    storyCamDist += (storyTargetCamDist - storyCamDist) * 0.05;
-    // the Story turns to its target before it dives: no zoom in while the camera is more than ~3° off in
-    // longitude or latitude, so the dive comes straight down on Zurich (and only the Zurich path's tiles are needed)
-    if (!storyUserCam){ let off = storyTargetYaw - yaw; while (off < -Math.PI) off += 2 * Math.PI; while (off > Math.PI) off -= 2 * Math.PI;
-      targetZoom = ((Math.abs(off) > 0.05 || Math.abs(storyTargetPitch - pitch) > 0.05) && storyTargetZoom > zoom * 1.5) ? zoom : storyTargetZoom; }
+      storyCamStep(storyDt); // position and zoom move together toward the Story's target (one fly-to rule)
+    } else { SCAM.v = 0; SCAM.z = 0; SCAM.settled = false; } // the visitor has the camera: the Story's move starts again from rest
     if (!storyPaused) {
       const prevSub = storySubIx(STORY_ACTS[storyCurrentAct], storyActElapsed);
-      storyActElapsed += storyDt;
       const curCfg = STORY_ACTS[storyCurrentAct];
+      // a step on the globe starts its clock (its captions and what it lights) once the camera has arrived, or after
+      // STORY_ARRIVE_MAX s; the opening turns while it plays, and the street steps pace themselves beat by beat
+      if (curCfg.intro || curCfg.micro || storyUserCam || SCAM.settled || storyActElapsed > 0 || (SCAM.arriving += storyDt) > STORY_ARRIVE_MAX) storyActElapsed += storyDt;
       if (prevSub !== storySubIx(curCfg, storyActElapsed)) updateStoryUI();
       if ($("story-progress-bar")) {
         const pct = Math.min(100, (storyActElapsed / curCfg.duration) * 100);

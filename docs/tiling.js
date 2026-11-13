@@ -369,12 +369,17 @@ function tlDraw(w, h, mpp, sun){
   let cut = detail.length; for (let i = 0; i < detail.length; i++) if (!TL.lay.has(HOLON.pack(detail[i].c))){ cut = i; break; }
   TL.cut = cut < detail.length ? Math.max(0.5, detail[cut].bx.dist) : 0;
   // detail: one buffer and one draw per L3 tile, rebuilt only when its set of live leaves changes
-  const live = new Set(), byTile = new Map();
-  for (let i = 0; i < cut; i++){ const d = detail[i], k = HOLON.pack(d.c), e = TL.lay.get(k);
-    TL.lay.delete(k); TL.lay.set(k, e); live.add(e); if (!byTile.has(e.tile)) byTile.set(e.tile, []); byTile.get(e.tile).push(e); }
+  // every laid-out leaf in view is kept (most recent in the cache, safe from eviction), drawn or not: a leaf beyond the disc's
+  // edge that the cache dropped would pull the edge in and drop the next (a strip caught the disc collapsing to the centre once
+  // the cache passed its byte cap, and the street's neighbourhood drawn as bare ground)
+  const live = new Set(), keep = new Set(), byTile = new Map();
+  for (let i = 0; i < detail.length; i++){ const k = HOLON.pack(detail[i].c), e = TL.lay.get(k); if (!e) continue;
+    TL.lay.delete(k); TL.lay.set(k, e); keep.add(e);
+    if (i < cut){ live.add(e); if (!byTile.has(e.tile)) byTile.set(e.tile, []); byTile.get(e.tile).push(e); } }
   TL.live = live; // the leaves this frame draws in detail (read by tools/page/story_zoom's painted-buildings check)
   const homePx = 10 * F.k / EARTH_M, dpr = window.devicePixelRatio || 1, mh = 0.55 / Math.min(2, dpr);
   const Re = TL.cut ? Math.min(TL.ringEff || TL.ring.ring, TL.cut) : (TL.ringEff || TL.ring.ring), edge = Re < Math.hypot(F.w, F.h) / 2;
+  TL.re = edge ? Re : 0; // the disc's drawn radius this frame (0: the whole screen), read by tools/page/story_zoom
   if (detA > 0.01 && byTile.size){
     gl.uniform4f(tlLoc.kindA, detA, detA * sstep(1.2, 3, homePx * 0.25), detA, detA * sstep(0.6, 2, homePx));
     gl.uniform4f(tlLoc.minHalf, 0, mh + 0.5, mh, 0); gl.uniform3f(tlLoc.ring, F.w / 2, F.h / 2, edge ? Re : 0);
@@ -400,7 +405,7 @@ function tlDraw(w, h, mpp, sun){
   tlNoAttribs(); gl.disable(gl.STENCIL_TEST);
   // tile buffers not drawn for a while go; leaves are an LRU by holon id under a byte budget
   for (const [tk, bt] of TL.batch) if (frame - (bt.used || 0) > 120){ gl.deleteBuffer(bt.vbo); TL.batch.delete(tk); }
-  for (const [k, e] of TL.lay){ if (TL.bytes <= TL_BYTE_CAP) break; if (live.has(e)) continue; TL.bytes -= e.bytes; TL.lay.delete(k); }
+  for (const [k, e] of TL.lay){ if (TL.bytes <= TL_BYTE_CAP) break; if (keep.has(e)) continue; TL.bytes -= e.bytes; TL.lay.delete(k); }
   TL.drawn = live.size; TL.agg = agg.length; TL.pending = pending; TL.draws = byTile.size;
 }
 function tlMetrics(){
