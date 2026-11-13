@@ -552,6 +552,50 @@ pub struct BuildingDraw {
     pub setback: f64,
     /// Where each field came from.
     pub pooling: Pooling,
+    /// The roof's tone (ASSUMED; `RoofTone`).
+    pub roof_tone: RoofTone,
+}
+
+/// A roof's tone: what the roof material usually looks like from above, nothing more. ASSUMED, never certified: CIRISHolon
+/// BUILDGEN-1's prereg (conformance/scene/BUILDGEN1_PREREG.md, "Roof tone: ASSUMED, not certified") maps a survey's roof
+/// material to one of these, and no verdict but `assumed` may be shown for a roof's colour. `Neutral` is the renderer's
+/// present roof colour; every building is `Neutral` until a generator draws a tone (none ships).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RoofTone {
+    /// The renderer's present roof colour.
+    #[default]
+    Neutral = 0,
+    /// Ceramic or clay tiles.
+    RedTile = 1,
+    /// Concrete tiles.
+    BrownTile = 2,
+    /// Wood shingles or shakes.
+    WeatheredWood = 3,
+    /// Slate or synthetic slate.
+    GreySlate = 4,
+    /// Composition or asphalt shingles.
+    DarkShingle = 5,
+    /// Metal.
+    MetalLight = 6,
+    /// Not asked (buildings of 5 or more units).
+    ConcreteFlat = 7,
+}
+
+impl RoofTone {
+    /// The prereg's approximate sRGB (ASSUMED), or None for `Neutral` (the renderer keeps its own colour).
+    #[must_use]
+    pub const fn srgb(self) -> Option<[u8; 3]> {
+        match self {
+            Self::Neutral => None,
+            Self::RedTile => Some([178, 98, 72]),
+            Self::BrownTile => Some([142, 122, 104]),
+            Self::WeatheredWood => Some([128, 112, 94]),
+            Self::GreySlate => Some([92, 100, 110]),
+            Self::DarkShingle => Some([84, 82, 80]),
+            Self::MetalLight => Some([168, 172, 176]),
+            Self::ConcreteFlat => Some([150, 150, 146]),
+        }
+    }
 }
 
 /// A built-form generator compiled into the kernel (as `holon_scene`'s household and device generators are). The

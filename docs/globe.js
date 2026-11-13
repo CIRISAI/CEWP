@@ -395,7 +395,7 @@ function buildWorld(n){
 // ------------------------------------------------------------------ the engines (WASM + JS parity)
 const OUT = 36; let wasm=null, mem=null, bufs=null;
 let simParams = { directNatPm: 420, shapingPm: 780, onionPm: 160 };
-async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=52"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
+async function loadWasm(){ try { const r = await WebAssembly.instantiateStreaming(fetch("kernel/kernel_scale.wasm?v=53"), {}); wasm = r.instance.exports; mem = wasm.memory; return true; } catch(e){ console.warn("wasm unavailable", e); return false; } }
 function uploadWorld(){
   if (!wasm) return;
   const W_ = W; const A = (arr)=>{ const p = wasm.alloc(arr.byteLength); new Uint8Array(mem.buffer, p, arr.byteLength).set(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)); return p; };
@@ -2924,7 +2924,7 @@ function dmRender(){
   const btn = (m) => `<button type="button" role="radio" aria-checked="${DATAMAP.active === m.id}" class="dm-b${DATAMAP.active === m.id ? " on" : ""}" data-dm="${m.id}"><span aria-hidden="true">${m.icon}</span> ${m.name}</button>`;
   el.innerHTML = DM_TOP.map((i) => btn(DM_MAP(i))).join("") +
     `<button type="button" class="dm-b dm-adv" data-dm-adv aria-expanded="${DM_ADV_OPEN.open}">Advanced ${DM_ADV_OPEN.open ? "▾" : "▸"}</button>` +
-    (DM_ADV_OPEN.open ? DM_ADV.map((i) => btn(DM_MAP(i))).join("") : "");
+    (DM_ADV_OPEN.open ? DM_ADV.map((i) => btn(DM_MAP(i))).join("") + (typeof TL_TEX !== "undefined" ? `<button type="button" class="dm-b" data-tl-tex aria-pressed="${TL_TEX.on}">ground texture: ${TL_TEX.on ? "procedural" : "flat"}</button>` : "") : "");
   // on a phone the strip scrolls sideways: keep the active map's button in view
   const on = el.querySelector(".dm-b.on"); if (on && (on.offsetLeft < el.scrollLeft || on.offsetLeft + on.offsetWidth > el.scrollLeft + el.clientWidth)) el.scrollLeft = Math.max(0, on.offsetLeft - 8);
   const lg = $("dm-legend"); if (lg){ const h = dmLegend(); lg.innerHTML = h; lg.classList.toggle("panel-hidden", !h); }
@@ -2933,6 +2933,7 @@ function dmRender(){
 function dmSet(id){ if (id === DATAMAP.active) return; DATAMAP.prev = DATAMAP.active; DATAMAP.active = id; DATAMAP.t0 = performance.now(); holLoad(); dmRender(); if (typeof gfxDirty === "function") gfxDirty(800); const c = $("focal-chip"); if (c) c._t = 0; }
 document.addEventListener("click", (e) => { const b = e.target.closest && e.target.closest("[data-dm]"); if (b) dmSet(+b.dataset.dm);
   const m = e.target.closest && e.target.closest("[data-dm-more]"); if (m){ DM_MORE.open = !DM_MORE.open; dmRender(); }
+  const tx = e.target.closest && e.target.closest("[data-tl-tex]"); if (tx && typeof TL_TEX !== "undefined"){ TL_TEX.on = !TL_TEX.on; dmRender(); if (typeof gfxDirty === "function") gfxDirty(800); }
   const a = e.target.closest && e.target.closest("[data-dm-adv]"); if (a){ DM_ADV_OPEN.open = !DM_ADV_OPEN.open; if (!DM_ADV_OPEN.open && DM_ADV.includes(DATAMAP.active)) dmSet(0); dmRender(); } });
 document.addEventListener("change", (e) => { const s = e.target.closest && e.target.closest("[data-grid-kind]"); if (s){ GRID.kind = +s.value; GRID.sel = null; dmRender(); if (typeof gfxDirty === "function") gfxDirty(500); const c = $("focal-chip"); if (c) c._t = 0; } });
 // on a phone the strip and its legend are one block directly under the tier pill (clear of the chip and the zoom column)

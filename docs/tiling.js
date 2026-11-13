@@ -111,6 +111,10 @@ const TL_BANDS = [ // [warmth, sparse ground, dense ground, roof multiplier]
   [26.5, [0.135, 0.125, 0.095], [0.385, 0.315, 0.2], [1.2, 1.12, 0.98]], // hot: ochre
 ];
 const TL_ROCK = [[0.13, 0.13, 0.137], [0.31, 0.3, 0.29]];
+// Roof tones (builtform::RoofTone), the approximate sRGB CIRISHolon's BUILDGEN-1 prereg records as ASSUMED ("what the material
+// usually looks like from above, nothing more"); index 0, neutral, keeps the renderer's present roof colour. No generator
+// ships, so every roof is neutral today.
+const TL_ROOF_TONES = [null, [178, 98, 72], [142, 122, 104], [128, 112, 94], [92, 100, 110], [84, 82, 80], [168, 172, 176], [150, 150, 146]].map((c) => c && c.map((v) => v / 255));
 const tlMix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 // { g0, g1: the ground at density tone 0 and 1; roof: a multiplier on the homes; warm, m: what it read }
 function tlTerrain(la, lo){
@@ -133,6 +137,17 @@ function tlTerrain(la, lo){
   return { g0: g0.map(v => v * lit), g1: g1.map(v => v * lit), roof, warm, m, lit, z: r ? r[2] : -1, lc: L ? L.code : -1 };
 }
 const tlGround = (T, t) => tlMix3(T.g0, T.g1, t);
+// The rival texture's switch (Advanced: "ground texture: flat / procedural"), off by default.
+const TL_TEX = { on: false };
+// The texture's world-anchored metre grid for an L3 tile's frame: x = (lon + 180) x 111,320 x cos(the 1.5-degree latitude band's
+// centre), y = (lat + 90) x 111,320, both taken modulo the noise's 4,096 m period in double precision here, so the shader
+// works in small numbers; a tile's frame metres map to it by x' = x0 + kx * x (kx = cos(band) / cos(tile)) and y' = y0 + y.
+// The same point gives the same grid value from every tile of its band: the field is seamless across leaves and tiles,
+// and steps only at a band's edge (every 1.5 degrees of latitude).
+function tlNoiseOrigin(la, lo){
+  const band = (Math.floor((la + 90) / 1.5) + 0.5) * 1.5 - 90, cb = Math.cos(band * Math.PI / 180), P = 4096, md = (v) => ((v % P) + P) % P;
+  return [md((lo + 180) * 111320 * cb), md((la + 90) * 111320), cb / Math.cos(la * Math.PI / 180)];
+}
 // The land cover's ground colour at a point, blended bilinearly between the four nearest cells' class colours (the
 // class is a 1/8 or 1/2 degree cell's majority, MEASURED; its colour a display choice), sea cells left out: the mosaic's
 // corners take it, so the colour runs across a cell's edge instead of stepping there (a film strip of the Story's dive
@@ -157,6 +172,7 @@ function tlBuildLeaf(leaf){
   const id = HOLON.pack(leaf); wasm.holon_layout(id);
   const buf = (i) => { const p = wasm.holon_buf_ptr(i), n = wasm.holon_buf_len(i); return new Float64Array(mem.buffer, p, n).slice(); };
   const R = buf(1), B = buf(2), meta = buf(4), S = buf(6), w = meta[0], h = meta[1], cls = meta[3] | 0;
+  const TN = wasm.holon_buf_len(8) ? buf(8) : null; // each building's roof tone (kernel buffer 8; 0 neutral until a generator draws one)
   const t = HOLON.ancestor(leaf, 3), [laL, loL] = tlCentre(leaf), [laT, loT] = tlCentre(t);
   const cT = Math.cos(laT * Math.PI / 180), sx = cT / Math.cos(laL * Math.PI / 180), ox = (loL - loT) * 111320 * cT, oy = (laL - laT) * 111320;
   const V = []; const vert = (x, y, nx, ny, wd, c, a, k) => V.push(ox + x * sx, oy + y, nx, ny, wd, c[0], c[1], c[2], a, k);
@@ -178,7 +194,8 @@ function tlBuildLeaf(leaf){
   // few trees in it, placed by a hash of the leaf and the building, so the same street always looks the same
   const hsh = (a, b) => { let x = Math.imul(a | 0, 0x9e3779b1) ^ Math.imul(b | 0, 0x85ebca77); x ^= x >>> 15; x = Math.imul(x, 0x2c1b3c6d); x ^= x >>> 12; return (x >>> 0) / 4294967296; };
   // a hexagon (6 triangles): the street ground's decoration is kept cheap, about 2,000 vertices a leaf
-  const disc = (x, y, r, c, a) => { for (let k = 0; k < 6; k++){ const a0 = k * Math.PI / 3, a1 = (k + 1) * Math.PI / 3; vert(x, y, 0, 0, 0, c, a, 1); vert(x + r * Math.cos(a0), y + r * Math.sin(a0), 0, 0, 0, c, a, 1); vert(x + r * Math.cos(a1), y + r * Math.sin(a1), 0, 0, 0, c, a, 1); } };
+  // kind 1.25: canopy (a tree's crown), drawn as kind 1 (the shader rounds the kind) and marked for the ground texture
+  const disc = (x, y, r, c, a, kd = 1) => { for (let k = 0; k < 6; k++){ const a0 = k * Math.PI / 3, a1 = (k + 1) * Math.PI / 3; vert(x, y, 0, 0, 0, c, a, kd); vert(x + r * Math.cos(a0), y + r * Math.sin(a0), 0, 0, 0, c, a, kd); vert(x + r * Math.cos(a1), y + r * Math.sin(a1), 0, 0, 0, c, a, kd); } };
   const seed = (id % 2147483647) | 0;
   // over the whole leaf: soft mottling (meadow and wear) and scattered trees, fewer where it is dense;
   // buildings and streets drawn later cover whatever lands under them
@@ -186,7 +203,7 @@ function tlBuildLeaf(leaf){
     for (let k = 0; k < nP; k++){ const x = (hsh(seed, 9000 + k) - 0.5) * w, y = (hsh(9000 + k, seed) - 0.5) * h, r = 8 + 18 * hsh(seed ^ k, 77);
       disc(x, y, r, hsh(k, seed) < 0.5 ? [0.5, 0.55, 0.36] : [0.04, 0.07, 0.04], 0.07); }
     for (let k = 0; k < nT; k++){ const x = (hsh(seed, k) - 0.5) * w, y = (hsh(k, seed + 1) - 0.5) * h, r = 1.4 + 2.2 * hsh(seed + 2, k), gk = hsh(k, 31);
-      disc(x, y, r, [0.09 + 0.05 * gk, 0.17 + 0.08 * gk, 0.08], 0.8); } }
+      disc(x, y, r, [0.09 + 0.05 * gk, 0.17 + 0.08 * gk, 0.08], 0.8, 1.25); } }
   const lots = meta[2] * TL_PPH / Math.max(1e-6, w * h / 1e6) < 1500; // yards and garden trees only in suburban and village streets
   for (let b = 0; lots && b < B.length; b += 8){
     const cx = B[b], cy = B[b + 1], bw = B[b + 2] / 2, bd = B[b + 3] / 2, ca = Math.cos(B[b + 4]), sa = Math.sin(B[b + 4]);
@@ -195,7 +212,7 @@ function tlBuildLeaf(leaf){
     const nt = Math.floor(hsh(seed, b) * 3);
     for (let t = 0; t < nt; t++){ const side = hsh(seed + t, b) * 4 | 0, f = hsh(b, seed + 7 * t) * 2 - 1, r = 1.6 + 1.8 * hsh(seed ^ t, b + 3);
       const [u, v] = side === 0 ? [f * lw, ld - r * 0.6] : side === 1 ? [f * lw, -ld + r * 0.6] : side === 2 ? [lw - r * 0.6, f * ld] : [-lw + r * 0.6, f * ld];
-      const [x, y] = at(u, v); disc(x, y, r, [0.11, 0.2 + 0.06 * hsh(t, b), 0.1], 0.85); }
+      const [x, y] = at(u, v); disc(x, y, r, [0.11, 0.2 + 0.06 * hsh(t, b), 0.1], 0.85, 1.25); }
   }
   // streets by width class (the kernel's own widths): arterial >= 11 m pale and warm on a dark casing,
   // collector >= 7 m light grey, local streets the class colour; local ones drawn first so wider ones cross over
@@ -209,7 +226,8 @@ function tlBuildLeaf(leaf){
     // tones split along the long axis, so footprints read as pitched roofs and not flat blocks
     const sh = 0.5 + 1.0 * Math.max(1, B[b + 5]); // shadow length follows storeys (about 3 m a storey, low sun; display only)
     quad([[-bw, -bd], [bw, -bd], [bw, bd], [-bw, bd]].map(([u, v]) => at(u, v, sh, -sh)), [0.02, 0.025, 0.03], 0.5, 1);
-    const c0 = units > 0 ? [0.44, 0.41, 0.36] : [0.3, 0.29, 0.27], lit = c0.map((v) => v * 1.22), dark = c0.map((v) => v * 0.74);
+    const tone = TN ? TL_ROOF_TONES[TN[b / 8] | 0] : null; // ASSUMED tone (BUILDGEN-1 prereg), null for neutral: the present colour
+    const c0 = tone ? tone : units > 0 ? [0.44, 0.41, 0.36] : [0.3, 0.29, 0.27], lit = c0.map((v) => v * 1.22), dark = c0.map((v) => v * 0.74);
     if (bw >= bd){ quad([[-bw, 0], [bw, 0], [bw, bd], [-bw, bd]].map(([u, v]) => at(u, v, 0, 0)), lit, 1, 3); quad([[-bw, -bd], [bw, -bd], [bw, 0], [-bw, 0]].map(([u, v]) => at(u, v, 0, 0)), dark, 1, 3); }
     else { quad([[-bw, -bd], [0, -bd], [0, bd], [-bw, bd]].map(([u, v]) => at(u, v, 0, 0)), lit, 1, 3); quad([[0, -bd], [bw, -bd], [bw, bd], [0, bd]].map(([u, v]) => at(u, v, 0, 0)), dark, 1, 3); }
   }
@@ -217,23 +235,44 @@ function tlBuildLeaf(leaf){
   // the built form's record (kernel holon_layout meta 7..22): its source, climate class, region, the door slots read and their
   // versions, buildings a generator drew, the state used and why, the generator's pooling
   const form = meta.length >= 23 ? { source: meta[7], climate: meta[8], region: meta[9], read: meta[10], v: Array.from(meta.slice(11, 15)), generated: meta[15], state: meta[16], why: meta[17], pooling: meta[18] >= 0 ? Array.from(meta.slice(18, 22)) : null, mixed: meta[22] } : null;
-  return { id, tile: HOLON.pack(t), t, data, bytes: data.byteLength, hh: meta[2], form };
+  const tones = TN ? Array.from(TN).filter((x) => x > 0).length : 0;
+  return { id, tile: HOLON.pack(t), t, data, bytes: data.byteLength, hh: meta[2], form, tones };
 }
 function tlFrameOf(la, lo){ const a = la * Math.PI / 180, o = lo * Math.PI / 180;
   return { c: [Math.cos(a) * Math.sin(o), Math.sin(a), Math.cos(a) * Math.cos(o)], E: [Math.cos(o), 0, -Math.sin(o)], N: [-Math.sin(a) * Math.sin(o), Math.cos(a), -Math.sin(a) * Math.cos(o)] }; }
 
 // ---- the GL program: metres in, an affine per tile to CSS px, streets kept at least a pixel wide,
 // alpha per kind, and a radial fade at the acuity ring's edge
-const TLV = `attribute vec2 p;attribute vec2 n;attribute float wd;attribute vec4 c;attribute float k;uniform vec3 uX;uniform vec3 uY;uniform vec2 uView;uniform float uPpm;uniform vec4 uMinHalf;uniform vec4 uKindA;uniform vec3 uRing;uniform vec3 uG0;uniform vec3 uG1;uniform vec3 uRoof;uniform float uTerr;varying vec4 vc;
-void main(){vec4 sel=vec4(equal(vec4(k),vec4(0.0,1.0,2.0,3.0)));vec2 q=p+n*max(wd,dot(uMinHalf,sel)/uPpm);float px=uX.x*q.x+uX.y*q.y+uX.z;float py=uY.x*q.x+uY.y*q.y+uY.z;
+const TLV = `attribute vec2 p;attribute vec2 n;attribute float wd;attribute vec4 c;attribute float k;uniform vec3 uX;uniform vec3 uY;uniform vec2 uView;uniform float uPpm;uniform vec4 uMinHalf;uniform vec4 uKindA;uniform vec3 uRing;uniform vec3 uG0;uniform vec3 uG1;uniform vec3 uRoof;uniform float uTerr;uniform vec4 uNO;varying vec4 vc;varying vec2 vN;varying float vK;varying float vD;
+void main(){float kr=floor(k+0.5);vec4 sel=vec4(equal(vec4(kr),vec4(0.0,1.0,2.0,3.0)));vec2 q=p+n*max(wd,dot(uMinHalf,sel)/uPpm);float px=uX.x*q.x+uX.y*q.y+uX.z;float py=uY.x*q.x+uY.y*q.y+uY.z;
 float f=uRing.z>0.0?1.0-smoothstep(0.85*uRing.z,uRing.z,length(vec2(px,py)-uRing.xy)):1.0;
-gl_Position=vec4(px/uView.x*2.0-1.0,1.0-py/uView.y*2.0,0.0,1.0);vec3 col=mix(c.rgb,sel.x*mix(uG0,uG1,c.r)+(sel.y+sel.z)*c.rgb+sel.w*c.rgb*uRoof,uTerr);vc=vec4(col,c.a*dot(uKindA,sel)*f);}`;
-const TLF = `precision mediump float;uniform float uDim;varying vec4 vc;void main(){if(vc.a<0.004)discard;gl_FragColor=vec4(vc.rgb*uDim,vc.a);}`;
+gl_Position=vec4(px/uView.x*2.0-1.0,1.0-py/uView.y*2.0,0.0,1.0);vec3 col=mix(c.rgb,sel.x*mix(uG0,uG1,c.r)+(sel.y+sel.z)*c.rgb+sel.w*c.rgb*uRoof,uTerr);vc=vec4(col,c.a*dot(uKindA,sel)*f);
+vN=vec2(uNO.x+uNO.z*q.x,uNO.y+uNO.w*q.y);vK=k;vD=sel.x*c.r;}`;
+// The rival ground texture (FSD/twin/texture.md, the layer-two contract's first user; off unless the Advanced switch says
+// "procedural"): band-limited value noise on a world-anchored metre grid (vN, seamless across leaves and tiles), its octaves
+// faded out between 4 and 2 pixels a cycle (uPpm), modulating the luminance of ground, canopy and roof by surface kind.
+const TLF = `#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform float uDim;uniform float uTex;uniform float uPpm;varying vec4 vc;varying vec2 vN;varying float vK;varying float vD;
+float h2(vec2 i,float m){i=mod(i,m);return fract(sin(dot(i,vec2(12.9898,78.233)))*43758.5453);}
+float vn(vec2 x,float cell){vec2 g=x/cell;vec2 i=floor(g);vec2 t=fract(g);t=t*t*(3.0-2.0*t);float m=4096.0/cell;
+return mix(mix(h2(i,m),h2(i+vec2(1.0,0.0),m),t.x),mix(h2(i+vec2(0.0,1.0),m),h2(i+vec2(1.0,1.0),m),t.x),t.y)*2.0-1.0;}
+float oct(vec2 x,float cell,float amp){float w=1.0-smoothstep(0.25,0.5,1.0/(uPpm*cell));return w>0.0?amp*w*vn(x,cell):0.0;}
+void main(){if(vc.a<0.004)discard;vec3 col=vc.rgb;
+if(uTex>0.5){float s=0.0;
+ if(vK<0.5){float a=1.0-0.5*vD;s=oct(vN,48.0,0.10*a)+oct(vN,12.0,0.07*a)+oct(vN,3.0,0.05*a);}
+ else if(vK>1.1&&vK<1.4){s=oct(vN,6.0,0.16)+oct(vN,1.5,0.10);}
+ else if(vK>2.5){s=oct(vN,4.0,0.05)+oct(vN,1.0,0.04);}
+ col=col*(1.0+s*uTex);}
+gl_FragColor=vec4(col*uDim,vc.a);}`;
 let tlProg = null, tlLoc = null, tlAggBuf = null;
 function tlGL(){
   if (tlProg) return; tlProg = prog(TLV, TLF); tlAggBuf = gl.createBuffer();
   const u = (n) => gl.getUniformLocation(tlProg, n), a = (n) => gl.getAttribLocation(tlProg, n);
-  tlLoc = { p: a("p"), n: a("n"), wd: a("wd"), c: a("c"), k: a("k"), X: u("uX"), Y: u("uY"), view: u("uView"), ppm: u("uPpm"), minHalf: u("uMinHalf"), kindA: u("uKindA"), ring: u("uRing"), dim: u("uDim"), g0: u("uG0"), g1: u("uG1"), roof: u("uRoof"), terr: u("uTerr") };
+  tlLoc = { p: a("p"), n: a("n"), wd: a("wd"), c: a("c"), k: a("k"), X: u("uX"), Y: u("uY"), view: u("uView"), ppm: u("uPpm"), minHalf: u("uMinHalf"), kindA: u("uKindA"), ring: u("uRing"), dim: u("uDim"), g0: u("uG0"), g1: u("uG1"), roof: u("uRoof"), terr: u("uTerr"), no: u("uNO"), tex: u("uTex") };
 }
 function tlAttribs(){ const L = tlLoc, s = 40;
   gl.enableVertexAttribArray(L.p); gl.vertexAttribPointer(L.p, 2, gl.FLOAT, false, s, 0);
@@ -251,7 +290,7 @@ function tlScreen(arr, alpha){
   if (!arr.length || alpha <= 0.01) return;
   gl.bindBuffer(gl.ARRAY_BUFFER, tlAggBuf); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STREAM_DRAW); tlAttribs();
   gl.uniform3f(tlLoc.X, 1, 0, 0); gl.uniform3f(tlLoc.Y, 0, 1, 0); gl.uniform1f(tlLoc.ppm, 1); gl.uniform4f(tlLoc.minHalf, 0, 0, 0, 0);
-  gl.uniform4f(tlLoc.kindA, alpha, 0, 0, 0); gl.uniform3f(tlLoc.ring, 0, 0, 0); gl.uniform1f(tlLoc.dim, 1); gl.uniform1f(tlLoc.terr, 0); // night and terrain are in the colours
+  gl.uniform4f(tlLoc.kindA, alpha, 0, 0, 0); gl.uniform3f(tlLoc.ring, 0, 0, 0); gl.uniform1f(tlLoc.dim, 1); gl.uniform1f(tlLoc.terr, 0); gl.uniform1f(tlLoc.tex, 0); // night and terrain are in the colours; the mosaic (in screen pixels) is never textured
   gl.drawArrays(gl.TRIANGLES, 0, arr.length / 10);
 }
 
@@ -416,6 +455,8 @@ function tlDraw(w, h, mpp, sun){
       const A = tlAffine(F, bt.fr); if (A.front <= 0.02) continue;
       if (bt.night === undefined || frame % 30 === 0){ const [la, lo] = tlCentre(list[0].t); bt.night = tlNight(sun, la, lo); bt.terr = tlTerrain(la, lo); }
       gl.uniform1f(tlLoc.dim, bt.night); gl.uniform1f(tlLoc.terr, 1);
+      { const [la, lo] = tlCentre(list[0].t), no = tlNoiseOrigin(la, lo); gl.uniform4f(tlLoc.no, no[0], no[1], no[2], 1);
+        gl.uniform1f(tlLoc.tex, TL_TEX.on ? (typeof DATAMAP !== "undefined" && DATAMAP.active ? 0.5 : 1) : 0); } // halved under a data map
       gl.uniform3fv(tlLoc.g0, bt.terr.g0); gl.uniform3fv(tlLoc.g1, bt.terr.g1); gl.uniform3fv(tlLoc.roof, bt.terr.roof);
       gl.bindBuffer(gl.ARRAY_BUFFER, bt.vbo); tlAttribs();
       gl.uniform3f(tlLoc.X, A.a, A.c, A.e); gl.uniform3f(tlLoc.Y, A.b, A.d, A.f); gl.uniform1f(tlLoc.ppm, A.ppm);
