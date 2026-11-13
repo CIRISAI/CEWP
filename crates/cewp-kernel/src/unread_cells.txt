@@ -1,0 +1,181 @@
+change collection:{kind} supersede: replace: cascade=file:{version}/under:stand
+change consent:community_trust withdraw: withdraw: cascade=trace:{form}:{version}/under:stand
+change consent:replication:{version} supersede: replace: field=attestation_prefixes:any
+change consent:replication:{version} withdraw: withdraw: reach=whole
+change consent:state:{stance} attest: expired: by=substrate, reach=other_attester, link=ranked:consent_supersedes
+change group:roster attest: attest: field=members:grow_signed
+change group:roster supersede: replace: by=cosigned, field=consensus_protocol:any
+change group:roster supersede: replace: field=members:shrink
+change group:roster supersede: replace: link=chained:prev_head_digest
+change group:roster supersede: replace[entrenched]: field=consensus_protocol:frozen
+change group:roster supersede: replace[grade:trust_root]: field=members:grow_signed
+change group:roster supersede: replace[recovery]: by=committed_key
+change group:roster supersede: replace[subkind:infrastructure]: field=consensus_protocol:no_weaker, field=admission_quorum_basis:frozen
+change group:roster withdraw: withdraw: cascade=custody:{kind}/under:stand
+change group:roster withdraw: withdraw: cascade=licensure:{authority_id}/by:lapsed
+change group:roster withdraw: withdraw: cascade=membership:{stage}/under:lapsed, cascade=trust:{job}:{version}/under:lapsed, cascade=key_grant:{axis}/under:stop, key=none
+change group:roster withdraw: withdraw: cascade=trust:{job}:{version}/by:lapsed
+change identity:occurrence supersede: replace: by=same_attester, reach=own_prior
+change identity:occurrence supersede: replace[seat:serve]: after=transport:canonical_rebind
+change identity:occurrence supersede: replace[seat:serve]: after=transport:canonical_rebind, refuse=serve_transit_pair_rotation_before_rebind
+change identity:occurrence_revocation attest: attest[scope:community|affiliations]: key=rotate_epoch
+change identity:occurrence_revocation attest: attest[scope:self]: key=stop_wrap
+change key:record supersede: replace[recovery]: by=committed_key
+change key:revocation attest: attest: cascade=*/by:void_after:revoked_after
+change key:revocation supersede: replace: field=revoked_after:lower
+change ledger:checkpoint:{unit}:{version} attest: attest: reach=below_seq
+change membership:{stage} attest: removal[axis:stream]: key=rotate_epoch
+change membership:{stage} attest: removal[last:seat]: cascade=group:roster/over:withdrawn
+change membership:{stage} attest: removal[scope:community|affiliations]: key=rotate_epoch
+change membership:{stage} attest: removal[scope:self|family]: key=stop_wrap
+change membership:{stage} attest: resignation[ephemeral&last:member]: cascade=group:roster/over:withdrawn
+change membership:{stage} attest: resignation[last:seat]: cascade=group:roster/over:withdrawn
+change membership:{stage} attest: resignation[scope:community|affiliations]: key=rotate_epoch
+change membership:{stage} attest: resignation[scope:self|family]: key=stop_wrap
+change membership:{stage} attest: widening[scope:community|affiliations]: key=at_seat
+change membership:{stage} attest: widening[scope:self|family]: key=rekey_walk
+change membership:{stage} attest: widening[stalled&recovery]: field=members:grow_signed
+change membership:{stage} attest: widening[stalled&recovery]: field=members:grow_signed, field=M:frozen, field=consensus_protocol:frozen, field=admission_quorum_basis:frozen, field=cohort_subkind:frozen
+change retirement:{state} attest: custodian_minted: by=cosigned, reach=other_attester, cascade=custody:{kind}/by:stop
+change revocation:{entity_type}:{reason} attest: attest: cascade=bond_posted:{currency}/about:forfeited
+change session:{kind} supersede: replace: by=same_attester
+change session:{kind} supersede: replace: by=same_attester, field=valid_until:as_attest, refuse=session_claim_out_of_window
+change transport:canonical_rebind attest: attest: by=cosigned, reach=other_attester
+change transport:canonical_rebind attest: attest: by=cosigned, reach=other_attester, refuse=transport_rebind_without_holder_quorum
+change trust:{job}:{version} supersede: replace: by=cosigned_prior
+confirm.when always (the kernel has no confirmation step): 47
+confirm.when if_widens (the kernel has no confirmation step): 206
+counted changes_set=adds: 2
+counted changes_set=no: 12
+counted changes_set=removes: 2
+counted count_set=deciding+outside: 1
+counted count_set=holder: 2
+counted count_set=member: 9
+counted count_set=operator+wa: 1
+counted count_set=protocol: 1
+counted count_set=self: 2
+counted counted_at=act: 1
+counted counted_at=named: 4
+counted counted_at=signed: 3
+counted counted_at=unstated: 8
+counted target_silent=no: 15
+counted target_silent=yes: 1
+counted voice=key: 2
+counted voice=person: 11
+counted voice=unstated: 3
+counted voices=ballot: 1
+counted voices=objection: 7
+counted voices=scrubs: 7
+counted voices=unstated: 1
+guard accord:lifecycle:{kind} attest: when(leaf=active) one accord:invoke:constitutional:{halt_id}@admitted[leaf:halt_id=val:resumes_halt_id] else refuse [reach partial]
+guard accord:lifecycle:{kind} attest: when(leaf=confirmed) one accord:invoke:constitutional:{halt_id}@admitted[object=object] within(accord_halt) else refuse [reach whole]
+guard ballot:moderator attest: each(val:ranks) member(key,object) else refuse [reach partial]
+guard ballot:moderator_acceptance attest: set(ref:*) ballot:moderator@admitted[object=object] else refuse & winner(signer,object) else refuse & after(moderator_election) else refuse [reach whole]
+guard ballot:moderator_acceptance attest: set(ref:*) ballot:moderator@admitted[object=object] else refuse [reach whole]
+guard capacity:relay_delivery attest: one consent:state:granted@admitted[signer=attested,subject=signer,val:scope=analyze] else refuse [reach whole]
+guard capacity_assurance:{level}:{domain}:{band}:{version} attest: when(leaf=incapacitated) one capacity_assurance:reversible_excluded@admitted[attested=attested,leaf:domain=leaf:domain] else refuse [reach whole]
+guard capacity_assurance:{level}:{domain}:{band}:{version} attest: when(leaf=incapacitated) one capacity_assurance:reversible_excluded|capacity_assurance:reversible_pending@admitted[attested=attested,leaf:domain=leaf:domain] else refuse [reach partial]
+guard census:composite:{class} attest: no census:composite:{class}@admitted[object=object,leaf:class=leaf:class] else refuse(census_composite_duplicate_period) [reach whole]
+guard census:member:share attest: no census:member:share@admitted[object=object,val:return_token=val:return_token,val:share_index=val:share_index] else refuse [reach whole]
+guard census:share:{class} attest: no census:share:{class}@admitted[object=object,val:return_token=val:return_token,val:share_index=val:share_index] else refuse(census_share_duplicate_token) [reach whole]
+guard consent:community_trust attest: when(type(signer,node)) owner(subject,attested) at asserted_at else refuse [reach partial]
+guard cosign:{state} attest: when(leaf=pending) (one *@admitted[id=ref:*] as E else refuse & owner(E.signer,signer) else refuse) [reach whole]
+guard custody:{kind} attest: one *@admitted[id=ref:*,val:cohort_scope=val:cohort_scope] else refuse [reach whole]
+guard delivery_receipt:{stream_id} attest: one transparency_log:inclusion@admitted[val:root_hash=val:chunk_root] else advise [reach whole]
+guard evidence:{suite}:{kind}:{cell}:{prefix} attest: when(has=references_attestation_id) one goal:{scale}|approach:{goal_id}|method:{approach_id}:{substrate_rung}@admitted[id=ref:references_attestation_id] else refuse(evidence_reference_unresolved) [reach whole]
+guard group:roster attest: each(subject) when(type(key,node)) not founder(key,object) else refuse+community_consensus_protocol_violation [reach whole]
+guard group:roster attest: each(subject) when(verb=attest) signs(key) else refuse(membership_founding_member_unsigned)+community_consensus_protocol_violation [reach whole]
+guard group:roster attest: when(leaf=recovery) one trust:charter@admitted[object=object,val:recovery_commitments commits signer] else refuse [reach whole]
+guard group:roster supersede: each(subject) when(verb=replace,not member(key,object)) signs(key) else refuse(membership_supersede_cannot_add)+community_consensus_protocol_violation [reach partial]
+guard group:roster supersede: when(verb=replace) one group:roster@admitted[object=object,id=ref:prev_head_digest] else refuse [reach whole]
+guard identity_amendment attest: one deferral:response:approved@admitted[id=ref:authorized_by,subject=subject] as R else refuse(identity_amendment_unauthorized) & wa(R.signer,subject,via=none) at its_asserted_at else refuse(identity_amendment_unauthorized) [reach partial]
+guard key_grant:{axis} attest: each(subject) one identity:occurrence@admitted[attested=key] else exclude+recipient_excluded [reach partial]
+guard key_grant:{axis} attest: when(one retirement:{state}@admitted[attested=object]) one archive_release:{basis}@admitted[id=ref:*] else refuse [reach partial]
+guard membership:{stage} attest: each(subject) when(leaf=widening,not member(key,object)) (one membership:acceptance@admitted[signer=key,object=object] as A & no membership:widening@admitted[ref:*=A.id] else refuse+community_consensus_protocol_violation) [reach whole]
+guard membership:{stage} attest: each(subject) when(leaf=widening,not member(key,object)) (one membership:acceptance@admitted[signer=key,object=object] as A & one membership:proposal@admitted[id=A.ref:*,val:expires_at>=A.val:asserted_at,val:expires_at>=val:asserted_at] as P else refuse(membership_proposal_expired)+community_consensus_protocol_violation & no membership:decline@admitted[signer=key,ref:*=P.id] else refuse(membership_declined)+community_consensus_protocol_violation) [reach whole]
+guard membership:{stage} attest: each(subject) when(leaf=widening,not member(key,object)) (one membership:acceptance@admitted[signer=key,object=object] as A & one membership:proposal@admitted[id=A.ref:*] as P else refuse(membership_proposal_expired)+community_consensus_protocol_violation & no membership:decline@admitted[signer=key,ref:*=P.id] else refuse(membership_declined)+community_consensus_protocol_violation) [reach whole]
+guard membership:{stage} attest: each(subject) when(leaf=widening,not member(key,object)) one membership:acceptance@admitted[signer=key,object=object,val:role=val:role] as A else refuse(membership_acceptance_mismatch)+community_consensus_protocol_violation [reach whole]
+guard membership:{stage} attest: each(subject) when(leaf=widening,type(key,node)) one key:record@landed[attested=key] else refuse [reach partial]
+guard membership:{stage} attest: when(leaf=acceptance|decline) no membership:acceptance|membership:decline@admitted[signer=signer,ref:*=ref:*] else refuse(membership_reply_conflict)+community_consensus_protocol_violation [reach whole]
+guard observation:access_assumption attest: all consent:state:granted@admitted[id=ref:consent_basis] at asserted_at else refuse [reach whole]
+guard ownership:{relation}:{target_kind}:{version} withdraw: when(verb=withdraw,has=wa_adjudication_ref) one wa_adjudication:{state}@admitted[id=ref:wa_adjudication_ref] else refuse [reach whole]
+guard rendezvous:route attest: serve(val:rendezvous_node_key_id,federation) else refuse [reach whole]
+guard retirement:{state} withdraw: when(verb=withdraw,leaf=decided) no retirement:frozen@admitted[object=object] else refuse [reach whole]
+guard slashing:{outcome} attest: one moderation:{allegation_type}@admitted[id=ref:evidence_refs] else refuse [reach whole]
+guard slashing:{outcome} attest: one other(ratchet:flag:*)@admitted[id=ref:evidence_refs] else refuse [reach whole]
+guard slashing:{outcome} attest: one other(ratchet:flag:*|detection:*|testimonial_witness:{kind})@admitted[id=ref:evidence_refs] else refuse [reach whole]
+guard slashing:{outcome} attest: one other(ratchet:flag:counter_rii:{layer})@admitted[id=ref:evidence_refs] else refuse [reach whole]
+guard slashing:{outcome} attest: one other(seed_holder_voting_alignment:{cell})@admitted[id=ref:evidence_refs] else refuse [reach whole]
+guard slashing:{outcome} attest: one other(testimonial_witness:{kind})@admitted[id=ref:evidence_refs] else refuse [reach whole]
+guard takedown_notice:{basis} attest: when(not moderate(signer,object)) subject(signer,ref:content_sha256) else refuse [reach whole]
+guard transport:{kind} supersede: when(verb=replace,serve(signer,federation)) one transport:canonical_rebind@landed[attested=signer] else refuse(serve_transit_pair_rotation_before_rebind) [reach partial]
+guard trust:{job}:{version} authorize: when(leaf=charter) each(val:witnesses) (not founder(key,object) else refuse & not member(key,object) else refuse) [reach partial]
+policy.cases accord:lifecycle:{kind} attest: when leaf=active -> cosigned accord_majority
+policy.cases accord:lifecycle:{kind} attest: when leaf=confirmed -> mirror accord_halt
+policy.cases identity:occurrence attest: when identity=user -> two_path self_roster_add
+policy.cases membership:{stage} attest: when leaf=removal & group=affiliations & seats=one -> cosigned affiliation_member_action
+policy.cases quarantine:{state} attest: when group=affiliations & seats=one -> cosigned affiliation_member_action
+policy.cases retirement:{state} attest: when leaf=custodian_minted -> cosigned custodian_replace
+policy.cases slashing:{outcome} attest: when group=affiliations & seats=one -> cosigned affiliation_member_action
+policy.cases takedown_notice:{basis} attest: when group=affiliations & seats=one -> cosigned affiliation_member_action
+policy.cases takedown_notice:{basis} attest: when leaf=steward_purge -> cosigned cosigned_act
+policy.count (derivation of the policy cell, informational): accord_halt@accord: 1
+policy.count (derivation of the policy cell, informational): accord_majority@accord: 1
+policy.count (derivation of the policy cell, informational): group=affiliations & seats=one => affiliation_member_action@subject_group ; none: 2
+policy.count (derivation of the policy cell, informational): identity=user => self_roster_add@self ; none: 1
+policy.count (derivation of the policy cell, informational): leaf=confirmed => accord_halt@accord ; leaf=active => accord_majority@accord: 1
+policy.count (derivation of the policy cell, informational): leaf=custodian_minted => custodian_replace ; none: 1
+policy.count (derivation of the policy cell, informational): leaf=proposal|acceptance|decline => none ; leaf=resignation => none ; leaf=removal & group=affiliations & seats=one => affiliation_member_action@subject_group ; cosigned_act@subject_group: 1
+policy.count (derivation of the policy cell, informational): leaf=steward_purge => cosigned_act@trust_root ; group=affiliations & seats=one => affiliation_member_action@subject_group ; none: 1
+policy.count (derivation of the policy cell, informational): moderation_action@subject_group: 1
+policy.count (derivation of the policy cell, informational): moderator_election@subject_group!result: 1
+policy.count (derivation of the policy cell, informational): none: 3
+policy.stages membership:{stage} attest: acceptance -> selfAct 
+policy.stages membership:{stage} attest: decline -> selfAct 
+policy.stages membership:{stage} attest: proposal -> selfAct 
+policy.stages membership:{stage} attest: resignation -> selfAct 
+policy.stages retirement:{state} attest: custodian_replace -> cosigned custodian_replace
+protocol kind founder_only (policy protocols, not evaluated)
+protocol kind majority (policy protocols, not evaluated)
+protocol kind open:self_admit (policy protocols, not evaluated)
+protocol kind quorum:{m}/{n} (policy protocols, not evaluated)
+protocol kind unanimous (policy protocols, not evaluated)
+protocol kind weighted:{rubric} (policy protocols, not evaluated)
+reaction clock (none evaluated: no clock, expiry or reaction runs in this kernel): 19
+reaction expiry (none evaluated: no clock, expiry or reaction runs in this kernel): 20
+reaction react (none evaluated: no clock, expiry or reaction runs in this kernel): 58
+roles.conditions age_assurance:{level}:{band}:{version} attest: not_subject
+roles.conditions capacity:composite attest: not_subject
+roles.conditions capacity:relay_delivery attest: not_subject
+roles.conditions capacity:{factor} attest: not_subject
+roles.conditions capacity_assurance:reversible_excluded:{domain}:{version} attest: not_subject
+roles.conditions capacity_assurance:reversible_pending:{domain}:{version} attest: not_subject
+roles.conditions capacity_assurance:{level}:{domain}:{band}:{version} attest: not_subject
+roles.conditions health:liveness:{version} attest: not_subject
+roles.conditions moderation:{allegation_type} attest: not_subject
+roster fold (the kernel's room roster is its founders and seated members, no head chain): @cohort_subkind=infrastructure: over=founders@decision/person
+roster fold (the kernel's room roster is its founders and seated members, no head chain): @cohort_subkind=infrastructure: over=founders@now/person; test=count>m ?live:stalled
+roster fold (the kernel's room roster is its founders and seated members, no head chain): @cohort_subkind=infrastructure: over=listed@seating/person
+roster fold (the kernel's room roster is its founders and seated members, no head chain): bound=drop_only(members)
+roster fold (the kernel's room roster is its founders and seated members, no head chain): bound=narrow_only(consensus_protocol),fixed(admission_quorum_basis)
+roster fold (the kernel's room roster is its founders and seated members, no head chain): feeds=replication.audience
+roster fold (the kernel's room roster is its founders and seated members, no head chain): order=min(key_id)
+roster fold (the kernel's room roster is its founders and seated members, no head chain): pick=chain(prev_head_digest)
+roster fold (the kernel's room roster is its founders and seated members, no head chain): pick=chain(prev_head_digest),tips
+roster fold (the kernel's room roster is its founders and seated members, no head chain): reads=head
+roster fold (the kernel's room roster is its founders and seated members, no head chain): reads=head+membership:{stage}&at(now)&seat:human
+roster fold (the kernel's room roster is its founders and seated members, no head chain): reads=head+membership:{stage}&seat:human
+roster fold (the kernel's room roster is its founders and seated members, no head chain): reads=head; pick=chain(prev_head_digest)
+undo via attest under cosigned (offered only as the table's own transition): 4
+undo via attest under mirror (offered only as the table's own transition): 2
+undo via attest under ranked (offered only as the table's own transition): 1
+undo via attest under selfAct (offered only as the table's own transition): 188
+undo via attest under two_path (offered only as the table's own transition): 1
+undo via authorize under selfAct (offered only as the table's own transition): 2
+undo via supersede under cosigned (offered only as the table's own transition): 2
+undo via supersede under selfAct (offered only as the table's own transition): 74
+undo via withdraw under cosigned (offered only as the table's own transition): 2
+undo via withdraw under selfAct (offered only as the table's own transition): 146
+widens.when always (the kernel reads the boolean only): 11
+widens.when by_scope (the kernel reads the boolean only): 165
+widens.when by_scope_change (the kernel reads the boolean only): 69

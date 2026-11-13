@@ -359,6 +359,8 @@ export function loadTables(transitions, policies, registry = null, aliases = nul
     families.set(r.family, r.transitions.map((t) => ({
       verb: t.verb, from: t.from, to: t.to,
       roles: t.roles.value || [],
+      // rc19: per-stage signers (a view that knows its stage is served from the stage; `roles` is their union)
+      roleStages: t.roles.stages || null,
       policy: t.policy.value.policy || "selfAct",
       policyRows: t.policy.value.rows || [],
       widens: !!t.widens.value,
@@ -504,7 +506,7 @@ export function fold(held, tables, now) {
       } else if (isObjection) {
         personVotes.set(fed, "against");
       }
-      if (row.ranking) ballots.push({ signer: row.signer, ranking: row.ranking });
+      if (row.ranking) ballots.push({ signer: fed, ranking: row.ranking }); // one ballot per person (fedID), CC 4.5.13
     }
 
     const fedFor = new Set();
@@ -611,7 +613,7 @@ export function fold(held, tables, now) {
       if (now >= windowEnd) {
         const minBallots = fv ?? 2;
         if (ballots.length >= minBallots) {
-          const seated = irv(ballots);
+          const seated = irv(ballots, o.id);
           if (seated) outcome = { seated };
           else outcome = p.at_window === "reopens" ? "reopens" : null;
         } else {
@@ -629,7 +631,7 @@ export function fold(held, tables, now) {
     const { family, state } = o;
     const live = state === "admitted";
     if (family === "key:record" && live) registered.add(o.author);
-    if (family === "transport:{kind}" && live) { if (!nodesOf.has(o.author)) nodesOf.set(o.author, new Set()); nodesOf.get(o.author).add(o.node || o.id); }
+    if ((family === "transport:{kind}" || family === "identity:occurrence") && live) { if (!nodesOf.has(o.author)) nodesOf.set(o.author, new Set()); nodesOf.get(o.author).add(o.node || o.id); }
     if (family === "trust:{job}:{version}" && live) {
       holders.add(o.author);
       for (const { row } of o.rows) if (row.stance === "for") holders.add(row.signer);
@@ -694,20 +696,78 @@ export function fold(held, tables, now) {
   return { objects, registered, rooms, holders, nodesOf, halt, rolesOf, systemIdentities, ownersOf, attesters, now };
 }
 
-export function irv(ballots) {
-  if (!ballots.length) return null;
-  const seen = new Map(); for (const b of ballots) seen.set(b.signer, b.ranking); // one ballot per person, the last held
-  let alive = new Set([].concat(...[...seen.values()]));
-  while (alive.size > 1) {
-    const tally = new Map([...alive].map((c) => [c, 0]));
-    for (const r of seen.values()) { const first = r.find((c) => alive.has(c)); if (first) tally.set(first, tally.get(first) + 1); }
-    const total = [...tally.values()].reduce((a, b) => a + b, 0);
-    for (const [c, n] of tally) if (n * 2 > total) return c;
-    const min = Math.min(...tally.values());
-    const losers = [...tally].filter(([, n]) => n === min).map(([c]) => c).sort();
-    alive.delete(losers[0]);
+// ---------------------------------------------------------------- ranked choice (CC 4.5.13; CC 6.1.9 for the cell names)
+// One count in two parts, as the constitution's model writes it (formal/ranked_choice): a SUMMARY, a count per ranking
+// that merges by adding and is the only part that touches ballots, and a FINISH, instant runoff over the summary alone in
+// whole numbers. Cells are named, never positioned: option_id = H("ciris/poll-option/v1", poll, option) and
+// cell_id = H("ciris/poll-cell/v1", poll, j, option_id_1, .., option_id_j) for a ranking of length j (j = 0 is the
+// "none" cell). H is SHA-256 over each field as a 4-byte big-endian length then its UTF-8 bytes, in lower-case hex (the
+// constitution fixes "a digest of the poll and the options it ranks, never its position"; the labels and the field
+// framing are the store side's proposal and this twin's choice, the same in crates/cewp-kernel/src/ranked.rs).
+const SHA_K = new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+export function sha256Hex(bytes){
+  const n = bytes.length, L = ((n + 9 + 63) >> 6) << 6, m = new Uint8Array(L); m.set(bytes); m[n] = 0x80;
+  const dv = new DataView(m.buffer); dv.setUint32(L - 4, (n * 8) >>> 0); dv.setUint32(L - 8, Math.floor(n / 0x20000000));
+  const h = new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]), w = new Uint32Array(64);
+  const r = (x, k) => (x >>> k) | (x << (32 - k));
+  for (let o = 0; o < L; o += 64){
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(o + 4 * i);
+    for (let i = 16; i < 64; i++){ const a = w[i - 15], b = w[i - 2]; w[i] = (w[i - 16] + (r(a, 7) ^ r(a, 18) ^ (a >>> 3)) + w[i - 7] + (r(b, 17) ^ r(b, 19) ^ (b >>> 10))) >>> 0; }
+    let [A, B, C, D, E, F, G, H] = h;
+    for (let i = 0; i < 64; i++){ const t1 = (H + (r(E, 6) ^ r(E, 11) ^ r(E, 25)) + ((E & F) ^ (~E & G)) + SHA_K[i] + w[i]) >>> 0, t2 = ((r(A, 2) ^ r(A, 13) ^ r(A, 22)) + ((A & B) ^ (A & C) ^ (B & C))) >>> 0;
+      H = G; G = F; F = E; E = (D + t1) >>> 0; D = C; C = B; B = A; A = (t1 + t2) >>> 0; }
+    h[0] += A; h[1] += B; h[2] += C; h[3] += D; h[4] += E; h[5] += F; h[6] += G; h[7] += H;
   }
-  return [...alive][0] || null;
+  return Array.from(h, (x) => x.toString(16).padStart(8, "0")).join("");
+}
+function rankH(fields){ const enc = new TextEncoder(), parts = fields.map((f) => enc.encode(String(f))); let n = 0; for (const p of parts) n += 4 + p.length;
+  const out = new Uint8Array(n), dv = new DataView(out.buffer); let o = 0; for (const p of parts){ dv.setUint32(o, p.length); out.set(p, o + 4); o += 4 + p.length; } return sha256Hex(out); }
+export const optionId = (poll, option) => rankH(["ciris/poll-option/v1", poll, option]);
+export const cellId = (poll, optionIds) => rankH(["ciris/poll-cell/v1", poll, String(optionIds.length), ...optionIds]);
+// The summary of (person, ranking) rows: each person's rankings resolved first (all the same: one ballot; any two differ:
+// none), then added to its cell. A ranking that repeats an option, names one not offered or ranks more than `ranks` is
+// refused (listed, never counted). Returns { cells: Map(cell_id -> count), refused: [person] }.
+export function rankedSummary(poll, options, rows, ranks = 3){
+  const by = new Map(); for (const { person, ranking } of rows){ if (!by.has(person)) by.set(person, new Set()); by.get(person).add(JSON.stringify(ranking || [])); }
+  const cells = new Map(), refused = [], offered = new Set(options);
+  for (const [person, set] of by){ if (set.size !== 1) continue; // a person at odds with themself has not spoken
+    const rk = JSON.parse([...set][0]);
+    if (rk.length > ranks || new Set(rk).size !== rk.length || rk.some((o) => !offered.has(o))){ refused.push(person); continue; }
+    const c = cellId(poll, rk.map((o) => optionId(poll, o))); cells.set(c, (cells.get(c) || 0) + 1); }
+  return { cells, refused };
+}
+export function rankedMerge(a, b){ const c = new Map(a); for (const [k, v] of b) c.set(k, (c.get(k) || 0) + v); return c; }
+// Instant runoff over a summary alone (formal/ranked_choice finish): the cells are resolved by enumerating the rankings
+// (by length, then option order), never by position in the summary; a cell the enumeration does not name is refused.
+// While no standing option holds more than half of the ballots still counting, the weakest goes (a tie against the option
+// later in the declared order); the floor: fewer ballots than min(floor, options) gives no winner.
+export function rankedFinish(poll, options, cells, ranks = 3, floor = 2){
+  const byCell = new Map(), ids = options.map((o) => optionId(poll, o));
+  const walk = (prefix) => { if (prefix.length) byCell.set(cellId(poll, prefix.map((i) => ids[i])), prefix.slice()); if (prefix.length === ranks) return;
+    for (let i = 0; i < options.length; i++) if (!prefix.includes(i)){ prefix.push(i); walk(prefix); prefix.pop(); } };
+  walk([]); byCell.set(cellId(poll, []), []);
+  const unknown = [...cells.keys()].filter((k) => !byCell.has(k));
+  if (unknown.length) return { winner: null, rounds: 0, refused: "summary_cell_unknown", unknown };
+  let total = 0; for (const [k, n] of cells) if (byCell.get(k).length) total += n;
+  if (total < Math.min(floor, Math.max(options.length, 1))) return { winner: null, rounds: 0, belowFloor: true };
+  const standing = options.map((_, i) => i); let rounds = 0;
+  for (;;){
+    const first = new Map(standing.map((i) => [i, 0]));
+    for (const [k, n] of cells){ const top = byCell.get(k).find((i) => standing.includes(i)); if (top !== undefined) first.set(top, first.get(top) + n); }
+    let live = 0; for (const v of first.values()) live += v; if (live === 0) return { winner: null, rounds };
+    let lead = standing[0], weak = standing[0];
+    for (const i of standing){ if (first.get(i) > first.get(lead) || (first.get(i) === first.get(lead) && i < lead)) lead = i; if (first.get(i) < first.get(weak) || (first.get(i) === first.get(weak) && i > weak)) weak = i; }
+    if (2 * first.get(lead) > live || standing.length === 1) return { winner: options[lead], rounds };
+    standing.splice(standing.indexOf(weak), 1); rounds++;
+  }
+}
+// The fold's election: ballots are { signer (the person), ranking }; the declared order is `options` if given, else the
+// offered options in option-id order (a fixed rule: the twin's rows carry no worthiness order).
+export function irv(ballots, poll = "poll", options = null, ranks = 3, floor = 2){
+  if (!ballots.length) return null;
+  const opts = options || [...new Set(ballots.flatMap((b) => b.ranking || []))].sort((x, y) => (optionId(poll, x) < optionId(poll, y) ? -1 : 1));
+  const s = rankedSummary(poll, opts, ballots.map((b) => ({ person: b.signer, ranking: b.ranking })), ranks);
+  return rankedFinish(poll, opts, s.cells, ranks, floor).winner;
 }
 
 // ---------------------------------------------------------------- standing
@@ -887,7 +947,7 @@ export function enabled(f, tables, person, target, familyFilter = null) {
   return out;
 }
 
-export function enabledFor(tables, family, state, roles) {
+export function enabledFor(tables, family, state, roles, stage = null) {
   let famKey = family;
   if (!tables.families.has(famKey)) {
     const m = tables.matchFamily ? tables.matchFamily(family) : matchFamily(family, tables);
@@ -895,7 +955,8 @@ export function enabledFor(tables, family, state, roles) {
   }
   const ts = tables.families.get(famKey) || [];
   const rs = roles instanceof Set ? roles : new Set(roles);
-  return ts.filter((t) => t.from === state && t.roles.length > 0 && (t.roles.some((r) => rs.has(r)) || (t.roles.includes("registered") && rs.size > 0 && rs.has("registered"))));
+  const rolesAt = (t) => (stage && t.roleStages && Object.prototype.hasOwnProperty.call(t.roleStages, stage) ? t.roleStages[stage] : t.roles);
+  return ts.filter((t) => { const tr = rolesAt(t); return t.from === state && tr.length > 0 && (tr.some((r) => rs.has(r)) || (tr.includes("registered") && rs.size > 0 && rs.has("registered"))); });
 }
 
 // ---------------------------------------------------------------- the one function
@@ -1026,7 +1087,8 @@ export function preview(held, tables, rows, now) {
 // and only to a node whose owner is in the row's audience as the SENDER folds it; a stranger carries
 // only the consent-free set (keys, bindings, requests, the halt).
 
-const CONSENT_FREE = new Set(["key:record", "transport:{kind}", "consent:{kind}", "accord:invoke:constitutional:{halt_id}", "trust:{job}:{version}"]);
+// rc19: a person's device binding is identity:occurrence (transport:{kind} is an infrastructure node's, infra:attest)
+const CONSENT_FREE = new Set(["key:record", "transport:{kind}", "identity:occurrence", "consent:{kind}", "accord:invoke:constitutional:{halt_id}", "trust:{job}:{version}"]);
 
 export class Mesh {
   constructor(tables) { this.tables = tables; this.nodes = new Map(); this.links = new Set(); this.now = 0; this.log = []; }

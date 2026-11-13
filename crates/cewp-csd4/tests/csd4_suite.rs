@@ -462,11 +462,11 @@ fn test_csd_namespace_map_full_integration() {
     let map = CsdNamespaceMap::load_vendored();
 
     // 1. Summary statistics check
-    assert_eq!(map.summary.total_families, 191);
-    assert_eq!(map.summary.total_transitions, 474);
-    assert_eq!(map.summary.total_policies, 12);
+    assert_eq!(map.summary.total_families, 184); // rc19 at 1da70f0 (rc17: 191 families, 474 transitions, 12 policies, 94 mapped); tools/kernel/remap_csd.mjs
+    assert_eq!(map.summary.total_transitions, 459);
+    assert_eq!(map.summary.total_policies, 16);
     assert_eq!(map.summary.total_csd_cards, 105);
-    assert_eq!(map.summary.csd_mapped_families, 94);
+    assert_eq!(map.summary.csd_mapped_families, 87);
     assert_eq!(map.summary.substrate_autonomous_families, 97);
     assert_eq!(map.summary.total_csd_shows_fields, 660);
     assert_eq!(map.summary.resolved_csd_shows_fields, 152);
@@ -480,18 +480,18 @@ fn test_csd_namespace_map_full_integration() {
 
     // 2. Collections sizing
     assert_eq!(map.cards.len(), 105);
-    assert_eq!(map.families.len(), 191);
+    assert_eq!(map.families.len(), 184);
     assert_eq!(map.topologies.len(), 20);
 
     // 3. Category count check (94 UI surface + 97 substrate autonomous)
     let ui_count = map.families.iter().filter(|f| f.category == "csd_ui_surface").count();
     let sub_count = map.families.iter().filter(|f| f.category == "substrate_autonomous").count();
-    assert_eq!(ui_count, 94);
+    assert_eq!(ui_count, 87);
     assert_eq!(sub_count, 97);
 
     // 4. Transitions summation
     let total_transitions: usize = map.families.iter().map(|f| f.transitions_count).sum();
-    assert_eq!(total_transitions, 474);
+    assert_eq!(total_transitions, 459);
 
     // 5. Aliases resolution
     assert_eq!(map.resolve_csd_shows("consent_request"), Some("consent"));
@@ -546,12 +546,12 @@ fn test_csd_namespace_map_full_integration() {
     let t0_cards = map.cards_for_topology(TopologyId::T0);
     assert_eq!(t0_cards.len(), 30);
     let t0_fams = map.families_for_topology(TopologyId::T0);
-    assert_eq!(t0_fams.len(), 49);
+    assert_eq!(t0_fams.len(), 42); // rc19: five capacity rows are capacity:{factor}, three detection rows detection:{detector}, credits:{domain}:{language}:substrate_building is gone (rc17: 49)
 
     let t1_cards = map.cards_for_topology(TopologyId::T1);
     assert_eq!(t1_cards.len(), 15);
     let t1_fams = map.families_for_topology(TopologyId::T1);
-    assert_eq!(t1_fams.len(), 19);
+    assert_eq!(t1_fams.len(), 15); // rc19: the five capacity rows are capacity:{factor} (rc17: 19)
 
     let t10_cards = map.cards_for_topology(TopologyId::T10);
     assert_eq!(t10_cards.len(), 4);

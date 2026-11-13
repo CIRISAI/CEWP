@@ -85,16 +85,63 @@ impl Rule {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Transition {
     pub verb: String,
     pub from: String,
     pub to: String,
+    /// The signers: the union over the stages where `role_stages` is given.
     pub roles: Vec<String>,
     pub policy: String,
     pub policy_rows: Vec<String>,
     pub widens: bool,
+    /// rc19 cells (transitions.json `_meta`), read into types; what the kernel does not evaluate is listed by
+    /// `Tables::unread_cells` and pinned in a test, never dropped silently.
+    pub cells: TransitionCells,
 }
+
+/// The rc19 cells of one transition.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TransitionCells {
+    /// roles.stages: each stage's (or leaf's) signers; a view that knows its stage is served from the stage.
+    pub role_stages: Vec<(String, Vec<String>)>,
+    /// roles.conditions (e.g. not_subject).
+    pub role_conditions: Vec<String>,
+    /// widens.when: always | by_scope | by_scope_change (None: the boolean alone).
+    pub widens_when: Option<String>,
+    /// confirm: the boolean and its `when` (always | if_widens).
+    pub confirm: Option<(bool, Option<String>)>,
+    /// undo: whether a way back is offered, its verb (`via`) and the policy it runs under.
+    pub undo: Option<(bool, Option<String>, Option<String>)>,
+    /// guard clauses (tools/guard_grammar.py), with the reach of each.
+    pub guards: Vec<(String, String)>,
+    /// change items (tools/change_grammar.py).
+    pub changes: Vec<String>,
+    /// policy.count: the family model's count cell the policy is derived from.
+    pub policy_count: Option<String>,
+    /// policy.cases: (when, policy, rows) arms on what a stage does not key.
+    pub policy_cases: Vec<(String, String, Vec<String>)>,
+    /// policy.stages: (stage, policy, rows) where a stage differs from `policy`.
+    pub policy_stages: Vec<(String, String, Vec<String>)>,
+    /// Keys of the transition the parser does not know (refused loudly: listed by `Tables::unread_cells`).
+    pub unknown: Vec<String>,
+}
+
+impl Transition {
+    /// The signers of this transition at `stage`: the stage's own where the table gives one, else the union.
+    #[must_use]
+    pub fn roles_at(&self, stage: Option<&str>) -> &[String] {
+        if let Some(st) = stage {
+            if let Some((_, r)) = self.cells.role_stages.iter().find(|(k, _)| k == st) {
+                return r;
+            }
+        }
+        &self.roles
+    }
+}
+
+/// A policy row's counted cells (governance_policy.json `counted`, rc19): column -> value.
+pub type Counted = Vec<(String, String)>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Policy {
@@ -115,6 +162,8 @@ pub struct Policy {
     pub window_secs: Option<u64>,
     pub window_class: Option<String>,
     pub corridor: Option<String>,
+    /// rc19 counted cells: count_set, voice, counted_at, voices, target_silent, changes_set.
+    pub counted: Counted,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

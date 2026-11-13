@@ -1,7 +1,7 @@
 //! `cewp-cli` — Unified CEWP Verification, Simulation, and Auditable Evidence CLI Runner.
 //!
 //! Executes the full 6-phase verification and simulation pipeline across:
-//! 1. `cewp-kernel`: Table audit (191 transition families, 12 governance policies),
+//! 1. `cewp-kernel`: Table audit (rc19 at 1da70f0: 184 transition families, 16 governance policy rows),
 //!    mesh story trace parity, and 8 `EventLifecycle` theorems.
 //! 2. `cewp-csd4`: 20 CSD/4 scenarios (`T0–T19`), cross-plane spine invariants (`X1–X5`),
 //!    `T0 -> T2` planner folding optimization, and `(110 / 110 / 156 / 242)` coverage report.
@@ -162,14 +162,17 @@ pub struct Phase6Result {
 pub fn run_phase1_kernel() -> Result<Phase1Result, String> {
     let tables = Tables::load_vendored();
 
-    // 1. Table audit: 191 families, 12 policies
+    // 1. Table audit: the vendored tables (docs/kernel/tables/VERSION, rc19 at 1da70f0) hold 184 families and 16 policy
+    // rows (rc17 held 191 and 12); a re-vendor changes these two numbers deliberately
+    const FAMILIES: usize = 184;
+    const POLICIES: usize = 16;
     let families_count = tables.families.len();
     let policies_count = tables.policies.len();
-    if families_count != 191 {
-        return Err(format!("Phase 1 Table Audit Failed: Expected 191 families, got {}", families_count));
+    if families_count != FAMILIES {
+        return Err(format!("Phase 1 Table Audit Failed: Expected {FAMILIES} families, got {}", families_count));
     }
-    if policies_count != 12 {
-        return Err(format!("Phase 1 Table Audit Failed: Expected 12 policies, got {}", policies_count));
+    if policies_count != POLICIES {
+        return Err(format!("Phase 1 Table Audit Failed: Expected {POLICIES} policies, got {}", policies_count));
     }
 
     // 2. Mesh story trace replay
@@ -1107,8 +1110,8 @@ mod tests {
     fn test_phase1_kernel_verification() {
         let res = run_phase1_kernel().expect("Phase 1 kernel verification failed");
         assert!(res.success);
-        assert_eq!(res.families_count, 191);
-        assert_eq!(res.policies_count, 12);
+        assert_eq!(res.families_count, 184);
+        assert_eq!(res.policies_count, 16);
         assert_eq!(res.theorems_passed, 8);
         assert!(res.story_trace_events > 0);
     }

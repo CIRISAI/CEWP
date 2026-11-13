@@ -3,8 +3,8 @@
 //! Exposes `/home/emoore/CEWP/docs/kernel/tables/csd_namespace_map.json`:
 //! - Maps all 105 CSD cards (`CSD-001..132`)
 //! - Maps all 20 topologies (`T0..T19`)
-//! - Maps all 191 CC RC17 namespace families (`94` UI surface + `97` autonomous substrate)
-//! - Maps all 474 transitions
+//! - Maps all 184 CC rc19 namespace families (`87` UI surface + `97` autonomous substrate; rc17 had 191)
+//! - Maps all 459 transitions (rc17: 474)
 //! - Maps all 12 governance policies
 //! - Resolves all 660 `csd:shows` fields with 3 canonical aliases
 
@@ -550,11 +550,11 @@ mod tests {
     fn test_load_vendored_summary() {
         let map = CsdNamespaceMap::load_vendored();
 
-        assert_eq!(map.summary.total_families, 191);
-        assert_eq!(map.summary.total_transitions, 474);
-        assert_eq!(map.summary.total_policies, 12);
+        assert_eq!(map.summary.total_families, 184); // rc19 at 1da70f0 (rc17: 191 families, 474 transitions, 12 policies, 94 mapped); tools/kernel/remap_csd.mjs
+        assert_eq!(map.summary.total_transitions, 459);
+        assert_eq!(map.summary.total_policies, 16);
         assert_eq!(map.summary.total_csd_cards, 105);
-        assert_eq!(map.summary.csd_mapped_families, 94);
+        assert_eq!(map.summary.csd_mapped_families, 87);
         assert_eq!(map.summary.substrate_autonomous_families, 97);
         assert_eq!(map.summary.total_csd_shows_fields, 660);
         assert_eq!(map.summary.resolved_csd_shows_fields, 152);
@@ -567,7 +567,7 @@ mod tests {
         assert_eq!(map.summary.refused_retired_holds_bytes_vectors, 3);
 
         assert_eq!(map.cards.len(), 105);
-        assert_eq!(map.families.len(), 191);
+        assert_eq!(map.families.len(), 184);
         assert_eq!(map.topologies.len(), 20);
     }
 

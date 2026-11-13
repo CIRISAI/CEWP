@@ -170,7 +170,7 @@ svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--acce
   </p>
   <ol style="font-size:15px;line-height:1.6;margin:0 0 18px;padding-left:22px">
     <li style="margin-bottom:8px"><b>One signed row.</b> Identity, device pairing, contacts, rooms, quorums, moderation, agent charters and the halt itself travel as the same canonical hybrid-signed row (Ed25519 + ML-DSA-65), in five closed kinds. Frames, sealed chunks and onion packets carry rows; they are not rows.</li>
-    <li style="margin-bottom:8px"><b>The rules are data.</b> The legal transitions of every family of row, 191 families under 12 typed governance policies, are one table. The table generates the conformance vectors (1,256 for the namespace, 732 for the policies) and the model instances for the policy corridor, and it is the input the CEWP kernel runs. The shipping implementations are measured against the same table through the evidence register.</li>
+    <li style="margin-bottom:8px"><b>The rules are data.</b> The legal transitions of every family of row, 184 families under 16 typed governance policy rows (rc19), are one table. The table generates the conformance vectors (1,299 for the namespace, 732 for the policies) and the model instances for the policy corridor, and it is the input the CEWP kernel runs. The shipping implementations are measured against the same table through the evidence register.</li>
     <li style="margin-bottom:8px"><b>The queue is the door.</b> Whether a row is admitted at a node's boundary, what a user or agent may do next, and what an act would change if signed are one function run three ways, and the equivalence is a checked theorem of the kernel.</li>
     <li style="margin-bottom:8px"><b>No consensus protocol.</b> No node runs Paxos, Raft or proof of stake. Every node admits verifiable rows in any order and folds the set it holds; two nodes holding the same rows reach the same state and the same queues, checked over hundreds of arrival orders and partition splits. Windows run per node, so nodes agree once their windows close.</li>
   </ol>
@@ -215,7 +215,7 @@ svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--acce
       <h3 class="ok">🌟 1. What Is Genuinely Novel: 5 Architectural Firsts</h3>
       <ul>
         <li>
-          <b>One Executable Constitutional Authority (CC §4.5.13)</b>: <code>191</code> namespace families, <code>474</code> transitions, <code>17</code> role tokens, <code>12</code> governance policies, and <code>1,291/1,291</code> vectors in <code>namespace_match_vectors.json</code> (reported honestly as <code>783</code> positive canonical vectors + <code>505</code> <code>x_private:*</code> refusals + <code>3</code> retired <code>holds_bytes</code> refusals) with zero semantic drift (<code>SEMANTIC_DRIFT = 0</code>). Proved sound and complete: <code>door_is_queue</code> (admission door = action queue), <code>preview_is_execution</code>, and <code>refused_previews_nothing</code>.
+          <b>One Executable Constitutional Authority (CC §4.5.13)</b>: <code>184</code> namespace families, <code>459</code> transitions (rc19), <code>23</code> role tokens, <code>12</code> governance policies, and <code>1,291/1,291</code> vectors in <code>namespace_match_vectors.json</code> (reported honestly as <code>783</code> positive canonical vectors + <code>505</code> <code>x_private:*</code> refusals + <code>3</code> retired <code>holds_bytes</code> refusals) with zero semantic drift (<code>SEMANTIC_DRIFT = 0</code>). Proved sound and complete: <code>door_is_queue</code> (admission door = action queue), <code>preview_is_execution</code>, and <code>refused_previews_nothing</code>.
         </li>
         <li>
           <b>Card-first Specification Design (CSD/4 T0–T19, Catalogue Version 6)</b>: <code>20</code> realizable topologies, 4-field card format (<code>shows</code> / <code>reads</code> / <code>emits</code> / <code>checks</code>), and <code>101</code> CIRISClient cards (<code>43</code> CSD/4 + <code>58</code> bullet) + <code>4</code> CEWPOS cards (<code>105</code> total; <code>csd_namespace_map.json</code> is CEWP's synthesis) binding Lean/TLA+ formal proofs, discrete-event simulation, and live node conformance (<code>110 promised / 156 vocabulary / 152 state-table atoms</code>, <code>CATALOGUE_VERSION = 6</code>), plus Cornerstone Invariants <code>X1–X5</code> (including <code>Inv_X1</code>: emergency halt latch never blocks serving/replication of unhalted state).
@@ -231,8 +231,8 @@ svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--acce
         </li>
       </ul>
       <div class="synth-stat-row">
-        <div class="synth-stat"><div class="num ok">191</div><div class="lbl">Families</div></div>
-        <div class="synth-stat"><div class="num accent">474</div><div class="lbl">Transitions</div></div>
+        <div class="synth-stat"><div class="num ok">184</div><div class="lbl">Families</div></div>
+        <div class="synth-stat"><div class="num accent">459</div><div class="lbl">Transitions</div></div>
         <div class="synth-stat"><div class="num accent2">+0 B</div><div class="lbl">Cover Onion</div></div>
       </div>
     </div>
@@ -304,7 +304,7 @@ svg .s{stroke:currentColor;fill:none;stroke-width:1.5} svg .sa{stroke:var(--acce
         <tr>
           <td><b>Constitutional Rulebook</b></td>
           <td>CC §4.5.13 state processor; Lean <code>formal/event_lifecycle</code></td>
-          <td>191 families, 474 transitions, 1,291 match vectors (783 canonical positive + 505 x_private:* refusals + 3 retired holds_bytes)</td>
+          <td>184 families, 459 transitions (rc19), 1,291 CSD match vectors (783 canonical positive + 505 x_private:* refusals + 3 retired holds_bytes)</td>
           <td><code>SEMANTIC_DRIFT = 0</code>; 3 equivalences proved sound &amp; complete</td>
           <td><span class="tag ahead">MACHINE-CHECKED</span></td>
         </tr>
@@ -584,18 +584,19 @@ admits(view, standing, t) = (t.from = view.state) and (t.roles meets standing)  
 </div>
 <p class="rule" style="margin-top:24px"><a href="https://github.com/CIRISAI/CEWP">CEWP on GitHub</a> · <a href="https://github.com/CIRISAI/CIRISConstitution">the Constitution</a></p>
 <script>
-// Transitions: a subset of manifests/transitions.json (CIRISConstitution rc17), verbatim in meaning.
+// Transitions: a subset of manifests/transitions.json (CIRISConstitution rc19, commit 1da70f0, as vendored in kernel/tables), verbatim:
+// verb, from, to, the signers (the union over stages), the policy, widens. At rc19 a person's device is an identity:occurrence.
 const T = {
- "trust:{job}:{version}": [["authorize","none","admitted",["self"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false]],
+ "trust:{job}:{version}": [["authorize","none","admitted",["self"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false],["supersede","admitted","superseded",["author"],"selfAct",true]],
  "key:record": [["attest","none","admitted",["self"],"selfAct",true],["supersede","admitted","superseded",["author"],"selfAct",false]],
- "transport:{kind}": [["attest","none","admitted",["self"],"selfAct",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false]],
- "consent:{kind}": [["attest","none","admitted",["registered"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false]],
- "group:roster": [["attest","none","admitted",["founder"],"selfAct",true],["supersede","admitted","superseded",["member"],"cosigned",false]],
- "membership:{stage}": [["attest","none","admitted",["member"],"two_path",true],["withdraw","admitted","withdrawn",["member"],"cosigned",false]],
- "chat:*": [["attest","none","admitted",["member"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false],["recant","admitted","recanted",["author"],"selfAct",false]],
- "moderation:{allegation_type}": [["attest","none","admitted",["moderate"],"mirror",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false]],
- "objection:{state}": [["attest","none","admitted",["member"],"two_path",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false]],
- "trace:{form}:{version}": [["attest","none","admitted",["self"],"selfAct",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false]],
+ "identity:occurrence": [["attest","none","admitted",["self"],"two_path",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false],["supersede","admitted","superseded",["author"],"selfAct",false]],
+ "consent:{kind}": [["attest","none","admitted",["owner","self"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false],["supersede","admitted","superseded",["author"],"selfAct",true]],
+ "group:roster": [["attest","none","admitted",["member"],"selfAct",true],["withdraw","admitted","withdrawn",["member"],"cosigned",false],["supersede","admitted","superseded",["member"],"cosigned",false]],
+ "membership:{stage}": [["attest","none","admitted",["founder","member","self"],"cosigned",true],["withdraw","admitted","withdrawn",["member"],"cosigned",false],["supersede","admitted","superseded",["member"],"cosigned",false]],
+ "chat:*": [["attest","none","admitted",["registered"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false],["recant","admitted","recanted",["author"],"selfAct",false],["supersede","admitted","superseded",["author"],"selfAct",true]],
+ "moderation:{allegation_type}": [["attest","none","admitted",["moderate"],"mirror",true],["withdraw","admitted","withdrawn",["author"],"selfAct",false],["recant","admitted","recanted",["author"],"selfAct",false]],
+ "objection:{state}": [["attest","none","admitted",["registered"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false],["supersede","admitted","superseded",["author"],"selfAct",true]],
+ "trace:{form}:{version}": [["attest","none","admitted",["self"],"selfAct",true],["withdraw","admitted","withdrawn",["author","subject"],"selfAct",false]],
 };
 const PLAIN = {attest:"write it", authorize:"authorize it", withdraw:"withdraw it", recant:"recant it", supersede:"replace it"};
 const POL = {selfAct:"one voice, no window", two_path:"two-path: enact, cancel or floor at the window", cosigned:"the room's quorum signs", mirror:"one acts, the window decides"};
@@ -615,8 +616,8 @@ const people = [
 const OBJ0 = [
   {id:"root", family:"trust:{job}:{version}", label:"the trust root", self:["alice"]},
   {id:"key:bob", family:"key:record", label:"Bob's key", self:["bob"]},
-  {id:"bind:bob", family:"transport:{kind}", label:"Bob's device, announced", self:["bob"]},
-  {id:"contact:carol-bob", family:"consent:{kind}", label:"Carol → Bob contact", subject:["bob"]},
+  {id:"bind:bob", family:"identity:occurrence", label:"Bob's device, announced", self:["bob"]},
+  {id:"contact:carol-bob", family:"consent:{kind}", label:"Carol → Bob contact", self:["carol"], subject:["bob"]}, // rc19: a consent is its giver's own row (owner or self)
   {id:"room:1", family:"group:roster", label:"the room's roster", room:"room:1"},
   {id:"invite:dave", family:"membership:{stage}", label:"invite Dave", room:"room:1", subject:["dave"]},
   {id:"post:1", family:"chat:*", label:"Dave's first post", room:"room:1"},
