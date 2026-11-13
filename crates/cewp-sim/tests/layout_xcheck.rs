@@ -40,6 +40,7 @@ fn with_no_table_loaded_every_form_class_lays_out_as_before() {
         }
         assert_eq!(l, LeafLayout::build_with(id, &ctx, &MicroParams::default(), &cewp_sim::door::Door::default()));
         assert_eq!((l.form.source, l.form.stamp.read, l.form.stamp.versions), (FormSource::BuiltIn, 0b10, [0, 0, 0, 0]), "read the form slot, absent");
+        assert!(l.tones.len() == l.buildings.len() && l.tones.iter().all(|&t| t == 0), "every roof neutral while no generator ships");
         classes.insert(FormClass::of(l.class, l.density_km2));
         n += 1;
     }

@@ -61,6 +61,7 @@ fn leaf(k: i32, people: u64) -> LeafLayout {
         buildings: vec![b],
         ports: Vec::new(),
         unplaced: false,
+        tones: vec![0],
         form: Default::default(),
     }
 }

@@ -904,6 +904,9 @@ pub struct LeafLayout {
     pub ports: Vec<Port>,
     /// True when no spot in the leaf clears its streets for even one small house.
     pub unplaced: bool,
+    /// Each building's roof tone (`builtform::RoofTone` as u8), at the same index as `buildings`. Not in `digest`: every
+    /// tone is `Neutral` until a built-form generator draws one, and the layout's numbers are unchanged by it.
+    pub tones: Vec<u8>,
     /// What its built form was read from (`builtform`, through `door`): the row's source, the leaf's climate class and
     /// region, and the door slots read with their versions. Not in `digest`: it says where the numbers came from.
     pub form: crate::builtform::FormUse,
@@ -1045,7 +1048,7 @@ impl LeafLayout {
         let class = DensityClass::of(density_km2, params);
         let (row, form) = door.form(id, FormClass::of(class, density_km2));
         let rng = Rng::new(id.seed());
-        let mut out = Self { id, w, h, households: ctx.budget, people: ctx.people, density_km2, class, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), unplaced: false, form };
+        let mut out = Self { id, w, h, households: ctx.budget, people: ctx.people, density_km2, class, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), unplaced: false, tones: Vec::new(), form };
         let (hw, hh) = (w / 2.0, h / 2.0);
 
         // ports: where streets cross each side (the shallower side's rule; see side_crossings)
@@ -1151,6 +1154,7 @@ impl LeafLayout {
                     if let Some(b) = hit {
                         x += b.w + row.gap.draw(rng);
                         self.buildings.push(b);
+                        self.tones.push(0);
                         placed = true;
                     } else {
                         x += 1.0;
@@ -1173,6 +1177,7 @@ impl LeafLayout {
             k += 1;
             each > 0 || (k as u64) <= extra
         });
+        self.tones.truncate(self.buildings.len()); // the kept plots are the first ones, as `retain` keeps them
         for (k, b) in self.buildings.iter_mut().enumerate() {
             let units = each + u64::from((k as u64) < extra);
             b.units = units.min(u64::from(u16::MAX)) as u16;
@@ -1226,11 +1231,13 @@ impl LeafLayout {
                         _ => row.house,
                     };
                     let (mut w, mut d, mut floors, mut units, mut gap, mut setback) = draws.draw(rng);
+                    let mut tone = crate::builtform::RoofTone::Neutral;
                     if let Some(g) = gen {
                         let seed = mix64(self.id.seed() ^ (ri as u64) << 33 ^ u64::from(side > 0.0) << 32 ^ k);
                         let q = FormQuery { state: self.form.state.code, climate: self.form.climate, class: fclass, vintage: None, seed };
                         if let Ok(b) = g.draw(&q) {
                             (w, d, floors, units, gap, setback) = (b.width, b.depth, b.storeys, b.units, b.gap, b.setback);
+                            tone = b.roof_tone;
                             self.form.generated += 1;
                             self.form.pooling = Some(match self.form.pooling {
                                 None => (b.pooling, false),
@@ -1248,6 +1255,7 @@ impl LeafLayout {
                     let b = Building { cx: px - uy * off * side, cy: py + ux * off * side, w, d, angle, floors, units, street: ri as u32 };
                     if self.fits(&b) {
                         self.buildings.push(b);
+                        self.tones.push(tone as u8);
                     }
                     s += w + gap;
                 }
@@ -1301,6 +1309,7 @@ impl LeafLayout {
                 } else {
                     have -= u64::from(self.buildings[k].units);
                     self.buildings.remove(k);
+                    self.tones.remove(k);
                 }
             }
             // removing a whole house can undershoot: top back up below
@@ -1313,6 +1322,7 @@ impl LeafLayout {
                 let spot = self.free_spot(full);
                 self.unplaced = spot.is_none();
                 self.buildings.push(spot.unwrap_or(Building { cx: 0.0, cy: 0.0, w: 6.0, d: 5.0, angle: 0.0, floors: 1, units: 0, street: NO_STREET }));
+                self.tones.push(0);
                 let last = self.buildings.len() - 1;
                 self.buildings[last].units = 1;
                 have += 1;
@@ -1379,7 +1389,7 @@ mod tests {
         // every pair of the 5 nodes takes one path, so each arm carries the 4 pairs through its end
         let id = HolonId::at(9, 47.3769, 8.5417);
         let (w, h) = id.size_m();
-        let mut l = LeafLayout { id, w, h, households: 0, people: 0, density_km2: 0.0, class: DensityClass::Village, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), unplaced: false, form: Default::default() };
+        let mut l = LeafLayout { id, w, h, households: 0, people: 0, density_km2: 0.0, class: DensityClass::Village, roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), unplaced: false, tones: Vec::new(), form: Default::default() };
         l.roads = vec![Road { x0: 0.0, y0: -10.0, x1: 0.0, y1: 10.0, width: 5.0 }, Road { x0: -10.0, y0: 0.0, x1: 10.0, y1: 0.0, width: 5.0 }];
         let g = l.street_graph();
         assert_eq!(g.junctions.iter().filter(|j| j.kind == JunctionKind::Cross).count(), 1);

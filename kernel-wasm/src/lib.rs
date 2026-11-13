@@ -577,6 +577,7 @@ struct HolonDoor {
     streets: Vec<f64>,
     junctions: Vec<f64>,
     text: Vec<u8>,
+    tones: Vec<f64>,
 }
 
 static mut HOLON: Option<HolonDoor> = None;
@@ -585,7 +586,7 @@ fn holon() -> &'static mut HolonDoor {
     // SAFETY: one thread, the page calls in turn (as `micro`).
     unsafe {
         let h = &mut *std::ptr::addr_of_mut!(HOLON);
-        h.get_or_insert_with(|| HolonDoor { ext: vec![0; 25], out: Vec::new(), ctx: [0.0; 33], roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), meta: Vec::new(), mains: Vec::new(), streets: Vec::new(), junctions: Vec::new(), text: Vec::new() })
+        h.get_or_insert_with(|| HolonDoor { ext: vec![0; 25], out: Vec::new(), ctx: [0.0; 33], roads: Vec::new(), buildings: Vec::new(), ports: Vec::new(), meta: Vec::new(), mains: Vec::new(), streets: Vec::new(), junctions: Vec::new(), text: Vec::new(), tones: Vec::new() })
     }
 }
 
@@ -1006,6 +1007,9 @@ pub extern "C" fn holon_layout(id: f64) -> i32 {
     let h = holon();
     h.roads = l.roads.iter().flat_map(|r| [r.x0, r.y0, r.x1, r.y1, r.width]).collect();
     h.buildings = l.buildings.iter().flat_map(|b| [b.cx, b.cy, b.w, b.d, b.angle, b.floors as f64, b.units as f64, street_f64(b.street)]).collect();
+    // buffer 8: each building's roof tone (builtform::RoofTone, 0 neutral), at the building's index; the 8-float record
+    // and every reader of it are unchanged
+    h.tones = l.tones.iter().map(|&t| f64::from(t)).collect();
     // the street graph (tiling::StreetGraph): per street [arterial, start kind, end kind]; per
     // junction [x, y, kind, street a, street b (-1 for an exit or a dead end)]
     let g = l.street_graph();
@@ -1046,18 +1050,18 @@ pub extern "C" fn holon_arterials(id: f64, bud: f64) -> u32 {
 }
 
 /// Holon buffers: 0 child budgets, 1 roads, 2 buildings (slot 7: the building's street, -1 for
-/// none), 3 ports, 4 meta, 5 arterials, 6 streets, 7 junctions (see `holon_layout`).
+/// none), 3 ports, 4 meta, 5 arterials, 6 streets, 7 junctions, 8 roof tones (one per building; see `holon_layout`).
 #[no_mangle]
 pub extern "C" fn holon_buf_ptr(which: u32) -> u32 {
     let h = holon();
-    (match which { 0 => h.out.as_ptr(), 1 => h.roads.as_ptr(), 2 => h.buildings.as_ptr(), 3 => h.ports.as_ptr(), 5 => h.mains.as_ptr(), 6 => h.streets.as_ptr(), 7 => h.junctions.as_ptr(), _ => h.meta.as_ptr() }) as usize as u32
+    (match which { 0 => h.out.as_ptr(), 1 => h.roads.as_ptr(), 2 => h.buildings.as_ptr(), 3 => h.ports.as_ptr(), 5 => h.mains.as_ptr(), 6 => h.streets.as_ptr(), 7 => h.junctions.as_ptr(), 8 => h.tones.as_ptr(), _ => h.meta.as_ptr() }) as usize as u32
 }
 
 /// Length in f64 of a holon buffer.
 #[no_mangle]
 pub extern "C" fn holon_buf_len(which: u32) -> u32 {
     let h = holon();
-    (match which { 0 => h.out.len(), 1 => h.roads.len(), 2 => h.buildings.len(), 3 => h.ports.len(), 5 => h.mains.len(), 6 => h.streets.len(), 7 => h.junctions.len(), _ => h.meta.len() }) as u32
+    (match which { 0 => h.out.len(), 1 => h.roads.len(), 2 => h.buildings.len(), 3 => h.ports.len(), 5 => h.mains.len(), 6 => h.streets.len(), 7 => h.junctions.len(), 8 => h.tones.len(), _ => h.meta.len() }) as u32
 }
 
 // ------------------------------------------------------------------ the population chain (cewp_sim::popchain)

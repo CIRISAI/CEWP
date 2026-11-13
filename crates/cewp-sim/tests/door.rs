@@ -127,17 +127,22 @@ fn a_generator_draw_replaces_the_rows_and_moves_no_other_draw() {
             if q.class != FormClass::Suburban {
                 return Err(Absent("outside this test's envelope"));
             }
-            Ok(BuildingDraw { width: 10.0, depth: 9.0, storeys: 2, units: 1, gap: 12.0, setback: 9.0, pooling: Default::default() })
+            Ok(BuildingDraw { width: 10.0, depth: 9.0, storeys: 2, units: 1, gap: 12.0, setback: 9.0, pooling: Default::default(), roof_tone: cewp_sim::builtform::RoofTone::RedTile })
         }
     }
     static FIXED: Fixed = Fixed;
     let door = Door::with_generator(&FIXED);
-    let (mut asked, mut drew, mut same) = (0, 0, 0);
+    let (mut asked, mut drew, mut same, mut toned) = (0, 0, 0, 0);
     for leaf in leaves() {
         let before = lay(&Door::default(), &leaf);
         let after = lay(&door, &leaf);
+        assert_eq!(after.tones.len(), after.buildings.len(), "one tone per building");
         if FormClass::of(before.class, before.density_km2) == FormClass::Suburban {
             asked += 1;
+            // the generator's tone reaches the record: every building it drew is red tile, every other one neutral
+            assert_eq!(after.tones.iter().filter(|&&t| t == cewp_sim::builtform::RoofTone::RedTile as u8).count() as u32 <= after.form.generated, true);
+            // (a drawn building that did not fit, or that the household fit removed, carries nothing)
+            toned += usize::from(after.tones.iter().any(|&t| t == cewp_sim::builtform::RoofTone::RedTile as u8));
             drew += usize::from(after.form.generated > 0);
             assert!(after.buildings.iter().filter(|b| b.units > 0 && b.floors < 2).count() <= 1, "the generator's houses have 2 storeys");
         } else {
@@ -146,4 +151,5 @@ fn a_generator_draw_replaces_the_rows_and_moves_no_other_draw() {
         }
     }
     assert!(asked > 10 && drew > 10 && same > 100, "{asked} {drew} {same}");
+    assert!(toned > 10, "a drawn tone reaches the record ({toned} leaves)");
 }
