@@ -12,7 +12,7 @@
 #             opacity from 0.35 to 1, within NEAR (RGB distance).
 # Writes one shot per map and zoom and a contact grid (maps across, zooms down) with --out.
 # Usage: python3 tools/page/layer_zoom/run.py [--port 8732] [--w 1440 --h 900 --mob 0] [--mpp 7000,1500,600,100,10]
-#        [--out DIR] [--assert]
+#        [--query ?tex=1] [--out DIR] [--assert]
 import argparse, asyncio, io, json, math, os, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -22,7 +22,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--port", default="8732"); ap.add_argument("--w", type=int, default=1440); ap.add_argument("--h", type=int, default=900)
 ap.add_argument("--mob", type=int, default=0); ap.add_argument("--mpp", default="7000,1500,600,100,10")
 ap.add_argument("--lat", type=float, default=39.985); ap.add_argument("--lon", type=float, default=-82.985)
-ap.add_argument("--maps", default="1,2,6,4,5,3,7"); ap.add_argument("--out", default=""); ap.add_argument("--assert", dest="check", action="store_true")
+ap.add_argument("--maps", default="1,2,6,4,5,3,7"); ap.add_argument("--query", default="", help="appended to the page's address, e.g. ?tex=1 (the procedural ground texture on)"); ap.add_argument("--out", default=""); ap.add_argument("--assert", dest="check", action="store_true")
 A = ap.parse_args()
 DELTA, CHANGED_MIN, NOISE_X, RAMP_MIN, NEAR, LIT, SHOWN_MIN = 30.0, 0.05, 3.0, 0.60, 42.0, 45.0, 0.04
 NAMES = {1: "People", 2: "Awake", 3: "Checked?", 4: "Households", 5: "Power", 6: "Data", 7: "Climate"}
@@ -62,7 +62,7 @@ async def main():
         ctx = await b.new_context(viewport={"width": A.w, "height": A.h}, device_scale_factor=2 if A.mob else 1, is_mobile=bool(A.mob), has_touch=bool(A.mob))
         pg = await ctx.new_page(); errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)))
-        await pg.goto(f"http://127.0.0.1:{A.port}/index.html")
+        await pg.goto(f"http://127.0.0.1:{A.port}/index.html{A.query}")
         await pg.wait_for_function("() => typeof wasm !== 'undefined' && wasm && typeof exitStoryMode === 'function' && typeof tlReady === 'function' && tlReady() && typeof HOLT !== 'undefined' && HOLT.countries && HOLT.t.grid0 && HOLT.t.presence0_us", timeout=180000, polling=250)
         await pg.evaluate(f"() => {{ exitStoryMode(); rotStopped = true; velYaw = velPitch = 0; yaw = {A.lon} * Math.PI / 180; pitch = {A.lat} * Math.PI / 180; }}")
         # every map's palette, read from the page (the ramps the shaders sample, and the climate groups' colours)
