@@ -605,3 +605,63 @@ test("CC §4.5.13 governance_policy_vectors.json conformance: replay every rule 
     assert.equal(gotPol, v.votes, `Policy rule mismatch for ${v.family} ${v.cell} base ${v.base}`);
   }
 });
+
+// ---------------------------------------------------------------- ranked choice (CC 4.5.13, formal/ranked_choice)
+import { rankedSummary, rankedMerge, rankedFinish, irv as irvFn, optionId, cellId } from "./kernel.js";
+const RV = J("../ranked_choice_vectors.json");
+const OPTS = RV.options_declared;
+const rowsOf = (ballots) => ballots.map((b, i) => ({ person: "p" + i, ranking: [...b] }));
+test("ranked choice gives the constitution's model's winner and rounds on every profile of up to four ballots", () => {
+  let n = 0;
+  for (const v of RV.profiles){
+    const rounds = v[v.length - 1], winner = v[v.length - 2] || null, ballots = v.slice(0, -2);
+    const s = rankedSummary("poll:x", OPTS, rowsOf(ballots));
+    const f = rankedFinish("poll:x", OPTS, s.cells, 3, RV.floor);
+    assert.equal(f.winner, winner, JSON.stringify(ballots)); if (winner) assert.equal(f.rounds, rounds, JSON.stringify(ballots)); n++;
+  }
+  assert.equal(n, RV.profiles.length); assert.ok(n > 3000);
+  for (const c of RV.persons){ const s = rankedSummary("poll:x", OPTS, c.rows.map(([person, ranking]) => ({ person, ranking })));
+    assert.equal(rankedFinish("poll:x", OPTS, s.cells, 3, RV.floor).winner, c.winner, JSON.stringify(c.rows)); }
+});
+test("ranked choice: the same ballots in every order give the same winner, and summaries of parts merge to the whole", () => {
+  let seed = 7; const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const R = []; for (const a of OPTS){ R.push([a]); for (const b of OPTS) if (b !== a){ R.push([a, b]); for (const c of OPTS) if (c !== a && c !== b) R.push([a, b, c]); } }
+  for (let t = 0; t < 200; t++){
+    const rows = Array.from({ length: 2 + Math.floor(rnd() * 9) }, (_, i) => ({ person: "p" + Math.floor(rnd() * 8), ranking: R[Math.floor(rnd() * R.length)] }));
+    const whole = rankedSummary("poll:y", OPTS, rows), w = rankedFinish("poll:y", OPTS, whole.cells).winner;
+    for (let k = 0; k < 6; k++){ const sh = rows.slice().sort(() => rnd() - 0.5); assert.equal(rankedFinish("poll:y", OPTS, rankedSummary("poll:y", OPTS, sh).cells).winner, w); }
+    // split by person (a person's rows stay together: agreement is resolved before adding), summarised apart, merged
+    const pa = rows.filter((r) => r.person < "p4"), pb = rows.filter((r) => r.person >= "p4");
+    const m = rankedMerge(rankedSummary("poll:y", OPTS, pa).cells, rankedSummary("poll:y", OPTS, pb).cells);
+    assert.deepEqual([...m].sort(), [...whole.cells].sort()); assert.equal(rankedFinish("poll:y", OPTS, m).winner, w);
+  }
+});
+test("ranked choice: a person whose ballots disagree has none, and a tie for weakest goes against the later declared option", () => {
+  // p1's two ballots disagree: neither counts, so b's two ballots win against a's one
+  const rows = [{ person: "p1", ranking: ["a"] }, { person: "p1", ranking: ["c"] }, { person: "p2", ranking: ["b"] }, { person: "p3", ranking: ["b"] }, { person: "p4", ranking: ["a"] }];
+  assert.equal(rankedFinish("poll:z", OPTS, rankedSummary("poll:z", OPTS, rows).cells).winner, "b");
+  // the same rows in the other order: the last-held ballot would have changed the count, the rule does not
+  assert.equal(rankedFinish("poll:z", OPTS, rankedSummary("poll:z", OPTS, rows.slice().reverse()).cells).winner, "b");
+  // all three hold two first choices of six: each round's weakest is the later declared option. Declared [a, b, c]: c
+  // goes (its ballots pass to a and b, 3 and 3), then b goes, and a wins; declared [c, b, a]: a goes, then b, and c wins
+  const tie = [{ person: "q1", ranking: ["a", "b"] }, { person: "q2", ranking: ["c", "a"] }, { person: "q3", ranking: ["b"] }, { person: "q4", ranking: ["b"] }, { person: "q5", ranking: ["a", "c"] }, { person: "q6", ranking: ["c", "b"] }];
+  const s = rankedSummary("poll:t", OPTS, tie).cells;
+  const fwd = rankedFinish("poll:t", ["a", "b", "c"], rankedSummary("poll:t", ["a", "b", "c"], tie).cells), rev = rankedFinish("poll:t", ["c", "b", "a"], rankedSummary("poll:t", ["c", "b", "a"], tie).cells);
+  assert.equal(fwd.winner, "a"); assert.equal(rev.winner, "c"); assert.ok(s.size > 0);
+  // a ranking that repeats an option or names one not offered is refused, never counted
+  const bad = rankedSummary("poll:z", OPTS, [{ person: "x", ranking: ["a", "a"] }, { person: "y", ranking: ["d"] }]);
+  assert.deepEqual(bad.refused.sort(), ["x", "y"]); assert.equal(bad.cells.size, 0);
+  // cells are named by digests, never positions: the same ranking in two polls is two cells
+  assert.notEqual(cellId("poll:1", [optionId("poll:1", "a")]), cellId("poll:2", [optionId("poll:2", "a")]));
+  // pinned in both kernels (crates/cewp-kernel/src/ranked.rs the_same_ids_as_the_page_kernel)
+  assert.equal(optionId("poll:1", "a"), "8d089364168555d378185e44e1fce08bb398ce57683b8751204e49cc24cb0d45");
+  assert.equal(cellId("poll:1", [optionId("poll:1", "a"), optionId("poll:1", "b")]), "b2cbf297e33bb1b79b409476fe9e470077c83e770ff253c9a159a8832293557f");
+  assert.equal(cellId("poll:1", []), "547f7d3f4590e4cc20594c09c08dc853fa69186689a15c8909025d602289eaa6");
+  assert.equal(rankedFinish("poll:z", OPTS, new Map([["00", 3]])).refused, "summary_cell_unknown");
+  // where the last-held ballot decided (the earlier irv): p1 [a] then [b] gave b, the other order a; the rule gives one answer
+  const flip = [{ person: "p1", ranking: ["a"] }, { person: "p1", ranking: ["b"] }, { person: "p2", ranking: ["b"] }, { person: "p3", ranking: ["a"] }];
+  const w1 = rankedFinish("poll:o", OPTS, rankedSummary("poll:o", OPTS, flip).cells).winner, w2 = rankedFinish("poll:o", OPTS, rankedSummary("poll:o", OPTS, flip.slice().reverse()).cells).winner;
+  assert.equal(w1, w2); assert.equal(w1, "a");
+  // the fold's call: ballots by person in any order
+  assert.equal(irvFn([{ signer: "p1", ranking: ["a"] }, { signer: "p2", ranking: ["b"] }, { signer: "p3", ranking: ["b"] }, { signer: "p1", ranking: ["c"] }], "poll:f", OPTS), "b");
+});

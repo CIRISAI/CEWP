@@ -10,6 +10,7 @@
 pub mod json;
 pub mod mesh;
 pub mod processor;
+pub mod ranked;
 pub mod tables;
 pub mod types;
 
@@ -2351,15 +2352,15 @@ mod tests {
         cannot.sort();
         assert_eq!(cannot, vec![
             "delivery:{class} attest from none: needs infra:attest",
-            "delivery:{class} withdraw from admitted: queue offers it, the door refuses no_transition",
+            "delivery:{class} withdraw from admitted: queue offers it, the door refuses no_standing",
             "key_boundary:{scope} attest from none: needs infra:attest",
-            "key_boundary:{scope} withdraw from admitted: queue offers it, the door refuses no_transition",
+            "key_boundary:{scope} withdraw from admitted: queue offers it, the door refuses no_standing",
             "peer_reachability:{network} attest from none: needs infra:attest",
-            "peer_reachability:{network} supersede from admitted: queue offers it, the door refuses no_transition",
-            "peer_reachability:{network} withdraw from admitted: queue offers it, the door refuses no_transition",
+            "peer_reachability:{network} supersede from admitted: queue offers it, the door refuses no_standing",
+            "peer_reachability:{network} withdraw from admitted: queue offers it, the door refuses no_standing",
             "transport:{kind} attest from none: needs infra:attest",
-            "transport:{kind} supersede from admitted: queue offers it, the door refuses no_transition",
-            "transport:{kind} withdraw from admitted: queue offers it, the door refuses no_transition",
+            "transport:{kind} supersede from admitted: queue offers it, the door refuses no_standing",
+            "transport:{kind} withdraw from admitted: queue offers it, the door refuses no_standing",
         ]);
     }
 

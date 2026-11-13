@@ -32,11 +32,12 @@ pub const CSD4_VOCABULARY_SHA256: &str = "c37f6f9651579932835ff700a2ec376a0c5c92
 /// ("unknown" outside a git checkout). It was a hand-written hash before, and went stale.
 pub const CEWP_COMMIT: &str = env!("CEWP_GIT_COMMIT");
 
-/// Commit hash of the normative CIRISConstitution repository.
+/// Commit of CIRISConstitution the claim register below (`CLAIMS_REGISTER`, claims.tsv) was read at. The kernel's rule
+/// tables are pinned separately (`CONSTITUTION_TABLES_PIN`, docs/kernel/tables/VERSION).
 pub const CONSTITUTION_COMMIT: &str = "b363b6e54dcd2efc7a8df16a335cb84f42869366";
 
-/// Canonical pin tag for constitutional tables.
-pub const CONSTITUTION_TABLES_PIN: &str = "rc17-b363b6e";
+/// Canonical pin tag for the constitutional tables the kernel vendors (docs/kernel/tables/VERSION).
+pub const CONSTITUTION_TABLES_PIN: &str = "rc19-1da70f0";
 
 /// Canonical CSD/4 catalogue version (CC Section 6).
 pub const CSD4_CATALOGUE_VERSION: u32 = 6;

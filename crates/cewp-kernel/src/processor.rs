@@ -17,64 +17,17 @@ struct Duty {
     room: Option<String>,
 }
 
+/// The election's count (CC 4.5.13): one ballot per person (a person whose ballots disagree has none), instant runoff
+/// over the per-ranking summary, a tie for weakest against the later declared option (`ranked::elect`); `poll` names
+/// the cells. The declared order is the options in option-id order: the twin's rows carry no worthiness order.
 pub fn irv(ballots: &[Ballot]) -> Option<String> {
-    if ballots.is_empty() {
-        return None;
-    }
-    let mut seen: HashMap<String, Vec<String>> = HashMap::new();
-    for b in ballots {
-        seen.insert(b.signer.clone(), b.ranking.clone());
-    }
+    irv_poll("poll", ballots)
+}
 
-    let mut alive: HashSet<String> = HashSet::new();
-    for ranking in seen.values() {
-        for c in ranking {
-            alive.insert(c.clone());
-        }
-    }
-
-    while alive.len() > 1 {
-        let mut tally: HashMap<String, usize> = HashMap::new();
-        for c in &alive {
-            tally.insert(c.clone(), 0);
-        }
-        for ranking in seen.values() {
-            if let Some(first) = ranking.iter().find(|c| alive.contains(*c)) {
-                if let Some(count) = tally.get_mut(first) {
-                    *count += 1;
-                }
-            }
-        }
-
-        let total: usize = tally.values().sum();
-        for (c, n) in &tally {
-            if *n * 2 > total {
-                return Some(c.clone());
-            }
-        }
-
-        let min_val = match tally.values().min() {
-            Some(m) => *m,
-            None => break,
-        };
-
-        let mut losers: Vec<String> = tally
-            .iter()
-            .filter(|(_, n)| **n == min_val)
-            .map(|(c, _)| c.clone())
-            .collect();
-        losers.sort();
-
-        if let Some(loser) = losers.first() {
-            alive.remove(loser);
-        } else {
-            break;
-        }
-    }
-
-    let mut remaining: Vec<String> = alive.into_iter().collect();
-    remaining.sort();
-    remaining.into_iter().next()
+/// `irv` for a named poll (the fold passes the object's id).
+pub fn irv_poll(poll: &str, ballots: &[Ballot]) -> Option<String> {
+    let rows: Vec<(String, Vec<String>)> = ballots.iter().map(|b| (b.signer.clone(), b.ranking.clone())).collect();
+    crate::ranked::elect(poll, &rows, None, 3, 2)
 }
 
 pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
@@ -238,14 +191,15 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
             if r.verb == "withdraw" || r.verb == "recant" {
                 person_vote.remove(&fed);
             } else if is_approval {
-                person_vote.insert(fed, true);
+                person_vote.insert(fed.clone(), true);
             } else if is_objection {
-                person_vote.insert(fed, false);
+                person_vote.insert(fed.clone(), false);
             }
 
             if let Some(ranking) = &r.ranking {
+                // one ballot per person (fedID), CC 4.5.13
                 ballots.push(Ballot {
-                    signer: r.signer.clone(),
+                    signer: fed.clone(),
                     ranking: ranking.clone(),
                 });
             }
@@ -401,7 +355,7 @@ pub fn fold(held: &[HeldRow], tables: &Tables, now: u64) -> FoldState {
                 if now >= window_end {
                     let min_ballots = fv.unwrap_or(2);
                     if (ballots.len() as u64) >= min_ballots {
-                        outcome = irv(&ballots).map(Outcome::Seated);
+                        outcome = irv_poll(&o.id, &ballots).map(Outcome::Seated);
                         if outcome.is_none() && p.at_window.as_deref() == Some("reopens") {
                             outcome = Some(Outcome::Reopens);
                         }

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CSD/4 Architecture &amp; CC RC17 Namespace Explorer · CEWP</title>
-<meta name="description" content="Interactive CSD/4 holistic architecture explainer, 20 closed topologies (T0–T19), 105 CSD cards, and CC RC17 namespace browser across 191 families, 474 transitions, 17 roles, and 12 governance policies.">
+<title>CSD/4 Architecture &amp; CC Namespace Explorer · CEWP</title>
+<meta name="description" content="Interactive CSD/4 holistic architecture explainer, 20 closed topologies (T0–T19), 105 CSD cards, and CC rc19 namespace browser across 184 families, 459 transitions, 23 role tokens, and 16 governance policy rows.">
 <style>
 :root {
   --bg: #0b0d12;
@@ -425,22 +425,22 @@ table.data-tbl tr:hover td {
 
 <div class="container">
   <header class="page-head">
-    <h1 class="title">CSD/4 Architecture &amp; CC RC17 Namespace Explorer</h1>
+    <h1 class="title">CSD/4 Architecture &amp; CC Namespace Explorer</h1>
     <p class="subtitle">
-      A unified, interactive reference bridging <b>CIRISConstitution@rc17</b>, <b>CIRISServer</b>, <b>CIRISClient</b>, <b>CEWPOS</b>, and <b>CEWP</b>:
-      the closed catalogue of <b>20 topologies (T0–T19)</b>, <b>105 CSD cards (101 in CIRISClient across 22 files [43 CSD/4 four-field + 58 earlier bullet cards] + 4 CEWPOS cards CSD-CEWPOS-001..004)</b>, <b>191 namespace families</b>, <b>474 constitutional transitions</b>, <b>17 role tokens</b>, and <b>12 governance policies</b> running live against the browser-executable CEWP kernel.
-      The CSD-to-namespace mapping is <b>CEWP's synthesis of CIRISClient/CEWPOS cards against CC rc17's namespace_registry.json (191 families) and csd4_chain.json (156 vocabulary atoms, 152 state-table atoms, 110 promised atoms across T0..T19, catalogue v6)</b>.
+      A unified, interactive reference bridging <b>CIRISConstitution</b> (rule tables rc19, commit 1da70f0; CSD/4 catalogue rc17), <b>CIRISServer</b>, <b>CIRISClient</b>, <b>CEWPOS</b>, and <b>CEWP</b>:
+      the closed catalogue of <b>20 topologies (T0–T19)</b>, <b>105 CSD cards (101 in CIRISClient across 22 files [43 CSD/4 four-field + 58 earlier bullet cards] + 4 CEWPOS cards CSD-CEWPOS-001..004)</b>, <b>184 namespace families</b>, <b>459 constitutional transitions</b>, <b>23 role tokens</b>, and <b>16 governance policy rows</b> (rc19) running live against the browser-executable CEWP kernel.
+      The CSD-to-namespace mapping is <b>CEWP's synthesis of CIRISClient/CEWPOS cards against CC rc19's namespace_registry.json (184 families; re-resolved by tools/kernel/remap_csd.mjs) and csd4_chain.json (156 vocabulary atoms, 152 state-table atoms, 110 promised atoms across T0..T19, catalogue v6)</b>.
     </p>
   </header>
 
   <!-- Metric Overview Cards -->
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-val ok" id="stat-families">191</div>
+      <div class="stat-val ok" id="stat-families">184</div>
       <div class="stat-label">Namespace Families</div>
     </div>
     <div class="stat-card">
-      <div class="stat-val cool" id="stat-transitions">474</div>
+      <div class="stat-val cool" id="stat-transitions">459</div>
       <div class="stat-label">Constitutional Transitions</div>
     </div>
     <div class="stat-card">
@@ -452,7 +452,7 @@ table.data-tbl tr:hover td {
       <div class="stat-label">101 CIRISClient + 4 CEWPOS</div>
     </div>
     <div class="stat-card">
-      <div class="stat-val ok" id="stat-roles">17 Roles</div>
+      <div class="stat-val ok" id="stat-roles">23 Roles</div>
       <div class="stat-label">8 Base + 9 Specialized</div>
     </div>
     <div class="stat-card">
@@ -465,7 +465,7 @@ table.data-tbl tr:hover td {
   <nav class="section-tabs" id="sec-tabs">
     <button class="sec-tab active" data-tab="explainer">📖 CSD/4 Architecture Explainer</button>
     <button class="sec-tab" data-tab="cards">🗂️ T0–T19 Topologies &amp; 105 CSD Cards <span class="count">105</span></button>
-    <button class="sec-tab" data-tab="namespaces">📜 CC RC17 Namespaces &amp; Transitions <span class="count">191</span></button>
+    <button class="sec-tab" data-tab="namespaces">📜 CC rc19 Namespaces &amp; Transitions <span class="count">184</span></button>
     <button class="sec-tab" data-tab="sandbox">🧪 Live Pattern Matcher &amp; Sandbox</button>
   </nav>
 
@@ -483,7 +483,7 @@ table.data-tbl tr:hover td {
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 14px 0 18px;">
         <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
           <div style="color:var(--ok); font-weight:700; margin-bottom:4px;">1. CIRISConstitution</div>
-          <div style="font-size:12px; color:var(--mute);">The formal rulebook: 191 namespace families, 474 transitions, 12 governance policies, and verified invariants.</div>
+          <div style="font-size:12px; color:var(--mute);">The formal rulebook: 184 namespace families, 459 transitions, 16 governance policy rows, and verified invariants.</div>
         </div>
         <div style="background:#0d1017; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
           <div style="color:var(--cool); font-weight:700; margin-bottom:4px;">2. CIRISServer</div>
@@ -610,7 +610,7 @@ table.data-tbl tr:hover td {
           <span class="pill-badge badge-cool" id="hero-top-badge">All Topologies</span>
           <span style="font-size:16px; font-weight:700; color:#fff; margin-left:8px;" id="hero-top-title">Showing all 105 CSD UI Cards</span>
         </div>
-        <div style="font-size:12px; color:var(--mute);" id="hero-top-counts">105 Cards · 191 Families</div>
+        <div style="font-size:12px; color:var(--mute);" id="hero-top-counts">105 Cards · 184 Families</div>
       </div>
       <div class="chip-scroll" id="top-selector-chips" style="margin-top:10px;">
         <button class="chip-btn active" data-top="ALL">All (105)</button>
@@ -645,25 +645,25 @@ table.data-tbl tr:hover td {
     </div>
   </section>
 
-  <!-- ==================== TAB 3: CC RC17 NAMESPACES & TRANSITIONS ==================== -->
+  <!-- ==================== TAB 3: CC NAMESPACES & TRANSITIONS ==================== -->
   <section class="tab-pane" id="pane-namespaces">
     <div class="filter-bar">
       <input type="text" class="search-input" id="ns-search" placeholder="Filter families by pattern (e.g. trust:, chat:, room_admin:)...">
       <select class="select-ctl" id="ns-cat-filter">
-        <option value="ALL">All 191 Families</option>
+        <option value="ALL">All 184 Families</option>
         <option value="csd_ui_surface">94 CSD UI Surface</option>
         <option value="substrate_autonomous">97 Substrate Autonomous</option>
       </select>
       <select class="select-ctl" id="ns-role-filter">
-        <option value="ALL">All 17 Roles</option>
-        <!-- Injected 17 roles -->
+        <option value="ALL">All Roles</option>
+        <!-- Injected role tokens -->
       </select>
       <select class="select-ctl" id="ns-policy-filter">
         <option value="ALL">All 12 Policies</option>
         <!-- Injected 12 policies -->
       </select>
       <div style="margin-left:auto; font-size:12px; color:var(--mute);">
-        Showing <span id="ns-match-count" style="color:#fff; font-weight:600;">191</span> families
+        Showing <span id="ns-match-count" style="color:#fff; font-weight:600;">184</span> families
       </div>
     </div>
 
@@ -692,7 +692,7 @@ table.data-tbl tr:hover td {
     <div class="card-box">
       <h2>Live Wire-Namespace Pattern Matcher &amp; Transition Sandbox</h2>
       <p>
-        Test any wire namespace against the CC RC17 segment dimension grammar running live in <code>kernel.js</code>.
+        Test any wire namespace against the CC rc19 segment dimension grammar running live in <code>kernel.js</code>.
         The matcher validates dimension counts, vocabularies, hex encodings, aliases, and version segments, resolving the canonical family and all admissible transitions.
       </p>
 
@@ -930,7 +930,7 @@ function updateCardsHero() {
   if (DATA.activeTopology === "ALL") {
     heroBadge.textContent = "All Topologies";
     heroTitle.textContent = "Showing all 105 CSD UI Cards";
-    heroCounts.textContent = "105 Cards · 191 Families";
+    heroCounts.textContent = "105 Cards · " + (DATA.tables ? DATA.tables.families.size : 184) + " Families";
   } else {
     const topData = DATA.csdMap.topologies[DATA.activeTopology] || { cards: [], families: [], state_atoms: [] };
     heroBadge.textContent = DATA.activeTopology;
@@ -1014,12 +1014,9 @@ function renderNamespacesTab() {
   const catSelect = document.getElementById("ns-cat-filter");
   const searchInput = document.getElementById("ns-search");
 
-  // Populate roles
-  const roles = [
-    "author", "subject", "registered", "self", "holder", "member", "moderate", "founder",
-    "owner", "attest", "steward", "wa", "takedown", "review", "slash", "identity:lenscore_detector", "identity:substrate_persist"
-  ];
-  roleSelect.innerHTML = `<option value="ALL">All 17 Roles</option>` + roles.map(r => `<option value="${r}">${r}</option>`).join("");
+  // Populate roles: the vendored table's role tokens (transitions.json _meta.role_tokens)
+  const roles = (DATA.transitions && DATA.transitions._meta && DATA.transitions._meta.role_tokens) || [];
+  roleSelect.innerHTML = `<option value="ALL">All Roles</option>` + roles.map(r => `<option value="${r}">${r}</option>`).join("");
 
   // Populate policies
   const policies = Array.from(DATA.tables.policy.keys()).sort();
