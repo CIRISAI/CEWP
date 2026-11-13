@@ -175,11 +175,10 @@ function climateDraw(R, S, asp, a){
   const k = Math.min(1, (performance.now() - DATAMAP.t0) / 400), f = (DATAMAP.active === 7 ? k : 0) + (DATAMAP.prev === 7 && k < 1 ? 1 - k : 0);
   if (DATAMAP.active === 7) climateLoad(true);
   if (a <= 0.01 || f <= 0.01) return; const tex = climateTex(); if (!tex) return;
-  if (typeof incellVeil === "function") incellVeil(a * 0.82 * Math.min(1, f));
   if (!CLIMATE.mesh){ const V = []; for (let la = -90; la < 90; la += 3) for (let lo = -180; lo < 180; lo += 3){ for (const [y, x] of [[la, lo], [la, lo + 3], [la + 3, lo + 3], [la, lo], [la + 3, lo + 3], [la + 3, lo]]) V.push(...xyz(y, x), y, x); }
     const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(V), gl.STATIC_DRAW); CLIMATE.mesh = { b, n: V.length / 5 }; }
-  if (!pClim) pClim = prog(CLV, CLF);
-  gl.useProgram(pClim);
+  if (!pClim) pClim = prog(CLV, typeof ringed === "function" ? ringed(CLF) : CLF);
+  gl.useProgram(pClim); if (typeof DM_RING !== "undefined") gl.uniform3fv(gl.getUniformLocation(pClim, "uRing"), DM_RING);
   gl.uniformMatrix3fv(gl.getUniformLocation(pClim, "R"), false, R); gl.uniform1f(gl.getUniformLocation(pClim, "S"), S); gl.uniform2fv(gl.getUniformLocation(pClim, "asp"), asp); gl.uniform1f(gl.getUniformLocation(pClim, "uA"), a * f);
   gl.uniform1i(gl.getUniformLocation(pClim, "T"), 0); gl.uniform1i(gl.getUniformLocation(pClim, "P"), 1);
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, CLIMATE.pal); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);

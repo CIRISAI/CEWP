@@ -351,6 +351,9 @@ function tlDraw(w, h, mpp, sun){
   // the terrain over the mosaic, as on the land below it (relief.js multiply, inside the land stencil)
   if (relA > 0.01 && aggA > 0.01 && landVerts){ const asp = w > h ? [h / w, 1] : [1, w / h]; tlNoAttribs();
     reliefDraw(rot(), 0.86 * zoom, asp, w, h, mpp, relA * aggA, sun); gl.useProgram(tlProg); gl.uniform2f(tlLoc.view, F.w, F.h); gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL, 1, 1); }
+  // a data map over the mosaic, under arterials, streets and buildings (incell.js dmOverMosaic), so it shows to one street
+  if (aggA > 0.01 && landVerts && typeof dmOverMosaic === "function" && typeof DATAMAP !== "undefined" && (DATAMAP.active || DATAMAP.prev)){ const asp = w > h ? [h / w, 1] : [1, w / h]; tlNoAttribs();
+    dmOverMosaic(rot(), 0.86 * zoom, asp, w, h, mpp, aggA * 0.8); gl.useProgram(tlProg); gl.uniform2f(tlLoc.view, F.w, F.h); gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL, 1, 1); gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP); }
   // arterials over the mosaic: each L2 cell's own lines, at least a pixel wide
   const artA = sstep(30, 18, mpp);
   if (artA > 0.01 && tiles.size){
@@ -395,8 +398,9 @@ function tlDraw(w, h, mpp, sun){
   const Re = TL.cut ? Math.min(TL.ringEff || TL.ring.ring, TL.cut) : (TL.ringEff || TL.ring.ring), edge = Re < Math.hypot(F.w, F.h) / 2;
   TL.re = edge ? Re : 0; // the disc's drawn radius this frame (0: the whole screen), read by tools/page/story_zoom
   if (detA > 0.01 && byTile.size){
-    gl.uniform4f(tlLoc.kindA, detA, detA * sstep(1.2, 3, homePx * 0.25), detA, detA * sstep(0.6, 2, homePx));
+    const kA = [detA, detA * sstep(1.2, 3, homePx * 0.25), detA, detA * sstep(0.6, 2, homePx)];
     gl.uniform4f(tlLoc.minHalf, 0, mh + 0.5, mh, 0); gl.uniform3f(tlLoc.ring, F.w / 2, F.h / 2, edge ? Re : 0);
+    const pass = (ka) => { gl.uniform4f(tlLoc.kindA, ka[0], ka[1], ka[2], ka[3]);
     for (const [tk, list] of byTile){
       list.sort((a, b) => a.id - b.id); const key = list.map(e => e.id).join(",");
       let bt = TL.batch.get(tk);
@@ -414,6 +418,22 @@ function tlDraw(w, h, mpp, sun){
       gl.bindBuffer(gl.ARRAY_BUFFER, bt.vbo); tlAttribs();
       gl.uniform3f(tlLoc.X, A.a, A.c, A.e); gl.uniform3f(tlLoc.Y, A.b, A.d, A.f); gl.uniform1f(tlLoc.ppm, A.ppm);
       gl.drawArrays(gl.TRIANGLES, 0, bt.n);
+    } };
+    // with a data map on, the leaves' ground first (marking stencil bit 2 where it lands), the map's tint over that ground
+    // (incell.js dmOverMosaic), then the streets, homes and roofs over the tint, so they stay readable at one street
+    const mapOn = landVerts && typeof dmOverMosaic === "function" && typeof DATAMAP !== "undefined" && (DATAMAP.active || DATAMAP.prev);
+    if (!mapOn) pass(kA);
+    else {
+      gl.stencilMask(2); gl.stencilFunc(gl.EQUAL, 3, 1); gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+      pass([kA[0], 0, 0, 0]);
+      gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP); gl.stencilFunc(gl.EQUAL, 3, 3); tlNoAttribs();
+      if (typeof DM_RING !== "undefined"){ const d = gl.drawingBufferWidth / Math.max(1, F.w); DM_RING[0] = F.w / 2 * d; DM_RING[1] = F.h / 2 * d; DM_RING[2] = edge ? Re * d : 0; }
+      dmOverMosaic(rot(), 0.86 * zoom, w > h ? [h / w, 1] : [1, w / h], w, h, mpp, detA * 0.8);
+      if (typeof DM_RING !== "undefined") DM_RING[2] = 0;
+      gl.useProgram(tlProg); gl.uniform2f(tlLoc.view, F.w, F.h); gl.uniform4f(tlLoc.minHalf, 0, mh + 0.5, mh, 0); gl.uniform3f(tlLoc.ring, F.w / 2, F.h / 2, edge ? Re : 0);
+      gl.stencilFunc(gl.EQUAL, 1, 1);
+      pass([0, kA[1], kA[2], kA[3]]);
+      gl.clearStencil(0); gl.clear(gl.STENCIL_BUFFER_BIT); gl.stencilMask(1); // bit 2 back to 0 (the frame clears bit 1 only)
     }
   }
   tlNoAttribs(); gl.disable(gl.STENCIL_TEST);
