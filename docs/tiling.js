@@ -138,7 +138,7 @@ function tlTerrain(la, lo){
 }
 const tlGround = (T, t) => tlMix3(T.g0, T.g1, t);
 // The rival texture's switch (Advanced: "ground texture: flat / procedural"), off by default.
-const TL_TEX = { on: false };
+const TL_TEX = { on: typeof location !== "undefined" && /[?&]tex=1(&|$)/.test(location.search) }; // ?tex=1 starts it on (for the witnesses)
 // The texture's world-anchored metre grid for an L3 tile's frame: x = (lon + 180) x 111,320 x cos(the 1.5-degree latitude band's
 // centre), y = (lat + 90) x 111,320, both taken modulo the noise's 4,096 m period in double precision here, so the shader
 // works in small numbers; a tile's frame metres map to it by x' = x0 + kx * x (kx = cos(band) / cos(tile)) and y' = y0 + y.
