@@ -37,7 +37,9 @@ function climateColour(code){
   const sym = CLIMATE_SYMBOLS[code - 1]; if (!sym) return null;
   const g = CLIMATE_ORDER[sym[0]], members = CLIMATE_SYMBOLS.filter((s) => s[0] === sym[0]), i = members.indexOf(sym), n = members.length;
   const t = n > 1 ? i / (n - 1) : 0.5, base = CLIMATE_GROUPS[g].rgb; // darker for the first of the group, lighter for the last
-  return base.map((v) => Math.round(t < 0.5 ? v * (0.55 + 0.9 * t) : v + (255 - v) * (t - 0.5) * 0.7));
+  // polar's darker end stays a mid grey, so tundra never reads as the dark hatch of a cell with no class
+  const lo = g === "polar" ? 0.7 : 0.55;
+  return base.map((v) => Math.round(t < 0.5 ? v * (lo + 2 * (1 - lo) * t) : v + (255 - v) * (t - 0.5) * 0.7));
 }
 // the class code of a cell grid at a point (the twin's cell, as geoCell): the page's lookup and the tests' share it
 function climateCode(cells, lat, lon){ const [r, c] = climateCellOf(lat, lon, 1); return cells[r * 2880 + c]; }
