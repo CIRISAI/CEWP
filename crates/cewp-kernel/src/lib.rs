@@ -1617,30 +1617,16 @@ mod tests {
                 baseline = Some(snap.clone());
             }
 
-            // 2) Causal re-merge through door() in multi-hop retry passes (as in Mesh::tick)
+            // 2) The same rows through door(), each delivered ONCE in this permutation's order (rc19: the door keeps a row
+            // that waits for another, inert, and settles it when its cure arrives; no retry pass is needed)
             let mut door_held: Vec<HeldRow> = Vec::new();
-            let mut pending = perm.clone();
-            let mut passes = 0;
-            while !pending.is_empty() && passes < 6 {
-                passes += 1;
-                let mut retry = Vec::new();
-                for r in pending {
-                    let arrival = 10_000 + passes * 1000 + (rng.next_f64() * 900.0).floor() as u64;
-                    let s = door(&mut door_held, &tables, &r, arrival);
-                    if s.is_err() {
-                        retry.push(r);
-                    }
-                }
-                pending = retry;
+            for r in &perm {
+                let arrival = 10_000 + (rng.next_f64() * 900.0).floor() as u64;
+                let s = door(&mut door_held, &tables, r, arrival);
+                assert!(s.is_ok() || s.as_ref().err().is_some_and(|e| e.is_waiting()), "permutation {i}: {} kept ({s:?})", r.id);
             }
-            assert_eq!(
-                pending.len(),
-                0,
-                "permutation {} admitted all {} rows within {} passes",
-                i,
-                all_rows.len(),
-                passes
-            );
+            assert_eq!(door_held.len(), all_rows.len(), "permutation {i} keeps every row");
+            assert!(fold(&door_held, &tables, eval_now).inert.is_empty(), "permutation {i}: every waiting row cured by the end");
             let door_snap = snapshot_fold_and_queue(&door_held, &tables, eval_now, &people);
             let b = baseline.as_ref().unwrap();
             if door_snap.objects != b.objects {
@@ -1821,11 +1807,16 @@ mod tests {
         assert!(sign_checked(&mut m, "alice-phone", recant_alpha_1).is_ok());
 
         // Stranger mallory-phone attempts to post and withdraw in room:alpha: refused!
+        // rc19: kept inert on mallory's own node, waiting for room:alpha's roster, and carried to nobody
         let mallory_bad_post = make_row("chat:*", "attest", "mallory", "post:mallory:1", Some("room:alpha"), None, None, "room");
-        assert!(!sign_checked(&mut m, "mallory-phone", mallory_bad_post).is_ok());
+        let mallory_post_id = mallory_bad_post.id.clone();
+        let mp = sign_checked(&mut m, "mallory-phone", mallory_bad_post);
+        assert!(mp.as_ref().err().is_some_and(|e| e.is_waiting()), "{mp:?}");
+        assert_eq!(m.fold_of("mallory-phone").inert.get(&mallory_post_id).and_then(|w| w.family.clone()).as_deref(), Some("group:roster"));
 
         let mallory_bad_withdraw = make_row("chat:*", "withdraw", "mallory", "post:alpha:2", Some("room:alpha"), None, None, "room");
-        assert!(!sign_checked(&mut m, "mallory-phone", mallory_bad_withdraw).is_ok());
+        let mallory_withdraw_id = mallory_bad_withdraw.id.clone();
+        assert!(sign_checked(&mut m, "mallory-phone", mallory_bad_withdraw).as_ref().err().is_some_and(|e| e.is_waiting()));
 
         m.tick(1000);
         m.tick(1000);
@@ -1943,7 +1934,18 @@ mod tests {
                 || h.row.scope.as_ref().map(|s| s.tier.as_str()) == Some("federation")
                 || h.row.signer == "mallory";
             assert!(is_cf, "stranger must not hold private/room row {}", h.row.id);
-            assert_ne!(h.row.scope.as_ref().map(|s| s.tier.as_str()), Some("room"));
+            // the only room rows a stranger holds are her own, inert there
+            if h.row.scope.as_ref().map(|s| s.tier.as_str()) == Some("room") {
+                assert_eq!(h.row.signer, "mallory");
+                assert!(m.fold_of("mallory-phone").inert.contains_key(&h.row.id));
+            }
+        }
+        for (id, n) in &m.nodes {
+            if id != "mallory-phone" {
+                for r in [&mallory_post_id, &mallory_withdraw_id] {
+                    assert!(!n.held.iter().any(|h| &h.row.id == r) && !n.sealed.contains_key(r), "{id} was never offered mallory's inert row {r}");
+                }
+            }
         }
         assert_eq!(m.fold_of("mallory-phone").rooms.len(), 0, "stranger folds 0 rooms");
     }
@@ -2410,4 +2412,142 @@ mod tests {
             );
         }
     }
+
+    // ---------------------------------------------------------------- the door keeps (formal/KERNEL.md; CC 5.2 at 820a7a0)
+    #[allow(clippy::too_many_arguments)]
+    fn kr(id: &str, family: &str, verb: &str, signer: &str, object: &str, room: Option<&str>, subject: Option<&str>, stance: Option<&str>) -> Row {
+        Row {
+            id: id.to_string(),
+            family: family.to_string(),
+            verb: verb.to_string(),
+            signer: signer.to_string(),
+            signer_type: None,
+            object: object.to_string(),
+            scope: Some(Scope { tier: if room.is_some() { "room".to_string() } else { "self".to_string() }, room: room.map(str::to_string) }),
+            subject: subject.map(str::to_string),
+            stance: stance.map(str::to_string),
+            ranking: None,
+            asserted_at: 0,
+            note: None,
+            role: None,
+            job: None,
+        }
+    }
+
+    /// The same witness as docs/kernel/kernel.test.js: an inert row is offered to its signers only; the row it waits for
+    /// reaches it only under that row's own audience; the same outcome in every delivery order.
+    #[test]
+    fn inert_rows_go_to_their_signers_only_and_cures_travel_under_their_own_audience() {
+        let tables = Tables::load_vendored();
+        let owner = |id: &str| match id { "seat" => "nobody", "alice-phone" | "alice-laptop" => "alice", "bob-phone" => "bob", "carol-phone" => "carol", _ => "dave" };
+        let orders = [
+            ["seat", "alice-phone", "alice-laptop", "bob-phone", "carol-phone", "dave-phone"],
+            ["dave-phone", "carol-phone", "bob-phone", "alice-laptop", "alice-phone", "seat"],
+            ["bob-phone", "seat", "dave-phone", "alice-phone", "carol-phone", "alice-laptop"],
+        ];
+        let mut results = Vec::new();
+        for order in orders {
+            let mut m = Mesh::new(tables.clone());
+            for id in order {
+                m.add_node(id, owner(id), if id == "seat" { "server" } else { "phone" });
+            }
+            for id in order {
+                if id != "seat" {
+                    m.link(id, "seat");
+                }
+            }
+            m.link("alice-phone", "alice-laptop");
+            for (node, p) in [("alice-phone", "alice"), ("bob-phone", "bob"), ("carol-phone", "carol"), ("dave-phone", "dave")] {
+                assert!(m.sign(node, kr(&format!("key-{p}"), "key:record", "attest", p, &format!("key:{p}"), None, None, None)).is_ok());
+            }
+            for _ in 0..3 {
+                m.tick(1000);
+            }
+            let rm = Some("room:1");
+            assert!(m.sign("bob-phone", kr("roster", "group:roster", "attest", "bob", "room:1", rm, None, None)).is_ok());
+            let cp = m.sign("carol-phone", kr("post-carol", "chat:*", "attest", "carol", "post:carol", rm, None, None));
+            let dp = m.sign("dave-phone", kr("post-dave", "chat:*", "attest", "dave", "post:dave", rm, None, None));
+            let ap = m.sign("alice-phone", kr("post-alice", "chat:*", "attest", "alice", "post:alice", rm, None, None));
+            for r in [&cp, &dp, &ap] {
+                assert!(r.as_ref().err().is_some_and(|e| e.is_waiting()), "{r:?}");
+            }
+            assert!(m.sign("bob-phone", kr("invite-dave", "membership:{stage}", "attest", "bob", "invite:dave", rm, Some("dave"), None)).is_ok());
+            for _ in 0..4 {
+                m.tick(1000);
+            }
+            let y = m.sign("dave-phone", kr("yes-dave", "membership:{stage}", "attest", "dave", "invite:dave", rm, Some("dave"), Some("for")));
+            assert!(y.is_ok() || y.as_ref().err().is_some_and(|e| e.is_waiting()));
+            for _ in 0..6 {
+                m.tick(1000);
+            }
+            let fd = m.fold_of("dave-phone");
+            let fc = m.fold_of("carol-phone");
+            assert_eq!(fd.objects.get("post:dave").map(|o| o.state.as_str()), Some("admitted"), "dave's waiting post is cured");
+            assert!(!m.nodes["carol-phone"].held.iter().any(|h| h.row.id == "roster"), "the roster never reaches carol");
+            assert_eq!(fc.inert.get("post-carol").and_then(|w| w.family.clone()).as_deref(), Some("group:roster"));
+            for (id, n) in &m.nodes {
+                for (rid, signer) in [("post-carol", "carol"), ("post-alice", "alice")] {
+                    if owner(id) != signer {
+                        assert!(!n.held.iter().any(|h| h.row.id == rid) && !n.sealed.contains_key(rid), "{id} holds {signer}'s inert {rid}");
+                    }
+                }
+            }
+            assert!(m.nodes["alice-laptop"].held.iter().any(|h| h.row.id == "post-alice"));
+            assert!(m.fold_of("alice-laptop").inert.contains_key("post-alice"));
+            let mut ci: Vec<String> = fc.inert.keys().cloned().collect();
+            ci.sort();
+            let mut bo: Vec<String> = m.fold_of("bob-phone").objects.keys().cloned().collect();
+            bo.sort();
+            results.push((fd.objects.get("post:dave").map(|o| o.state.clone()), ci, bo));
+        }
+        for r in &results {
+            assert_eq!(r, &results[0], "the same outcome in every delivery order");
+        }
+    }
+
+    #[test]
+    fn an_inert_row_confers_nothing_and_a_row_bad_on_its_own_form_is_refused_in_every_order() {
+        let tables = Tables::load_vendored();
+        let mut held: Vec<HeldRow> = Vec::new();
+        let mut t = 100;
+        let mut d = |held: &mut Vec<HeldRow>, mut r: Row| {
+            t += 10;
+            r.asserted_at = t;
+            door(held, &tables, &r, t)
+        };
+        assert!(d(&mut held, kr("z1", "trust:{job}:{version}", "authorize", "zed", "trust:steward:1", None, None, None)).err().is_some_and(|e| e.is_waiting()));
+        assert!(d(&mut held, kr("z2", "group:roster", "attest", "zed", "room:z", Some("room:z"), None, None)).err().is_some_and(|e| e.is_waiting()));
+        let f = fold(&held, &tables, 1_000);
+        assert!(f.roles_of.get("zed").is_none(), "no standing from an inert row");
+        assert!(!f.rooms.contains_key("room:z"), "no room from an inert row");
+        assert!(f.inert.values().all(|w| w.family.as_deref() == Some("key:record")) && f.inert.len() == 2);
+        assert!(d(&mut held, kr("z0", "key:record", "attest", "zed", "key:zed", None, None, None)).is_ok());
+        let f = fold(&held, &tables, 1_000);
+        assert!(f.inert.is_empty());
+        assert!(f.roles_of.get("zed").is_some_and(|r| r.contains("steward")));
+        assert!(f.rooms.contains_key("room:z"));
+        let bad = vec![
+            kr("b1", "chat:*", "attest", "", "post:b1", None, None, None),
+            kr("b2", "x_private:mine", "attest", "zed", "x:1", None, None, None),
+            kr("b3", "chat:*", "authorize", "zed", "post:b3", None, None, None),
+            kr("b4", "duty:{kind}", "attest", "zed", "duty:1", None, None, None),
+        ];
+        for k in 0..4 {
+            let mut h2: Vec<HeldRow> = Vec::new();
+            let mut order = bad[k..].to_vec();
+            order.extend_from_slice(&bad[..k]);
+            let mut tt = 500;
+            let mut key = kr("k", "key:record", "attest", "zed", "key:zed", None, None, None);
+            key.asserted_at = tt;
+            assert!(door(&mut h2, &tables, &key, tt).is_ok());
+            for mut r in order {
+                tt += 10;
+                r.asserted_at = tt;
+                let s = door(&mut h2, &tables, &r, tt);
+                assert!(s.as_ref().err().is_some_and(|e| !e.is_waiting()), "{} refused on its own form: {s:?}", r.id);
+            }
+            assert_eq!(h2.len(), 1, "no row bad on its own form is held");
+        }
+    }
+
 }

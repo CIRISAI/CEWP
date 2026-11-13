@@ -389,6 +389,26 @@ pub struct FoldState {
     pub owners_of: HashMap<String, HashSet<String>>,
     pub attesters: HashSet<String>,
     pub now: u64,
+    /// Rows held but concluding nothing (rc19: kept, never refused because of another row), each with its verdict.
+    pub inert: HashMap<String, Waiting>,
+}
+
+/// An inert row's verdict: the refusal it would have had, and the row that would cure it (its `missing`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Waiting {
+    pub refusal: Refusal,
+    /// The cure's family where it is a kind of row (a key record, a roster, a membership).
+    pub family: Option<String>,
+    /// The cure in words.
+    pub missing: String,
+}
+
+impl Refusal {
+    /// True for a refusal that depends on another row (the row is kept inert); false for one on the row's own form.
+    #[must_use]
+    pub fn is_waiting(&self) -> bool {
+        matches!(self, Refusal::NoStanding | Refusal::Unregistered | Refusal::NoSuchRoom | Refusal::SubjectOutsideAudience | Refusal::Halted | Refusal::FamilyMismatch)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

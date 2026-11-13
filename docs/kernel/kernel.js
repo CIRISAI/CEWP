@@ -420,7 +420,8 @@ export function policyRow(tables, t) {
 
 const byInstant = (a, b) => (a.row.asserted_at - b.row.asserted_at) || (a.row.id < b.row.id ? -1 : a.row.id > b.row.id ? 1 : 0);
 
-export function fold(held, tables, now) {
+// The fold over rows already known live (each passed the door against the others). `fold` below settles first.
+function foldLive(held, tables, now) {
   const rows = [...held].sort(byInstant);
   const objects = new Map();
   const registered = new Set();
@@ -962,9 +963,76 @@ export function enabledFor(tables, family, state, roles, stage = null) {
 // ---------------------------------------------------------------- the one function
 
 // step: the door before it commits. Returns {ok:true, plan} or {ok:false, refusal}.
+// ---------------------------------------------------------------- the door keeps (formal/KERNEL.md, rc19)
+// A row is kept on its own form; it is never refused because of another row. A refusal on the row's own form (malformed,
+// an unregistered, private or retired family, a verb the family never takes, a transition nobody may sign, already held)
+// stays a refusal and the row is not held. A refusal that depends on another row (no key for the signer yet, no such
+// room yet, no standing yet, no transition from the object's state yet, a family conflict on the object, the halt)
+// keeps the row INERT: held, concluding nothing, conferring nothing, carried to nobody but its signer, with a verdict
+// naming the row that would cure it. Which held rows are live is a fixed point over the held set (`settle`): the same
+// rows give the same live set and the same verdicts in any arrival order.
+const OWN_FORM = new Set(["already_held", "malformed", "closed", "namespace_family_unregistered", "namespace_private_use_not_federatable", "namespace_dimension_case_malformed",
+  "namespace_vocab_value_unregistered", "missing_version_segment", "namespace_retired", "attestation_type_unregistered"]);
+const FORM_FIELDS = ["id", "family", "verb", "signer", "object"];
+function ownFormRefusal(tables, row) {
+  if (!row || FORM_FIELDS.some((k) => typeof row[k] !== "string" || !row[k])) return "malformed";
+  let famKey = row.family;
+  if (!tables.families.has(famKey)) {
+    const m = tables.matchFamily ? tables.matchFamily(row.family) : matchFamily(row.family, tables);
+    if (m?.refusal) return m.refusal;
+    if (m?.family) famKey = m.family;
+  }
+  const isVote = Boolean(row.stance || row.ranking || row.verb === "voice" || row.verb === "assent" || row.verb === "raised" || row.verb === "object");
+  const ts = tables.families.get(famKey) || [];
+  if (!isVote && !ts.some((t) => t.verb === row.verb)) return "no_transition"; // the family never takes this verb
+  if (!isVote && ts.filter((t) => t.verb === row.verb).every((t) => t.roles.length === 0)) return "closed";
+  return null;
+}
+// the row that would cure a refusal that depends on another row (the verdict's `missing`)
+function cureOf(refusal, row) {
+  const room = row.scope && row.scope.room;
+  switch (refusal) {
+    case "unregistered": return { family: "key:record", signer: row.signer, text: `${row.signer}'s key record` };
+    case "no_such_room": return { family: "group:roster", room, text: `the roster of ${room}` };
+    case "subject_outside_audience": return { family: "membership:{stage}", room, subject: row.subject && row.subject !== row.signer ? row.subject : row.signer, text: `a seat in ${room}` };
+    case "no_transition": return { object: row.object, text: `the row that brings ${row.object} to a state where ${row.verb} is offered` };
+    case "no_standing": return { object: row.object, signer: row.signer, text: `a row giving ${row.signer} standing to ${row.verb} ${row.object}` };
+    case "halted": return { family: "accord:invoke:constitutional:{halt_id}", text: "the halt's lifting" };
+    case "family_mismatch": return { object: row.object, text: `none: ${row.object} is another family's object` };
+    default: return { text: refusal };
+  }
+}
+// settle: which held rows are live, as a fixed point (rows in instant order; a row whose check fails waits and is tried
+// again after any other row becomes live; nothing live becomes inert within one settle). Cached by the set and `now`.
+const SETTLED = new Map();
+export function settle(held, tables, now) {
+  const entries = [...held].sort(byInstant), key = now + "|" + entries.map((e) => e.row.id).join("\u0001");
+  const hit = SETTLED.get(key); if (hit && hit.tables === tables) return hit.v;
+  const live = new Map(); let pending = entries.map((e) => ({ e, r: null })), progress = true;
+  while (progress && pending.length) {
+    progress = false; const next = [];
+    for (const p of pending) { const r = checkRow(live, tables, p.e.row, now); if (r.ok) { live.set(p.e.row.id, p.e); progress = true; } else next.push({ e: p.e, r }); }
+    pending = next;
+  }
+  const inert = new Map(pending.map((p) => [p.e.row.id, { row: p.e.row, firstHeld: p.e.firstHeld, refusal: p.r.refusal, missing: cureOf(p.r.refusal, p.e.row) }]));
+  const v = { live, inert };
+  if (SETTLED.size > 256) SETTLED.clear(); SETTLED.set(key, { tables, v }); return v;
+}
+export function fold(held, tables, now) {
+  const s = settle(held, tables, now), f = foldLive(s.live.values(), tables, now);
+  f.inert = s.inert; return f;
+}
 export function step(held, tables, row, now) {
   if (held.has(row.id)) return { ok: false, refusal: "already_held" };
-  const f = fold(held.values(), tables, now);
+  const own = ownFormRefusal(tables, row); if (own) return { ok: false, refusal: own };
+  const live = settle(held.values(), tables, now).live, r = checkRow(live, tables, row, now);
+  if (r.ok) return r;
+  if (OWN_FORM.has(r.refusal)) return r;
+  return { ok: false, inert: true, refusal: r.refusal, missing: cureOf(r.refusal, row), plan: { row, firstHeld: now } };
+}
+// the door's check of one row against rows known live (the step before rc19's kept layer)
+function checkRow(live, tables, row, now) {
+  const f = foldLive(live.values(), tables, now);
   
   // Resolve wire family
   let famKey = row.family;
@@ -1026,7 +1094,7 @@ export function step(held, tables, row, now) {
 export function commit(held, plan) { held.set(plan.row.id, { row: plan.row, firstHeld: plan.firstHeld }); return plan; }
 
 // door = step then commit
-export function door(held, tables, row, now) { const s = step(held, tables, row, now); if (s.ok) commit(held, s.plan); return s; }
+export function door(held, tables, row, now) { const s = step(held, tables, row, now); if (s.ok || s.inert) commit(held, s.plan); return s; } // an inert row is kept
 
 // admit = alias of door
 export function admit(held, tables, row, now) { return door(held, tables, row, now); }
@@ -1062,7 +1130,7 @@ export function queue(held, tables, person, now) {
 export function preview(held, tables, rows, now) {
   const before = fold(held.values(), tables, now);
   const copy = new Map(held);
-  const verdicts = rows.map((row) => { const s = step(copy, tables, row, now); if (s.ok) commit(copy, s.plan); return { row: row.id, ...s }; });
+  const verdicts = rows.map((row) => { const s = step(copy, tables, row, now); if (s.ok || s.inert) commit(copy, s.plan); return { row: row.id, ...s }; });
   const after = fold(copy.values(), tables, now);
   const changed = [];
   for (const [id, o] of after.objects) {
@@ -1096,8 +1164,19 @@ export class Mesh {
   addNode(id, owner, kind = "phone") { this.nodes.set(id, { id, owner, kind, held: new Map(), sealed: new Map(), offered: new Set(), carrier: kind === "server" }); return this.nodes.get(id); }
   link(a, b) { this.links.add([a, b].sort().join("|")); }
   neighbours(id) { const out = []; for (const l of this.links) { const [a, b] = l.split("|"); if (a === id) out.push(b); if (b === id) out.push(a); } return out; }
-  audience(node, row) {
+  // THE CARRY RULE, in one function (CC 5.2 "What a row carries"; formal/causal_kernel/route.py at 820a7a0): who a node
+  // may offer `row` to. A row that concludes nothing on this node (inert) carries nobody but its signers: knowing it
+  // gives no access, and it travels to no member, stranger or seat. It waits for its cure; the cure (the verdict's
+  // missing row) reaches it only under that row's own audience, by this same rule applied to the cure where it is held.
+  // A live row: everyone for the consent-free set and federation rows, its signer for self rows, the room's members and
+  // the keys it names for room rows (`audience`). Returns { who: Set | null (everyone), inert }.
+  carry(node, row) {
     const f = fold(node.held.values(), this.tables, this.now);
+    if (f.inert && f.inert.has(row.id)) return { who: new Set([row.signer]), inert: true };
+    return { who: this.audience(node, row, f), inert: false };
+  }
+  audience(node, row, folded = null) {
+    const f = folded || fold(node.held.values(), this.tables, this.now);
     const tier = (row.scope && row.scope.tier) || "self";
     const m = this.tables.matchFamily ? this.tables.matchFamily(row.family) : matchFamily(row.family, this.tables);
     const famKey = m?.family || row.family;
@@ -1115,7 +1194,7 @@ export class Mesh {
     const node = this.nodes.get(nodeId);
     row.asserted_at = row.asserted_at ?? this.now;
     const s = door(node.held, this.tables, row, this.now);
-    this.log.push({ t: this.now, node: nodeId, row: row.id, ...(s.ok ? { admitted: true } : { refused: s.refusal }) });
+    this.log.push({ t: this.now, node: nodeId, row: row.id, ...(s.ok ? { admitted: true } : s.inert ? { held: true, waiting: s.missing.text, refusal: s.refusal } : { refused: s.refusal }) });
     return s;
   }
   // one tick: every node offers what it holds to each neighbour in the row's audience; the neighbour's door decides
@@ -1129,7 +1208,8 @@ export class Mesh {
         for (const { row, origin } of carried) {
           const key = row.id + ">" + nb;
           if (node.offered.has(key) || other.held.has(row.id) || other.sealed.has(row.id)) continue;
-          const aud = this.audience(origin, row); // the audience is the sender's fold, as it stands now; a carrier folds nothing
+          const c = this.carry(origin, row), aud = c.who; // the sender's fold, as it stands now; a carrier folds nothing
+          if (c.inert && !aud.has(other.owner)) continue; // an inert row goes to its signers only: no member, no seat
           if (aud && !aud.has(other.owner)) {
             if (!other.carrier || other === origin) continue; // a stranger is offered nothing it must consent to carry
             other.sealed.set(row.id, { row, origin }); node.offered.add(key); // a seat carries it sealed
@@ -1137,8 +1217,8 @@ export class Mesh {
             continue;
           }
           const s = door(other.held, this.tables, row, this.now);
-          if (s.ok) node.offered.add(key); // a refusal is retried next tick: what it lacked may arrive
-          moves.push({ from: node.id, to: nb, row: row.id, ok: s.ok, refusal: s.refusal });
+          if (s.ok || s.inert) node.offered.add(key); // kept, live or inert; a refusal on the row's own form is not retried either way
+          moves.push({ from: node.id, to: nb, row: row.id, ok: s.ok, inert: !!s.inert, refusal: s.refusal });
         }
       }
     }
