@@ -26,6 +26,8 @@ The tables are the constitution's, vendored under [`tables/`](tables/) at the co
 
 **What it leaves out, on purpose.** Signatures (a held row is already verified), transport below "one hop per tick", other nodes' holdings, projections, text, a clock (`now` is an input), and any reader's weighting of what it reads. That list is the constitution's own: it is what keeps the kernel small enough that every question about it is decidable.
 
+**What it cannot reach yet.** Four families take their first row from `infra:attest`, an infrastructure node's standing: `transport:{kind}`, `delivery:{class}`, `key_boundary:{scope}` and `peer_reachability:{network}`. The constitution confers `infra:attest` in a node's owner-binding (CC 3.2, CC 3.4.7), and that binding counts only when the node's own key cosigns it or its genesis record carries it. Every row in the twin has one signer, so the cosign rule cannot be evaluated and no row confers `infra:attest`. A first row in these families is refused at the door, and their later verbs (withdraw, and supersede for transport and reachability) are never reached. These four families are not exercised by either kernel. Both suites list the ten unreachable verbs by name, so a change in the kernel's reach fails a test; Rust names the later refusals `no_standing` where this kernel names them `no_transition`. Exercising them needs rows with more than one signer.
+
 [`../mesh.html`](../mesh.html) runs it in the browser as a mesh of people and their nodes.
 
 ## At scale: billions of people and devices, one rulebook in WebAssembly
