@@ -25,8 +25,12 @@
 # once the descent below the city has begun the Story's target moves at most TARGET_MAX screen widths until the camera
 # settles on the street. With --out, film strips at 250 ms (approach-N.jpg: the Story's first frame to the camera on the
 # street; pullback-N.jpg: the street step's pull-back into the next step's view).
+# On a phone-class run it also asserts the street keeps its neighbours (on every frame on the street the Story's street is a
+# leaf of the tiling and the tiling draws around it, TILED_MIN) and no task over LONG_MAX ms from the city hold to the street
+# or on the pull-back. --delay URL,ms holds one request (the service worker blocked so the hold applies) and --net emulates a
+# network, so a late input (the 1/8-degree people grid, the land, the places) is exercised as on a slow phone.
 # Usage: python3 tools/page/story_zoom/run.py [--port 8732] [--w 390 --h 844 --mob 1] [--throttle 1] [--cache warm]
-#        [--out DIR] [--until-act 8] [--assert]
+#        [--out DIR] [--until-act 8] [--delay gd/pop1.bin.gz,40000] [--net 9000,1500,170] [--assert]
 import argparse, asyncio, base64, io, json, math, os, sys, time
 from playwright.async_api import async_playwright
 
@@ -35,12 +39,15 @@ ap.add_argument("--port", default="8732"); ap.add_argument("--w", type=int, defa
 ap.add_argument("--mob", type=int, default=1); ap.add_argument("--throttle", type=float, default=1); ap.add_argument("--cache", default="warm")
 ap.add_argument("--out", default=""); ap.add_argument("--break-detail", action="store_true"); ap.add_argument("--assert", dest="check", action="store_true"); ap.add_argument("--max-s", type=float, default=240)
 ap.add_argument("--until-act", type=int, default=8, help="stop when this act (0-based) begins; 8 (the default) plays the whole Story to its end")
+ap.add_argument("--delay", default="", help="URL substring,ms: hold that request (the service worker is blocked so the hold applies), e.g. gd/pop1.bin.gz,40000")
+ap.add_argument("--net", default="", help="down kbit/s,up kbit/s,latency ms: emulate a network")
 A = ap.parse_args()
 URL = f"http://127.0.0.1:{A.port}/index.html"
 
 INIT = r"""(() => {
   Error.stackTraceLimit = 30;
-  const Z = window.__Z = { req: [], builds: [], frames: [], open: {}, origin0: performance.timeOrigin };
+  const Z = window.__Z = { req: [], builds: [], frames: [], open: {}, origin0: performance.timeOrigin, lt: [], self: [] };
+  try { new PerformanceObserver((l) => { for (const e of l.getEntries()) Z.lt.push([Math.round(e.startTime), Math.round(e.duration)]); }).observe({ entryTypes: ["longtask"] }); } catch (e) {}
   // a request stays open until its tile is ready (on the GPU) and then until it is first drawn; a tile asked again
   // (evicted, then wanted) opens a new request
   const ask = (r, k) => { r.ready = null; r.first_drawn = null; Z.req.push(r); Z.open[k] = r; };
@@ -65,7 +72,8 @@ INIT = r"""(() => {
         d = Math.round(Math.hypot(((b[0] + b[2]) / 2 - la) * 111320, ((b[1] + b[3]) / 2 - lo) * 111320 * Math.cos(la * Math.PI / 180))); } catch (x) {}
       Z.builds.push({ key: k, origin: o, dur: Math.round((performance.now() - t0) * 10) / 10, m_from_centre: d, ...c }); return e; };
     const md = window.microDraw;
-    if (typeof md === "function") window.microDraw = function(){ const r = md.apply(this, arguments); try { sample(); } catch (e) { Z.err = String(e); } return r; };
+    // the witness's own per-frame work is timed, so its long-task budget is the page's and not the page's plus the witness's
+    if (typeof md === "function") window.microDraw = function(){ const r = md.apply(this, arguments); const s0 = performance.now(); try { sample(); } catch (e) { Z.err = String(e); } Z.self.push([Math.round(s0), performance.now() - s0]); return r; };
   });
   function sample(){
     const now = performance.now(), w = cv.clientWidth, h = cv.clientHeight, mpp = GEO.mpp, la = pitch * 180 / Math.PI, lo = ((yaw * 180 / Math.PI + 540) % 360) - 180;
@@ -85,7 +93,7 @@ INIT = r"""(() => {
       f.ne10 = { want: mpp < GEO_MPP_10 && GEO.rf > 0.004, vis: vis.length, miss }; }
     for (const [k, t] of GEO.t10) if (!t.pending) ready("ne10:" + k, now);
     // the street tiling: on, leaves waiting for a layout, and the leaf under the centre at detail zoom
-    f.tl = { on: !!TL.on, pending: TL.pending | 0, drawn: TL.drawn | 0, ring: Math.round(TL.ringEff || TL.ring.ring), gov: Math.round(TL.ring.ring), ema: Math.round(TL.ring.ema || 0), cut: Math.round(TL.cut || 0) };
+    f.tl = { on: !!TL.on, pending: TL.pending | 0, drawn: TL.drawn | 0, agg: TL.agg | 0, leaf: !!(M && M.leaf !== undefined), ring: Math.round(TL.ringEff || TL.ring.ring), gov: Math.round(TL.ring.ring), ema: Math.round(TL.ring.ema || 0), cut: Math.round(TL.cut || 0) };
     if (TL.on && mpp < 26){ try { const T = tlTree(), leaf = T.leafAt(la, lo), k = HOLON.pack(leaf); f.tl.focal = T.budget(leaf) > 0 ? (TL.lay.has(k) ? "ok" : "none") : "empty"; } catch (e) { f.tl.focal = "err"; } }
     f.micro = { story: !!microStory, M: !!M, actors: !!(MSTORY && MSTORY.actors), wait: !!(MSTORY && (MSTORY.waitSearch || MSTORY.waitTiled)), beat: MSTORY && MSTORY.beat !== undefined ? MSTORY.beat : null };
     // the generated street's square on screen (CSS px: centre and half-width), so the pixel check samples around it
@@ -137,6 +145,12 @@ async def play(pg, cdp, rec, stop_act, max_s):
 # below this share of drawn lit roofs that show on screen, the tiling's detail was counted as drawn but not painted:
 # with --break-detail (leaves counted, nothing painted) 0.0 to 0.105; normal runs at least 0.59 (1440) and 0.77 (390)
 PAINTED_MIN = 0.35
+# the street keeps its neighbours: on every frame on the street (a 0.98 share, for the frame the camera settles on) the
+# Story's street is a leaf of the tiling and the tiling draws around it
+TILED_MIN = 0.98
+# no task longer than LONG_MAX ms from the city hold to the street, nor on the pull-back (the budget is for a phone-class run,
+# 390 px at 6x CPU throttle, where a frame of the descent was 55 to 176 ms and leaving the hold 330 ms on the tree before)
+LONG_MAX = 200
 # the camera: on-screen ground speed at most GROUND_MAX screen widths a second, zoom at most ZOOM_MAX octaves a second (0.25 s
 # windows; the page's own caps, globe.js STORY_VMAX and STORY_ZMAX, are 0.6 and 1.6, and runs of the Story peak at 0.53 and
 # 1.60; the camera before the one fly-to rule peaked at 0.93 to 13.3 and 11.4 to 21.8), and once the descent below the city
@@ -210,12 +224,12 @@ def strip_pages(seq, out, name, title, mark, step=250.0, per=30):
     return paths
 
 async def main():
-    tag = f"zurich-{A.w}-x{A.throttle:g}-{A.cache}"
+    tag = f"zurich-{A.w}-x{A.throttle:g}-{A.cache}" + ("-late" if A.delay else "") + ("-net" if A.net else "")
     out = os.path.join(A.out, tag) if A.out else ""
     if out: os.makedirs(out, exist_ok=True)
     async with async_playwright() as p:
         b = await p.chromium.launch(channel="chrome", headless=True, args=["--use-angle=gl-egl", "--ignore-gpu-blocklist"])
-        ctx = await b.new_context(viewport={"width": A.w, "height": A.h}, device_scale_factor=2 if A.mob else 1, is_mobile=bool(A.mob), has_touch=bool(A.mob), service_workers="allow")
+        ctx = await b.new_context(viewport={"width": A.w, "height": A.h}, device_scale_factor=2 if A.mob else 1, is_mobile=bool(A.mob), has_touch=bool(A.mob), service_workers="block" if A.delay else "allow")
         errs = []
         if A.cache == "warm":
             pg0 = await ctx.new_page(); c0 = await ctx.new_cdp_session(pg0)
@@ -226,14 +240,22 @@ async def main():
         cons = []; pg.on("console", lambda m: cons.append(f"[{m.type}] {m.text}"[:300]) if m.type in ("error", "warning") else None)
         await pg.add_init_script(INIT)
         if A.break_detail: await pg.add_init_script("window.__breakDetail = true;")
+        if A.delay:
+            pat, hold_s = A.delay.rsplit(",", 1)[0], float(A.delay.rsplit(",", 1)[1]) / 1000.0
+            async def hold(route):  # one parameter: Playwright passes (route, request) to a handler that takes two
+                await asyncio.sleep(hold_s); await route.continue_()
+            await pg.route(lambda u, pat=pat: pat in u, hold)
         src = {}
         await cdp.send("Network.enable")
         cdp.on("Network.responseReceived", lambda ev: src.__setitem__(ev["response"]["url"].split("?")[0].split(f":{A.port}/")[-1],
             "service worker" if ev["response"].get("fromServiceWorker") else "http cache" if ev["response"].get("fromDiskCache") else "network"))
         if A.throttle != 1: await cdp.send("Emulation.setCPUThrottlingRate", {"rate": A.throttle})
+        if A.net:
+            dn, up, rtt = [float(x) for x in A.net.split(",")]
+            await cdp.send("Network.emulateNetworkConditions", {"offline": False, "latency": rtt, "downloadThroughput": dn * 125, "uploadThroughput": up * 125})
         frames, t_nav = await play(pg, cdp, True, A.until_act, A.max_s)
         Z = await pg.evaluate("""() => { const Z = window.__Z; const rt = {}; for (const e of performance.getEntriesByType('resource')) { const u = e.name.split('?')[0].replace(location.origin + '/', ''); if (!(u in rt)) rt[u] = { start: Math.round(e.startTime), end: Math.round(e.responseEnd), size: e.transferSize }; }
-          return { req: Z.req, builds: Z.builds, frames: Z.frames, origin0: Z.origin0, rt, err: Z.err || null, gl: Z.gl || null, glErr: (typeof gl !== 'undefined' && gl) ? gl.getError() : null, ctxLost: (typeof gl !== 'undefined' && gl) ? gl.isContextLost() : null,
+          return { req: Z.req, builds: Z.builds, frames: Z.frames, origin0: Z.origin0, lt: Z.lt, self: Z.self, rt, err: Z.err || null, gl: Z.gl || null, glErr: (typeof gl !== 'undefined' && gl) ? gl.getError() : null, ctxLost: (typeof gl !== 'undefined' && gl) ? gl.isContextLost() : null,
             zp: typeof ZP !== 'undefined' ? { log: ZP.log, built: ZP.built, leaves: ZP.leaves, done: ZP.done } : null, acts: STORY_ACTS.map(a => a.title) }; }""")
         await b.close()
     if out:  # the raw record first, so an analysis error never costs the run
@@ -251,6 +273,30 @@ async def main():
     last_beat = max([f["micro"].get("beat") or 0 for f in fr if f["act"] == 2] or [0])
     pull = next((f["t"] for f in fr if f["act"] == 2 and f["micro"].get("beat") == last_beat and last_beat > 0), a3)
     onstreet = lambda t: arrive <= t < pull
+    # the tiling around the street: on every frame while the camera is on the street, the Story's street is a leaf of the
+    # tiling and the tiling draws (its mosaic or laid-out leaves), so the neighbours show; and when it first did
+    street_fr = [f for f in fr if arrive + 1000 <= f["t"] < pull and f.get("tl")]
+    tiled = [f for f in street_fr if f["tl"].get("leaf") and (f["tl"].get("drawn", 0) + f["tl"].get("agg", 0)) > 0]
+    tiled_share = len(tiled) / max(1, len(street_fr))
+    first_tiled = next((f["t"] for f in fr if f["t"] >= a1 and f.get("tl") and f["tl"].get("leaf") and (f["tl"].get("drawn", 0) + f["tl"].get("agg", 0)) > 0), None)
+    # long tasks from the city hold (the street step's start) until the camera settles on the street, and on the pull-back
+    # from the street until the next step's view settles
+    a3f = [f for f in fr if f["act"] == 3]
+    back_end = next((f["t"] for f in a3f if abs(math.log2(f["zoom"] / max(1e-9, f.get("stz", f["tz"])))) < 0.05), a3f[-1]["t"] if a3f else pull) + 1000
+    # each long task less the witness's own sampling inside it (its per-frame checks run in the page's frame)
+    import bisect
+    sf = sorted(Z.get("self") or []); sfs = [x[0] for x in sf]
+    def own(a, d):
+        i = bisect.bisect_left(sfs, a); tot = 0.0
+        while i < len(sf) and sf[i][0] < a + d: tot += sf[i][1]; i += 1
+        return tot
+    lts = [(a, round(d - own(a, d))) for a, d in (Z.get("lt") or [])]
+    lt_in = lambda t0, t1: [d for a, d in lts if t0 <= a < t1]
+    lt_dive, lt_back = lt_in(a1, arrive), lt_in(pull, back_end)
+    long_by_act = {}
+    for a, d in lts:
+        act = min(fr, key=lambda f: abs(f["t"] - a))["act"] if fr else -1
+        long_by_act[str(act + 1)] = max(long_by_act.get(str(act + 1), 0), d)
     # per-frame defects, and backwards steps (detail held, then lost, at the same or finer scale)
     bad, back, prev = [], [], None
     for f in fr:
@@ -366,6 +412,9 @@ async def main():
                         "demand_in_steps_at_detail": sum(x["origin"] == "demand" and (x["mpp"] or 99) < 12 for x in b_in),
                         "demand_on_street": sum(x["origin"] == "demand" and onstreet(x["t"]) for x in builds),
                         "demand_in_steps_nearest_m": min([x["m_from_centre"] for x in b_in if x["origin"] == "demand" and x["m_from_centre"] is not None] or [None], key=lambda v: 1e18 if v is None else v)},
+        "tiling_on_street_share": round(tiled_share, 3), "street_frames": len(street_fr), "neighbours_first_ms_after_street_step": (first_tiled - a1) if first_tiled is not None else None,
+        "longest_task_dive_ms": max(lt_dive or [0]), "longest_task_pullback_ms": max(lt_back or [0]), "tasks_over_budget": {"dive": sorted(lt_dive, reverse=True)[:8], "pullback": sorted(lt_back, reverse=True)[:8]},
+        "longest_task_by_act_ms": long_by_act, "long_task_budget_ms": LONG_MAX,
         "painted_checks": len(ring), "painted_low": flat, "painted_min": min([r[1] for r in ring] or [None], key=lambda v: 9 if v is None else v), "painted_points": sum(r[2] for r in ring), "motion": motion, "bad_frames": len(bad), "bad_kinds": sorted({k for _, _, _, d in bad for k in [x.split(":")[0].split(" under")[0] for x in d]}),
         "bad_first": [(t, a, m, d) for t, a, m, d in bad[:12]], "backwards": back[:20], "n_backwards": len(back),
         "zp": Z["zp"], "errors": errs + ([Z["err"]] if Z["err"] else []), "gl": {"events": Z.get("gl"), "error_at_end": Z.get("glErr"), "context_lost": Z.get("ctxLost")}, "console": cons[:20],
@@ -386,8 +435,6 @@ async def main():
         # film strips at 250 ms, paged so each frame stays readable at about 2000 px: the whole approach (the Story's first
         # frame until 0.5 s after the camera settles on the street), and the street step's pull-back into the next step on the
         # globe (until 1 s after the camera settles there)
-        a3f = [f for f in fr if f["act"] == 3]
-        back_end = next((f["t"] for f in a3f if abs(math.log2(f["zoom"] / max(1e-9, f.get("stz", f["tz"])))) < 0.05), a3f[-1]["t"] if a3f else pull) + 1000
         summ["strips"] = {"approach": strip_pages([x for x in fl if x[0] <= arrive + 500], out, "approach",
                                                   f"{tag}  the approach, a frame every 250 ms, to the camera settled on the street ({arrive / 1000:.1f}s)", mark),
                           "pullback": strip_pages([x for x in fl if pull - 500 <= x[0] <= back_end], out, "pullback",
@@ -399,7 +446,11 @@ async def main():
         os.remove(os.path.join(out, "frames.pkl"))  # the sheet and the dive frames hold what the strip shows; the raw frames are large
     print(json.dumps(summ, indent=1))
     if A.check:
-        ok = not demand_in and not bad and not summ["errors"] and summ["leaf_builds"]["demand_on_street"] == 0 and ring and not flat \
+        why = [k for k, bad_ in [("tiles fetched on demand", bool(demand_in)), ("unloaded ground", bool(bad)), ("errors", bool(summ["errors"])), ("leaves built on demand on the street", summ["leaf_builds"]["demand_on_street"] > 0),
+              ("no painted checks", not ring), ("flat neighbourhood", bool(flat)), ("street not tiled around", tiled_share < TILED_MIN), ("long task in the dive", max(lt_dive or [0]) > LONG_MAX), ("long task on the pull-back", max(lt_back or [0]) > LONG_MAX),
+              ("ground speed", motion["peak_ground_widths_per_s"] > GROUND_MAX), ("zoom rate", motion["peak_zoom_octaves_per_s"] > ZOOM_MAX), ("target moved", motion["target_moved_widths_after_descent_began"] > TARGET_MAX), ("jitter", motion["straightness_min"] < STRAIGHT_MIN)] if bad_]
+        print("why:", why)
+        ok = not demand_in and not bad and not summ["errors"] and summ["leaf_builds"]["demand_on_street"] == 0 and ring and not flat and tiled_share >= TILED_MIN and max(lt_dive or [0]) <= LONG_MAX and max(lt_back or [0]) <= LONG_MAX \
             and motion["peak_ground_widths_per_s"] <= GROUND_MAX and motion["peak_zoom_octaves_per_s"] <= ZOOM_MAX and motion["target_moved_widths_after_descent_began"] <= TARGET_MAX \
             and motion["straightness_min"] >= STRAIGHT_MIN
         print("OK" if ok else "FAIL"); sys.exit(0 if ok else 1)
