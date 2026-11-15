@@ -2344,8 +2344,9 @@ function microDraw(){
   const dimOf = (i) => (microStoryDim && !microStoryDim.has(i)) ? 0.22 : 1;
   const sel = microSel;
   const selDim = (a, b) => sel < 0 ? 1 : (a === sel || b === sel) ? 1.6 : 0.35;
-  // far view: arcs from the street to its seats and servers
-  if (P < 160){
+  // far view: arcs from the street to its seats and servers. Not in the Story's globe chapters: the street steps leave
+  // their world here, and its seat sits at a generated site 1,500 to 8,000 km off, so the arc ran across the planet.
+  if (P < 160 && !(storyActive && !microStory)){
     const a = 1 - sstep(60, 160, P), seen = new Set();
     for (let l = 0; l < M.links.length; l += 4){
       const x = M.links[l], y = M.links[l + 1]; const kx = nodeFlags(x) & NF.offPatch, ky = nodeFlags(y) & NF.offPatch;
