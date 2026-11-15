@@ -1,2 +1,2 @@
 // Written by tools/page/stamp_source.sh: the commit whose code this page runs (AGPL source link).
-const CEWP_SOURCE_COMMIT = "b7971313a4c0b0bbef5180c52487ca6cde2dc0f0";
+const CEWP_SOURCE_COMMIT = "9fc42ead332f3c4f13b7b8d4a2aae7af2f99bf02";
