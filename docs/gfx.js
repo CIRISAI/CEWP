@@ -255,7 +255,7 @@ void main(){float th=acos(clamp(dot(ia,ib),-1.0,1.0));float lift=ik.y;float t=co
 vec3 q=R*p,qa=R*p0,qb=R*p2;vec2 h=uRes*0.5;vec2 c=vec2(q.x*S*asp.x,q.y*S*asp.y)*h;vec2 d=(vec2(qb.x*S*asp.x,qb.y*S*asp.y)-vec2(qa.x*S*asp.x,qa.y*S*asp.y))*h;float l=length(d);d=l>1e-6?d/l:vec2(1.0,0.0);
 float hw=im.w*0.5*uDpr+1.0;vec2 P=c+vec2(-d.y,d.x)*corner.y*hw;vHW=im.w*0.5*uDpr;vEdge=corner.y*hw;vT=t;vAge=im.y>0.0?(uTime-im.x)/im.y:-1.0;vTier=im.z;vKind=ik.x;vLen=th;
 vHid=(q.z<0.0)?(1.0-smoothstep(1.0,1.012,length(q.xy))):0.0;gl_Position=vec4(P/h,0.0,1.0);}`;
-const RF2 = `${FP}uniform float uTime;uniform float uReduced;varying float vT;varying float vEdge;varying float vHW;varying float vAge;varying float vTier;varying float vHid;varying float vKind;varying float vLen;
+const RF2 = `${FP}uniform float uPhase;uniform float uReduced;varying float vT;varying float vEdge;varying float vHW;varying float vAge;varying float vTier;varying float vHid;varying float vKind;varying float vLen;
 void main(){bool still=vAge<0.0;if(!still&&(vAge<=0.0||vAge>=1.0))discard;float cov=clamp(vHW+0.5-abs(vEdge),0.0,1.0);if(cov<0.004)discard;float vis=1.0-vHid;if(vis<0.01)discard;
 float env=still?1.0:smoothstep(0.0,0.16,vAge)*(1.0-smoothstep(0.62,1.0,vAge));
 vec3 col=vec3(1.0,0.62,0.30);if(vTier>3.5)col=vec3(1.0,0.84,0.52);else if(vTier>2.5)col=vec3(0.78,0.56,1.0);else if(vTier>1.5)col=vec3(0.36,0.90,0.62);else if(vTier>0.5)col=vec3(0.42,0.74,1.0);
@@ -263,7 +263,7 @@ float pat=1.0;float k=vT*max(6.0,vLen*60.0);
 if(vTier>3.5){pat=1.0;}else if(vTier>2.5){pat=0.55+0.45*step(0.35,abs(vEdge)/max(1.0,vHW+1.0));}
 else if(vTier>1.5){pat=0.30+0.70*smoothstep(0.42,0.18,abs(fract(k)-0.5));}
 else if(vTier>0.5){pat=0.25+0.75*step(0.28,fract(k*0.5));}
-float head=0.0;if(uReduced<0.5){float hp=still?fract(uTime*0.22+vLen*0.37):fract(vAge*1.35);float dd=vT-hp;head=0.55*exp(-dd*dd*500.0)+0.25*smoothstep(-0.25,0.0,dd)*step(dd,0.0);}else{head=0.0;}
+float head=0.0;if(uReduced<0.5){float hp=still?fract(uPhase+vLen*0.37):fract(vAge*1.35);float dd=vT-hp;head=0.55*exp(-dd*dd*500.0)+0.25*smoothstep(-0.25,0.0,dd)*step(dd,0.0);}else{head=0.0;}
 float base=(vKind>0.5)?0.26:0.20;float a=min(1.0,env*(base*pat+head*(vKind>0.5?0.9:0.6)))*cov*vis;if(a<0.004)discard;
 vec3 c=mix(col,vec3(1.0,0.97,0.9),clamp(head*0.35,0.0,0.3));gl_FragColor=vec4(c,min(a,0.72));}`;
 const ARCS = { cap: 24000, data: null, n: 0, buf: null, geo: null, dirty: true };
@@ -282,7 +282,9 @@ function gfxArcsDraw(R, S, asp, nowSec, sets){
   if (!ARCS.buf) ARCS.buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, ARCS.buf); gl.bufferData(gl.ARRAY_BUFFER, D.subarray(0, w * ARC_STRIDE), gl.STREAM_DRAW);
   const I = GFX.inst, L = gfxProg("arc", RV2, RF2); gfxCommon(L, R, S, asp);
-  gl.uniform1f(L.u.uTime, nowSec); gl.uniform1f(L.u.uDpr, GFX.k); gl.uniform1f(L.u.uReduced, GFX.reduced ? 1 : 0);
+  // the head's phase is worked out here, not from uTime in the fragment stage: a uniform both stages declare must have one
+  // precision, and a device without highp in the fragment stage failed to link this program, so the page never booted
+  gl.uniform1f(L.u.uTime, nowSec); if (L.u.uPhase) gl.uniform1f(L.u.uPhase, (nowSec * 0.22) % 1); gl.uniform1f(L.u.uDpr, GFX.k); gl.uniform1f(L.u.uReduced, GFX.reduced ? 1 : 0);
   gl.bindBuffer(gl.ARRAY_BUFFER, gfxArcGeo()); gl.enableVertexAttribArray(L.a.corner); gl.vertexAttribPointer(L.a.corner, 2, gl.FLOAT, false, 0, 0);
   gl.bindBuffer(gl.ARRAY_BUFFER, ARCS.buf); const B = ARC_STRIDE * 4;
   for (const [nm, sz, off] of [["ia", 3, 0], ["ib", 3, 12], ["im", 4, 24], ["ik", 2, 40]]){ gl.enableVertexAttribArray(L.a[nm]); gl.vertexAttribPointer(L.a[nm], sz, gl.FLOAT, false, B, off); I.vertexAttribDivisorANGLE(L.a[nm], 1); }
