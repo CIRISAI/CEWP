@@ -2356,22 +2356,13 @@ function microDraw(){
     const p = nodeScreen(F, A, i); sx[i] = p[0]; sy[i] = p[1]; vis[i] = p[2] > 0 ? 1 : 0;
   }
   M.sx = sx; M.sy = sy; M.vis = vis;
-  if (P > 300) placeEdgeMarkers(F); else M.markers = [];
+  // a node off the patch (a serve seat, a server) sits at a generated site 1,500 to 8,000 km away: it is never drawn on the
+  // map. At street scale it is an edge marker (a pointer at the screen's edge with its distance); further out it is not drawn
+  if (P > 300) placeEdgeMarkers(F); else { M.markers = []; for (let i = 0; i < n; i++) if (nodeFlags(i) & NF.offPatch) vis[i] = 0; }
   const onScreen = (i) => vis[i] && sx[i] > -40 && sy[i] > -40 && sx[i] < F.w + 40 && sy[i] < F.h + 40;
   const dimOf = (i) => (microStoryDim && !microStoryDim.has(i)) ? 0.22 : 1;
   const sel = microSel;
   const selDim = (a, b) => sel < 0 ? 1 : (a === sel || b === sel) ? 1.6 : 0.35;
-  // far view: arcs from the street to its seats and servers. Not in the Story's globe chapters: the street steps leave
-  // their world here, and its seat sits at a generated site 1,500 to 8,000 km off, so the arc ran across the planet.
-  if (P < 160 && !(storyActive && !microStory)){
-    const a = 1 - sstep(60, 160, P), seen = new Set();
-    for (let l = 0; l < M.links.length; l += 4){
-      const x = M.links[l], y = M.links[l + 1]; const kx = nodeFlags(x) & NF.offPatch, ky = nodeFlags(y) & NF.offPatch;
-      if (!!kx === !!ky) continue; const far = kx ? x : y; if (seen.has(far)) continue; seen.add(far);
-      const shaped = ((M.links[l + 2] >>> 8) & 0xff) > 0;
-      drawArc(g, F, M.lat0, M.lon0, M.nf[far * 4 + 2], M.nf[far * 4 + 3], shaped ? "255,177,92" : "90,211,143", 0.55 * a);
-    }
-  }
   // links
   if (nodeA > 0){
     g.lineCap = "round";
@@ -2379,7 +2370,8 @@ function microDraw(){
       const x = M.links[l], y = M.links[l + 1], pk = M.links[l + 2], kind = pk & 0xff, shaped = (pk >>> 8) & 0xff, atBound = (pk >>> 16) & 1;
       if (!vis[x] && !vis[y]) continue;
       const fx = nodeFlags(x) & NF.offPatch, fy = nodeFlags(y) & NF.offPatch;
-      if (fx && fy && P > 160) continue; // seat mesh / server-to-seat: drawn from far away only
+      if (fx && fy) continue; // the seat mesh: between generated sites, never drawn
+      if ((fx || fy) && !vis[fx ? x : y]) continue; // to a node off the patch: only to its edge marker, at street scale
       let ax = sx[x], ay = sy[x], bx = sx[y], by = sy[y];
       let alpha = nodeA * selDim(x, y) * Math.min(dimOf(x), dimOf(y)) * 1.0;
       let col, wdt;
@@ -2412,9 +2404,9 @@ function microDraw(){
     const s = Math.max(F.w < 600 ? 7 : 5, Math.min(F.w < 600 ? 14 : 12, 3.4 + ppm * 2.6)); // at least 7 px on a phone: a glyph you can tell apart and tap
     for (let i = 0; i < n; i++){
       if (!(nodeFlags(i) & NF.present) || !onScreen(i)) continue;
-      const off = nodeFlags(i) & NF.offPatch; if (off && P > 300) continue; // drawn as edge markers instead
+      if (nodeFlags(i) & NF.offPatch) continue; // off the patch: an edge marker at street scale, never a glyph at its generated site
       const big = microStoryDim && microStoryDim.has(i) ? 1.5 : 1;
-      drawNodeGlyph(g, i, sx[i], sy[i], (off ? Math.max(3, s * 0.8) : s) * big, nodeA * dimOf(i) * (sel < 0 || sel === i ? 1 : 0.55), ppm);
+      drawNodeGlyph(g, i, sx[i], sy[i], s * big, nodeA * dimOf(i) * (sel < 0 || sel === i ? 1 : 0.55), ppm);
     }
     if (P > 300) drawEdgeMarkers(g, F, nodeA);
     if (sel >= 0 && sel < n && vis[sel]){
@@ -2442,18 +2434,6 @@ function clipToScreen(ax, ay, bx, by, F, m = 14){
   if (dy > 0) t = Math.min(t, (y1 - ay) / dy); else if (dy < 0) t = Math.min(t, (y0 - ay) / dy);
   t = Math.max(0, t); return [ax + dx * t, ay + dy * t];
 }
-function drawArc(g, F, la1, lo1, la2, lo2, rgb, alpha){
-  const a = xyz(la1, lo1), b = xyz(la2, lo2); const dot = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])); const th = Math.acos(dot); if (th < 1e-7) return;
-  g.strokeStyle = `rgba(${rgb},${alpha})`; g.lineWidth = 1.3; g.beginPath(); let started = false;
-  for (let s = 0; s <= 24; s++){
-    const t = s / 24, w1 = Math.sin((1 - t) * th) / Math.sin(th), w2 = Math.sin(t * th) / Math.sin(th), h = 1 + Math.min(0.12, th * 0.25) * Math.sin(t * Math.PI);
-    const q = camQ((a[0] * w1 + b[0] * w2) * h, (a[1] * w1 + b[1] * w2) * h, (a[2] * w1 + b[2] * w2) * h);
-    const X = F.w / 2 + F.k * q[0], Y = F.h / 2 - F.k * q[1];
-    if (q[2] < -0.05){ started = false; continue; }
-    if (!started){ g.moveTo(X, Y); started = true; } else g.lineTo(X, Y);
-  }
-  g.stroke();
-}
 function drawPulses(g, F, alpha, dimOf){
   const E = M.ev, span = 2.2 * microTimeScale; // a row's pulse lasts 2.2 s of real time
   for (let e = 0; e < E.length; e += 7){
@@ -2462,6 +2442,7 @@ function drawPulses(g, F, alpha, dimOf){
     const pts = [src]; if (via < 4294967295 && via !== dst) pts.push(via); if (via2 < 4294967295 && via2 !== dst) pts.push(via2); if (route !== 2) pts.push(dst);
     if (pts.length < 2) continue;
     if (!pts.some(i => M.vis[i])) continue;
+    if (pts.some(i => (nodeFlags(i) & NF.offPatch) && !M.vis[i])) continue; // through a node off the patch: only at street scale
     const xy = pts.map(i => [M.sx[i], M.sy[i]]);
     const col = route === 1 ? "235,170,255" : route === 2 || route === 3 ? "255,236,150" : route === 4 ? "108,182,255" : shaped ? "255,177,92" : "120,240,170";
     const a = alpha * (1 - age / span) * Math.min(dimOf(src), dimOf(dst) * 2);

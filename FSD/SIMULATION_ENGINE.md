@@ -486,7 +486,8 @@ Constants copied from the stack are not parameters. They carry their citation in
   - links by kind and shaped class;
   - pending punches;
   - rows as pulses along their real path (direct, relayed via the forwarder, held at the mailbox, handed over).
-- **Off-street nodes:** they are globe arcs from far away and screen-edge markers at street scale.
+- **Off-street nodes:** a serve seat or server sits at a generated site 1,500 to 8,000 km away, so it is never drawn on
+  the map. At street scale it is a marker at the screen's edge with its distance; further out neither it nor its links are drawn.
 - **Outside the patch:** nothing is drawn 1:1. The boundary is marked, and the population grid's own cells are drawn on the land.
 - **Land and map layers (Natural Earth, public domain):** land, lakes, rivers, country borders and populated places come from Natural Earth v5.1.2 GeoJSON. `tools/geo/build_ne.py` quantizes them into the page's own delta-encoded binary format (CG1, documented in the script) and the raw files are never committed. Land and the lakes on it are filled even-odd through the stencil buffer as fans, so no grid size shows at any zoom. The population tiles, the ground and the people are drawn only where the stencil says land. The shoreline is the land and lake rings' own edges, minus the cut edges on the antimeridian and the south pole. The resolution follows metres per pixel:
   - 110m is embedded in `docs/geo/ne110.js` and is also the land test.
