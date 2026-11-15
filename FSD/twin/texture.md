@@ -69,8 +69,10 @@ Advanced switch "ground texture: flat / procedural".
 ## 4. Known limits
 
 **Precision on phones.** The street fragment shader asks for `highp` where `GL_FRAGMENT_PRECISION_HIGH` is defined and
-`mediump` otherwise. The vertex shader builds the grid coordinate `vN` in `highp`; the fragment stage receives it in its
-own precision.
+`mediump` otherwise. The texture is offered only where the fragment stage has `highp` (`GFX.hiFrag`); elsewhere the
+switch is disabled and reads "ground texture: not on this device", and `?tex=1` has no effect
+(`docs/geo/tex_switch.test.js`). The vertex shader builds the grid coordinate `vN` in `highp`; the fragment stage
+receives it in its own precision.
 
 - **The range.** `uNO` is the world grid taken modulo 4,096 m in double precision, once per L3 tile. The vertex's offset in
   the tile's frame is at most about 1.11 km, because an L3 tile is 0.02 degrees, about 2.23 km, across. So `vN` spans

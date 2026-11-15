@@ -137,8 +137,19 @@ function tlTerrain(la, lo){
   return { g0: g0.map(v => v * lit), g1: g1.map(v => v * lit), roof, warm, m, lit, z: r ? r[2] : -1, lc: L ? L.code : -1 };
 }
 const tlGround = (T, t) => tlMix3(T.g0, T.g1, t);
-// The rival texture's switch (Advanced: "ground texture: flat / procedural"), off by default.
-const TL_TEX = { on: typeof location !== "undefined" && /[?&]tex=1(&|$)/.test(location.search) }; // ?tex=1 starts it on (for the witnesses)
+// ---- the texture switch (tested by docs/geo/tex_switch.test.js)
+// The rival texture's switch (Advanced: "ground texture: flat / procedural"), off by default. It needs highp in the fragment
+// stage (FSD/twin/texture.md, known limits: at mediump the fine octaves cannot be resolved and the hash overflows), so
+// without it the switch is disabled, reads "not on this device", and ?tex=1 has no effect.
+function tlTexOk(gfx){ return !!(gfx && gfx.hiFrag); }
+function tlTexMake(gfx, search){ const ok = tlTexOk(gfx); return { ok, on: ok && /[?&]tex=1(&|$)/.test(search || "") }; } // ?tex=1 starts it on (for the witnesses)
+const tlTexUniform = (tex, mapActive) => tex.ok && tex.on ? (mapActive ? 0.5 : 1) : 0; // halved under a data map
+const tlTexToggle = (tex) => { if (tex.ok) tex.on = !tex.on; return tex.on; };
+const tlTexButton = (tex) => tex.ok
+  ? `<button type="button" class="dm-b" data-tl-tex aria-pressed="${tex.on}">ground texture: ${tex.on ? "procedural" : "flat"}</button>`
+  : `<button type="button" class="dm-b" data-tl-tex disabled aria-disabled="true">ground texture: not on this device</button>`;
+// ---- end of the texture switch
+const TL_TEX = tlTexMake(typeof GFX !== "undefined" ? GFX : null, typeof location !== "undefined" ? location.search : "");
 // The texture's world-anchored metre grid for an L3 tile's frame: x = (lon + 180) x 111,320 x cos(the 1.5-degree latitude band's
 // centre), y = (lat + 90) x 111,320, both taken modulo the noise's 4,096 m period in double precision here, so the shader
 // works in small numbers; a tile's frame metres map to it by x' = x0 + kx * x (kx = cos(band) / cos(tile)) and y' = y0 + y.
@@ -456,7 +467,7 @@ function tlDraw(w, h, mpp, sun){
       if (bt.night === undefined || frame % 30 === 0){ const [la, lo] = tlCentre(list[0].t); bt.night = tlNight(sun, la, lo); bt.terr = tlTerrain(la, lo); }
       gl.uniform1f(tlLoc.dim, bt.night); gl.uniform1f(tlLoc.terr, 1);
       { const [la, lo] = tlCentre(list[0].t), no = tlNoiseOrigin(la, lo); gl.uniform4f(tlLoc.no, no[0], no[1], no[2], 1);
-        gl.uniform1f(tlLoc.tex, TL_TEX.on ? (typeof DATAMAP !== "undefined" && DATAMAP.active ? 0.5 : 1) : 0); } // halved under a data map
+        gl.uniform1f(tlLoc.tex, tlTexUniform(TL_TEX, typeof DATAMAP !== "undefined" && DATAMAP.active)); }
       gl.uniform3fv(tlLoc.g0, bt.terr.g0); gl.uniform3fv(tlLoc.g1, bt.terr.g1); gl.uniform3fv(tlLoc.roof, bt.terr.roof);
       gl.bindBuffer(gl.ARRAY_BUFFER, bt.vbo); tlAttribs();
       gl.uniform3f(tlLoc.X, A.a, A.c, A.e); gl.uniform3f(tlLoc.Y, A.b, A.d, A.f); gl.uniform1f(tlLoc.ppm, A.ppm);
