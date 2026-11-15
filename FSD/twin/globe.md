@@ -426,7 +426,8 @@ view at the dive's first frame). Then, in idle slices under 8 ms: the Story's st
 two homes a punch can join), one candidate world per idle callback, dropping the world afterwards; then the
 leaves the street act's views show around that street (the whole street, 600 m or more across the
 screen's short side, on this screen, plus the street's half-width: about 250 leaves at 390 px and 270 at
-1440 px), which the street act waits on as it waits on the search (the same 15 s bound); then, once the
+1440 px), which the street act waits on for at most 15 s (the search, and the inputs it needs, for at most 60 s:
+below, "The street step on a slow phone"); then, once the
 street steps are over, the square around the centre that the default zoom lands in (leaf layouts and
 arterials within 0.018°; about 220 more leaves). The Story turns to Zurich during its opening step
 and its camera (below, "The Story's camera") comes straight down onto the street, so the dive needs
@@ -509,7 +510,8 @@ last kilometres were crossed at street scale, and act changes zoomed at up to 22
 
 - The opening step faces the visitor's side of the world, then turns toward Zurich over most of its length
   (eased in and out), so the street step does not open with a sweep across an ocean.
-- While the street step waits for its street, the target is the city: the camera holds over it at 450 m a pixel
+- While the street step waits for its street, the target is the city: the camera holds over it at 450 m a pixel,
+  drifting slowly round it so the hold never reads as a freeze
   (the place names and lakes read there on any screen, and the street tiling is not yet drawn, so the wait spends no
   frame time laying out leaves; held at 40 km across, a wait showed only the tiling's blurred mosaic, and held at 120 km
   across, the tiling laid out leaves through the wait and once, at 1440 px and 4x CPU, the street's search ran past the
@@ -546,6 +548,28 @@ in which the centre travels more than 0.05 screen widths, the straight-line dist
 of the path: straight runs score 0.94 or more, the free-roam glide scored 0.0 to 0.02). It fails on the tree before
 this rule and passes on this one. Film strips (a frame every 250 ms) of the approach and of the street step's
 pull-back are written with --out.
+
+### The street step on a slow phone (late inputs, long tasks)
+
+On a phone the Story's street step could end as one lone square street with nothing drawn around it, after a camera that
+stood still over the city for 15 s: the step waited at most 15 s for the tiling's own inputs (the 1/8-degree people grid,
+the 50 m land, the places, the kernel's population chain) and for the search for its street; past that it built a lone
+square tile, and the tiling stays off while the Story's street is not one of its leaves, so no neighbour was drawn for both
+street steps, and nothing switched it back on. On a 6x-throttled cold load even an ordinary run ran out the 15 s (the
+neighbour prebuild took 25 s).
+
+Now the step waits up to 60 s for those inputs and for the search (STORY_WAIT_MAX_MS), and 15 s for the leaves laid out
+around the street, which fill in at the detail disc's edge as they finish; while it waits the camera drifts slowly round the
+city and the caption says what is still coming. The lone square tile is kept for a real failure (no kernel, an input that
+failed to load); if it was used and the tiling can be drawn, the street steps start again on a leaf at the next beat. The
+search never runs inside a frame. The descent's long work moved out of its frames: the tiling's program compiled ahead, the
+budgets and mosaic colours of the holons the descent will show worked out in idle slices while the Story holds (tlWarm), a
+holon's colours kept by holon id (tlColour), the 50 m land's fan in steps of at most 1,500 ring edges.
+
+Witness: tools/page/story_zoom/run.py at 390 px and 6x CPU, cold: every frame on the street has its neighbours (the Story's
+street a leaf, the tiling drawing), the hold never stands still over 3 s, and no task over 200 ms from the city hold to the
+street or on the pull-back; with --delay gd/pop1.bin.gz,40000 (the people grid late) the same, the kernel's pop_load and one
+street-search candidate (micro_build_leaf) named as known items until the kernel builds them in slices.
 
 ## Street classes, the floor and the region rule (one table; machine-readable: docs/geo/classes.json)
 

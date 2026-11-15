@@ -46,7 +46,7 @@ URL = f"http://127.0.0.1:{A.port}/index.html"
 
 INIT = r"""(() => {
   Error.stackTraceLimit = 30;
-  const Z = window.__Z = { req: [], builds: [], frames: [], open: {}, origin0: performance.timeOrigin, lt: [], self: [] };
+  const Z = window.__Z = { req: [], builds: [], frames: [], open: {}, origin0: performance.timeOrigin, lt: [], self: [], known: [] };
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) Z.lt.push([Math.round(e.startTime), Math.round(e.duration)]); }).observe({ entryTypes: ["longtask"] }); } catch (e) {}
   // a request stays open until its tile is ready (on the GPU) and then until it is first drawn; a tile asked again
   // (evicted, then wanted) opens a new request
@@ -66,6 +66,10 @@ INIT = r"""(() => {
     wrap("geoLoad", (key, level) => { if (!GEODATA.pending.has(key + level)) Z.req.push({ ready: null, first_drawn: null, kind: "grid", key: key + level, url: "geo/gd/" + key + level + ".bin.gz", origin: who(), by: by(), ...ctx() }); });
     wrap("geoLoad50", () => { if (!GEO.p50) Z.req.push({ ready: null, first_drawn: null, kind: "land50", key: "ne50+lakes", url: "geo/ne50.bin", origin: who(), by: by(), ...ctx() }); });
     wrap("geoLoadPlaces", () => { if (!GEO.pPlaces) Z.req.push({ ready: null, first_drawn: null, kind: "places", key: "places", url: "geo/places.bin", origin: who(), by: by(), ...ctx() }); });
+    // the kernel calls a late input runs inside the hold, each one long task until the kernel builds them in slices, CIRISAI/CEWP#23 (named
+    // known items in --delay runs, never in a normal run): pop_load (tlPopKernel) and one street-search candidate (microBuildLeaf)
+    for (const [n, tag] of [["tlPopKernel", "pop_load"], ["microBuildLeaf", "micro_build_leaf"]]){ const f0 = window[n]; if (typeof f0 !== "function") continue;
+      window[n] = function(){ const t0 = performance.now(); try { return f0.apply(this, arguments); } finally { const d = performance.now() - t0; if (d > 20) Z.known.push([tag, Math.round(t0), Math.round(d)]); } }; }
     const tb = window.tlBuildLeaf;
     if (typeof tb === "function") window.tlBuildLeaf = function(leaf){ const o = who(), t0 = performance.now(), c = ctx(); const e = tb.apply(this, arguments);
       let k = null, d = null; try { k = HOLON.pack(leaf); const b = HOLON.boundsDeg(leaf), la = pitch * 180 / Math.PI, lo = ((yaw * 180 / Math.PI + 540) % 360) - 180;
@@ -144,6 +148,12 @@ async def play(pg, cdp, rec, stop_act, max_s):
 
 # below this share of drawn lit roofs that show on screen, the tiling's detail was counted as drawn but not painted:
 # with --break-detail (leaves counted, nothing painted) 0.0 to 0.105; normal runs at least 0.59 (1440) and 0.77 (390)
+def _gcm(a, b):
+    la1, lo1, la2, lo2 = map(math.radians, (a[0], a[1], b[0], b[1]))
+    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
+    return 2 * 6371008.8 * math.asin(min(1.0, math.sqrt(h)))
+# the hold over the city never stands still longer than STILL_MAX ms (the camera drifts while the street step waits)
+STILL_MAX = 3000
 PAINTED_MIN = 0.35
 # the street keeps its neighbours: on every frame on the street (a 0.98 share, for the frame the camera settles on) the
 # Story's street is a leaf of the tiling and the tiling draws around it
@@ -255,7 +265,7 @@ async def main():
             await cdp.send("Network.emulateNetworkConditions", {"offline": False, "latency": rtt, "downloadThroughput": dn * 125, "uploadThroughput": up * 125})
         frames, t_nav = await play(pg, cdp, True, A.until_act, A.max_s)
         Z = await pg.evaluate("""() => { const Z = window.__Z; const rt = {}; for (const e of performance.getEntriesByType('resource')) { const u = e.name.split('?')[0].replace(location.origin + '/', ''); if (!(u in rt)) rt[u] = { start: Math.round(e.startTime), end: Math.round(e.responseEnd), size: e.transferSize }; }
-          return { req: Z.req, builds: Z.builds, frames: Z.frames, origin0: Z.origin0, lt: Z.lt, self: Z.self, rt, err: Z.err || null, gl: Z.gl || null, glErr: (typeof gl !== 'undefined' && gl) ? gl.getError() : null, ctxLost: (typeof gl !== 'undefined' && gl) ? gl.isContextLost() : null,
+          return { req: Z.req, builds: Z.builds, frames: Z.frames, origin0: Z.origin0, lt: Z.lt, self: Z.self, known: Z.known, rt, err: Z.err || null, gl: Z.gl || null, glErr: (typeof gl !== 'undefined' && gl) ? gl.getError() : null, ctxLost: (typeof gl !== 'undefined' && gl) ? gl.isContextLost() : null,
             zp: typeof ZP !== 'undefined' ? { log: ZP.log, built: ZP.built, leaves: ZP.leaves, done: ZP.done } : null, acts: STORY_ACTS.map(a => a.title) }; }""")
         await b.close()
     if out:  # the raw record first, so an analysis error never costs the run
@@ -291,7 +301,29 @@ async def main():
         while i < len(sf) and sf[i][0] < a + d: tot += sf[i][1]; i += 1
         return tot
     lts = [(a, round(d - own(a, d))) for a, d in (Z.get("lt") or [])]
-    lt_in = lambda t0, t1: [d for a, d in lts if t0 <= a < t1]
+    # in a --delay run the kernel's own calls inside a task (pop_load, one micro_build_leaf) are named and set apart: a task is a
+    # known item when, less that call, it is within the budget; every other task over the budget still fails
+    kn = Z.get("known") or []
+    def known_in(a, d):
+        ks = [k for k in kn if a - 1 <= k[1] < a + d]
+        return ks if A.delay and ks and d - sum(k[2] for k in ks) <= LONG_MAX else []
+    known_items = []
+    # the hold over the city while the street step waits: the camera drifts, it never stands still for long (the longest stretch
+    # of the wait in which the screen centre stayed within 100 m of where it was)
+    hold = [f for f in fr if f["act"] == 1 and (f.get("micro") or {}).get("wait")]
+    still, i0 = 0, 0
+    for i in range(len(hold)):
+        while i0 < i and _gcm((hold[i0]["la"], hold[i0]["lo"]), (hold[i]["la"], hold[i]["lo"])) > 100: i0 += 1
+        still = max(still, hold[i]["t"] - hold[i0]["t"])
+    hold_ms = (hold[-1]["t"] - hold[0]["t"]) if hold else 0
+    def lt_in(t0, t1):
+        out = []
+        for a, d in lts:
+            if not (t0 <= a < t1): continue
+            ks = known_in(a, d) if d > LONG_MAX else []
+            if ks: known_items.append({"task_ms": d, "at_ms": a, "calls": [[k[0], k[2]] for k in ks], "until": "CIRISAI/CEWP#23: the kernel builds these in slices"})
+            else: out.append(d)
+        return out
     lt_dive, lt_back = lt_in(a1, arrive), lt_in(pull, back_end)
     long_by_act = {}
     for a, d in lts:
@@ -413,7 +445,7 @@ async def main():
                         "demand_on_street": sum(x["origin"] == "demand" and onstreet(x["t"]) for x in builds),
                         "demand_in_steps_nearest_m": min([x["m_from_centre"] for x in b_in if x["origin"] == "demand" and x["m_from_centre"] is not None] or [None], key=lambda v: 1e18 if v is None else v)},
         "tiling_on_street_share": round(tiled_share, 3), "street_frames": len(street_fr), "neighbours_first_ms_after_street_step": (first_tiled - a1) if first_tiled is not None else None,
-        "longest_task_dive_ms": max(lt_dive or [0]), "longest_task_pullback_ms": max(lt_back or [0]), "tasks_over_budget": {"dive": sorted(lt_dive, reverse=True)[:8], "pullback": sorted(lt_back, reverse=True)[:8]},
+        "hold_ms": hold_ms, "hold_still_longest_ms": still, "known_over_budget": known_items, "longest_task_dive_ms": max(lt_dive or [0]), "longest_task_pullback_ms": max(lt_back or [0]), "tasks_over_budget": {"dive": sorted(lt_dive, reverse=True)[:8], "pullback": sorted(lt_back, reverse=True)[:8]},
         "longest_task_by_act_ms": long_by_act, "long_task_budget_ms": LONG_MAX,
         "painted_checks": len(ring), "painted_low": flat, "painted_min": min([r[1] for r in ring] or [None], key=lambda v: 9 if v is None else v), "painted_points": sum(r[2] for r in ring), "motion": motion, "bad_frames": len(bad), "bad_kinds": sorted({k for _, _, _, d in bad for k in [x.split(":")[0].split(" under")[0] for x in d]}),
         "bad_first": [(t, a, m, d) for t, a, m, d in bad[:12]], "backwards": back[:20], "n_backwards": len(back),
@@ -448,9 +480,9 @@ async def main():
     if A.check:
         why = [k for k, bad_ in [("tiles fetched on demand", bool(demand_in)), ("unloaded ground", bool(bad)), ("errors", bool(summ["errors"])), ("leaves built on demand on the street", summ["leaf_builds"]["demand_on_street"] > 0),
               ("no painted checks", not ring), ("flat neighbourhood", bool(flat)), ("street not tiled around", tiled_share < TILED_MIN), ("long task in the dive", max(lt_dive or [0]) > LONG_MAX), ("long task on the pull-back", max(lt_back or [0]) > LONG_MAX),
-              ("ground speed", motion["peak_ground_widths_per_s"] > GROUND_MAX), ("zoom rate", motion["peak_zoom_octaves_per_s"] > ZOOM_MAX), ("target moved", motion["target_moved_widths_after_descent_began"] > TARGET_MAX), ("jitter", motion["straightness_min"] < STRAIGHT_MIN)] if bad_]
+              ("camera still in the hold", still > STILL_MAX), ("ground speed", motion["peak_ground_widths_per_s"] > GROUND_MAX), ("zoom rate", motion["peak_zoom_octaves_per_s"] > ZOOM_MAX), ("target moved", motion["target_moved_widths_after_descent_began"] > TARGET_MAX), ("jitter", motion["straightness_min"] < STRAIGHT_MIN)] if bad_]
         print("why:", why)
-        ok = not demand_in and not bad and not summ["errors"] and summ["leaf_builds"]["demand_on_street"] == 0 and ring and not flat and tiled_share >= TILED_MIN and max(lt_dive or [0]) <= LONG_MAX and max(lt_back or [0]) <= LONG_MAX \
+        ok = not demand_in and not bad and not summ["errors"] and summ["leaf_builds"]["demand_on_street"] == 0 and ring and not flat and tiled_share >= TILED_MIN and still <= STILL_MAX and max(lt_dive or [0]) <= LONG_MAX and max(lt_back or [0]) <= LONG_MAX \
             and motion["peak_ground_widths_per_s"] <= GROUND_MAX and motion["peak_zoom_octaves_per_s"] <= ZOOM_MAX and motion["target_moved_widths_after_descent_began"] <= TARGET_MAX \
             and motion["straightness_min"] >= STRAIGHT_MIN
         print("OK" if ok else "FAIL"); sys.exit(0 if ok else 1)

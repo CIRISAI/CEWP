@@ -305,6 +305,57 @@ function tlScreen(arr, alpha){
   gl.drawArrays(gl.TRIANGLES, 0, arr.length / 10);
 }
 
+// A mosaic holon's colours: its tone (households per km2) over its climate's ground, each corner's blended land cover where
+// that answers, the night; kept by holon id until its households, the hour's light (to 1/64) or the relief switch change.
+// They were worked out again for every holon in view on every frame (tlTerrain, tlLcGround: the descent's longest work).
+function tlColour(c, b, la, lo, km2, sun, relA){
+  if (!TL.mcol || TL.mcol.size > 40000) TL.mcol = new Map();
+  const key = HOLON.pack(c), nq = Math.round(tlNight(sun, la, lo) * 64) / 64, rk = relA > 0.01 ? 1 : 0;
+  const e0 = TL.mcol.get(key); if (e0 && e0.nq === nq && e0.rk === rk && e0.b === b) return e0;
+  // a holon's tone is its households per km² (the tiling's own apportionment) over its climate's ground; the terrain's light
+  // is not baked per holon (that drew each holon as a flat step) but multiplied over the whole mosaic from ETOPO below
+  const T0 = tlTerrain(la, lo), col0 = tlGround(T0, tlTone(b / Math.max(1e-6, km2)));
+  // land with no one on it (budget 0) keeps its own ground readable at night: its class colour, lit by the relief's shade,
+  // never darker than 0.85 of day (the ground is real data; only the people are absent)
+  const empty = !b, f = empty ? Math.max(0.85, nq) * (relA > 0.01 ? 1 : T0.lit) * 1.6 : nq / (relA > 0.01 ? T0.lit : 1), col = [col0[0] * f, col0[1] * f, col0[2] * f];
+  // where land cover answers, each corner takes the blended class colour there (north-west, north-east, south-east,
+  // south-west); the holon's own tone, lighting and night stay the holon's
+  let C = null;
+  if (T0.lc >= 0){ const bd = HOLON.boundsDeg(c), tn = tlTone(b / Math.max(1e-6, km2)), lit = relA > 0.01 ? 1 : T0.lit;
+    C = [[bd[2], bd[1]], [bd[2], bd[3]], [bd[0], bd[3]], [bd[0], bd[1]]].map(([a, o]) => { const g = tlLcGround(a, o); if (!g) return col;
+      const g0 = g.map((v) => v * 0.42 * T0.lit), m = tlMix3(g0, T0.g1, tn), q = empty ? Math.max(0.85, nq) * lit * 1.6 : nq / lit; return [m[0] * q, m[1] * q, m[2] * q]; }); }
+  const e = { nq, rk, b, col, C }; TL.mcol.set(key, e); return e;
+}
+// Warm the tiling for a descent onto (lat, lon), in idle slices of a few ms, while the Story holds over the city: the
+// budgets (the kernel's population splits) and the mosaic colours of the holons the descent's views will show, at a few
+// metres a pixel from where the tiling first draws (380) down to where the street's leaves take over (30), the way tlVisit
+// walks them. The first frames of the tiling did this inside the frame (a 260 ms task at 6x CPU throttle).
+const TLW = { key: "", work: [], idle: false };
+function tlWarm(lat, lon){
+  if (!(typeof tlReady === "function" && tlReady())) return;
+  const key = lat.toFixed(3) + "," + lon.toFixed(3); if (TLW.key === key) return; TLW.key = key; TLW.work = [];
+  const F = camFrame(), mPerDeg = EARTH_M * Math.PI / 180;
+  for (const mpp of [380, 190, 95, 48, 30]){
+    const ppm = 1 / mpp, hy = (F.h / 2 + 40) / ppm / mPerDeg, hx = (F.w / 2 + 40) / ppm / (mPerDeg * Math.max(0.05, Math.cos(lat * Math.PI / 180)));
+    let lvl = 3; while (lvl > 1 && ((2 * hy) / (HOLON.STEP[lvl] / HOLON.UPD)) * ((2 * hx) / (HOLON.STEP[lvl] / HOLON.UPD)) > 1600) lvl--;
+    const a0 = HOLON.at(lvl, Math.max(-89.9, lat - hy), lon - hx), a1 = HOLON.at(lvl, Math.min(89.9, lat + hy), lon + hx);
+    const cols = 360 * HOLON.UPD / HOLON.STEP[lvl]; let span = a1.j - a0.j; if (span < 0) span += cols; span = Math.min(span, cols - 1);
+    for (let i = a0.i; i <= a1.i; i++) for (let q = 0; q <= span; q++){ const c = HOLON.make(lvl, i, a0.j + q); if (c) TLW.work.push([c, mpp, lat, lon, hy, hx]); }
+  }
+  tlWarmSchedule();
+}
+function tlWarmSchedule(){ if (TLW.idle || !TLW.work.length) return; TLW.idle = true; (window.requestIdleCallback || ((f) => setTimeout(() => f({ timeRemaining: () => 6 }), 30)))(tlWarmSlice, { timeout: 500 }); }
+function tlWarmSlice(dl){
+  TLW.idle = false; const T = tlTree(), t0 = performance.now(), mPerDeg = EARTH_M * Math.PI / 180;
+  while (TLW.work.length && (dl.timeRemaining() > 2 || performance.now() - t0 < 2) && performance.now() - t0 < 8){
+    const [c, mpp, lat, lon, hy, hx] = TLW.work.pop(), b = T.budget(c), [la, lo] = tlCentre(c);
+    if (Math.abs(la - lat) > hy + 0.5 || Math.abs(lo - lon) > hx + 0.5) continue;
+    const sdeg = HOLON.STEP[c.level] / HOLON.UPD, km = sdeg * mPerDeg / 1000, size = sdeg * mPerDeg / mpp;
+    tlColour(c, b, la, lo, km * km * Math.cos(la * Math.PI / 180), TL.sun || [0, 0, 1], 1);
+    if (b && size >= 28 && !T.isLeaf(c) && c.level < HOLON.MAX_LEVEL) for (const k of HOLON.children(c)) TLW.work.push([k, mpp, lat, lon, hy, hx]);
+  }
+  tlWarmSchedule();
+}
 // ---- which holons to draw: detail inside the acuity ring, a household-density mosaic outside
 function tlVisit(F, mpp, capDetail){
   const T = tlTree(), cx = F.w / 2, cy = F.h / 2, R = TL.ring.ring, detailZoom = mpp < 26;
@@ -360,7 +411,7 @@ function tlNight(sun, la, lo){ const a = la * Math.PI / 180, o = lo * Math.PI / 
 function tlJitter(v){ let x = Math.imul((v % 4294967296) >>> 0, 0x9e3779b1) ^ Math.imul(Math.floor(v / 4294967296) | 0, 0x85ebca77);
   x ^= x >>> 15; x = Math.imul(x, 0x2c1b3c6d); x ^= x >>> 12; return 1 + 0.08 * (((x >>> 0) / 4294967296) - 0.5); }
 function tlDraw(w, h, mpp, sun){
-  sun = sun || [0, 0, 1];
+  sun = sun || [0, 0, 1]; TL.sun = sun; // the hour's light, also for the warm-up (tlWarm) before the tiling draws
   // the kernel's population chain (pop_load, a few hundred ms on a throttled phone) is loaded in an idle slice as soon as
   // the grid is in, never inside a frame: the frame only asks whether it is there
   if (!TL.popOk && !TL.popSoon && tlPop() && wasm && wasm.pop_load){ TL.popSoon = true;
@@ -380,21 +431,10 @@ function tlDraw(w, h, mpp, sun){
   const relA = (typeof reliefDraw === "function") ? GEO.rf : 0;
   const quads = agg.concat(detail), Q = new Float32Array(quads.length * 60); let o = 0;
   for (const { c, bx, b } of quads){
-    // a holon's tone is its households per km² (the tiling's own apportionment) over its climate's
-    // ground; the terrain's light is not baked per holon (that drew each holon as a flat step) but
-    // multiplied over the whole mosaic from ETOPO below, continuous across holon edges
-    const km2 = (bx.hw * 2 / (F.k / EARTH_M) / 1000) * (bx.hh * 2 / (F.k / EARTH_M) / 1000), T0 = tlTerrain(bx.la, bx.lo), col0 = tlGround(T0, tlTone(b / Math.max(1e-6, km2)));
-    // land with no one on it (budget 0) keeps its own ground readable at night: its class colour, lit by the
-    // relief's shade, never darker than 0.85 of day (the ground is real data; only the people are absent)
-    const empty = !b, f = empty ? Math.max(0.85, tlNight(sun, bx.la, bx.lo)) * (relA > 0.01 ? 1 : T0.lit) * 1.6 : tlNight(sun, bx.la, bx.lo) / (relA > 0.01 ? T0.lit : 1), col = [col0[0] * f, col0[1] * f, col0[2] * f];
+    // a holon's colours come from tlColour, kept by holon id (they were worked out again for every holon on every frame)
+    const { col, C } = tlColour(c, b, bx.la, bx.lo, (bx.hw * 2 / (F.k / EARTH_M) / 1000) * (bx.hh * 2 / (F.k / EARTH_M) / 1000), sun, relA);
     const ins = bx.hw >= 20 ? 0.3 : 0; // the tiling reads by tone; a fine seam only once a holon is 40 px wide
     const P = [[bx.x - bx.hw + ins, bx.y - bx.hh + ins], [bx.x + bx.hw - ins, bx.y - bx.hh + ins], [bx.x + bx.hw - ins, bx.y + bx.hh - ins], [bx.x - bx.hw + ins, bx.y + bx.hh - ins]];
-    // where land cover answers, each corner takes the blended class colour there (north-west, north-east, south-east,
-    // south-west, as P runs); the holon's own tone, lighting and night stay the holon's
-    let C = null;
-    if (T0.lc >= 0){ const bd = HOLON.boundsDeg(c), tn = tlTone(b / Math.max(1e-6, km2)), lit = relA > 0.01 ? 1 : T0.lit;
-      C = [[bd[2], bd[1]], [bd[2], bd[3]], [bd[0], bd[3]], [bd[0], bd[1]]].map(([la, lo]) => { const g = tlLcGround(la, lo); if (!g) return col;
-        const g0 = g.map((v) => v * 0.42 * T0.lit), m = tlMix3(g0, T0.g1, tn), q = empty ? Math.max(0.85, tlNight(sun, bx.la, bx.lo)) * lit * 1.6 : tlNight(sun, bx.la, bx.lo) / lit; return [m[0] * q, m[1] * q, m[2] * q]; }); }
     for (const k of [0, 1, 2, 0, 2, 3]){ const cc = C ? C[k] : col; Q[o++] = P[k][0]; Q[o++] = P[k][1]; Q[o++] = 0; Q[o++] = 0; Q[o++] = 0; Q[o++] = cc[0]; Q[o++] = cc[1]; Q[o++] = cc[2]; Q[o++] = 0.9; Q[o++] = 0; }
   }
   tlScreen(Q, aggA);
@@ -502,3 +542,7 @@ function tlMetrics(){
 }
 // the 1/2-degree land cover at load (18 kB); the street ground reads it through tlTerrain
 if (typeof geoLoad === "function"){ geoLoad("lc", 0); setTimeout(() => { geoLoad("pop", 0); geoLoad("pop", 1); }, 1500); } // people at 1/8 degree (about 0.8 MB) condition the street tier
+
+// the street tiling's program compiled ahead, in an idle slice after load (a first use compiled it inside the frame the Story
+// leaves the city hold, part of a 330 ms task on a throttled phone), as incell.js does for the data maps
+(window.requestIdleCallback || ((f) => setTimeout(f, 3000)))(() => { try { if (typeof gl !== "undefined" && gl) tlGL(); } catch (e) { console.warn("tiling prewarm", e); } }, { timeout: 6000 });

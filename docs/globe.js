@@ -657,6 +657,22 @@ function fanRing(r, B){
   for (let i=0;i<r.length;i++){ const E1=(i+1<r.length)?spoke(r[i+1]):first; zipper(E0,E1); E0=E1; }
 }
 function landFan(rings){ const B=fanNew(); for (const r of rings) fanRing(r, B); return B.a.slice(0, B.n); }
+// the same fan as fanRing, as steps of at most FAN_CHUNK edges each (run in order, sharing the ring's centre and its last
+// spoke), so a sliced upload never spends one step on a whole long coastline; the triangles and their order are fanRing's
+const FAN_CHUNK = 1500;
+function fanRingSteps(r, B){
+  const st = {}; const out = [];
+  out.push(() => { let ay=0, ax=0; for (const p of r){ ay+=p[0]; ax+=p[1]; } st.ay=ay/r.length; st.ax=ax/r.length; });
+  for (let i0 = 0; i0 < r.length; i0 += FAN_CHUNK){ const i1 = Math.min(r.length, i0 + FAN_CHUNK);
+    out.push(() => { const STEP=6, ay=st.ay, ax=st.ax;
+      const spoke=(p)=>{ const K=Math.max(1,Math.ceil(Math.max(Math.abs(p[0]-ay),Math.abs(p[1]-ax))/STEP)); const o=new Float32Array(3*(K+1)); for (let k=0;k<=K;k++){ const q=xyz(ay+(p[0]-ay)*k/K, ax+(p[1]-ax)*k/K); o[3*k]=q[0]; o[3*k+1]=q[1]; o[3*k+2]=q[2]; } return o; };
+      const tri=(P,i,Q,j,R,k)=>{ const a=B.a; let n=B.n; a[n++]=P[3*i]; a[n++]=P[3*i+1]; a[n++]=P[3*i+2]; a[n++]=Q[3*j]; a[n++]=Q[3*j+1]; a[n++]=Q[3*j+2]; a[n++]=R[3*k]; a[n++]=R[3*k+1]; a[n++]=R[3*k+2]; B.n=n; };
+      const zipper=(A,Bp)=>{ let a=0,b=0; const na=A.length/3-1, nb=Bp.length/3-1; fanGrow(B, 9*(na+nb));
+        while (a<na || b<nb){ if (a<na && (b>=nb || (a+1)/na <= (b+1)/nb)){ tri(A,a,A,a+1,Bp,b); a++; } else { tri(A,a,Bp,b,Bp,b+1); b++; } } };
+      if (!st.first){ st.first = spoke(r[0]); st.E0 = st.first; }
+      for (let i=i0;i<i1;i++){ const E1=(i+1<r.length)?spoke(r[i+1]):st.first; zipper(st.E0,E1); st.E0=E1; } }); }
+  return out;
+}
 // The same rings, for questions asked of a point: inside = an odd number of ring edges crossed on a
 // ray due north (rings never cross the antimeridian, so a ray along a meridian sees every edge once).
 function landTest(rings){
@@ -745,8 +761,8 @@ function geoUploadSliced(L, step, K, done){
   // steps: each ring of the fan, each ring of the lakes (appended to a copy for fanK), each polyline of each line kind
   const B = fanNew(); let BK = null; const lines = [[], [], []], shoreK = [];
   const steps = [];
-  for (const r of rings) steps.push(() => fanRing(r, B));
-  if (kr.length){ steps.push(() => { BK = { a: B.a.slice(0, Math.max(B.n, 1 << 16)), n: B.n }; }); for (const r of kr) steps.push(() => fanRing(r, BK)); for (const pl of K.shores) steps.push(() => segInto(pl, shoreK)); }
+  for (const r of rings) steps.push(...fanRingSteps(r, B));
+  if (kr.length){ steps.push(() => { BK = { a: B.a.slice(0, Math.max(B.n, 1 << 16)), n: B.n }; }); for (const r of kr) steps.push(...fanRingSteps(r, { get a(){ return BK.a; }, set a(v){ BK.a = v; }, get n(){ return BK.n; }, set n(v){ BK.n = v; } })); for (const pl of K.shores) steps.push(() => segInto(pl, shoreK)); }
   for (let t = 0; t < 3; t++) for (const pl of L[t + 2]) steps.push(() => segInto(pl, lines[t]));
   let i = 0;
   const run = (dl) => { const t0 = performance.now();
@@ -780,8 +796,8 @@ function geoVisibleTiles(w, h, mpp){
 function geoLoad50(){ if (GEO.p50) return; GEO.p50 = true;
   Promise.all([geoFetch("geo/ne50.bin?v=1"), geoFetch("geo/lakes.bin?v=1")]).then(([b, k]) => {
     const L = geoDecode(b), K = geoDecode(k); GEO.lakes = K;
-    L[1] = L[1].concat(K[1], K[5]); L[2] = L[2].concat(K[2]); geoUploadSliced(L, 0, null, (S) => { GEO.l50 = S; if (typeof gfxDirty === "function") gfxDirty(400); }); }).catch(e => console.warn(e.message)); }
-function geoLoadPlaces(){ if (GEO.pPlaces) return; GEO.pPlaces = true; geoFetch("geo/places.bin?v=1").then(b => { GEO.places = geoPlaces(b); }).catch(e => console.warn(e.message)); }
+    L[1] = L[1].concat(K[1], K[5]); L[2] = L[2].concat(K[2]); geoUploadSliced(L, 0, null, (S) => { GEO.l50 = S; if (typeof gfxDirty === "function") gfxDirty(400); }); }).catch(e => { GEO.l50Err = e.message; console.warn(e.message); }); }
+function geoLoadPlaces(){ if (GEO.pPlaces) return; GEO.pPlaces = true; geoFetch("geo/places.bin?v=1").then(b => { GEO.places = geoPlaces(b); }).catch(e => { GEO.placesErr = e.message; console.warn(e.message); }); }
 // one ne10 tile: keep it most recent, or fetch, decode and upload it (also used by preload.js)
 function geoWant10(k, keep){ const t = GEO.t10.get(k);
   if (t){ GEO.t10.delete(k); GEO.t10.set(k, t); return; } // most recent last
@@ -1825,6 +1841,7 @@ function storyTickAct(actIx, dt) {
   if (!W || !storyActivity) return;
   const nowSec = getTime();
   const cfg = STORY_ACTS[actIx];
+  if (cfg.intro) storyWarmStreet(); // from the opening on, as soon as the idle search has found the street
   // the opening faces the visitor's side of the world, then, while its caption is read, turns slowly toward the street
   // act's view (eased in and out over the step), so the next act does not start with a sweep across an ocean
   if (cfg.intro && !storyUserCam){ const nx = STORY_ACTS[actIx + 1], u = Math.max(0, Math.min(1, (storyActElapsed / cfg.duration - 0.15) / 0.85)), e = u * u * (3 - 2 * u);
@@ -3167,7 +3184,11 @@ function storyMicroWorld(){
   // builds there, so its neighbours tile around it out to the acuity ring: the first nearby leaf whose
   // layout is a residential street with two households a punch can join (found once)
   if (!microOk()) return false;
-  if (tlReady()) return storyMicroLeaf();
+  // the leaf the idle search found; the search itself never runs inside a frame (up to 81 candidate worlds, seconds on a
+  // phone): if it has not found the street by the wait's end, the lone square tile below, and the step moves to its leaf
+  // once the tiling can be drawn (storyMicroTick, at the next beat)
+  if (tlReady() && MSTORY.leaf) return storyMicroLeaf();
+  MSTORY.square = true;
   const build = (T) => microBuild(T.lat, T.lon, T.dens, false, T.s1, T.s2, 0.62, "story");
   if (MSTORY.tile){ build(MSTORY.tile); if (wasm.micro_cmd(6, 0, 0) === 1){ const a = new Uint32Array(mem.buffer, wasm.micro_buf_ptr(10) >>> 0, 4).slice(); storyPinStart(...a); } return true; }
   const c0 = cellAt(47.3769, 8.5417); const dens = c0 >= 0 ? cellDensity(c0) : 1200;
@@ -3266,6 +3287,26 @@ function storyCamStep(dt){
 // leaves and the search for the street keeps its idle time; held at 40 km across, a wait showed only the tiling's blurred
 // mosaic, and at 120 km the tiling laid out leaves through the wait), so the descent that follows starts where the street is
 function storyCityZoom(){ const F = camFrame(); return EARTH_M / (0.86 * 450 * Math.min(F.w, F.h) / 2); }
+// How long the street step waits: for the tiling's own inputs (the 1/8-degree people grid, the 50 m land, the places, the
+// kernel's population chain) and for the search for its street, up to STORY_WAIT_MAX_MS, since on a slow phone or a slow
+// network they arrive late, and a street told without them is a lone square tile with no neighbours drawn around it; for the
+// leaves laid out around the street (the neighbour prebuild) 15 s, after which they fill in at the detail disc's edge as they
+// finish. The lone square tile is kept for a real failure only: no kernel, or one of those inputs failed to load.
+const STORY_WAIT_MAX_MS = 60000, STORY_PREBUILD_MAX_MS = 15000;
+function storyInputsFailed(){
+  if (!microOk()) return true;
+  const ge = (typeof GEODATA !== "undefined" && GEODATA.errors) || [];
+  return !!(GEO.l50Err || GEO.placesErr || ge.length);
+}
+// While it waits the camera does not stand still: it drifts slowly round the city (a circle of 0.2 degrees, once in two
+// minutes, about 1 km a second at 450 m a pixel), and the caption says what the street is waiting for
+function storyHoldDrift(cfg){
+  const k = ((performance.now() - (MSTORY.waitStart || performance.now())) / 120000) * 2 * Math.PI, r = 0.2 * Math.PI / 180;
+  storyTargetPitch = cfg.pitch + r * Math.sin(k); storyTargetYaw = cfg.yaw + r * (1 - Math.cos(k)) / Math.max(0.2, Math.cos(cfg.pitch));
+  storyTargetZoom = storyCityZoom();
+}
+// the tiling warmed in idle time for the descent onto the street (tiling.js tlWarm), as soon as the street is known
+function storyWarmStreet(){ if (typeof tlWarm === "function" && MSTORY.leaf){ const bd = HOLON.boundsDeg(MSTORY.leaf); tlWarm((bd[0] + bd[2]) / 2, (bd[1] + bd[3]) / 2); } }
 function storyCam(x, y, z){ const [la, lo] = localToLL(x, y); storyTargetPitch = la * Math.PI / 180; storyTargetYaw = lo * Math.PI / 180; storyTargetZoom = z; }
 const expLerp = (a, b, t) => a * Math.pow(b / a, Math.max(0, Math.min(1, t)));
 function storyMicroSetup(act){
@@ -3274,6 +3315,7 @@ function storyMicroSetup(act){
     // the street is a leaf of the tiling: wait for the tiling's land and places (asked for at the
     // story's start), and only after a long wait tell it on a lone square tile
     MSTORY.actors = null;
+    if (!MSTORY.waitDone && !MSTORY.waitStart) MSTORY.waitStart = performance.now();
     if (microOk() && !tlReady() && !MSTORY.waitDone){ MSTORY.waitTiled = performance.now(); return; }
     // the idle search for the story's street (preload.js zpStory) is under way: join it (it goes on, one candidate an idle
     // slice) instead of starting a search of its own inside this frame; the act adopts the world it finds
@@ -3359,13 +3401,22 @@ function storyMicroPlan(act, from, t0){
   cfg.duration = Math.max(d, t0 + 0.1);
 }
 function storyMicroTick(act, t){
+  storyWarmStreet();
   if (MSTORY.waitTiled){
     const cfg = STORY_ACTS[act + STORY_LEAD];
     // the tiling came in while the act waited: now wait on the street search too (started in idle slices if it has not), with its own 15 s
     if (tlReady() && !MSTORY.leaf && !MSTORY.waitSearch && typeof ZP !== "undefined" && typeof zpStory === "function" && !(ZP.cand && ZP.cand.length === 0)){ MSTORY.waitSearch = true; MSTORY.waitTiled = performance.now(); zpIdle(zpStory, 200); }
-    const searching = MSTORY.waitSearch && ((!MSTORY.leaf && typeof ZP !== "undefined" && !(ZP.cand && ZP.cand.length === 0)) || (MSTORY.leaf && typeof zpStreetReady === "function" && !zpStreetReady()));
-    if ((!tlReady() || searching) && performance.now() - MSTORY.waitTiled < 15000){ cfg.duration = Math.max(cfg.duration, t + 1);
-      storyTargetYaw = cfg.yaw; storyTargetPitch = cfg.pitch; storyTargetZoom = storyCityZoom(); return; } // hold over the city
+    const now = performance.now(), inputs = !tlReady(), failed = storyInputsFailed();
+    const finding = MSTORY.waitSearch && !MSTORY.leaf && typeof ZP !== "undefined" && !(ZP.cand && ZP.cand.length === 0);
+    if (MSTORY.leaf && !MSTORY.prebuildFrom) MSTORY.prebuildFrom = now;
+    const prebuilding = MSTORY.waitSearch && MSTORY.leaf && typeof zpStreetReady === "function" && !zpStreetReady();
+    const waited = now - (MSTORY.waitStart || now);
+    if (!failed && (((inputs || finding) && waited < STORY_WAIT_MAX_MS) || (!inputs && prebuilding && now - MSTORY.prebuildFrom < STORY_PREBUILD_MAX_MS))){
+      cfg.duration = Math.max(cfg.duration, t + 1); storyHoldDrift(cfg); // over the city, drifting slowly
+      const cap = inputs ? "Loading this place's ground: the people and the land the street is drawn on are still arriving" : finding ? "Finding a street near Zurich where two neighbours live" : "Laying out the streets around it";
+      if (MSTORY.waitCap !== cap){ MSTORY.waitCap = cap; storyMicroCaption(cap); }
+      return; }
+    MSTORY.waitCap = null; MSTORY.waitStart = 0; MSTORY.prebuildFrom = 0;
     // the act starts now: its clock (and so the hour the world is checked against) goes back to 0 BEFORE the setup
     MSTORY.waitTiled = 0; MSTORY.waitSearch = false; MSTORY.waitDone = true; storyActElapsed = 0; storyMicroSetup(0); MSTORY.waitDone = false; storyActElapsed = 0; return;
   }
@@ -3374,6 +3425,10 @@ function storyMicroTick(act, t){
   if (MSTORY.beat === undefined){ MSTORY.beat = -1; MSTORY.beatEnd = 0; }
   storyPunchOutcome(c.ap, c.bp);
   const nx = MSTORY.beat + 1;
+  if (MSTORY.square && !MSTORY.reentered && t >= MSTORY.beatEnd && tlReady() && MSTORY.leaf && !storyInputsFailed()){
+    // told on a lone square tile (the tiling's inputs came after the wait), and now the tiling can be drawn: at this beat the
+    // street steps start again on a leaf of the tiling, so its neighbours are drawn around it (once)
+    MSTORY.reentered = true; MSTORY.square = false; storySetupAct(STORY_LEAD); return; }
   if (nx < beats.length && t >= MSTORY.beatEnd){
     const b = beats[nx];
     if (b.wait && !MSTORY.waitFrom) MSTORY.waitFrom = t;
