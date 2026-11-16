@@ -20,15 +20,17 @@ precision highp float;
 #else
 precision mediump float;
 #endif
-uniform sampler2D T;uniform float uA;uniform vec2 uTexel;uniform float uMpt;uniform vec3 uSunWorld;varying vec2 vUv;varying float vz;varying float vSun;varying vec3 vP;
+uniform sampler2D T;uniform float uA;uniform vec2 uTexel;uniform float uMpt;uniform vec3 uSunWorldF;varying vec2 vUv;varying float vz;varying float vSun;varying vec3 vP;
 float zc(vec2 u){float g=texture2D(T,u).g;return g*g*6500.0;}
 void main(){if(vz<0.0)discard;vec4 t=texture2D(T,vUv);float day=smoothstep(-0.10,0.12,vSun);float baked=clamp(1.0+(t.r/0.808-1.0)*mix(2.6,1.5,day),0.25,1.7);
 vec3 up=normalize(vP);vec3 east=normalize(vec3(up.z,0.0,-up.x)+vec3(1e-6,0.0,0.0));vec3 north=cross(up,east);float cl=max(0.08,length(up.xz));float ex=1.0+2.0*sqrt(uMpt/1850.0);
 float dzx=(zc(vUv+vec2(uTexel.x,0.0))-zc(vUv-vec2(uTexel.x,0.0)))/(2.0*uMpt*cl)*ex;float dzy=(zc(vUv-vec2(0.0,uTexel.y))-zc(vUv+vec2(0.0,uTexel.y)))/(2.0*uMpt)*ex;
-vec3 n=normalize(up-east*dzx-north*dzy);float ref=max(dot(up,uSunWorld),0.0);float lam=max(dot(n,uSunWorld),0.0);float dyn=clamp((lam+0.05)/(ref+0.05),0.3,1.75);
+vec3 n=normalize(up-east*dzx-north*dzy);float ref=max(dot(up,uSunWorldF),0.0);float lam=max(dot(n,uSunWorldF),0.0);float dyn=clamp((lam+0.05)/(ref+0.05),0.3,1.75);
 float sun=smoothstep(-0.02,0.20,vSun);float sh=mix(baked,mix(baked,dyn,0.78),sun);float e=t.g;
 vec3 tint=mix(vec3(0.97,1.03,0.96),vec3(1.04,1.0,0.94),smoothstep(0.15,0.45,e));tint=mix(tint,vec3(1.12,1.11,1.1),smoothstep(0.55,0.8,e));tint=mix(tint,vec3(1.3,1.3,1.32),smoothstep(0.85,0.95,e));
 vec3 c=0.5*sh*tint;gl_FragColor=vec4(mix(vec3(0.5),c,uA*smoothstep(0.0,0.06,vz)),1.0);}`;
+// the fragment stage reads its own copy of the sun, uSunWorldF: a uniform both stages declare must have one precision, and
+// a fragment stage without highp has mediump, so the program did not link there (tools/page/no_highp/run.py)
 let pRelief = null;
 function reliefKey(z, r, c){ return z + "/" + r + "_" + c; }
 // a tile's mesh on the sphere: cells of at most 1.5° so it stays near the sphere, with its texture coordinates
@@ -136,7 +138,7 @@ function reliefDraw(R, S, asp, w, h, mpp, a, sun){
   RELIEF.used = passes.length ? "z" + passes[0].z : "-";
   if (!passes.length) return;
   gl.useProgram(pRelief);
-  gl.uniformMatrix3fv(gl.getUniformLocation(pRelief, "R"), false, R); gl.uniform1f(gl.getUniformLocation(pRelief, "S"), S); gl.uniform2fv(gl.getUniformLocation(pRelief, "asp"), asp); gl.uniform3fv(gl.getUniformLocation(pRelief, "uSunWorld"), sun || [0, 0, 1]);
+  gl.uniformMatrix3fv(gl.getUniformLocation(pRelief, "R"), false, R); gl.uniform1f(gl.getUniformLocation(pRelief, "S"), S); gl.uniform2fv(gl.getUniformLocation(pRelief, "asp"), asp); gl.uniform3fv(gl.getUniformLocation(pRelief, "uSunWorld"), sun || [0, 0, 1]); gl.uniform3fv(gl.getUniformLocation(pRelief, "uSunWorldF"), sun || [0, 0, 1]);
   gl.uniform1f(gl.getUniformLocation(pRelief, "uA"), a); gl.uniform1i(gl.getUniformLocation(pRelief, "T"), 0); gl.activeTexture(gl.TEXTURE0);
   const ap = gl.getAttribLocation(pRelief, "p"), au = gl.getAttribLocation(pRelief, "uv");
   gl.enableVertexAttribArray(ap); gl.enableVertexAttribArray(au);

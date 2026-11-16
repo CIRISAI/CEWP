@@ -267,11 +267,11 @@ precision highp float;
 #else
 precision mediump float;
 #endif
-uniform float uDim;uniform float uTex;uniform float uPpm;varying vec4 vc;varying vec2 vN;varying float vK;varying float vD;
+uniform float uDim;uniform float uTex;uniform float uPpmF;varying vec4 vc;varying vec2 vN;varying float vK;varying float vD;
 float h2(vec2 i,float m){i=mod(i,m);return fract(sin(dot(i,vec2(12.9898,78.233)))*43758.5453);}
 float vn(vec2 x,float cell){vec2 g=x/cell;vec2 i=floor(g);vec2 t=fract(g);t=t*t*(3.0-2.0*t);float m=4096.0/cell;
 return mix(mix(h2(i,m),h2(i+vec2(1.0,0.0),m),t.x),mix(h2(i+vec2(0.0,1.0),m),h2(i+vec2(1.0,1.0),m),t.x),t.y)*2.0-1.0;}
-float oct(vec2 x,float cell,float amp){float w=1.0-smoothstep(0.25,0.5,1.0/(uPpm*cell));return w>0.0?amp*w*vn(x,cell):0.0;}
+float oct(vec2 x,float cell,float amp){float w=1.0-smoothstep(0.25,0.5,1.0/(uPpmF*cell));return w>0.0?amp*w*vn(x,cell):0.0;}
 void main(){if(vc.a<0.004)discard;vec3 col=vc.rgb;
 if(uTex>0.5){float s=0.0;
  if(vK<0.5){float a=1.0-0.5*vD;s=oct(vN,48.0,0.10*a)+oct(vN,12.0,0.07*a)+oct(vN,3.0,0.05*a);}
@@ -279,11 +279,14 @@ if(uTex>0.5){float s=0.0;
  else if(vK>2.5){s=oct(vN,4.0,0.05)+oct(vN,1.0,0.04);}
  col=col*(1.0+s*uTex);}
 gl_FragColor=vec4(col*uDim,vc.a);}`;
+// a uniform the two stages both declare must have one precision (GLSL ES 1.00, 4.5.3): the vertex stage's is highp and a
+// fragment stage without highp has mediump, so the program did not link there and the street tier drew nothing. The
+// fragment stage reads its own copy, uPpmF, set to the same value (tools/page/no_highp/run.py).
 let tlProg = null, tlLoc = null, tlAggBuf = null;
 function tlGL(){
   if (tlProg) return; tlProg = prog(TLV, TLF); tlAggBuf = gl.createBuffer();
   const u = (n) => gl.getUniformLocation(tlProg, n), a = (n) => gl.getAttribLocation(tlProg, n);
-  tlLoc = { p: a("p"), n: a("n"), wd: a("wd"), c: a("c"), k: a("k"), X: u("uX"), Y: u("uY"), view: u("uView"), ppm: u("uPpm"), minHalf: u("uMinHalf"), kindA: u("uKindA"), ring: u("uRing"), dim: u("uDim"), g0: u("uG0"), g1: u("uG1"), roof: u("uRoof"), terr: u("uTerr"), no: u("uNO"), tex: u("uTex") };
+  tlLoc = { p: a("p"), n: a("n"), wd: a("wd"), c: a("c"), k: a("k"), X: u("uX"), Y: u("uY"), view: u("uView"), ppm: u("uPpm"), ppmF: u("uPpmF"), minHalf: u("uMinHalf"), kindA: u("uKindA"), ring: u("uRing"), dim: u("uDim"), g0: u("uG0"), g1: u("uG1"), roof: u("uRoof"), terr: u("uTerr"), no: u("uNO"), tex: u("uTex") };
 }
 function tlAttribs(){ const L = tlLoc, s = 40;
   gl.enableVertexAttribArray(L.p); gl.vertexAttribPointer(L.p, 2, gl.FLOAT, false, s, 0);
@@ -300,7 +303,7 @@ function tlAffine(F, e){
 function tlScreen(arr, alpha){
   if (!arr.length || alpha <= 0.01) return;
   gl.bindBuffer(gl.ARRAY_BUFFER, tlAggBuf); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STREAM_DRAW); tlAttribs();
-  gl.uniform3f(tlLoc.X, 1, 0, 0); gl.uniform3f(tlLoc.Y, 0, 1, 0); gl.uniform1f(tlLoc.ppm, 1); gl.uniform4f(tlLoc.minHalf, 0, 0, 0, 0);
+  gl.uniform3f(tlLoc.X, 1, 0, 0); gl.uniform3f(tlLoc.Y, 0, 1, 0); gl.uniform1f(tlLoc.ppm, 1); gl.uniform1f(tlLoc.ppmF, 1); gl.uniform4f(tlLoc.minHalf, 0, 0, 0, 0);
   gl.uniform4f(tlLoc.kindA, alpha, 0, 0, 0); gl.uniform3f(tlLoc.ring, 0, 0, 0); gl.uniform1f(tlLoc.dim, 1); gl.uniform1f(tlLoc.terr, 0); gl.uniform1f(tlLoc.tex, 0); // night and terrain are in the colours; the mosaic (in screen pixels) is never textured
   gl.drawArrays(gl.TRIANGLES, 0, arr.length / 10);
 }
@@ -510,7 +513,7 @@ function tlDraw(w, h, mpp, sun){
         gl.uniform1f(tlLoc.tex, tlTexUniform(TL_TEX, typeof DATAMAP !== "undefined" && DATAMAP.active)); }
       gl.uniform3fv(tlLoc.g0, bt.terr.g0); gl.uniform3fv(tlLoc.g1, bt.terr.g1); gl.uniform3fv(tlLoc.roof, bt.terr.roof);
       gl.bindBuffer(gl.ARRAY_BUFFER, bt.vbo); tlAttribs();
-      gl.uniform3f(tlLoc.X, A.a, A.c, A.e); gl.uniform3f(tlLoc.Y, A.b, A.d, A.f); gl.uniform1f(tlLoc.ppm, A.ppm);
+      gl.uniform3f(tlLoc.X, A.a, A.c, A.e); gl.uniform3f(tlLoc.Y, A.b, A.d, A.f); gl.uniform1f(tlLoc.ppm, A.ppm); gl.uniform1f(tlLoc.ppmF, A.ppm);
       gl.drawArrays(gl.TRIANGLES, 0, bt.n);
     } };
     // with a data map on, the leaves' ground first (marking stencil bit 2 where it lands), the map's tint over that ground
