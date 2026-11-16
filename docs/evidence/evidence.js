@@ -113,9 +113,10 @@ function evTier(force){
   const t = document.getElementById("tier-now"); if (!t) return;
   const micro = typeof microVisible === "function" && microVisible() && typeof M !== "undefined" && M;
   // plain words first; the tier's own names ("R5", "1:1", "cohorts") are in the panel this pill opens
-  // past the street or the globe (the zoom range switched off, globe.js ZRANGE): neither the twin's data nor its simulation
+  // past the street or the globe (the zoom range switched off, globe.js ZRANGE): the twin's own data and simulation stop; each
+  // scale drawn there carries its own status (simulated, declared, catalogue or illustration)
   const past = typeof ZRANGE !== "undefined" && ZRANGE.view && ZRANGE.view.side;
-  const label = past ? "Illustration · past the street and the globe, not data or simulation" : micro ? "Generated, not real · one street, every home and device drawn" : "Simulated · the whole world in groups";
+  const label = past ? "Past the street and the globe · each scale says what it is" : micro ? "Generated, not real · one street, every home and device drawn" : "Simulated · the whole world in groups";
   if (t.textContent !== label) t.textContent = label;
   t.classList.toggle("tier-micro", !!micro);
   // a phone-width explorer stacks the pill under the nav strip and the live strip, whichever is lower

@@ -47,7 +47,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
 
 <div id="focal-chip" class="panel-hidden"></div><div id="focal-detail" class="panel-hidden" role="dialog" aria-label="Where this street's figures come from"></div>
 <div id="node-card" class="panel-hidden"></div>
-<div id="zr-note" class="panel-hidden" role="note" style="position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 120px);max-width:min(90vw,420px);padding:8px 12px;border-radius:10px;background:rgba(11,13,18,0.86);color:#dfe6ee;font:12px/1.4 system-ui,sans-serif;text-align:center;z-index:40;pointer-events:none">Past the street and the globe the twin's data and simulation stop. Anything drawn here is an illustration, not data or a simulation; set the zoom back to "street to globe" in More or Controls.</div>
+<div id="zr-note" class="panel-hidden" role="note" style="position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 120px);max-width:min(90vw,420px);padding:8px 12px;border-radius:10px;background:rgba(11,13,18,0.86);color:#dfe6ee;font:12px/1.4 system-ui,sans-serif;text-align:center;z-index:40;pointer-events:none">Past the street and the globe the twin's own data and simulation stop. Each scale drawn here says what it is: simulated, declared, catalogue values or illustration. Set the zoom back to "street to globe" in More or Controls.</div>
 <div id="hud" class="panel-hidden">
   <div class="panel-head">
     <h1>Billions of people and devices, one rulebook</h1>
@@ -1098,9 +1098,9 @@ const ZOOM_MIN=0.6, ZOOM_HOME=1.0;
 // ---- the zoom range (More and Controls: "zoom: street to globe"), on by default and kept per viewer in this browser.
 // On, the camera keeps to the twin's own band: from the whole globe (ZOOM_MIN) to the street (zoomMax). Off, it goes on past
 // both, outward to the scale of the universe and inward to the scale of the vacuum (ZR_OUT, ZR_IN: log10 metres per device
-// pixel). Past either edge the twin's data and simulation stop: over half a decade beyond each edge (the hand-off band) the
-// twin's picture fades out, and beyond it nothing of the twin is drawn. What is drawn there is CIRISHolon's holon-draw, given
-// the camera each frame (ZRANGE.view) at two slots of the frame: an illustration, not data or a simulation.
+// pixel). Past either edge the twin's own data and simulation stop: over half a decade beyond each edge (the hand-off band)
+// the twin's picture fades out, and beyond it nothing of the twin is drawn. What is drawn there is CIRISHolon's holon-draw,
+// given the camera each frame (ZRANGE.view) at two slots of the frame; each scale it draws states its own status.
 const ZR_OUT = 24.5, ZR_IN = -38, ZR_BAND = 0.5;
 const ZRANGE = { band: true, view: null, anchorIn: null };
 try { if (localStorage.getItem("cewp.zoomBand") === "0") ZRANGE.band = false; } catch (e) {}
@@ -1108,15 +1108,22 @@ const zrDpr = () => window.devicePixelRatio || 1;
 const zoomOfMpp = (mpp) => EARTH_M / (0.86 * mpp * Math.min(cv.clientWidth || 800, cv.clientHeight || 800) / 2);
 function zoomLo(){ return ZRANGE.band ? ZOOM_MIN : zoomOfMpp(Math.pow(10, ZR_OUT) * zrDpr()); }
 function zoomHi(){ return ZRANGE.band ? zoomMax() : zoomOfMpp(Math.pow(10, ZR_IN) * zrDpr()); }
+// holon-draw's ladder (docs/ladder/, CIRISHolon; docs/ladder/README.md): loaded at idle, only once the switch is off
+function zrLadder(){
+  if (ZRANGE.band || ZRANGE.ladder || typeof window === "undefined") return; ZRANGE.ladder = "loading";
+  (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => import("./ladder/holon-ladder.js?v=1")
+    .then((m) => m.install({ wasm: "ladder/holon_draw_ladder.wasm?v=1" })).then(() => { ZRANGE.ladder = "ready"; })
+    .catch((e) => { ZRANGE.ladder = "failed"; console.warn("holon-draw ladder: " + (e && e.message || e)); }), { timeout: 2000 });
+}
 function zrSet(band){
-  ZRANGE.band = band; try { localStorage.setItem("cewp.zoomBand", band ? "1" : "0"); } catch (e) {}
+  ZRANGE.band = band; try { localStorage.setItem("cewp.zoomBand", band ? "1" : "0"); } catch (e) {} zrLadder();
   if (band){ targetZoom = Math.max(ZOOM_MIN, Math.min(zoomMax(), targetZoom)); zoom = Math.max(ZOOM_MIN, Math.min(zoomMax(), zoom)); }
   zrLabels(); if (typeof gfxDirty === "function") gfxDirty(500);
 }
 function zrLabels(){
   const b = ZRANGE.band, a = $("zrange"), m = $("sf-zrange");
-  if (a){ a.classList.toggle("on", b); a.setAttribute("aria-pressed", String(b)); a.textContent = b ? "zoom: street to globe" : "zoom: past street and globe (illustration)"; }
-  if (m){ m.setAttribute("aria-pressed", String(b)); m.textContent = b ? "Zoom: street to globe" : "Zoom: past the street and the globe (illustration beyond)"; }
+  if (a){ a.classList.toggle("on", b); a.setAttribute("aria-pressed", String(b)); a.textContent = b ? "zoom: street to globe" : "zoom: past street and globe"; }
+  if (m){ m.setAttribute("aria-pressed", String(b)); m.textContent = b ? "Zoom: street to globe" : "Zoom: past the street and the globe"; }
 }
 // The frame's zoom in the hand-off's terms: z (log10 metres per device pixel at the view's centre), the twin's two edges, the
 // twin's weight w (1 inside its band, to 0 over ZR_BAND beyond either edge), and the camera record holon-draw draws from
@@ -1130,7 +1137,7 @@ function zrFrame(w, h, renderScale){
   const V = ZRANGE.view || (ZRANGE.view = {});
   V.z = z; V.edges = { globe, street, band: ZR_BAND }; V.w = wt; V.side = side; V.band = ZRANGE.band;
   V.anchor = side === "in" ? ZRANGE.anchorIn : side === "out" ? { centre: "earth", lat: 0, lon: 0, height: -EARTH_M } : { lat, lon, height: 0 };
-  V.yaw = yaw; V.pitch = pitch; V.viewport = [w, h]; V.dpr = dpr; V.renderScale = renderScale; // device pixels per CSS pixel; the GL buffer's own scale (capped) V.utcHours = typeof drawnUtcHours === "function" ? drawnUtcHours(getTime()) : 0;
+  V.yaw = yaw; V.pitch = pitch; V.k = 0.86 * zoom * m / 2; // the Earth's radius on screen, CSS px (camFrame's k) V.viewport = [w, h]; V.dpr = dpr; V.renderScale = renderScale; // device pixels per CSS pixel; the GL buffer's own scale (capped) V.utcHours = typeof drawnUtcHours === "function" ? drawnUtcHours(getTime()) : 0;
   // the sun the globe is lit by (the kernel's MODEL subsolar point on the scenario's day, gfx.js gfxSun): a scene drawn in its
   // place puts its terminator there, not at the real sun
   V.sun = typeof GFX !== "undefined" && GFX.sunLL ? [GFX.sunLL[0], GFX.sunLL[1]] : null; V.doy = typeof SIM_DOY !== "undefined" ? SIM_DOY : null;
@@ -3581,5 +3588,5 @@ $("step").onclick=()=>{ if(W) tick(); };
 $("play").onclick=(e)=>{ if(!W) return; playing=!playing; e.target.textContent=playing?"❚❚ pause":"▶ run"; e.target.classList.toggle("active",playing); };
 $("eng").onclick=(e)=>{ useWasm=!useWasm; e.target.textContent="engine: "+(useWasm&&wasm?"WASM":"JS"); e.target.classList.toggle("on",useWasm&&!!wasm); avgMsPerAct=0; avgMsPerTick=0; if(W) tick(); };
 $("arcsb").onclick=(e)=>{ showArcs=!showArcs; e.target.classList.toggle("on",showArcs); };
-$("zrange").onclick=()=>zrSet(!ZRANGE.band); zrLabels();
+$("zrange").onclick=()=>zrSet(!ZRANGE.band); zrLabels(); zrLadder();
 (async()=>{ initLand(); await loadWasm(); if(!wasm){ useWasm=false; $("eng").textContent="engine: JS"; $("eng").classList.remove("on"); } await build(); playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); initStoryMode(); loop(); })().catch((e)=>{ console.warn("globe boot", e); const st=$("status"); if(st) st.textContent="the globe could not start here: "+(e&&e.message?e.message:String(e)); });
