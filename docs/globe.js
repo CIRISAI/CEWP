@@ -47,6 +47,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
 
 <div id="focal-chip" class="panel-hidden"></div><div id="focal-detail" class="panel-hidden" role="dialog" aria-label="Where this street's figures come from"></div>
 <div id="node-card" class="panel-hidden"></div>
+<div id="zr-note" class="panel-hidden" role="note" style="position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 120px);max-width:min(90vw,420px);padding:8px 12px;border-radius:10px;background:rgba(11,13,18,0.86);color:#dfe6ee;font:12px/1.4 system-ui,sans-serif;text-align:center;z-index:40;pointer-events:none">Past the street and the globe the twin's data and simulation stop. Anything drawn here is an illustration, not data or a simulation; set the zoom back to "street to globe" in More or Controls.</div>
 <div id="hud" class="panel-hidden">
   <div class="panel-head">
     <h1>Billions of people and devices, one rulebook</h1>
@@ -60,6 +61,7 @@ document.body.insertAdjacentHTML("afterbegin", String.raw`
     <button id="step" class="btn-subtle">step</button>
     <button id="eng" class="on">engine: WASM</button>
     <button id="arcsb" class="on">arcs</button>
+    <button id="zrange" class="on" type="button" aria-pressed="true">zoom: street to globe</button>
   </div>
   <button id="btn-story-hud" class="btn-primary btn-story-main" type="button" style="width:100%;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:6px"><span>▶</span> Play Story</button>
   <div class="sust-strip">
@@ -1002,6 +1004,8 @@ function draw(){
   const w=cv.clientWidth, h=cv.clientHeight; const dpr=(typeof gfxFrameBegin==="function")?gfxFrameBegin(w,h):(window.devicePixelRatio||1);
   if (typeof gfxFrameBegin!=="function" && (cv.width!==w*dpr|0||cv.height!==h*dpr|0)){ cv.width=w*dpr|0; cv.height=h*dpr|0; }
   gl.viewport(0,0,cv.width,cv.height); gl.clearColor(0.043,0.051,0.07,1); gl.disable(gl.DEPTH_TEST); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  const ZV=zrFrame(w,h,dpr);
+  if (ZV.w<=0){ zrHook(ZV.side,ZV); return; } // past the hand-off band: nothing of the twin is drawn
   const asp=w>h? [h/w,1]:[1,w/h]; const S=0.86*zoom; const R=rot(); const nowSec=getTime();
   const simUtc=drawnUtcHours(nowSec);
   // the sun is the kernel's (clock_sun on the sim's clock); without gfx.js, the f73b918 sun
@@ -1070,6 +1074,7 @@ function draw(){
     gl.disable(gl.DEPTH_TEST); }
   // the street tiling (tiling.js): holons over the land, clipped by the same land stencil
   if (typeof tlDraw==="function") tlDraw(w,h,mpp,sunWorld);
+  if (ZV.side==="in"){ zrFade(1-ZV.w); zrHook("in",ZV); return; } // inward hand-off: the twin fades after its street tier, holon-draw draws over it
   // arcs: the tick's sample (instanced, depth-correct) and every layer's arcs
   const arcSets=[]; if (showArcs && activeArcs.length && (typeof LAYERS==="undefined" || LAYERS.on("arcs"))) arcSets.push(activeArcs.filter(a=>a.rec && (meshFilter<0 || a.tier===meshFilter)).map(a=>a.rec));
   if (typeof LAYERS!=="undefined") LAYERS.arcSets(arcSets, nowSec);
@@ -1082,6 +1087,7 @@ function draw(){
   // aerial perspective over land and sea (illustration), then each layer's GL marks
   if (typeof gfxOcean==="function"&&(!window.LAYERS||LAYERS.on("illustration"))) gfxOcean(S,asp,sunCam,true); // illustration layer off: the flat disc above, no haze
   if (typeof LAYERS!=="undefined") LAYERS.drawGL(R,S,asp,w,h,mpp,nowSec);
+  if (ZV.side==="out"){ zrFade(1-ZV.w); zrHook("out",ZV); } // outward hand-off: after the globe's last pass
 }
 // rotation per pixel: the old feel near the planet; at depth, exactly one pixel of ground per pixel dragged
 const dragK=()=>zoom>3?2/(0.86*zoom*Math.min(cv.clientWidth,cv.clientHeight)):0.0035/Math.max(1,zoom*0.6);
@@ -1089,9 +1095,66 @@ const dragK=()=>zoom>3?2/(0.86*zoom*Math.min(cv.clientWidth,cv.clientHeight)):0.
 // trackpad pinch (Chrome and Firefox send it as wheel with ctrlKey; Safari as gesture events), a
 // two-finger touch pinch and pan, double click or double tap, the on-screen buttons and the keys.
 const ZOOM_MIN=0.6, ZOOM_HOME=1.0;
+// ---- the zoom range (More and Controls: "zoom: street to globe"), on by default and kept per viewer in this browser.
+// On, the camera keeps to the twin's own band: from the whole globe (ZOOM_MIN) to the street (zoomMax). Off, it goes on past
+// both, outward to the scale of the universe and inward to the scale of the vacuum (ZR_OUT, ZR_IN: log10 metres per device
+// pixel). Past either edge the twin's data and simulation stop: over half a decade beyond each edge (the hand-off band) the
+// twin's picture fades out, and beyond it nothing of the twin is drawn. What is drawn there is CIRISHolon's holon-draw, given
+// the camera each frame (ZRANGE.view) at two slots of the frame: an illustration, not data or a simulation.
+const ZR_OUT = 24.5, ZR_IN = -38, ZR_BAND = 0.5;
+const ZRANGE = { band: true, view: null, anchorIn: null };
+try { if (localStorage.getItem("cewp.zoomBand") === "0") ZRANGE.band = false; } catch (e) {}
+const zrDpr = () => window.devicePixelRatio || 1;
+const zoomOfMpp = (mpp) => EARTH_M / (0.86 * mpp * Math.min(cv.clientWidth || 800, cv.clientHeight || 800) / 2);
+function zoomLo(){ return ZRANGE.band ? ZOOM_MIN : zoomOfMpp(Math.pow(10, ZR_OUT) * zrDpr()); }
+function zoomHi(){ return ZRANGE.band ? zoomMax() : zoomOfMpp(Math.pow(10, ZR_IN) * zrDpr()); }
+function zrSet(band){
+  ZRANGE.band = band; try { localStorage.setItem("cewp.zoomBand", band ? "1" : "0"); } catch (e) {}
+  if (band){ targetZoom = Math.max(ZOOM_MIN, Math.min(zoomMax(), targetZoom)); zoom = Math.max(ZOOM_MIN, Math.min(zoomMax(), zoom)); }
+  zrLabels(); if (typeof gfxDirty === "function") gfxDirty(500);
+}
+function zrLabels(){
+  const b = ZRANGE.band, a = $("zrange"), m = $("sf-zrange");
+  if (a){ a.classList.toggle("on", b); a.setAttribute("aria-pressed", String(b)); a.textContent = b ? "zoom: street to globe" : "zoom: past street and globe (illustration)"; }
+  if (m){ m.setAttribute("aria-pressed", String(b)); m.textContent = b ? "Zoom: street to globe" : "Zoom: past the street and the globe (illustration beyond)"; }
+}
+// The frame's zoom in the hand-off's terms: z (log10 metres per device pixel at the view's centre), the twin's two edges, the
+// twin's weight w (1 inside its band, to 0 over ZR_BAND beyond either edge), and the camera record holon-draw draws from
+function zrFrame(w, h, renderScale){
+  const dpr = zrDpr(), m = Math.min(w, h) || 800, mppOf = (zm) => EARTH_M / (0.86 * zm * m / 2);
+  const z = Math.log10(mppOf(zoom) / dpr), globe = Math.log10(mppOf(ZOOM_MIN) / dpr), street = Math.log10(mppOf(zoomMax()) / dpr);
+  let wt = 1, side = null;
+  if (!ZRANGE.band){ if (z > globe){ side = "out"; wt = Math.max(0, 1 - (z - globe) / ZR_BAND); } else if (z < street){ side = "in"; wt = Math.max(0, 1 - (street - z) / ZR_BAND); } }
+  const lat = pitch * 180 / Math.PI, lon = ((yaw * 180 / Math.PI + 540) % 360) - 180;
+  if (side === "in"){ if (!ZRANGE.anchorIn) ZRANGE.anchorIn = { lat, lon, height: 0 }; } else ZRANGE.anchorIn = null;
+  const V = ZRANGE.view || (ZRANGE.view = {});
+  V.z = z; V.edges = { globe, street, band: ZR_BAND }; V.w = wt; V.side = side; V.band = ZRANGE.band;
+  V.anchor = side === "in" ? ZRANGE.anchorIn : side === "out" ? { centre: "earth", lat: 0, lon: 0, height: -EARTH_M } : { lat, lon, height: 0 };
+  V.yaw = yaw; V.pitch = pitch; V.viewport = [w, h]; V.dpr = dpr; V.renderScale = renderScale; // device pixels per CSS pixel; the GL buffer's own scale (capped) V.utcHours = typeof drawnUtcHours === "function" ? drawnUtcHours(getTime()) : 0;
+  // the sun the globe is lit by (the kernel's MODEL subsolar point on the scenario's day, gfx.js gfxSun): a scene drawn in its
+  // place puts its terminator there, not at the real sun
+  V.sun = typeof GFX !== "undefined" && GFX.sunLL ? [GFX.sunLL[0], GFX.sunLL[1]] : null; V.doy = typeof SIM_DOY !== "undefined" ? SIM_DOY : null;
+  if (typeof mcv !== "undefined") mcv.style.opacity = side ? String(wt) : "";
+  const note = $("zr-note"); if (note) note.classList.toggle("panel-hidden", !side);
+  return V;
+}
+// the twin's picture toward the page's background by 1 - w (its passes at weight w), then holon-draw at its slot
+let zrProg = null, zrBuf = null;
+const ZRV = `attribute vec2 p;void main(){gl_Position=vec4(p,0.0,1.0);}`, ZRF = `precision mediump float;uniform vec4 uC;void main(){gl_FragColor=uC;}`;
+function zrFade(a){
+  if (!(a > 0.001)) return;
+  if (!zrProg){ zrProg = prog(ZRV, ZRF); zrBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, zrBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); }
+  gl.disable(gl.STENCIL_TEST); gl.disable(gl.DEPTH_TEST); gl.useProgram(zrProg); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.uniform4f(gl.getUniformLocation(zrProg, "uC"), 0.043, 0.051, 0.07, Math.min(1, a));
+  const l = gl.getAttribLocation(zrProg, "p"); gl.bindBuffer(gl.ARRAY_BUFFER, zrBuf); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 2, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3); gl.disableVertexAttribArray(l);
+}
+// holon-draw's scenes past the band, if the page has them (window.HOLON_LADDER.draw(gl, view, slot)); slot "out" after the
+// globe's last pass, "in" after the street tier
+function zrHook(slot, V){ const H = window.HOLON_LADDER; if (!H || typeof H.draw !== "function") return; gl.disable(gl.STENCIL_TEST); try { H.draw(gl, V, slot); } catch (e) { console.warn("holon-draw: " + e.message); } }
 let zoomAnchor=null; // [x, y, when]: the canvas point the ground stays under while the zoom eases
 const cvXY=(x,y)=>{ const r=cv.getBoundingClientRect(); return [x-r.left,y-r.top]; };
-function zoomBy(f,x,y){ if(!(f>0)||!isFinite(f)) return; storyHold(); targetZoom=Math.max(ZOOM_MIN,Math.min(zoomMax(),targetZoom*f)); zoomAnchor=x==null?null:[x,y,performance.now()]; lastTouchTime=performance.now(); }
+function zoomBy(f,x,y){ if(!(f>0)||!isFinite(f)) return; storyHold(); targetZoom=Math.max(zoomLo(),Math.min(zoomHi(),targetZoom*f)); zoomAnchor=x==null?null:[x,y,performance.now()]; lastTouchTime=performance.now(); }
 function panBy(dx,dy,coast){ const k=dragK(), vy=-dx*k/Math.max(0.2,Math.cos(pitch)), vp=dy*k; yaw+=vy; pitch=Math.max(-1.4,Math.min(1.4,pitch+vp)); if(coast){ velYaw=vy; velPitch=vp; } lastTouchTime=performance.now(); }
 function resetView(){ storyHold(); targetZoom=ZOOM_HOME; zoomAnchor=null; velYaw=0; velPitch=0; lastTouchTime=performance.now(); }
 // called once a frame with the zoom before this frame's ease: turn the globe so the anchored point stays put
@@ -1234,6 +1297,7 @@ if (STORY_FIRST){
   <button type="button" data-panel="stats">Metrics</button>
   <button type="button" data-panel="foot">Sources: what is measured</button>
   <button type="button" id="sf-chip-tg">Show the street readout</button>
+  <button type="button" id="sf-zrange" aria-pressed="true">Zoom: street to globe</button>
   <a href="globe.html"><b>Full explorer</b> (every panel open to use)</a>
   ${links}
 </nav>`);
@@ -1242,6 +1306,7 @@ if (STORY_FIRST){
   more.onclick = (e) => { e.stopPropagation(); setMenu(menu.classList.contains("panel-hidden")); };
   menu.querySelectorAll("[data-panel]").forEach(b => b.onclick = () => { const id = b.getAttribute("data-panel"); setMenu(false); togglePanel(id, "btn-" + id); });
   $("sf-chip-tg").onclick = () => { const on = document.body.classList.toggle("sf-chip"); $("sf-chip-tg").textContent = on ? "Hide the street readout" : "Show the street readout"; setMenu(false); };
+  $("sf-zrange").onclick = () => { zrSet(!ZRANGE.band); setMenu(false); }; zrLabels();
   $("sf-replay").onclick = () => startStoryMode();
   addEventListener("click", (e) => { if (!menu.classList.contains("panel-hidden") && !menu.contains(e.target) && e.target !== more) setMenu(false); });
   addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
@@ -3516,4 +3581,5 @@ $("step").onclick=()=>{ if(W) tick(); };
 $("play").onclick=(e)=>{ if(!W) return; playing=!playing; e.target.textContent=playing?"❚❚ pause":"▶ run"; e.target.classList.toggle("active",playing); };
 $("eng").onclick=(e)=>{ useWasm=!useWasm; e.target.textContent="engine: "+(useWasm&&wasm?"WASM":"JS"); e.target.classList.toggle("on",useWasm&&!!wasm); avgMsPerAct=0; avgMsPerTick=0; if(W) tick(); };
 $("arcsb").onclick=(e)=>{ showArcs=!showArcs; e.target.classList.toggle("on",showArcs); };
+$("zrange").onclick=()=>zrSet(!ZRANGE.band); zrLabels();
 (async()=>{ initLand(); await loadWasm(); if(!wasm){ useWasm=false; $("eng").textContent="engine: JS"; $("eng").classList.remove("on"); } await build(); playing=true; $("play").textContent="❚❚ pause"; $("play").classList.add("active"); initStoryMode(); loop(); })().catch((e)=>{ console.warn("globe boot", e); const st=$("status"); if(st) st.textContent="the globe could not start here: "+(e&&e.message?e.message:String(e)); });

@@ -12,7 +12,9 @@
 # draws, the switch reads as above, and no page or console error.
 # --query ?hd=2: the page with holon-draw's backend drawing the leaves; its programs (docs/holon/draw.js, built with its own
 # createProgram, so not found by name) are audited as they link, and at least one tile must be drawn through it.
-# Usage: python3 tools/page/no_highp/run.py [port] [--query ?hd=2] [--assert]
+# --zoom-off: the zoom range switched off (stored before load, as a viewer's choice); after the street check the camera goes
+# past the street's edge into the hand-off band, so the fade's program links and draws on the page too.
+# Usage: python3 tools/page/no_highp/run.py [port] [--query ?hd=2] [--zoom-off] [--assert]
 import asyncio, glob, json, os, re, sys
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "docs")
 # every program the page can build: each prog(V, F) / gfxProg("name", V, F) with named shader sources, from the page's source
@@ -20,7 +22,7 @@ PAIRS = sorted({(v, f) for path in glob.glob(os.path.join(ROOT, "**", "*.js"), r
     for v, f in re.findall(r'(?:\bprog|gfxProg\("\w+",)\s*\(?\s*([A-Z][A-Z0-9_]*)\s*,\s*([A-Z][A-Z0-9_]*)\s*\)', open(path).read())})
 from playwright.async_api import async_playwright
 ARGS = sys.argv[1:]; QUERY = ARGS[ARGS.index("--query") + 1] if "--query" in ARGS else ""
-PORT = next((a for i, a in enumerate(ARGS) if not a.startswith("--") and not (i and ARGS[i - 1] == "--query")), "8732"); CHECK = "--assert" in ARGS
+PORT = next((a for i, a in enumerate(ARGS) if not a.startswith("--") and not (i and ARGS[i - 1] == "--query")), "8732"); CHECK = "--assert" in ARGS; ZOFF = "--zoom-off" in ARGS
 INIT = r"""(() => { const W = window.__NH = { links: [], highp: [] }; const P = WebGLRenderingContext.prototype;
   const q = P.getShaderPrecisionFormat; P.getShaderPrecisionFormat = function(st, pt){ const r = q.call(this, st, pt);
     return (st === this.FRAGMENT_SHADER && (pt === this.HIGH_FLOAT || pt === this.HIGH_INT)) ? { rangeMin: 0, rangeMax: 0, precision: 0 } : r; };
@@ -51,6 +53,7 @@ async def main():
         b = await p.chromium.launch(channel="chrome", headless=True, args=["--use-angle=gl-egl", "--ignore-gpu-blocklist"])
         pg = await (await b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True)).new_page()
         errs = []; pg.on("pageerror", lambda e: errs.append("pageerror: " + str(e)[:200])); pg.on("console", lambda m: errs.append("console: " + m.text[:200]) if m.type == "error" else None)
+        if ZOFF: await pg.add_init_script("try { localStorage.setItem('cewp.zoomBand', '0'); } catch (e) {}")
         await pg.add_init_script(INIT); await pg.goto(f"http://127.0.0.1:{PORT}/index.html{QUERY}")
         for _ in range(60):
             await asyncio.sleep(1)
@@ -65,6 +68,9 @@ async def main():
             drawn = await pg.evaluate("(hd) => typeof TL !== 'undefined' && (!hd || (TL.hdTiles | 0) > 0) ? (TL.drawn | 0) : 0", "hd=2" in QUERY)
             if drawn > 0: break
         await asyncio.sleep(2)
+        zr = None
+        if ZOFF: # into the inward hand-off band: the twin fades (its fade program draws), then back
+            zr = await pg.evaluate("async () => { const e = ZRANGE.view.edges.street; for (let i = 0; i < 400 && ZRANGE.view.z > e - 0.25; i++){ zoomBy(1.15); await new Promise(r => setTimeout(r, 30)); } return { band: ZRANGE.band, z: ZRANGE.view.z, w: ZRANGE.view.w, side: ZRANGE.view.side, faded: !!zrProg }; }")
         # each of the page's programs linked once more by name, so one the run did not reach is audited too
         named = await pg.evaluate("""(pairs) => pairs.map(([v, f]) => { const n0 = window.__NH.links.length; let err = null;
             try { const V = eval(v), F = eval(f); prog(V, F); } catch (e) { err = String(e).slice(0, 160); }
@@ -79,7 +85,7 @@ async def main():
     out = {"hiFrag": r["hiFrag"], "programs_linked": len(r["links"]), "link_failures": bad_links, "shared_uniforms_differing": mism,
            "fragment_asks_highp": r["highp"], "street_tier": {"on": r["tl_on"], "tiles_drawn": r["tl_drawn"], "through_draw_js": r["hd_tiles"], "draw_js": r["hd_drawer"], "holon_error": r["hd_err"]}, "frames": r["frames"],
            "texture_switch": [r["switch"], r["switch_disabled"]], "errors": errs,
-           "named_programs": [{"pair": n["pair"], "ok": n["ok"], "found": n["found"], "shared": [f"{s['name']} {s['vertex']}/{s['fragment']}" for s in n["shared"]]} for n in named],
+           "zoom_off": zr, "named_programs": [{"pair": n["pair"], "ok": n["ok"], "found": n["found"], "shared": [f"{s['name']} {s['vertex']}/{s['fragment']}" for s in n["shared"]]} for n in named],
            "audit": [{"program": l["fragment_head"], "ok": l["ok"], "shared": [f"{s['name']} {s['vertex']}/{s['fragment']}" for s in l["shared"]]} for l in r["links"]]}
     print(json.dumps(out, indent=1))
     if CHECK:
@@ -95,6 +101,7 @@ async def main():
         if len(named) < 15: why.append(f"only {len(named)} named programs found in the source")
         if "hd=2" in QUERY and not (r["hd_drawer"] and r["hd_tiles"] > 0): why.append(f"holon-draw's backend drew no tile ({r['hd_err']})")
         if "hd=2" in QUERY and len(r["links"]) < len(named) + 2: why.append("holon-draw's programs were not linked")
+        if ZOFF and not (zr and zr["band"] is False and zr["side"] == "in" and 0 < zr["w"] < 1 and zr["faded"]): why.append(f"the zoom range was not off, or the hand-off fade did not draw ({zr})")
         if errs: why.append(f"{len(errs)} page or console errors")
         print("why:", why); print("OK" if not why else "FAIL"); sys.exit(0 if not why else 1)
 asyncio.run(main())
