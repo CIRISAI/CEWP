@@ -10,14 +10,17 @@
 # (tiles drawn > 0), and the ground texture switch must read "not on this device".
 # --assert: no program fails to link, no shared uniform differs in precision, no fragment asks for highp, the street tier
 # draws, the switch reads as above, and no page or console error.
-# Usage: python3 tools/page/no_highp/run.py [port] [--assert]
+# --query ?hd=2: the page with holon-draw's backend drawing the leaves; its programs (docs/holon/draw.js, built with its own
+# createProgram, so not found by name) are audited as they link, and at least one tile must be drawn through it.
+# Usage: python3 tools/page/no_highp/run.py [port] [--query ?hd=2] [--assert]
 import asyncio, glob, json, os, re, sys
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "docs")
 # every program the page can build: each prog(V, F) / gfxProg("name", V, F) with named shader sources, from the page's source
 PAIRS = sorted({(v, f) for path in glob.glob(os.path.join(ROOT, "**", "*.js"), recursive=True)
     for v, f in re.findall(r'(?:\bprog|gfxProg\("\w+",)\s*\(?\s*([A-Z][A-Z0-9_]*)\s*,\s*([A-Z][A-Z0-9_]*)\s*\)', open(path).read())})
 from playwright.async_api import async_playwright
-PORT = next((a for a in sys.argv[1:] if not a.startswith("--")), "8732"); CHECK = "--assert" in sys.argv
+ARGS = sys.argv[1:]; QUERY = ARGS[ARGS.index("--query") + 1] if "--query" in ARGS else ""
+PORT = next((a for i, a in enumerate(ARGS) if not a.startswith("--") and not (i and ARGS[i - 1] == "--query")), "8732"); CHECK = "--assert" in ARGS
 INIT = r"""(() => { const W = window.__NH = { links: [], highp: [] }; const P = WebGLRenderingContext.prototype;
   const q = P.getShaderPrecisionFormat; P.getShaderPrecisionFormat = function(st, pt){ const r = q.call(this, st, pt);
     return (st === this.FRAGMENT_SHADER && (pt === this.HIGH_FLOAT || pt === this.HIGH_INT)) ? { rangeMin: 0, rangeMax: 0, precision: 0 } : r; };
@@ -48,18 +51,18 @@ async def main():
         b = await p.chromium.launch(channel="chrome", headless=True, args=["--use-angle=gl-egl", "--ignore-gpu-blocklist"])
         pg = await (await b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True)).new_page()
         errs = []; pg.on("pageerror", lambda e: errs.append("pageerror: " + str(e)[:200])); pg.on("console", lambda m: errs.append("console: " + m.text[:200]) if m.type == "error" else None)
-        await pg.add_init_script(INIT); await pg.goto(f"http://127.0.0.1:{PORT}/index.html")
+        await pg.add_init_script(INIT); await pg.goto(f"http://127.0.0.1:{PORT}/index.html{QUERY}")
         for _ in range(60):
             await asyncio.sleep(1)
             try:
-                if await pg.evaluate("() => typeof tlReady === 'function' && !!tlReady() && typeof exitStoryMode === 'function'"): break
+                if await pg.evaluate("(hd) => typeof tlReady === 'function' && !!tlReady() && typeof exitStoryMode === 'function' && (!hd || (typeof TL_HD !== 'undefined' && (!!TL_HD.drawer || !!TL_HD.err)))", "hd=2" in QUERY): break
             except Exception: pass
         await pg.evaluate("() => exitStoryMode()")
         await pg.evaluate("() => { velYaw = 0; velPitch = 0; const F = camFrame(); zoom = targetZoom = EARTH_M / (0.86 * 3 * Math.min(F.w, F.h) / 2); yaw = 8.5417 * Math.PI / 180; pitch = 47.3769 * Math.PI / 180; }")
         drawn = 0
         for _ in range(45):
             await asyncio.sleep(1)
-            drawn = await pg.evaluate("() => typeof TL !== 'undefined' ? (TL.drawn | 0) : -1")
+            drawn = await pg.evaluate("(hd) => typeof TL !== 'undefined' && (!hd || (TL.hdTiles | 0) > 0) ? (TL.drawn | 0) : 0", "hd=2" in QUERY)
             if drawn > 0: break
         await asyncio.sleep(2)
         # each of the page's programs linked once more by name, so one the run did not reach is audited too
@@ -68,12 +71,13 @@ async def main():
             const l = window.__NH.links[n0]; return { pair: v + '/' + f, found: !(err && /is not defined/.test(err)), ok: !!(l && l.ok), shared: l ? l.shared : [], err }; })""", [list(x) for x in PAIRS])
         r = await pg.evaluate("""() => { const o = { hiFrag: typeof GFX !== 'undefined' ? GFX.hiFrag : null, tl_on: typeof TL !== 'undefined' && !!TL.on, tl_drawn: typeof TL !== 'undefined' ? TL.drawn | 0 : -1, frames: typeof frame !== 'undefined' ? frame : -1 };
           try { if (typeof DM_ADV_OPEN !== 'undefined'){ DM_ADV_OPEN.open = true; dmRender(); } } catch (e) { o.adv = String(e); }
+          o.hd_tiles = typeof TL !== 'undefined' ? TL.hdTiles | 0 : 0; o.hd_drawer = typeof TL_HD !== 'undefined' && !!TL_HD.drawer; o.hd_err = typeof TL_HD !== 'undefined' ? TL_HD.err : null;
           const b = document.querySelector('[data-tl-tex]'); o.switch = b ? b.textContent : null; o.switch_disabled = b ? b.disabled : null; return o; }""")
         r.update(await pg.evaluate("() => window.__NH"))
         await b.close()
     bad_links = [l for l in r["links"] if not l["ok"]]; mism = [dict(s, program=l["fragment_head"]) for l in r["links"] for s in l["shared"] if not s["same"]]
     out = {"hiFrag": r["hiFrag"], "programs_linked": len(r["links"]), "link_failures": bad_links, "shared_uniforms_differing": mism,
-           "fragment_asks_highp": r["highp"], "street_tier": {"on": r["tl_on"], "tiles_drawn": r["tl_drawn"]}, "frames": r["frames"],
+           "fragment_asks_highp": r["highp"], "street_tier": {"on": r["tl_on"], "tiles_drawn": r["tl_drawn"], "through_draw_js": r["hd_tiles"], "draw_js": r["hd_drawer"], "holon_error": r["hd_err"]}, "frames": r["frames"],
            "texture_switch": [r["switch"], r["switch_disabled"]], "errors": errs,
            "named_programs": [{"pair": n["pair"], "ok": n["ok"], "found": n["found"], "shared": [f"{s['name']} {s['vertex']}/{s['fragment']}" for s in n["shared"]]} for n in named],
            "audit": [{"program": l["fragment_head"], "ok": l["ok"], "shared": [f"{s['name']} {s['vertex']}/{s['fragment']}" for s in l["shared"]]} for l in r["links"]]}
@@ -89,6 +93,8 @@ async def main():
         nb = [n["pair"] for n in named if not n["ok"]]
         if nb: why.append(f"programs that do not link (or cannot be found by name): {nb}")
         if len(named) < 15: why.append(f"only {len(named)} named programs found in the source")
+        if "hd=2" in QUERY and not (r["hd_drawer"] and r["hd_tiles"] > 0): why.append(f"holon-draw's backend drew no tile ({r['hd_err']})")
+        if "hd=2" in QUERY and len(r["links"]) < len(named) + 2: why.append("holon-draw's programs were not linked")
         if errs: why.append(f"{len(errs)} page or console errors")
         print("why:", why); print("OK" if not why else "FAIL"); sys.exit(0 if not why else 1)
 asyncio.run(main())

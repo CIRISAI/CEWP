@@ -123,12 +123,63 @@ const TL_STYLE = [TL_PPH, ...TL_ROAD[0], ...TL_ROOF_TONES.flatMap((c) => c || [0
 // as the JS builder, bit for bit, handed TL_STYLE. Loaded at idle; until then, if it fails to load, or with ?hd=0, the JS
 // builder draws. With ?hdcheck=1 every leaf is built both ways and compared (TL_HD.cmp), the witness's real-leaf check.
 const TL_HD = { on: false, x: null, err: null, check: typeof location !== "undefined" && /[?&]hdcheck=1(&|$)/.test(location.search),
-  off: typeof location !== "undefined" && /[?&]hd=0(&|$)/.test(location.search), cmp: { leaves: 0, floats: 0, differ: 0, length: 0 } };
+  off: typeof location !== "undefined" && /[?&]hd=0(&|$)/.test(location.search), cmp: { leaves: 0, floats: 0, differ: 0, length: 0 },
+  // ?hd=2: leaves drawn from holon-draw's instance records by its backend (docs/holon/draw.js) into this context, between the
+  // tiling's own passes; under trial, not the default
+  inst: typeof location !== "undefined" && /[?&]hd=2(&|$)/.test(location.search), drawer: null, mod: null };
 function tlHdLeaf(id, ox, oy, sx, R, B, meta, S, TN, cls){
   const X = TL_HD.x, put = (i, a) => { const n = a ? a.length : 0, q = X.hd_in(i, n); if (n) new Float64Array(X.memory.buffer, q, n).set(a); };
   put(0, R); put(1, B); put(2, meta); put(3, S); put(4, TN);
   const c = TL_ROAD[cls] || TL_ROAD[0], n = X.hd_build_leaf(id, ox, oy, sx, TL_PPH, c[0], c[1], c[2], TN ? 1 : 0);
-  if (!n) return null; const op = X.hd_out(); return new Float32Array(X.memory.buffer, op, n).slice();
+  if (!n) return null; const op = X.hd_out(); const out = new Float32Array(X.memory.buffer, op, n).slice();
+  if (TL_HD.inst && X.hd_build_leaf_instances){ const m = X.hd_build_leaf_instances(id, ox, oy, sx, TL_PPH, c[0], c[1], c[2], TN ? 1 : 0);
+    const ip = X.hd_out_instances(), bytes = new Uint8Array(X.memory.buffer, ip, m * 52).slice(), g = [];
+    for (let k = 0, G = X.hd_inst_groups(); k < G; k++) g.push([X.hd_inst_group(k, 0), X.hd_inst_group(k, 1), X.hd_inst_group(k, 2)]);
+    TL_HD.lastInst = { bytes, g };
+    if (TL_HD.check && X.hd_inst_expand) tlHdExpandCheck(X, out, bytes, m, ox, oy, sx); }
+  return out;
+}
+// One tile's leaves through draw.js: the eight groups of each leaf's records concatenated per group (rebuilt when the tile's
+// leaves change), the tile's settings from the same values the tiling's own program takes, a flat-map matrix from the tile's
+// affine. Groups: 0 ground, 1 mottling and trees, 2 yards, 3 garden trees, 4 casings, 5 streets, 6 shadows, 7 roofs.
+const TL_HD_P = new Float32Array(32), TL_HD_VP = new Float32Array(16);
+function tlHdTile(bt, list, A, F, kA, groups, mh, ring){
+  const D = TL_HD.drawer, P = TL_HD.mod.PARAM, dpr = window.devicePixelRatio || 1;
+  if (bt.hdKey !== bt.key){ const G = []; for (let g = 0; g < 8; g++){ let n = 0, kind = 0;
+      for (const e of list){ const q = e.inst && e.inst.g[g]; if (q){ n += q[2]; kind = q[0] || kind; } }
+      const bytes = new Uint8Array(n * 52); let at = 0;
+      for (const e of list){ const q = e.inst && e.inst.g[g]; if (!q || !q[2]) continue; bytes.set(e.inst.bytes.subarray(q[1] * 52, (q[1] + q[2]) * 52), at); at += q[2] * 52; }
+      G.push({ kind, bytes, count: n, params: TL_HD_P }); }
+    bt.hdG = G; bt.hdKey = bt.key; }
+  const Pm = TL_HD_P; Pm.fill(0);
+  Pm[P.DIM] = Pm[P.DIM + 1] = Pm[P.DIM + 2] = bt.night; Pm[P.FADE] = 1;
+  Pm.set(bt.terr.g0, P.RAMP0); Pm.set(bt.terr.g1, P.RAMP1); Pm.set(bt.terr.roof, P.TINT);
+  const [la, lo] = tlCentre(list[0].t), no = tlNoiseOrigin(la, lo); Pm[P.NOISE] = no[0]; Pm[P.NOISE + 1] = no[1]; Pm[P.NOISE + 2] = no[2]; Pm[P.NOISE + 3] = 1;
+  Pm[P.TEX] = tlTexUniform(TL_TEX, typeof DATAMAP !== "undefined" && DATAMAP.active);
+  Pm[P.FLOOR_CASING] = (mh + 0.5) * dpr; Pm[P.FLOOR] = mh * dpr;
+  Pm[P.A_GROUND] = kA[0]; Pm[P.A_CASING] = kA[1]; Pm[P.A_ROAD] = kA[2]; Pm[P.A_ROOF] = kA[3];
+  Pm[P.RING] = ring[0] * dpr; Pm[P.RING + 1] = ring[1] * dpr; Pm[P.RING + 2] = ring[2] * dpr;
+  const V = TL_HD_VP; V.fill(0); V[0] = A.a * 2 / F.w; V[1] = -A.b * 2 / F.h; V[4] = A.c * 2 / F.w; V[5] = -A.d * 2 / F.h; V[10] = 1;
+  V[12] = A.e * 2 / F.w - 1; V[13] = 1 - A.f * 2 / F.h; V[15] = 1;
+  D.draw(groups.map((g) => bt.hdG[g]), V, { depthTest: false, pixelsPerUnit: A.ppm * dpr, viewport: [0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight] });
+  // draw.js leaves depth test, culling and its blend on: back to the tiling's state
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.useProgram(tlProg);
+}
+// ?hdcheck=1&hd=2: the leaf's records expanded back into the vertex stream (hd_inst_expand) against the vertex builder's
+// stream, with holon-draw's own tolerances (twin::tests::the_instance_records_are_the_vertex_streams_geometry): kind codes
+// exact; positions 2e-3 + |sx - 1| x the largest record's size + 1e-6 x the leaf's offset; normals and widths 1e-3; colours
+// half an 8-bit step
+function tlHdExpandCheck(X, v, bytes, m, ox, oy, sx){
+  const C = TL_HD.icmp || (TL_HD.icmp = { leaves: 0, vertices: 0, position: 0, normal: 0, colour: 0, kind: 0, length: 0, worst_position: 0 }); C.leaves++;
+  const f = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength); let size = 0;
+  for (let r = 0; r < m; r++) size = Math.max(size, f.getFloat32(r * 52 + 12, true), f.getFloat32(r * 52 + 16, true));
+  const n = X.hd_inst_expand(); if (n !== v.length){ C.length++; return; }
+  const e = new Float32Array(X.memory.buffer, X.hd_out(), n), tol = 2e-3 + Math.abs(sx - 1) * size + 1e-6 * Math.max(Math.abs(ox), Math.abs(oy));
+  for (let i = 0; i < n; i += 10){ C.vertices++;
+    for (const j of [0, 1]){ const d = Math.abs(e[i + j] - v[i + j]); C.worst_position = Math.max(C.worst_position, d - tol); if (d > tol) C.position++; }
+    for (const j of [2, 3, 4]) if (Math.abs(e[i + j] - v[i + j]) > 1e-3) C.normal++;
+    for (const j of [5, 6, 7, 8]) if (Math.abs(e[i + j] - v[i + j]) > 0.5 / 255 + 1e-6) C.colour++;
+    if (e[i + 9] !== v[i + 9]) C.kind++; }
 }
 function tlHdCompare(a, b){ const C = TL_HD.cmp; C.leaves++;
   if (a.length !== b.length){ C.length++; return; }
@@ -137,12 +188,13 @@ function tlHdCompare(a, b){ const C = TL_HD.cmp; C.leaves++;
   C.floats += a.length; }
 function tlHdLoad(){
   if (TL_HD.off || TL_HD.x || typeof WebAssembly === "undefined") return;
-  WebAssembly.instantiateStreaming(fetch("holon/holon_draw.wasm?v=1"), {}).then(({ instance }) => {
+  WebAssembly.instantiateStreaming(fetch("holon/holon_draw.wasm?v=2"), {}).then(({ instance }) => {
     const X = instance.exports;
     if (X.hd_style_len() !== TL_STYLE.length) throw new Error("holon-draw style length " + X.hd_style_len() + ", the twin's " + TL_STYLE.length);
     const sp = X.hd_in(5, TL_STYLE.length); new Float64Array(X.memory.buffer, sp, TL_STYLE.length).set(TL_STYLE); // the pointer first: hd_in may grow the memory
     if (!X.hd_style()) throw new Error("holon-draw refused the style");
     TL_HD.x = X; TL_HD.on = true;
+    if (TL_HD.inst) return import("./holon/draw.js?v=1").then((mod) => { TL_HD.mod = mod; TL_HD.drawer = mod.createDrawer(gl, {}); });
   }).catch((e) => { TL_HD.err = String(e.message || e); console.warn("holon-draw: " + TL_HD.err + "; the JS leaf builder draws"); });
 }
 const tlMix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -283,11 +335,12 @@ function tlBuildLeaf(leaf){
   return new Float32Array(V); };
   let data = hd;
   if (!data || TL_HD.check){ const j = js(); if (data) tlHdCompare(data, j); else data = j; }
+  const inst = hd && TL_HD.lastInst ? TL_HD.lastInst : null; if (typeof TL_HD !== "undefined") TL_HD.lastInst = null;
   // the built form's record (kernel holon_layout meta 7..22): its source, climate class, region, the door slots read and their
   // versions, buildings a generator drew, the state used and why, the generator's pooling
   const form = meta.length >= 23 ? { source: meta[7], climate: meta[8], region: meta[9], read: meta[10], v: Array.from(meta.slice(11, 15)), generated: meta[15], state: meta[16], why: meta[17], pooling: meta[18] >= 0 ? Array.from(meta.slice(18, 22)) : null, mixed: meta[22] } : null;
   const tones = TN ? Array.from(TN).filter((x) => x > 0).length : 0;
-  return { id, tile: HOLON.pack(t), t, data, bytes: data.byteLength, hh: meta[2], form, tones };
+  return { id, tile: HOLON.pack(t), t, data, bytes: data.byteLength + (inst ? inst.bytes.byteLength : 0), hh: meta[2], form, tones, inst };
 }
 function tlFrameOf(la, lo){ const a = la * Math.PI / 180, o = lo * Math.PI / 180;
   return { c: [Math.cos(a) * Math.sin(o), Math.sin(a), Math.cos(a) * Math.cos(o)], E: [Math.cos(o), 0, -Math.sin(o)], N: [-Math.sin(a) * Math.sin(o), Math.cos(a), -Math.sin(a) * Math.cos(o)] }; }
@@ -532,6 +585,7 @@ function tlDraw(w, h, mpp, sun){
   const homePx = 10 * F.k / EARTH_M, dpr = window.devicePixelRatio || 1, mh = 0.55 / Math.min(2, dpr);
   const Re = TL.cut ? Math.min(TL.ringEff || TL.ring.ring, TL.cut) : (TL.ringEff || TL.ring.ring), edge = Re < Math.hypot(F.w, F.h) / 2;
   TL.re = edge ? Re : 0; // the disc's drawn radius this frame (0: the whole screen), read by tools/page/story_zoom
+  TL.hdTiles = 0;
   if (detA > 0.01 && byTile.size){
     const kA = [detA, detA * sstep(1.2, 3, homePx * 0.25), detA, detA * sstep(0.6, 2, homePx)];
     gl.uniform4f(tlLoc.minHalf, 0, mh + 0.5, mh, 0); gl.uniform3f(tlLoc.ring, F.w / 2, F.h / 2, edge ? Re : 0);
@@ -552,6 +606,7 @@ function tlDraw(w, h, mpp, sun){
       { const [la, lo] = tlCentre(list[0].t), no = tlNoiseOrigin(la, lo); gl.uniform4f(tlLoc.no, no[0], no[1], no[2], 1);
         gl.uniform1f(tlLoc.tex, tlTexUniform(TL_TEX, typeof DATAMAP !== "undefined" && DATAMAP.active)); }
       gl.uniform3fv(tlLoc.g0, bt.terr.g0); gl.uniform3fv(tlLoc.g1, bt.terr.g1); gl.uniform3fv(tlLoc.roof, bt.terr.roof);
+      if (TL_HD.drawer && list.every((e) => e.inst)){ tlHdTile(bt, list, A, F, ka, ka[0] && !(ka[1] || ka[2] || ka[3]) ? [0] : !ka[0] ? [1, 2, 3, 4, 5, 6, 7] : [0, 1, 2, 3, 4, 5, 6, 7], mh, [F.w / 2, F.h / 2, edge ? Re : 0]); TL.hdTiles = (TL.hdTiles || 0) + 1; continue; }
       gl.bindBuffer(gl.ARRAY_BUFFER, bt.vbo); tlAttribs();
       gl.uniform3f(tlLoc.X, A.a, A.c, A.e); gl.uniform3f(tlLoc.Y, A.b, A.d, A.f); gl.uniform1f(tlLoc.ppm, A.ppm); gl.uniform1f(tlLoc.ppmF, A.ppm);
       gl.drawArrays(gl.TRIANGLES, 0, bt.n);
