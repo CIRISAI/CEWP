@@ -76,14 +76,14 @@ function tlDoorChanged(){
   if (typeof wasm === "undefined" || !wasm || !wasm.door_versions) return 0;
   const n = wasm.door_versions(), v = new Float64Array(wasm.memory.buffer, wasm.holon_buf_ptr(0) >>> 0, n); let gone = 0;
   for (const [k, e] of TL.lay){ const f = e.form; if (!f || [0, 1, 2, 3].every((s) => !(f.read & (1 << s)) || f.v[s] === v[s])) continue;
-    TL.lay.delete(k); TL.bytes -= e.bytes; gone++; const bt = TL.batch.get(e.tile); if (bt){ gl.deleteBuffer(bt.vbo); TL.batch.delete(e.tile); }
+    TL.lay.delete(k); TL.bytes -= e.bytes; gone++; const bt = TL.batch.get(e.tile); if (bt){ gl.deleteBuffer(bt.vbo); tlHdFree(bt); TL.batch.delete(e.tile); }
     if (typeof M !== "undefined" && M && M.leaf === k){ M = null; MICRO_GEN++; } }
   if (gone && typeof gfxDirty === "function") gfxDirty(800);
   return gone;
 }
 function tlRebuild(){
   TL.T = null; TL.l0.clear(); tlPP.clear(); TL.lay.clear(); TL.bytes = 0;
-  for (const [, bt] of TL.batch) gl.deleteBuffer(bt.vbo); TL.batch.clear();
+  for (const [, bt] of TL.batch){ gl.deleteBuffer(bt.vbo); tlHdFree(bt); } TL.batch.clear();
   if (typeof M !== "undefined" && M && M.leaf !== undefined) M = null;
   if (typeof incellReset === "function") incellReset();
   if (typeof gfxDirty === "function") gfxDirty(1500);
@@ -115,6 +115,97 @@ const TL_ROCK = [[0.13, 0.13, 0.137], [0.31, 0.3, 0.29]];
 // usually looks like from above, nothing more"); index 0, neutral, keeps the renderer's present roof colour. No generator
 // ships, so every roof is neutral today.
 const TL_ROOF_TONES = [null, [178, 98, 72], [142, 122, 104], [128, 112, 94], [92, 100, 110], [84, 82, 80], [168, 172, 176], [150, 150, 146]].map((c) => c && c.map((v) => v / 255));
+// The street leaf's look in one place: 97 numbers in the order of STYLE_FIELDS in CIRISHolon's holon-draw (src/twin.rs).
+// The JS builder below reads them by name, and the wasm builder (holon-draw, docs/holon/) is handed this same array, so there
+// is no second copy. Persons per household, a local street's colour and the roof tones are the named constants above.
+const TL_STYLE = [TL_PPH, ...TL_ROAD[0], ...TL_ROOF_TONES.flatMap((c) => c || [0, 0, 0]), 0.9, 6000, 1500, 1600, 700, 70, 9000, 14, 8, 18, 0.5, 0.55, 0.36, 0.04, 0.07, 0.04, 0.07, 1.4, 2.2, 0.09, 0.17, 0.08, 0.05, 0.08, 0, 0.8, 1500, 2, 0.35, 0.42, 0.5, 0.33, 0.16, 3, 1.6, 1.8, 0.11, 0.2, 0.1, 0.06, 0.85, 11, 7, 1.6, 0.8, 0.07, 0.08, 0.095, 0.9, 0.86, 0.78, 0.56, 0.66, 0.66, 0.64, 0.5, 1.0, 0.02, 0.025, 0.03, 0.5, 0.44, 0.41, 0.36, 0.3, 0.29, 0.27, 1.22, 0.74];
+// holon-draw's leaf builder (docs/holon/holon_draw.wasm, built from CIRISHolon; docs/holon/README.md): the same vertex stream
+// as the JS builder, bit for bit, handed TL_STYLE. Loaded at idle; until then, if it fails to load, or with ?hd=0, the JS
+// builder draws. With ?hdcheck=1 every leaf is built both ways and compared (TL_HD.cmp), the witness's real-leaf check.
+const TL_HD = { on: false, x: null, err: null, check: typeof location !== "undefined" && /[?&]hdcheck=1(&|$)/.test(location.search),
+  off: typeof location !== "undefined" && /[?&]hd=0(&|$)/.test(location.search), cmp: { leaves: 0, floats: 0, differ: 0, length: 0 },
+  // ?hd=2: leaves drawn from holon-draw's instance records by its backend (docs/holon/draw.js) into this context, between the
+  // tiling's own passes; under trial, not the default
+  inst: typeof location !== "undefined" && /[?&]hd=2(&|$)/.test(location.search), drawer: null, mod: null };
+function tlHdLeaf(id, ox, oy, sx, R, B, meta, S, TN, cls){
+  const X = TL_HD.x, put = (i, a) => { const n = a ? a.length : 0, q = X.hd_in(i, n); if (n) new Float64Array(X.memory.buffer, q, n).set(a); };
+  put(0, R); put(1, B); put(2, meta); put(3, S); put(4, TN);
+  const c = TL_ROAD[cls] || TL_ROAD[0], n = X.hd_build_leaf(id, ox, oy, sx, TL_PPH, c[0], c[1], c[2], TN ? 1 : 0);
+  if (!n) return null; const op = X.hd_out(); const out = new Float32Array(X.memory.buffer, op, n).slice();
+  if (TL_HD.inst && X.hd_build_leaf_instances){ const m = X.hd_build_leaf_instances(id, ox, oy, sx, TL_PPH, c[0], c[1], c[2], TN ? 1 : 0);
+    const ip = X.hd_out_instances(), bytes = new Uint8Array(X.memory.buffer, ip, m * 52).slice(), g = [];
+    for (let k = 0, G = X.hd_inst_groups(); k < G; k++) g.push([X.hd_inst_group(k, 0), X.hd_inst_group(k, 1), X.hd_inst_group(k, 2)]);
+    TL_HD.lastInst = { bytes, g };
+    if (TL_HD.check && X.hd_inst_expand) tlHdExpandCheck(X, out, bytes, m, ox, oy, sx); }
+  return out;
+}
+// One tile's leaves through draw.js: the eight groups of each leaf's records concatenated per group (rebuilt when the tile's
+// leaves change), the tile's settings from the same values the tiling's own program takes, a flat-map matrix from the tile's
+// affine. Groups: 0 ground, 1 mottling and trees, 2 yards, 3 garden trees, 4 casings, 5 streets, 6 shadows, 7 roofs.
+const TL_HD_P = new Float32Array(32), TL_HD_VP = new Float32Array(16);
+function tlHdFree(bt){ if (bt && bt.hdH && TL_HD.drawer){ TL_HD.drawer.release(bt.hdH); } if (bt){ bt.hdH = 0; bt.hdKey = ""; } }
+function tlHdTile(bt, list, A, F, kA, groups, mh, ring){
+  const D = TL_HD.drawer, P = TL_HD.mod.PARAM, dpr = window.devicePixelRatio || 1;
+  // RESIDENT: a tile's eight groups live in one GPU buffer (draw.js resident()), written when the tile's leaves change and
+  // drawn every frame with no upload; each group is a range of it. Released with the tile (tlHdFree).
+  if (bt.hdKey !== bt.key){ let total = 0; const spans = [];
+    for (let g = 0; g < 8; g++){ let n = 0, kind = 0;
+      for (const e of list){ const q = e.inst && e.inst.g[g]; if (q){ n += q[2]; kind = q[0] || kind; } }
+      spans.push([kind, total, n]); total += n; }
+    const bytes = new Uint8Array(total * 52); let at = 0;
+    for (let g = 0; g < 8; g++) for (const e of list){ const q = e.inst && e.inst.g[g]; if (!q || !q[2]) continue; bytes.set(e.inst.bytes.subarray(q[1] * 52, (q[1] + q[2]) * 52), at); at += q[2] * 52; }
+    if (!total){ tlHdFree(bt); bt.hdG = spans.map(([kind]) => ({ kind, count: 0, bytes: new Uint8Array(0), params: TL_HD_P })); }
+    else {
+      if (bt.hdH) D.update(bt.hdH, bytes); else bt.hdH = D.resident(bytes);
+      bt.hdG = spans.map(([kind, first, count]) => ({ kind, handle: bt.hdH, first, count, params: TL_HD_P }));
+    }
+    bt.hdKey = bt.key; }
+  const Pm = TL_HD_P; Pm.fill(0);
+  Pm[P.DIM] = Pm[P.DIM + 1] = Pm[P.DIM + 2] = bt.night; Pm[P.FADE] = 1;
+  Pm.set(bt.terr.g0, P.RAMP0); Pm.set(bt.terr.g1, P.RAMP1); Pm.set(bt.terr.roof, P.TINT);
+  const [la, lo] = tlCentre(list[0].t), no = tlNoiseOrigin(la, lo); Pm[P.NOISE] = no[0]; Pm[P.NOISE + 1] = no[1]; Pm[P.NOISE + 2] = no[2]; Pm[P.NOISE + 3] = 1;
+  Pm[P.TEX] = tlTexUniform(TL_TEX, typeof DATAMAP !== "undefined" && DATAMAP.active);
+  Pm[P.FLOOR_CASING] = (mh + 0.5) * dpr; Pm[P.FLOOR] = mh * dpr;
+  Pm[P.A_GROUND] = kA[0]; Pm[P.A_CASING] = kA[1]; Pm[P.A_ROAD] = kA[2]; Pm[P.A_ROOF] = kA[3];
+  Pm[P.RING] = ring[0] * dpr; Pm[P.RING + 1] = ring[1] * dpr; Pm[P.RING + 2] = ring[2] * dpr;
+  const V = TL_HD_VP; V.fill(0); V[0] = A.a * 2 / F.w; V[1] = -A.b * 2 / F.h; V[4] = A.c * 2 / F.w; V[5] = -A.d * 2 / F.h; V[10] = 1;
+  V[12] = A.e * 2 / F.w - 1; V[13] = 1 - A.f * 2 / F.h; V[15] = 1;
+  D.draw(groups.map((g) => bt.hdG[g]), V, { depthTest: false, pixelsPerUnit: A.ppm * dpr, viewport: [0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight] });
+  // draw.js leaves depth test, culling and its blend on: back to the tiling's state
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.useProgram(tlProg);
+}
+// ?hdcheck=1&hd=2: the leaf's records expanded back into the vertex stream (hd_inst_expand) against the vertex builder's
+// stream, with holon-draw's own tolerances (twin::tests::the_instance_records_are_the_vertex_streams_geometry): kind codes
+// exact; positions 2e-3 + |sx - 1| x the largest record's size + 1e-6 x the leaf's offset; normals and widths 1e-3; colours
+// half an 8-bit step
+function tlHdExpandCheck(X, v, bytes, m, ox, oy, sx){
+  const C = TL_HD.icmp || (TL_HD.icmp = { leaves: 0, vertices: 0, position: 0, normal: 0, colour: 0, kind: 0, length: 0, worst_position: 0 }); C.leaves++;
+  const f = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength); let size = 0;
+  for (let r = 0; r < m; r++) size = Math.max(size, f.getFloat32(r * 52 + 12, true), f.getFloat32(r * 52 + 16, true));
+  const n = X.hd_inst_expand(); if (n !== v.length){ C.length++; return; }
+  const e = new Float32Array(X.memory.buffer, X.hd_out(), n), tol = 2e-3 + Math.abs(sx - 1) * size + 1e-6 * Math.max(Math.abs(ox), Math.abs(oy));
+  for (let i = 0; i < n; i += 10){ C.vertices++;
+    for (const j of [0, 1]){ const d = Math.abs(e[i + j] - v[i + j]); C.worst_position = Math.max(C.worst_position, d - tol); if (d > tol) C.position++; }
+    for (const j of [2, 3, 4]) if (Math.abs(e[i + j] - v[i + j]) > 1e-3) C.normal++;
+    for (const j of [5, 6, 7, 8]) if (Math.abs(e[i + j] - v[i + j]) > 0.5 / 255 + 1e-6) C.colour++;
+    if (e[i + 9] !== v[i + 9]) C.kind++; }
+}
+function tlHdCompare(a, b){ const C = TL_HD.cmp; C.leaves++;
+  if (a.length !== b.length){ C.length++; return; }
+  const x = new Uint32Array(a.buffer, a.byteOffset, a.length), y = new Uint32Array(b.buffer, b.byteOffset, b.length);
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) C.differ++;
+  C.floats += a.length; }
+function tlHdLoad(){
+  if (TL_HD.off || TL_HD.x || typeof WebAssembly === "undefined") return;
+  WebAssembly.instantiateStreaming(fetch("holon/holon_draw.wasm?v=3"), {}).then(({ instance }) => {
+    const X = instance.exports;
+    if (X.hd_style_len() !== TL_STYLE.length) throw new Error("holon-draw style length " + X.hd_style_len() + ", the twin's " + TL_STYLE.length);
+    const sp = X.hd_in(5, TL_STYLE.length); new Float64Array(X.memory.buffer, sp, TL_STYLE.length).set(TL_STYLE); // the pointer first: hd_in may grow the memory
+    if (!X.hd_style()) throw new Error("holon-draw refused the style");
+    TL_HD.x = X; TL_HD.on = true;
+    if (TL_HD.inst) return import("./holon/draw.js?v=2").then((mod) => { TL_HD.mod = mod; TL_HD.drawer = mod.createDrawer(gl, {}); });
+  }).catch((e) => { TL_HD.err = String(e.message || e); console.warn("holon-draw: " + TL_HD.err + "; the JS leaf builder draws"); });
+}
 const tlMix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 // { g0, g1: the ground at density tone 0 and 1; roof: a multiplier on the homes; warm, m: what it read }
 function tlTerrain(la, lo){
@@ -186,10 +277,18 @@ function tlBuildLeaf(leaf){
   const TN = wasm.holon_buf_len(8) ? buf(8) : null; // each building's roof tone (kernel buffer 8; 0 neutral until a generator draws one)
   const t = HOLON.ancestor(leaf, 3), [laL, loL] = tlCentre(leaf), [laT, loT] = tlCentre(t);
   const cT = Math.cos(laT * Math.PI / 180), sx = cT / Math.cos(laL * Math.PI / 180), ox = (loL - loT) * 111320 * cT, oy = (laL - laT) * 111320;
+  // the leaf's vertex stream: from holon-draw's wasm builder when it is loaded (TL_HD), else (and as its comparator) from the JS below
+  const hd = typeof TL_HD !== "undefined" && TL_HD.on ? tlHdLeaf(id, ox, oy, sx, R, B, meta, S, TN, cls) : null;
+  const js = () => {
+  const [groundA, noTreesPkm, sparseTreesPkm, treeAreaSparse, treeArea, treeCap, patchArea, patchCap, patchR0, patchR1, patchL0, patchL1, patchL2,
+    patchD0, patchD1, patchD2, patchA, treeR0, treeR1, treeB0, treeB1, treeB2, treeS0, treeS1, treeS2, treeA, lotsPkm, lotM0, lotM1, lotC0, lotC1, lotC2,
+    lotA, gardenMax, gardenR0, gardenR1, gardenB0, gardenB1, gardenB2, gardenSG, gardenA, arterialW, collectorW, casingX0, casingX1, casingC0, casingC1,
+    casingC2, casingA, artC0, artC1, artC2, colC0, colC1, colC2, shadow0, shadow1, shadowC0, shadowC1, shadowC2, shadowA, roofU0, roofU1, roofU2,
+    roofN0, roofN1, roofN2, roofLit, roofDark] = TL_STYLE.slice(28);
   const V = []; const vert = (x, y, nx, ny, wd, c, a, k) => V.push(ox + x * sx, oy + y, nx, ny, wd, c[0], c[1], c[2], a, k);
   const quad = (p, c, a, k) => { for (const q of [0, 1, 2, 0, 2, 3]) vert(p[q][0], p[q][1], 0, 0, 0, c, a, k); };
   // the ground carries its density tone in red; the tile's terrain turns it into a colour when drawn
-  quad([[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]], [tlTone(meta[2] / Math.max(1e-6, w * h / 1e6)), 0, 0], 0.9, 0);
+  quad([[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]], [tlTone(meta[2] / Math.max(1e-6, w * h / 1e6)), 0, 0], groundA, 0);
   // street ends from the leaf's street graph (tiling::StreetGraph, holon buffer 6: arterial, start kind, end kind;
   // kinds 0 exit, 1 dead end, 2 tee, 3 cross, 4 corner)
   const road = (r, extra, c, a, k) => {
@@ -210,44 +309,47 @@ function tlBuildLeaf(leaf){
   const seed = (id % 2147483647) | 0;
   // over the whole leaf: soft mottling (meadow and wear) and scattered trees, fewer where it is dense;
   // buildings and streets drawn later cover whatever lands under them
-  { const area = w * h, dens = meta[2] / Math.max(1e-6, area / 1e6), pkm = dens * TL_PPH, nT = pkm >= 6000 ? 0 : Math.min(70, Math.round(area / (pkm >= 1500 ? 1600 : 700))), nP = Math.min(14, Math.round(area / 9000)); // no trees where it is apartment blocks or denser
-    for (let k = 0; k < nP; k++){ const x = (hsh(seed, 9000 + k) - 0.5) * w, y = (hsh(9000 + k, seed) - 0.5) * h, r = 8 + 18 * hsh(seed ^ k, 77);
-      disc(x, y, r, hsh(k, seed) < 0.5 ? [0.5, 0.55, 0.36] : [0.04, 0.07, 0.04], 0.07); }
-    for (let k = 0; k < nT; k++){ const x = (hsh(seed, k) - 0.5) * w, y = (hsh(k, seed + 1) - 0.5) * h, r = 1.4 + 2.2 * hsh(seed + 2, k), gk = hsh(k, 31);
-      disc(x, y, r, [0.09 + 0.05 * gk, 0.17 + 0.08 * gk, 0.08], 0.8, 1.25); } }
-  const lots = meta[2] * TL_PPH / Math.max(1e-6, w * h / 1e6) < 1500; // yards and garden trees only in suburban and village streets
+  { const area = w * h, dens = meta[2] / Math.max(1e-6, area / 1e6), pkm = dens * TL_PPH, nT = pkm >= noTreesPkm ? 0 : Math.min(treeCap, Math.round(area / (pkm >= sparseTreesPkm ? treeAreaSparse : treeArea))), nP = Math.min(patchCap, Math.round(area / patchArea)); // no trees where it is apartment blocks or denser
+    for (let k = 0; k < nP; k++){ const x = (hsh(seed, 9000 + k) - 0.5) * w, y = (hsh(9000 + k, seed) - 0.5) * h, r = patchR0 + patchR1 * hsh(seed ^ k, 77);
+      disc(x, y, r, hsh(k, seed) < 0.5 ? [patchL0, patchL1, patchL2] : [patchD0, patchD1, patchD2], patchA); }
+    for (let k = 0; k < nT; k++){ const x = (hsh(seed, k) - 0.5) * w, y = (hsh(k, seed + 1) - 0.5) * h, r = treeR0 + treeR1 * hsh(seed + 2, k), gk = hsh(k, 31);
+      disc(x, y, r, [treeB0 + treeS0 * gk, treeB1 + treeS1 * gk, treeB2 + treeS2 * gk], treeA, 1.25); } }
+  const lots = meta[2] * TL_PPH / Math.max(1e-6, w * h / 1e6) < lotsPkm; // yards and garden trees only in suburban and village streets
   for (let b = 0; lots && b < B.length; b += 8){
     const cx = B[b], cy = B[b + 1], bw = B[b + 2] / 2, bd = B[b + 3] / 2, ca = Math.cos(B[b + 4]), sa = Math.sin(B[b + 4]);
-    const lw = bw + 2 + 0.35 * bw, ld = bd + 2 + 0.35 * bd, at = (u, v) => [cx + ca * u - sa * v, cy + sa * u + ca * v];
-    quad([[-lw, -ld], [lw, -ld], [lw, ld], [-lw, ld]].map(([u, v]) => at(u, v)), [0.42, 0.5, 0.33], 0.16, 1);
-    const nt = Math.floor(hsh(seed, b) * 3);
-    for (let t = 0; t < nt; t++){ const side = hsh(seed + t, b) * 4 | 0, f = hsh(b, seed + 7 * t) * 2 - 1, r = 1.6 + 1.8 * hsh(seed ^ t, b + 3);
+    const lw = bw + lotM0 + lotM1 * bw, ld = bd + lotM0 + lotM1 * bd, at = (u, v) => [cx + ca * u - sa * v, cy + sa * u + ca * v];
+    quad([[-lw, -ld], [lw, -ld], [lw, ld], [-lw, ld]].map(([u, v]) => at(u, v)), [lotC0, lotC1, lotC2], lotA, 1);
+    const nt = Math.floor(hsh(seed, b) * gardenMax);
+    for (let t = 0; t < nt; t++){ const side = hsh(seed + t, b) * 4 | 0, f = hsh(b, seed + 7 * t) * 2 - 1, r = gardenR0 + gardenR1 * hsh(seed ^ t, b + 3);
       const [u, v] = side === 0 ? [f * lw, ld - r * 0.6] : side === 1 ? [f * lw, -ld + r * 0.6] : side === 2 ? [lw - r * 0.6, f * ld] : [-lw + r * 0.6, f * ld];
-      const [x, y] = at(u, v); disc(x, y, r, [0.11, 0.2 + 0.06 * hsh(t, b), 0.1], 0.85, 1.25); }
+      const [x, y] = at(u, v); disc(x, y, r, [gardenB0, gardenB1 + gardenSG * hsh(t, b), gardenB2], gardenA, 1.25); }
   }
   // streets by width class (the kernel's own widths): arterial >= 11 m pale and warm on a dark casing,
   // collector >= 7 m light grey, local streets the class colour; local ones drawn first so wider ones cross over
-  const rank = (r) => R[r + 4] >= 11 ? 2 : R[r + 4] >= 7 ? 1 : 0, order = []; for (let r = 0; r < R.length; r += 5) order.push(r); order.sort((a, b) => rank(a) - rank(b));
-  for (const r of order) road(r, rank(r) === 2 ? 1.6 : 0.8, [0.07, 0.08, 0.095], 0.9, 1); // the casing stays inside the metre every building keeps clear
-  for (const r of order) road(r, 0, rank(r) === 2 ? [0.86, 0.78, 0.56] : rank(r) === 1 ? [0.66, 0.66, 0.64] : TL_ROAD[cls], 1, 2);
+  const rank = (r) => R[r + 4] >= arterialW ? 2 : R[r + 4] >= collectorW ? 1 : 0, order = []; for (let r = 0; r < R.length; r += 5) order.push(r); order.sort((a, b) => rank(a) - rank(b));
+  for (const r of order) road(r, rank(r) === 2 ? casingX0 : casingX1, [casingC0, casingC1, casingC2], casingA, 1); // the casing stays inside the metre every building keeps clear
+  for (const r of order) road(r, 0, rank(r) === 2 ? [artC0, artC1, artC2] : rank(r) === 1 ? [colC0, colC1, colC2] : TL_ROAD[cls], 1, 2);
   for (let b = 0; b < B.length; b += 8){
     const cx = B[b], cy = B[b + 1], bw = B[b + 2] / 2, bd = B[b + 3] / 2, ca = Math.cos(B[b + 4]), sa = Math.sin(B[b + 4]), units = B[b + 6];
     const at = (u, v, dx, dy) => [cx + dx + ca * u - sa * v, cy + dy + sa * u + ca * v];
     // a cast shadow (fixed light from the north-west, display only; +x east, +y north), then the roof in two
     // tones split along the long axis, so footprints read as pitched roofs and not flat blocks
-    const sh = 0.5 + 1.0 * Math.max(1, B[b + 5]); // shadow length follows storeys (about 3 m a storey, low sun; display only)
-    quad([[-bw, -bd], [bw, -bd], [bw, bd], [-bw, bd]].map(([u, v]) => at(u, v, sh, -sh)), [0.02, 0.025, 0.03], 0.5, 1);
+    const sh = shadow0 + shadow1 * Math.max(1, B[b + 5]); // shadow length follows storeys (about 3 m a storey, low sun; display only)
+    quad([[-bw, -bd], [bw, -bd], [bw, bd], [-bw, bd]].map(([u, v]) => at(u, v, sh, -sh)), [shadowC0, shadowC1, shadowC2], shadowA, 1);
     const tone = TN ? TL_ROOF_TONES[TN[b / 8] | 0] : null; // ASSUMED tone (BUILDGEN-1 prereg), null for neutral: the present colour
-    const c0 = tone ? tone : units > 0 ? [0.44, 0.41, 0.36] : [0.3, 0.29, 0.27], lit = c0.map((v) => v * 1.22), dark = c0.map((v) => v * 0.74);
+    const c0 = tone ? tone : units > 0 ? [roofU0, roofU1, roofU2] : [roofN0, roofN1, roofN2], lit = c0.map((v) => v * roofLit), dark = c0.map((v) => v * roofDark);
     if (bw >= bd){ quad([[-bw, 0], [bw, 0], [bw, bd], [-bw, bd]].map(([u, v]) => at(u, v, 0, 0)), lit, 1, 3); quad([[-bw, -bd], [bw, -bd], [bw, 0], [-bw, 0]].map(([u, v]) => at(u, v, 0, 0)), dark, 1, 3); }
     else { quad([[-bw, -bd], [0, -bd], [0, bd], [-bw, bd]].map(([u, v]) => at(u, v, 0, 0)), lit, 1, 3); quad([[0, -bd], [bw, -bd], [bw, bd], [0, bd]].map(([u, v]) => at(u, v, 0, 0)), dark, 1, 3); }
   }
-  const data = new Float32Array(V);
+  return new Float32Array(V); };
+  let data = hd;
+  if (!data || TL_HD.check){ const j = js(); if (data) tlHdCompare(data, j); else data = j; }
+  const inst = hd && TL_HD.lastInst ? TL_HD.lastInst : null; if (typeof TL_HD !== "undefined") TL_HD.lastInst = null;
   // the built form's record (kernel holon_layout meta 7..22): its source, climate class, region, the door slots read and their
   // versions, buildings a generator drew, the state used and why, the generator's pooling
   const form = meta.length >= 23 ? { source: meta[7], climate: meta[8], region: meta[9], read: meta[10], v: Array.from(meta.slice(11, 15)), generated: meta[15], state: meta[16], why: meta[17], pooling: meta[18] >= 0 ? Array.from(meta.slice(18, 22)) : null, mixed: meta[22] } : null;
   const tones = TN ? Array.from(TN).filter((x) => x > 0).length : 0;
-  return { id, tile: HOLON.pack(t), t, data, bytes: data.byteLength, hh: meta[2], form, tones };
+  return { id, tile: HOLON.pack(t), t, data, bytes: data.byteLength + (inst ? inst.bytes.byteLength : 0), hh: meta[2], form, tones, inst };
 }
 function tlFrameOf(la, lo){ const a = la * Math.PI / 180, o = lo * Math.PI / 180;
   return { c: [Math.cos(a) * Math.sin(o), Math.sin(a), Math.cos(a) * Math.cos(o)], E: [Math.cos(o), 0, -Math.sin(o)], N: [-Math.sin(a) * Math.sin(o), Math.cos(a), -Math.sin(a) * Math.cos(o)] }; }
@@ -492,6 +594,7 @@ function tlDraw(w, h, mpp, sun){
   const homePx = 10 * F.k / EARTH_M, dpr = window.devicePixelRatio || 1, mh = 0.55 / Math.min(2, dpr);
   const Re = TL.cut ? Math.min(TL.ringEff || TL.ring.ring, TL.cut) : (TL.ringEff || TL.ring.ring), edge = Re < Math.hypot(F.w, F.h) / 2;
   TL.re = edge ? Re : 0; // the disc's drawn radius this frame (0: the whole screen), read by tools/page/story_zoom
+  TL.hdTiles = 0;
   if (detA > 0.01 && byTile.size){
     const kA = [detA, detA * sstep(1.2, 3, homePx * 0.25), detA, detA * sstep(0.6, 2, homePx)];
     gl.uniform4f(tlLoc.minHalf, 0, mh + 0.5, mh, 0); gl.uniform3f(tlLoc.ring, F.w / 2, F.h / 2, edge ? Re : 0);
@@ -512,6 +615,7 @@ function tlDraw(w, h, mpp, sun){
       { const [la, lo] = tlCentre(list[0].t), no = tlNoiseOrigin(la, lo); gl.uniform4f(tlLoc.no, no[0], no[1], no[2], 1);
         gl.uniform1f(tlLoc.tex, tlTexUniform(TL_TEX, typeof DATAMAP !== "undefined" && DATAMAP.active)); }
       gl.uniform3fv(tlLoc.g0, bt.terr.g0); gl.uniform3fv(tlLoc.g1, bt.terr.g1); gl.uniform3fv(tlLoc.roof, bt.terr.roof);
+      if (TL_HD.drawer && list.every((e) => e.inst)){ tlHdTile(bt, list, A, F, ka, ka[0] && !(ka[1] || ka[2] || ka[3]) ? [0] : !ka[0] ? [1, 2, 3, 4, 5, 6, 7] : [0, 1, 2, 3, 4, 5, 6, 7], mh, [F.w / 2, F.h / 2, edge ? Re : 0]); TL.hdTiles = (TL.hdTiles || 0) + 1; continue; }
       gl.bindBuffer(gl.ARRAY_BUFFER, bt.vbo); tlAttribs();
       gl.uniform3f(tlLoc.X, A.a, A.c, A.e); gl.uniform3f(tlLoc.Y, A.b, A.d, A.f); gl.uniform1f(tlLoc.ppm, A.ppm); gl.uniform1f(tlLoc.ppmF, A.ppm);
       gl.drawArrays(gl.TRIANGLES, 0, bt.n);
@@ -535,7 +639,7 @@ function tlDraw(w, h, mpp, sun){
   }
   tlNoAttribs(); gl.disable(gl.STENCIL_TEST);
   // tile buffers not drawn for a while go; leaves are an LRU by holon id under a byte budget
-  for (const [tk, bt] of TL.batch) if (frame - (bt.used || 0) > 120){ gl.deleteBuffer(bt.vbo); TL.batch.delete(tk); }
+  for (const [tk, bt] of TL.batch) if (frame - (bt.used || 0) > 120){ gl.deleteBuffer(bt.vbo); tlHdFree(bt); TL.batch.delete(tk); }
   for (const [k, e] of TL.lay){ if (TL.bytes <= TL_BYTE_CAP) break; if (keep.has(e)) continue; TL.bytes -= e.bytes; TL.lay.delete(k); }
   TL.drawn = live.size; TL.agg = agg.length; TL.pending = pending; TL.draws = byTile.size;
 }
@@ -544,6 +648,7 @@ function tlMetrics(){
   const s = TL.stats(); el.textContent = s.on ? `ring ${s.ring}/${s.ringMax} px · ${s.fps} fps · ${s.leaves} leaves drawn, ${s.aggregate} aggregate, ${s.pending} queued · ${s.cached} cached (${s.mb} MB)` : "off (zoom to region scale)";
 }
 // the 1/2-degree land cover at load (18 kB); the street ground reads it through tlTerrain
+(window.requestIdleCallback || ((f) => setTimeout(f, 1000)))(tlHdLoad, { timeout: 3000 }); // the wasm leaf builder, at idle
 if (typeof geoLoad === "function"){ geoLoad("lc", 0); setTimeout(() => { geoLoad("pop", 0); geoLoad("pop", 1); }, 1500); } // people at 1/8 degree (about 0.8 MB) condition the street tier
 
 // the street tiling's program compiled ahead, in an idle slice after load (a first use compiled it inside the frame the Story
