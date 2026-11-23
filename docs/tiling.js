@@ -124,9 +124,10 @@ const TL_STYLE = [TL_PPH, ...TL_ROAD[0], ...TL_ROOF_TONES.flatMap((c) => c || [0
 // builder draws. With ?hdcheck=1 every leaf is built both ways and compared (TL_HD.cmp), the witness's real-leaf check.
 const TL_HD = { on: false, x: null, err: null, check: typeof location !== "undefined" && /[?&]hdcheck=1(&|$)/.test(location.search),
   off: typeof location !== "undefined" && /[?&]hd=0(&|$)/.test(location.search), cmp: { leaves: 0, floats: 0, differ: 0, length: 0 },
-  // ?hd=2: leaves drawn from holon-draw's instance records by its backend (docs/holon/draw.js) into this context, between the
-  // tiling's own passes; under trial, not the default
-  inst: typeof location !== "undefined" && /[?&]hd=2(&|$)/.test(location.search), drawer: null, mod: null };
+  // THE DEFAULT since 2026-11-23 (hd_timing held its stakes): leaves drawn from holon-draw's instance records by its backend
+  // (docs/holon/draw.js) into this context, between the tiling's own passes. ?hd=1 keeps the tiling's own program on the
+  // wasm-built stream, ?hd=0 the JS builder; ?hd=2 is the default said aloud.
+  inst: typeof location !== "undefined" && !/[?&]hd=[01](&|$)/.test(location.search), drawer: null, mod: null };
 function tlHdLeaf(id, ox, oy, sx, R, B, meta, S, TN, cls){
   const X = TL_HD.x, put = (i, a) => { const n = a ? a.length : 0, q = X.hd_in(i, n); if (n) new Float64Array(X.memory.buffer, q, n).set(a); };
   put(0, R); put(1, B); put(2, meta); put(3, S); put(4, TN);
