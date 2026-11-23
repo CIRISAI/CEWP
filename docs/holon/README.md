@@ -121,3 +121,14 @@ region and city, and FAILED at the planet: over_8 0.204 % (stake 0.1), a band of
 rim that holon-draw left out. The cause was the engine's: the eye it derives from `vp` was wrong for any camera that turns
 (CIRISHolon `7b698c4`, a CORRECTION), and the GLOBE limb reads it. S6 FAILED at the planet (ratio 7.0) and was measuring the
 wrong thing (frame intervals in bursts, medians below the draw's own CPU time); it is amended in the next commit, alone.
+
+**`hd_globe`, run 2 (2026-11-23, S6 as amended; draw.js at `7b698c4`; load 4 to 6): FAIL, so nothing is made a default.**
+Every picture stake held at every view: fade and veil max 0; land max 1 (mean_abs 0, over_8 0); lines on the box-filtered
+pictures mean_abs 0.04 to 0.54 and over_32 0 to 0.10 % (raw max 87 to 180, at the lines' antialiased edges). S6 FAILED: the
+synchronous frame with the lines and the land on is 1.32 x (planet), 2.57 x (continent), 1.88 x (region) and 1.26 x (city)
+the frame with them off. A probe (not a stake) puts the cost on the lines: at 4000 m a pixel the frame is 14.4 ms off,
+14.6 with the land on, 36.7 with the lines on; 161,790 segments, each drawn as an 8-sided tube with capped ends (the
+engine's line mesh), against the twin's one quad a segment. The land costs nothing measurable. What would answer it is a
+line that faces the camera as a flat ribbon of a width in pixels (the "pixel-sized marks" of CEWP#24's list); holon-draw
+does not have it yet. Until then all four layers stay behind `?hdg=`, the default (`HDG_DEFAULT`) is empty, and the twin's
+own programs draw. Before, after and difference pictures of run 2: not committed (one page load writes 48 images).
