@@ -11,7 +11,7 @@ twin's JS builder (`tlBuildLeaf`), float for float; the JS builder stays, as the
 | source | CIRISHolon commit `fb3a3df`, `engine/crates/holon-draw` (resident buffers) |
 | build | `sh engine/crates/holon-draw/build-web.sh <outdir>` (release, LTO, one codegen unit, `panic=abort`, stripped) |
 | `holon_draw.wasm` | 83,912 bytes, sha256 `2d69cf58441092044683ad32580dec2bdd1cc530e52999159e9ddce0cb400e47` |
-| `draw.js` | the crate's `web/draw.js` at CIRISHolon `01811e8` (branch `holon-draw/twin-24`: kind 13 TRIANGLE, GLOBE, BLEND 'multiply'), copied unchanged; sha256 `cd1614a9464fbc507bc5beae709e005737898f1fb7c15dfb253d65c255c44de9`. CORRECTION 2026-11-23: until this commit the row said `fb3a3df` (sha256 `c24e92ed...`), but the file here was already `f206a4f`'s (sha256 `f2bc0c7e...`), copied in for the matrix per batch; the row was not updated then |
+| `draw.js` | the crate's `web/draw.js` at CIRISHolon `7b698c4` (branch `holon-draw/twin-24`: kind 13 TRIANGLE, GLOBE, BLEND 'multiply', and the eye's CORRECTION), copied unchanged; sha256 `dd0aa36334b0d8488d822022eda984097ba137c576c4b98c423c164e1edde93f`. CORRECTION 2026-11-23: until this commit the row said `fb3a3df` (sha256 `c24e92ed...`), but the file here was already `f206a4f`'s (sha256 `f2bc0c7e...`), copied in for the matrix per batch; the row was not updated then |
 
 Exports used: `hd_in(which, len)` (input buffers: 0 roads, 1 buildings, 2 meta, 3 street ends, 4 roof tones,
 5 the style), `hd_style()`, `hd_style_len()` (97), `hd_build_leaf(id, ox, oy, sx, pph, road r, g, b, has_tones)` and

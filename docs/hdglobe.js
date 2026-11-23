@@ -26,7 +26,7 @@ function hdgDrawer(){
   if (HDG.drawer) return HDG.drawer;
   if (typeof TL_HD !== "undefined" && TL_HD.drawer){ HDG.mod = TL_HD.mod; HDG.drawer = TL_HD.drawer; return HDG.drawer; }
   if (!HDG.loading && !HDG.err){ HDG.loading = true;
-    import("./holon/draw.js?v=4").then((mod) => { HDG.mod = mod; HDG.drawer = mod.createDrawer(gl, {}); if (typeof gfxDirty === "function") gfxDirty(600); })
+    import("./holon/draw.js?v=5").then((mod) => { HDG.mod = mod; HDG.drawer = mod.createDrawer(gl, {}); if (typeof gfxDirty === "function") gfxDirty(600); })
       .catch((e) => { HDG.err = String(e && e.message || e); console.warn("holon-draw (globe): " + HDG.err + "; the twin's own programs draw"); }); }
   return null;
 }

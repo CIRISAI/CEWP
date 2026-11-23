@@ -1705,10 +1705,14 @@ export function createDrawer(gl, options) {
       return;
     }
     // Third column of the inverse (elements 8..11 of a column-major inverse), negated.
-    let x = -(a31 * b05 - a32 * b04 + a33 * b03) / det;
-    let y = -(a32 * b02 - a30 * b05 - a33 * b01) / det;
+    // CORRECTION 2026-11-23: these were elements 2, 6, 10 and 14 (the inverse's third ROW), which is the
+    // preimage only when that row equals the column. It does not for a camera that turns: the eye was wrong
+    // for every perspective and turned orthographic vp tried (tools/eye_check.mjs), 8.6 degrees off at the CEWP
+    // twin's globe view, where the GLOBE limb found it. Specular and rim read this eye (v_v).
+    let x = -(a10 * b10 - a11 * b08 + a13 * b06) / det;
+    let y = -(a01 * b08 - a00 * b10 - a03 * b06) / det;
     let z = -(a30 * b04 - a31 * b02 + a33 * b00) / det;
-    let w = -(a31 * b01 - a30 * b03 - a32 * b00) / det;
+    let w = -(a21 * b02 - a20 * b04 - a23 * b00) / det;
     // Scale so the numbers are tame in f32, and so that w >= 0.
     let s = Math.max(Math.abs(x), Math.abs(y), Math.abs(z), Math.abs(w));
     if (!(s > 0) || !isFinite(s)) { x = 0; y = 0; z = 1; w = 0; s = 1; }

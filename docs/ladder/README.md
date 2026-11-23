@@ -12,7 +12,7 @@ off (`zrLadder`), prepares them at idle (`prepare`), and calls `window.HOLON_LAD
 | build | `sh engine/crates/holon-draw-ladder/build-web.sh` (release, LTO, one codegen unit, `panic=abort`, stripped) |
 | `holon_draw_ladder.wasm` | 1,236,342 bytes, sha256 `14c3e66fa72cdee293ffe5161243dff0a5b6c25aaba5036cda9e3b3a9ed1c1ec` |
 | `holon-ladder.js` | the crate's `web/holon-ladder.js` at `e822856` |
-| `draw.js`, `text.js` | holon-draw's `web/draw.js` at `01811e8` and `web/text.js` at `f206a4f` (unchanged since); `draw.js` is the same file as `../holon/draw.js` |
+| `draw.js`, `text.js` | holon-draw's `web/draw.js` at `7b698c4` and `web/text.js` at `f206a4f` (unchanged since); `draw.js` is the same file as `../holon/draw.js` |
 
 Every rung says on screen what it is (computed, measured, catalogue, declared, illustration). The twin's own data and
 simulation stop at its band's edges, and the pill says so past them.
