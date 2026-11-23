@@ -215,7 +215,7 @@ function tlHdLoad(){
     const sp = X.hd_in(5, TL_STYLE.length); new Float64Array(X.memory.buffer, sp, TL_STYLE.length).set(TL_STYLE); // the pointer first: hd_in may grow the memory
     if (!X.hd_style()) throw new Error("holon-draw refused the style");
     TL_HD.x = X; TL_HD.on = true;
-    if (TL_HD.inst) return import("./holon/draw.js?v=3").then((mod) => { TL_HD.mod = mod; TL_HD.drawer = mod.createDrawer(gl, {}); });
+    if (TL_HD.inst) return import("./holon/draw.js?v=5").then((mod) => { TL_HD.mod = mod; TL_HD.drawer = mod.createDrawer(gl, {}); });
   }).catch((e) => { TL_HD.err = String(e.message || e); console.warn("holon-draw: " + TL_HD.err + "; the JS leaf builder draws"); });
 }
 const tlMix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];

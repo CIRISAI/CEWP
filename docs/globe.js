@@ -709,6 +709,8 @@ function initLand(){
   gl.bindBuffer(gl.ARRAY_BUFFER,landBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(P),gl.STATIC_DRAW);
   gl.bindBuffer(gl.ARRAY_BUFFER,landTBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(T),gl.STATIC_DRAW);
   landVerts=P.length/3;
+  // holon-draw's land layer (hdglobe.js, ?hdg=land) draws the same triangles from these
+  if (typeof HDG!=="undefined" && HDG.on.has("land")) LAND_SRC={ ground:new Float32Array(Gd), tiles:new Float32Array(P), t:new Float32Array(T) };
 }
 // ---- Natural Earth layers (public domain, naturalearthdata.com), built by tools/geo/build_ne.py.
 // 110m rides in geo/ne110.js (the planet view and the land test); 50m loads once the view nears a
@@ -743,7 +745,7 @@ function geoUpload(L, step, K){
     for (let k = 0; k < n; k++) o.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); } o.push(pl[pl.length - 1]); return o; };
   const ring = (r) => { const c = (r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]) ? r.slice(0, -1) : r; return split(dens(c.concat([c[0]]), true)); };
   const rings = L[1].map(ring);
-  const mk = (data) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); return { b, n: data.length / 3, bytes: data.byteLength }; };
+  const mk = (data) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); return { b, n: data.length / 3, bytes: data.byteLength, d: hdgKeep ? data : null }; };
   const seg = (pls) => { const v = []; for (const pl0 of pls){ const pl = dens(pl0, false); for (let j = 0; j + 1 < pl.length; j++){ const a = xyz(pl[j][0], pl[j][1]), b = xyz(pl[j + 1][0], pl[j + 1][1]); v.push(a[0] * 1.001, a[1] * 1.001, a[2] * 1.001, b[0] * 1.001, b[1] * 1.001, b[2] * 1.001); } } return new Float32Array(v); };
   const S = { fan: mk(landFan(rings)), lines: [mk(seg(L[2])), mk(seg(L[3])), mk(seg(L[4]))], rings };
   if (K && K.rings.length){ const kr = K.rings.map(ring); S.fanK = mk(landFan(rings.concat(kr))); S.shoreK = mk(seg(K.shores)); }
@@ -758,7 +760,7 @@ function geoUploadSliced(L, step, K, done){
     for (let k = 0; k < n; k++) o.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); } o.push(pl[pl.length - 1]); return o; };
   const ring = (r) => { const c = (r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]) ? r.slice(0, -1) : r; return split(dens(c.concat([c[0]]), true)); };
   const segInto = (pl0, v) => { const pl = dens(pl0, false); for (let j = 0; j + 1 < pl.length; j++){ const a = xyz(pl[j][0], pl[j][1]), b = xyz(pl[j + 1][0], pl[j + 1][1]); v.push(a[0] * 1.001, a[1] * 1.001, a[2] * 1.001, b[0] * 1.001, b[1] * 1.001, b[2] * 1.001); } };
-  const mk = (data) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); return { b, n: data.length / 3, bytes: data.byteLength }; };
+  const mk = (data) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); return { b, n: data.length / 3, bytes: data.byteLength, d: hdgKeep ? data : null }; };
   const rings = L[1].map(ring), kr = K && K.rings.length ? K.rings.map(ring) : [];
   // steps: each ring of the fan, each ring of the lakes (appended to a copy for fanK), each polyline of each line kind
   const B = fanNew(); let BK = null; const lines = [[], [], []], shoreK = [];
@@ -776,7 +778,9 @@ function geoUploadSliced(L, step, K, done){
     done(S); };
   run();
 }
-function geoFree(S){ gl.deleteBuffer(S.fan.b); S.lines.forEach(l => gl.deleteBuffer(l.b)); if (S.fanK){ gl.deleteBuffer(S.fanK.b); gl.deleteBuffer(S.shoreK.b); } }
+// holon-draw's lines layer (hdglobe.js, ?hdg=lines) builds its records from the segments' own numbers, kept with each set
+const hdgKeep = typeof HDG !== "undefined" && HDG.on.has("lines");
+function geoFree(S){ if (typeof hdgFreeSet === "function") hdgFreeSet(S); gl.deleteBuffer(S.fan.b); S.lines.forEach(l => gl.deleteBuffer(l.b)); if (S.fanK){ gl.deleteBuffer(S.fanK.b); gl.deleteBuffer(S.shoreK.b); } }
 function geoFetch(path){ return fetch(path).then(r => { if (!r.ok) throw new Error(path + " " + r.status); return r.arrayBuffer(); }); }
 function geoInitBase(){
   if (typeof NE110_B64 === "undefined") return null;
@@ -1029,12 +1033,14 @@ function draw(){
     else { gl.bindBuffer(gl.ARRAY_BUFFER,fanBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,fanVerts); }
     gl.colorMask(true,true,true,true); gl.stencilFunc(gl.EQUAL,1,1); gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP);
     // ground reaches full cover sooner than the tiles fade in, so empty land never reads as shallow sea
-    gl.uniform1f(gl.getUniformLocation(pG,"uA"),(0.93+0.07*Math.min(1,landA*3))*(1-0.6*sstep(26,8,mpp))); // near-opaque: the sea's glint and colour stay off the land // land shows at every zoom; at street scale it is a faint land/sea mask
+    const groundA=(0.93+0.07*Math.min(1,landA*3))*(1-0.6*sstep(26,8,mpp)); // near-opaque: the sea's glint and colour stay off the land // land shows at every zoom; at street scale it is a faint land/sea mask
+    if (!(typeof hdgLand==="function" && hdgLand(R,S,asp,sunWorld,groundA,landA))){ // ?hdg=land: holon-draw draws these two passes
+    gl.useProgram(pG); gl.uniform1f(gl.getUniformLocation(pG,"uA"),groundA);
     gl.bindBuffer(gl.ARRAY_BUFFER,groundBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.TRIANGLES,0,groundVerts);
     gl.uniform1f(gl.getUniformLocation(pG,"uA"),landA);
     gl.bindBuffer(gl.ARRAY_BUFFER,landBuf); gl.vertexAttribPointer(gp,3,gl.FLOAT,false,0,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,landTBuf); gl.enableVertexAttribArray(gt); gl.vertexAttribPointer(gt,1,gl.FLOAT,false,0,0);
-    gl.drawArrays(gl.TRIANGLES,0,landVerts); gl.disableVertexAttribArray(gt);
+    gl.drawArrays(gl.TRIANGLES,0,landVerts); gl.disableVertexAttribArray(gt); }
     // 4. terrain: shaded relief and elevation (relief.js), a multiply on the land just drawn
     if (typeof reliefDraw==="function") reliefDraw(R,S,asp,w,h,mpp,(0.6+0.4*Math.min(1,landA*3))*GEO.rf,sunWorld);
     // 4b. people inside each 1/8-degree cell at ~0.9 km (incell.js: the kernel's in-cell seam, CIRISHolon UNEVEN-0), region and city zoom
@@ -1053,7 +1059,7 @@ function draw(){
     const LS=[[[0.46,0.74,0.98],0.86],[[0.93,0.78,0.52],0.30+0.40*near],[[0.38,0.62,0.95],0.18+0.42*near]];
     LS.push(LS[0]); const nk=mpp>=GEO_MPP_ETOPO_LAKE?4:3; // 3: ETOPO's shores on a 10m tile, with its lake fill
     // anti-aliased quads, widths in CSS pixels (coast, border, river, ETOPO shore); gl.LINES without instancing
-    if (!(typeof gfxLines==="function" && gfxLines(R,S,asp,gsets,LS,nk,[1.15,0.9,0.8,1.0])))
+    if (!(typeof hdgLines==="function" && hdgLines(R,S,asp,gsets,LS,nk,[1.15,0.9,0.8,1.0],sunWorld)) && !(typeof gfxLines==="function" && gfxLines(R,S,asp,gsets,LS,nk,[1.15,0.9,0.8,1.0])))
     for (let k=0;k<nk;k++){ gl.uniform3fv(gl.getUniformLocation(pV,"uCol"),LS[k][0]); gl.uniform1f(gl.getUniformLocation(pV,"uA"),LS[k][1]*GEO.rf);
       for (const G of gsets){ const L=(k===3)?G.shoreK:G.lines[k]; if (!L || !L.n) continue; gl.bindBuffer(gl.ARRAY_BUFFER,L.b); gl.vertexAttribPointer(vp,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.LINES,0,L.n); } } }
   if (npts){ gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.clear(gl.DEPTH_BUFFER_BIT);
@@ -1153,6 +1159,8 @@ let zrProg = null, zrBuf = null;
 const ZRV = `attribute vec2 p;void main(){gl_Position=vec4(p,0.0,1.0);}`, ZRF = `precision mediump float;uniform vec4 uC;void main(){gl_FragColor=uC;}`;
 function zrFade(a){
   if (!(a > 0.001)) return;
+  gl.disable(gl.STENCIL_TEST); gl.disable(gl.DEPTH_TEST);
+  if (typeof hdgFade === "function" && hdgFade(a)) return; // ?hdg=fade: holon-draw's screen quad
   if (!zrProg){ zrProg = prog(ZRV, ZRF); zrBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, zrBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); }
   gl.disable(gl.STENCIL_TEST); gl.disable(gl.DEPTH_TEST); gl.useProgram(zrProg); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   gl.uniform4f(gl.getUniformLocation(zrProg, "uC"), 0.043, 0.051, 0.07, Math.min(1, a));

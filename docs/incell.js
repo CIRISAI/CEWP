@@ -75,6 +75,7 @@ const VLV = `attribute vec2 p;void main(){gl_Position=vec4(p,0.95,1.0);}`, VLF =
 let pVeil = null, veilBuf = null;
 function incellVeil(a){
   if (a <= 0.004) return;
+  if (typeof hdgVeil === "function" && hdgVeil(a)) return; // ?hdg=veil: holon-draw's screen quad, inside the same land stencil
   if (!pVeil){ pVeil = prog(VLV, VLF); veilBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, veilBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]), gl.STATIC_DRAW); }
   gl.useProgram(pVeil); gl.uniform1f(gl.getUniformLocation(pVeil, "uA"), a);
   const vp = gl.getAttribLocation(pVeil, "p"); gl.bindBuffer(gl.ARRAY_BUFFER, veilBuf); gl.enableVertexAttribArray(vp); gl.vertexAttribPointer(vp, 2, gl.FLOAT, false, 0, 0);
