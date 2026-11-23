@@ -41,6 +41,15 @@
 #      layer OFF.
 #   S7 no page error (an uncaught exception) at all, and no console error that names holon-draw or hdglobe; other console
 #      errors are printed and not judged.
+#
+# AMENDMENT 2026-11-23 (committed alone, before any run under it). S6 measured the wrong thing. The first run (FAIL, kept as
+# recorded in docs/holon/README.md) gave median intervals between animation frames of 0.4 to 8.2 ms with the layers off,
+# below the median of draw()'s own CPU time at two views (0.4 against 0.2, 2.9 against 0.5 at most): unthrottled, Chrome
+# delivers animation frames in bursts, and the median of a bimodal interval is not a frame's cost. Its ratios ran from 0.21
+# to 7.0. S6 now reads: at every view, 40 pairs of frames are drawn synchronously, alternating every layer OFF and the lines
+# and the land ON, each frame being draw() followed by a one-pixel gl.readPixels (which waits for the GPU to finish it),
+# timed with performance.now(); the median ON time is at most 1.10 x the median OFF time. The interval numbers are still
+# printed, and no longer judged. Every other stake is unchanged.
 # A layer may become a default (HDG_DEFAULT) only when S1..S5 hold for it at every view and S0, S6 and S7 hold.
 # --plant fade|veil|land|lines puts a fault into that layer for the run (fade and veil at 0.8 of their alpha; the land's
 # ground and its tiles each at 0.8 of their alpha; the lines twice as wide): that layer's stake must then FAIL. It is the
@@ -142,10 +151,18 @@ async def main():
                 iv = [y - x for x, y in zip(t["t"], t["t"][1:])]
                 f = fr.setdefault(on, {"iv": [], "d": []}); f["iv"] += iv; f["d"] += t["d"]
             await pg.evaluate("() => { HDG.on = new Set(); GFX.dirtyUntil = 0; }")
+            # S6 as amended: synchronous pairs, each frame draw() and a one-pixel readPixels
+            sync = await pg.evaluate("""() => { const px = new Uint8Array(4), off = [], on = [], arcs = showArcs; showArcs = false;
+              const one = (layers) => { HDG.on = new Set(layers); const t0 = performance.now(); draw(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); return performance.now() - t0; };
+              one([]); one(['lines', 'land']);
+              for (let k = 0; k < 40; k++){ off.push(one([])); on.push(one(['lines', 'land'])); }
+              HDG.on = new Set(); showArcs = arcs; const med = (a) => { const b = a.slice().sort((x, y) => x - y); return b[b.length >> 1]; };
+              return { off: +med(off).toFixed(3), on: +med(on).toFixed(3) }; }""")
             med = lambda a: round(statistics.median(a), 3) if a else None
             p95 = lambda a: round(sorted(a)[int(0.95 * (len(a) - 1))], 3) if a else None
             timing.append({"view": name, "off_med": med(fr[False]["iv"]), "off_p95": p95(fr[False]["iv"]), "on_med": med(fr[True]["iv"]), "on_p95": p95(fr[True]["iv"]),
-                           "off_draw_ms": med(fr[False]["d"]), "on_draw_ms": med(fr[True]["d"]), "frames": [len(fr[False]["iv"]), len(fr[True]["iv"])]})
+                           "off_draw_ms": med(fr[False]["d"]), "on_draw_ms": med(fr[True]["d"]), "frames": [len(fr[False]["iv"]), len(fr[True]["iv"])],
+                           "sync_off_ms": sync["off"], "sync_on_ms": sync["on"]})
         gpu = await pg.evaluate("() => { const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : null; }")
         await b.close()
     print(f"renderer: {gpu}; {W}x{H} at dpr 1; plant: {PLANT or 'none'}")
@@ -168,10 +185,10 @@ async def main():
         if bad: held[r["layer"]] = False; why.append(f"{r['view']} {r['layer']}: " + "; ".join(bad))
         print("%-10s %-6s | %-24s | %9s %8s %8s %4s | %5s %s%s" % (r["view"], r["layer"], f"{c['mean_abs']}/{c['over_8']}/{c['max']}", r["mean_abs"], r["over_8"], r["over_32"], r["max"], r["drew"], "held" if not bad else "FAILED: " + "; ".join(bad),
               ("   (box: mean_abs %s, over_32 %s, max %s)" % (judged["mean_abs"], judged["over_32"], judged["max"])) if r["layer"] == "lines" else ""))
-    print("%-10s | %9s %9s %11s | %9s %9s %11s | %6s" % ("view", "off med", "off p95", "off draw ms", "on med", "on p95", "on draw ms", "ratio"))
+    print("%-10s | %9s %9s %11s | %9s %9s %11s | %8s %8s %6s" % ("view", "off med", "off p95", "off draw ms", "on med", "on p95", "on draw ms", "sync off", "sync on", "ratio"))
     for t in timing:
-        ratio = t["on_med"] / t["off_med"] if t["on_med"] and t["off_med"] else None
-        print("%-10s | %9s %9s %11s | %9s %9s %11s | %6s   frames %s" % (t["view"], t["off_med"], t["off_p95"], t["off_draw_ms"], t["on_med"], t["on_p95"], t["on_draw_ms"], f"{ratio:.3f}" if ratio else "-", t["frames"]))
+        ratio = t["sync_on_ms"] / t["sync_off_ms"] if t["sync_on_ms"] and t["sync_off_ms"] else None
+        print("%-10s | %9s %9s %11s | %9s %9s %11s | %8s %8s %6s   frames %s" % (t["view"], t["off_med"], t["off_p95"], t["off_draw_ms"], t["on_med"], t["on_p95"], t["on_draw_ms"], t["sync_off_ms"], t["sync_on_ms"], f"{ratio:.3f}" if ratio else "-", t["frames"]))
         if ratio is None or ratio > FRAME_RATIO: why.append(f"{t['view']}: the median frame with the layers on is {ratio} x off (stake {FRAME_RATIO})")
     judged_errs = [e for e in errs if e.startswith("pageerror") or "holon-draw" in e or "hdglobe" in e]
     if errs: print("page and console errors:", errs[:8])

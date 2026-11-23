@@ -112,3 +112,12 @@ records in one resident buffer, inside the land stencil the twin's own fan still
 engine's GLOBE light with the numbers of the twin's own shaders (gfx.js AF, globe.js GF). `?hdg=1` turns all four on,
 `?hdg=fade,land` some, `?hdg=0` none; without it, `HDG_DEFAULT`. Each twin program stays and draws whenever its layer is
 off. `tools/page/hd_globe/run.py` is the gate (stakes in its header, written before its first run).
+
+**`hd_globe`, run 1 (2026-11-23, under the stakes as first written): FAIL.** Machine load 40 to 47 on 32 cores (other
+sessions' work; the same hour the unchanged page's own `zoom_range` failed on long tasks and `hd_timing` on its frame stake).
+fade and veil identical at every view (max 0). lines held at every view (on the 3 x 3 box-filtered pictures, mean_abs 0.05
+to 0.54, over_32 0 to 0.10 %; unfiltered, max 80 to 180 at the lines' edges). land identical (max 0 or 1) at continent,
+region and city, and FAILED at the planet: over_8 0.204 % (stake 0.1), a band of land one to three pixels wide along the
+rim that holon-draw left out. The cause was the engine's: the eye it derives from `vp` was wrong for any camera that turns
+(CIRISHolon `7b698c4`, a CORRECTION), and the GLOBE limb reads it. S6 FAILED at the planet (ratio 7.0) and was measuring the
+wrong thing (frame intervals in bursts, medians below the draw's own CPU time); it is amended in the next commit, alone.
