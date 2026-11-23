@@ -132,3 +132,12 @@ engine's line mesh), against the twin's one quad a segment. The land costs nothi
 line that faces the camera as a flat ribbon of a width in pixels (the "pixel-sized marks" of CEWP#24's list); holon-draw
 does not have it yet. Until then all four layers stay behind `?hdg=`, the default (`HDG_DEFAULT`) is empty, and the twin's
 own programs draw. Before, after and difference pictures of run 2: not committed (one page load writes 48 images).
+
+**Calibration and the page witnesses (2026-11-23).** `hd_globe --plant` made each layer's stake fail: fade (alpha 0.8) at
+all four views, max 17 to 30; veil at all four, max 4 to 15; land (ground and tiles at 0.8) at planet, continent and
+region (mean_abs 0.77 to 2.79), NOT at the city view; lines (twice as wide) only at the continent view (box mean_abs 1.50,
+over_32 1.82 %), NOT at the other three, so the lines' stake is a weak witness away from the continent view. On this branch
+(defaults unchanged but for draw.js at `7b698c4`), every page witness held at load 4 to 7: story_zoom, story_planet_arcs,
+layer_zoom, holon_leaf (both ways), no_highp (both ways, and with `--query ?hdg=1`), zoom_range, story_freeze, hd_timing
+(ratios 0.69 to 0.95). The unchanged page at `04e3b4b`, run earlier at load 40 to 47, failed zoom_range (18 long tasks)
+and hd_timing (ratios up to 2.0): the machine's load, not the page; recorded, not rerun.
