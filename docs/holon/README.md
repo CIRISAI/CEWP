@@ -51,6 +51,27 @@ frame at most 1.10 x `?hd=1`'s, and its uploads no more than `?hd=1`'s. **It FAI
   more than `?hd=1`" fails on noise. The stake is kept as written. A finding for the twin itself: what re-uploads 3.4 MB a
   frame at a dense street, on either path, is not the leaves.
 
+**One call a frame (2026-11-23).** holon-draw gained a matrix per batch (CIRISHolon `f206a4f`: `batch.vp`,
+`batch.pixelsPerUnit`), and `tlHdTile` now queues every tile of a pass for ONE `draw()` call (`tlHdFlush`), each batch with
+its own tile's matrix and settings. `hd_timing` again, under the SAME stakes, on a quiet machine (load 3):
+
+| stop | `?hd=1` median / p95 ms | `?hd=2` median / p95 ms | ratio |
+|---|---|---|---|
+| dense, 3 m a pixel | 11.15 / 46.1 | 11.6 / 62.5 | 1.040 |
+| dense, 10 | 11.8 / 46.4 | 12.3 / 46.8 | 1.042 |
+| suburban, 3 | 3.3 / 14.6 | 3.3 / 15.5 | 1.000 |
+| suburban, 10 | 4.0 / 40.5 | 3.9 / 55.0 | 0.975 |
+| village, 3 | 2.8 / 13.9 | 2.9 / 13.4 | 1.036 |
+| village, 10 | 2.9 / 14.5 | 2.8 / 36.5 | 0.966 |
+
+- The frame stake (at most 1.10 x at every stop) now HOLDS, the villages included.
+- The witness still says FAIL, on the upload stake: `?hd=2` uploads 2, 28 and 29 bytes a frame more than `?hd=1` at three
+  stops, out of 20 thousand to 1.9 million. That stake compares the whole page's uploads, which the street does not make;
+  the difference is the rounding of bytes over frames. It measures the wrong thing, and it is amended in the next commit,
+  alone and before any further run: the amended stake reads holon-draw's own uploads.
+- The p95 frame is not better: it is higher at three stops (62.5 against 46.1 at the dense street). The stake is on the
+  median and says nothing of it.
+
 Checked, both ways:
 
 - `node engine/crates/holon-draw/tools/twin_leaf_check.mjs docs/tiling.js holon_draw.wasm 2000` (CIRISHolon) runs
