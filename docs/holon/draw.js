@@ -1,8 +1,11 @@
 // holon-draw, the browser backend: draws the core's packed instance batches with instancing.
 //
 // One ES module, no dependency. The Rust core (`../src/lib.rs`) packs a scene into batches
-// of fixed 52-byte records (`Instance::pack`); this file uploads each batch as it is and
-// draws it with one instanced call. Nothing is built per vertex or per record in script.
+// of fixed 52-byte records (`Instance::pack`); this file uploads each batch as it is (or
+// reads it from a buffer the host made resident, see RESIDENT BUFFERS) and draws it with one
+// instanced call. Nothing is built per vertex or per record in script.
+// `./draw-webgpu.js` is the WebGPU sibling: this header is the contract of both; that file's
+// header says only how it is hosted and what differs.
 //
 // THE RECORD (little-endian, 52 bytes):
 //   f32 pos[3] @0   f32 size[3] @12   f32 aux[3] @24   f32 angle @36
@@ -12,13 +15,48 @@
 //
 // KINDS (world z is up):
 //   1 quad, 9 patch   flat rectangle in the plane z = pos.z, size[0] by size[1], turned by angle about z
-//   2 line, 3 arc     a thin 6-sided tube from pos to aux, WIDTH size[0] (an arc is its chord for now)
+//   2 line            a thin tube from pos to aux, WIDTH size[0]
+//   3 arc             a quadratic Bezier from pos to aux, WIDTH size[0], bent by its CONTROL point:
+//                     the chord's midpoint raised size[1] along world z and moved size[2] along
+//                     the horizontal across the chord (z x chord, unit). size[1] = size[2] = 0
+//                     is the chord, which is how an arc was drawn before it could bend. Drawn
+//                     on a 16-segment tube (or ribbon), so it is smooth at any width.
 //   4 disc, 10 glyph  flat 24-gon in the plane z = pos.z, radius size[0]
 //   5 box, 6 prism    base centre pos, size = (x, y, z extents), turned by angle about z (prism: flat top)
+//                     With bit 3 of `variant` set (0x08, VARIANT_ORIENT) the box is ORIENTED: aux is
+//                     its local z axis (any length; zero means world z), size.z runs along it from
+//                     pos, and angle turns its local x about that axis, starting from world x
+//                     projected onto the plane across the axis (world y when the axis is along x).
+//                     With aux = (0, 0, 1) it is the same box as without the bit. An oriented box
+//                     has no RAMP t (aux is taken), so in RAMP mode it reads t = 0.
 //   7 sphere          centre pos, radius size[0]
 //   8 rod             capped cylinder from pos to aux, radius size[0]
 // Boxes, prisms, spheres and rods are lit. Flat marks and lines are drawn in their exact
 // colour unless `opts.flatLit` is set.
+//
+// MATERIAL of a LIT mark (box, prism, sphere, rod), bits 4..5 of `variant` (VARIANT_MATERIAL
+// masks them), a closed list:
+//   0x00 KIND    the kind's specular and rim (or the batch's `shade`)
+//   0x10 MATTE   no specular, a quarter of the rim
+//   0x20 METAL   three times the specular, tighter (exponent 90), a stronger rim, darker diffuse
+//   0x30 GLOW    unlit: the colour as given, as a light source looks; it neither casts nor
+//                receives a shadow
+// Unlit kinds ignore these bits (a glyph's variant is its shape).
+//
+// SHADOWS (`opts.shadow`, off without it): { center: [x, y, z], radius, size = 1024,
+// strength = 0.55, bias = 0.0006 }. The lookup is taken a texel and a half out along the
+// surface normal (normal offset), and the depth test has a slope-scaled bias, so a lit
+// surface does not shadow itself in bands. Before the world pass, every world batch of a lit kind or
+// a line or arc (tube, not flat) is drawn from the light into a size x size shadow map, an
+// orthographic view along -light covering the sphere (center, radius). A batch with
+// `castShadow === false` casts none; a mark whose alpha (with FADE and RING) is under one
+// half casts none. In the world pass every world mark receives: a lit mark's direct light is
+// scaled by the lit fraction (four taps on a rotated grid), an unlit mark's colour by
+// mix(1 - strength, 1, lit fraction). GLOW marks neither cast nor receive. The map is RGBA8
+// with depth packed in it (no extension, WebGL 1 and 2 alike). On a device with no high
+// float in the fragment stage the test is coarse. The shadow pass binds its own framebuffer
+// and sets its own viewport, then puts back the framebuffer binding and the viewport it found
+// (`opts.viewport`, or the GL viewport, read once). The map is bound on texture unit 4.
 //
 // SCREEN BATCHES (`batch.screen === true`): positions are DEVICE PIXELS from the viewport's
 // top-left, y down; `offset` is the tile's origin in pixels; `vp` does not apply. They are
@@ -30,11 +68,52 @@
 //                     size[0] by size[1] centred at pos, its top-left rounded to a whole pixel;
 //                     u0 = aux[0], v0 = aux[1], u1 = aux[2], v1 = angle; atlas page = variant
 //                     (byte 51, pages 0..3); colour = rgba.rgb, alpha = rgba.a * coverage.
+//   12 image          a rectangle of a HOST texture, laid out as a run: size[0] by size[1]
+//                     centred at pos, top-left on a whole pixel, u0 = aux[0], v0 = aux[1],
+//                     u1 = aux[2], v1 = angle; texture SLOT = variant (byte 51, 0..255), set
+//                     with setImage(); colour = texture.rgb * rgba.rgb, alpha = texture.a *
+//                     rgba.a. The core puts one slot in a batch, so the first record names it.
+//                     A batch whose slot holds no texture is skipped (stats().missingImages).
 // Shapes are cut by a signed distance in the fragment stage, with about 1 px of antialiasing.
-// Other kinds in a screen batch, a run in a world batch, and a run with no provider bound
-// are skipped. The viewport is `opts.viewport` ([x, y, w, h], as GL has it) or, without it,
+// Other kinds in a screen batch, a run or an image in a world batch, and a run with no provider
+// bound are skipped. The viewport is `opts.viewport` ([x, y, w, h], as GL has it) or, without it,
 // gl.getParameter(gl.VIEWPORT), which allocates: a host that draws screen batches every
 // frame passes `opts.viewport`.
+//
+// RESIDENT BUFFERS. A batch's records either arrive with it (`bytes`: uploaded on every
+// draw(), into this file's own per-kind buffers) or already live on the GPU:
+//   const h = drawer.resident(bytes)   one buffer, uploaded once (GL: STATIC_DRAW); h is a
+//                                      positive integer. bytes.byteLength is a multiple of 52.
+//   drawer.update(h, bytes)            new contents: written in place when they fit the
+//                                      buffer's allocation (a shrink keeps the allocation),
+//                                      else the buffer is reallocated; the handle stays h
+//   drawer.release(h)                  frees it; h may be handed out again by resident()
+//   batch = { kind, handle: h, first, count, offset, params, screen?, coarse?, shade?,
+//             castShadow?, slot? }     records first .. first + count - 1 of that buffer,
+//                                      drawn with NO upload. `first` defaults to 0.
+// Everything else about a resident batch is a `bytes` batch's: one handle may hold many
+// batches of any kinds (the batch's `kind` says how its range is drawn), a world one is drawn
+// into the shadow map like any other (and not with `castShadow === false`), it may be mixed
+// with `bytes` batches in one draw(), in any order. A draw() whose batches are all resident
+// uploads no record: stats().bytesUploaded is 0 (tile settings are uniforms, counted in
+// paramUploads as before). draw() throws, before it changes any state, on an unknown or
+// released handle and on a range past the records the buffer holds now (after update()).
+// A RESIDENT IMAGE BATCH (kind 12, screen) must carry `slot` (0..255): the texture slot that
+// a `bytes` image batch reads from its first record's byte 51, which for a resident batch is
+// on the GPU, not in hand. draw() throws on a resident image batch without an integer `slot`
+// in 0..255. On a `bytes` image batch `slot` is not read (byte 51 names it, as before).
+// stats() gains residentBuffers and residentBytes: what is resident now (bytes allocated, so
+// a shrinking update() does not lower it), not reset by draw().
+// WHAT A RESIDENT BATCH COSTS IN GL CALLS, after its first draw:
+//   with vertex array objects (WebGL 2, or WebGL 1 with OES_vertex_array_object):
+//     bind its vertex array (skipped when it is the one bound), the offset uniform, the draw.
+//     Each distinct (handle, slot's mesh, first) gets its own vertex array, made on first use
+//     (about 25 calls, once; the shadow pass and the picture share it) and deleted with the
+//     handle; at most 256 per handle, beyond which that batch is drawn the bare way below.
+//   bare WebGL 1: bind the buffer, 6 attribute pointers, the offset uniform, the draw.
+//   a `bytes` batch, for comparison: the same plus its upload.
+// As before, add the slot's uniforms when the slot changes from the batch before, and the
+// tile settings when they differ from the last uploaded.
 //
 // TILE SETTINGS (`batch.params`, 32 numbers = 8 groups of 4; absent means neutral). Slots:
 //   [0..2]   DIM     rgb multiplier on every colour of the tile, applied last (after lighting)
@@ -113,8 +192,10 @@
 // (ground, streets, buildings).
 //
 // PRECISION (INTERFACE.md §7): NO UNIFORM NAME APPEARS IN BOTH SHADER STAGES, in either
-// program. World program: the vertex stage owns u_vp, u_offset, u_eye, u_mode, u_pix,
-// u_wview, u_params; the fragment stage owns u_light, u_shade. Screen program: the vertex stage owns
+// program. World programs: the vertex stage owns u_vp, u_offset, u_eye, u_mode, u_pix,
+// u_wview, u_params (and, with HD_SHADOW, u_lvp and u_lno); the fragment stage owns u_light,
+// u_shade (and, with HD_SHADOW, u_shadow and u_shp). The shadow program is the world vertex
+// stage with a fragment stage that has no uniforms. Screen program: the vertex stage owns
 // u_view, u_soffset, u_smode, u_sparams; the fragment stage owns u_fmode, u_t0..u_t3. So
 // there is no pair whose precision could disagree at link. The tile settings are read in
 // the VERTEX stage only; what the fragment stage needs of them arrives as varyings.
@@ -149,14 +230,32 @@
 //   - CULL_FACE (left enabled), cullFace(BACK), frontFace(CCW);
 //   - ARRAY_BUFFER binding (left null);
 //   - the vertex array object binding, where one exists (WebGL 2 or OES_vertex_array_object):
-//     left null, i.e. the default object, whose own attribute state is NOT touched;
+//     left null, i.e. the default object, whose own attribute state is NOT touched
+//     (resident batches are drawn through this drawer's own vertex arrays: the same rule);
 //   - where no vertex array object exists (bare WebGL 1): attribute slots 0..7 (all eight) (pointers,
 //     enabled flags, divisors) and the ELEMENT_ARRAY_BUFFER binding. On return slots 0..7 are
 //     disabled, their divisors are 0, and ELEMENT_ARRAY_BUFFER is null;
+//   - only with `opts.shadow`: the TEXTURE_2D binding of unit 4 (left on the shadow map), and
+//     BLEND is off while the shadow map is drawn (enabled again for the world pass);
 //   - only when a run batch is drawn: activeTexture (left TEXTURE0) and the TEXTURE_2D
 //     bindings of units 0..3 (left on the atlas pages that exist; a unit whose page does
-//     not exist is not touched).
+//     not exist is not touched);
+//   - only when an image batch is drawn: activeTexture (left TEXTURE0) and the TEXTURE_2D
+//     binding of unit 5 (left on the last image drawn).
+//
+// IMAGES. setImage(slot, source, { nearest }) puts a texture in a slot: `source` is anything
+// texImage2D takes (ImageBitmap, ImageData, a canvas, an image or a video element; a video's
+// frame is copied when called, so a host calls it again for each new frame). `nearest: true`
+// samples it nearest (a QR grid, whose modules must stay square); otherwise LINEAR. Always
+// clamped, never mipmapped, so any size works on WebGL 1. Not premultiplied: the blend is
+// SRC_ALPHA. setImage saves and puts back the TEXTURE_2D binding of the active unit,
+// UNPACK_FLIP_Y_WEBGL and UNPACK_PREMULTIPLY_ALPHA_WEBGL, and changes nothing else.
+// deleteImage(slot) frees one. The core never sees pixels: what a slot holds is the host's.
 // A draw() with nothing to draw changes no state.
+// resident() and update() bind ARRAY_BUFFER and put back the binding they found (read with
+// getParameter); they change nothing else. release() deletes the buffer and this drawer's
+// vertex arrays made for it, and binds nothing (a host never has either bound: it never sees
+// them). A draw() with resident batches leaves exactly the state listed above.
 //
 // Translucent records are blended in the order given and write depth; a host that needs
 // correct layering of translucent marks orders its batches back to front.
@@ -167,7 +266,7 @@
 export const INSTANCE_BYTES = 52;
 
 export const KIND = Object.freeze({
-  QUAD: 1, LINE: 2, ARC: 3, DISC: 4, BOX: 5, PRISM: 6, SPHERE: 7, ROD: 8, PATCH: 9, GLYPH: 10, RUN: 11,
+  QUAD: 1, LINE: 2, ARC: 3, DISC: 4, BOX: 5, PRISM: 6, SPHERE: 7, ROD: 8, PATCH: 9, GLYPH: 10, RUN: 11, IMAGE: 12,
 });
 
 // Attribute slots, bound before link. Slot 0 is a mesh attribute (never instanced), which
@@ -209,6 +308,11 @@ export const VARIANT_CASING = 0x01;
 export const DISC_CASING = 0x01, DISC_CANOPY_FIELD = 0x04;
 /** Bit 1 of `variant` on a line or arc: round ends (a cap of the line's half width at each). */
 export const VARIANT_ROUND = 0x02;
+/** Bit 3 of `variant` on a box or prism: oriented, aux is its local z axis (see KINDS). */
+export const VARIANT_ORIENT = 0x08;
+/** Bits 4..5 of `variant` on a lit mark: its material (see MATERIAL at the top). */
+export const VARIANT_MATERIAL = 0x30;
+export const MATERIAL = Object.freeze({ KIND: 0x00, MATTE: 0x10, METAL: 0x20, GLOW: 0x30 });
 /** Tile settings that leave every colour as its record gives it (the core's PARAMS_NEUTRAL). */
 export const PARAMS_NEUTRAL = Object.freeze([1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0]);
 export const COLOUR = Object.freeze({ LITERAL: 0x00, RAMP: 0x40, TINT: 0x80 });
@@ -226,11 +330,17 @@ attribute vec4 i_meta;     // kind, detail, flags, variant as 0..255
 uniform mat4 u_vp;
 uniform vec3 u_offset;
 uniform vec4 u_eye;        // homogeneous eye: xyz - p*w points from p to the viewer
-uniform vec2 u_mode;       // x: 0 sphere, 1 tube, 2 scaled-and-turned; y: radius scale
+uniform vec2 u_mode;       // x: 0 sphere, 1 tube, 2 scaled-and-turned, 3 bent tube (arc); y: radius scale
 uniform vec3 u_pix;        // half the viewport's height; pixels per world unit if given, else 0; kind code
                            // (0 other, 1 quad, 2 patch, 3 line or arc, 4 disc, 5 box or prism)
 uniform vec2 u_wview;      // the viewport's width and height in pixels
 uniform vec4 u_params[8];  // the tile's settings
+#ifdef HD_SHADOW
+uniform mat4 u_lvp;        // the light's view-projection (shadows)
+uniform float u_lno;       // the normal offset for the shadow lookup, in world units
+varying PF vec4 v_ls;      // the position in the light's clip space
+#endif
+varying mediump float v_mat; // the material (0 kind, 1 matte, 2 metal, 3 glow)
 varying mediump vec3 v_n;
 varying mediump vec3 v_v;
 varying lowp vec4 v_c;
@@ -249,6 +359,7 @@ void main() {
   float bit0 = mod(var, 2.0);
   float bit1 = mod(floor(var / 2.0), 2.0);
   float bit2 = mod(floor(var / 4.0), 2.0);
+  bool orient = kc > 4.5 && kc < 5.5 && mod(floor(var / 8.0), 2.0) > 0.5;
   bool liney = kc > 2.5 && kc < 3.5;
   vec3 p;
   vec3 n;
@@ -256,42 +367,68 @@ void main() {
   if (u_mode.x < 0.5) {
     n = a_n;
     p = o + a_p * i_size.x;
-  } else if (u_mode.x < 1.5) {
+  } else if (u_mode.x < 1.5 || u_mode.x > 2.5) {
     vec3 d = i_aux - i_pos;
-    float len = length(d);
-    vec3 dn = len > 1e-20 ? d / len : vec3(0.0, 0.0, 1.0);
+    // Along the axis: t in [0, 1] on the body; a cap's vertices lie beyond, by e radii.
+    float t = clamp(a_p.z, 0.0, 1.0);
+    vec3 c0 = o + d * t;     // the centre line's point at t
+    vec3 dd = d;             // its direction
+    if (u_mode.x > 2.5) {
+      // An arc: the quadratic Bezier o -> ctrl -> o + d, ctrl from size[1] (up) and size[2] (across).
+      vec3 hz = vec3(d.xy, 0.0);
+      float hl = length(hz);
+      vec3 across = hl > 1e-20 ? vec3(-hz.y, hz.x, 0.0) / hl : vec3(0.0, 1.0, 0.0);
+      vec3 ctrl = 0.5 * d + vec3(0.0, 0.0, i_size.y) + across * i_size.z;
+      float u = 1.0 - t;
+      c0 = o + 2.0 * u * t * ctrl + t * t * d;
+      dd = 2.0 * u * ctrl + 2.0 * t * (d - ctrl);
+    }
+    float len = length(dd);
+    vec3 dn = len > 1e-20 ? dd / len : vec3(0.0, 0.0, 1.0);
     vec3 up = abs(dn.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
     vec3 bx = normalize(cross(up, dn));
     vec3 by = cross(dn, bx);
     float r = i_size.x * u_mode.y;
-    // Along the axis: t in [0, 1] on the body; a cap's vertices lie beyond, by e radii.
-    float t = clamp(a_p.z, 0.0, 1.0);
     float e = liney && bit1 > 0.5 ? a_p.z - t : 0.0;
     float fl = liney ? (bit0 > 0.5 ? u_params[5].y : u_params[6].x) : 0.0;
     if (fl > 0.0) {
       // the street floor: at least this many pixels of half width, measured on the centre line
-      r = max(r, fl / ppuAt((u_vp * vec4(o + d * t, 1.0)).w));
+      r = max(r, fl / ppuAt((u_vp * vec4(c0, 1.0)).w));
     }
-    p = o + (bx * a_p.x + by * a_p.y) * r + d * t + dn * (e * r);
+    p = c0 + (bx * a_p.x + by * a_p.y) * r + dn * (e * r);
     n = bx * a_n.x + by * a_n.y + dn * a_n.z;
   } else {
     vec3 s = u_mode.y > 0.5 ? i_size.xxx : i_size;
     float c = cos(i_angle);
     float sn = sin(i_angle);
     vec3 q = a_p * s;
-    p = o + vec3(c * q.x - sn * q.y, sn * q.x + c * q.y, q.z);
-    n = vec3(c * a_n.x - sn * a_n.y, sn * a_n.x + c * a_n.y, a_n.z);
+    if (orient) {
+      // The box's own frame: z along aux; x from world x (world y if aux is along x) laid
+      // across it, then turned by angle about z.
+      float al = length(i_aux);
+      vec3 ez = al > 1e-20 ? i_aux / al : vec3(0.0, 0.0, 1.0);
+      vec3 r0 = abs(ez.x) < 0.999 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+      vec3 x0 = normalize(r0 - ez * dot(r0, ez));
+      vec3 y0 = cross(ez, x0);
+      vec3 ex = c * x0 + sn * y0;
+      vec3 ey = cross(ez, ex);
+      p = o + ex * q.x + ey * q.y + ez * q.z;
+      n = ex * a_n.x + ey * a_n.y + ez * a_n.z;
+    } else {
+      p = o + vec3(c * q.x - sn * q.y, sn * q.x + c * q.y, q.z);
+      n = vec3(c * a_n.x - sn * a_n.y, sn * a_n.x + c * a_n.y, a_n.z);
+    }
   }
   v_n = n;
   v_v = normalize(u_eye.xyz - p * u_eye.w);
   float cm = floor(var / 64.0);
   bool ramp = cm > 0.5 && cm < 1.5;
   bool tint = cm > 1.5 && cm < 2.5;
-  bool tube = u_mode.x > 0.5 && u_mode.x < 1.5;
+  bool tube = u_mode.x > 0.5 && u_mode.x < 1.5 || u_mode.x > 2.5;
   vec3 rgb = i_color.rgb;
   float dens = 0.0;
   if (ramp) {
-    dens = clamp(tube ? i_angle : i_aux.x, 0.0, 1.0);
+    dens = clamp(tube ? i_angle : orient ? 0.0 : i_aux.x, 0.0, 1.0);
     rgb = mix(u_params[1].rgb, u_params[2].rgb, dens);
   } else if (tint) {
     rgb *= u_params[3].rgb;
@@ -313,6 +450,10 @@ void main() {
     if (bit2 > 0.5) fk = 1.0;                                            // a disc with the canopy field
   }
   gl_Position = u_vp * vec4(p, 1.0);
+#ifdef HD_SHADOW
+  v_ls = u_lvp * vec4(p + n * u_lno, 1.0);
+#endif
+  v_mat = mod(floor(var / 16.0), 4.0);
   // The ring: the pixel's place relative to the centre, in radii, for the fragment stage.
   float ringR = u_params[7].w;
   if (ringR > 0.0) {
@@ -339,6 +480,12 @@ const FS = `
 precision mediump float;
 uniform vec3 u_light;  // unit, toward the light
 uniform vec4 u_shade;  // x lit (0 or 1), y ambient, z specular, w rim
+#ifdef HD_SHADOW
+uniform sampler2D u_shadow;
+uniform vec4 u_shp;    // x strength, y one texel, z bias
+varying PF vec4 v_ls;
+#endif
+varying mediump float v_mat;
 varying mediump vec3 v_n;
 varying mediump vec3 v_v;
 varying lowp vec4 v_c;
@@ -371,16 +518,45 @@ PF float oct(PF vec2 x, PF float cell, PF float amp) {
   PF float w = 1.0 - smoothstep(0.25, 0.5, 1.0 / (v_fp.x * cell));
   return w > 0.0 ? amp * w * vn(x, cell) : 0.0;
 }
+#ifdef HD_SHADOW
+PF float unpackDepth(PF vec4 c) {
+  return dot(c, vec4(1.0, 1.0 / 255.0, 1.0 / 65025.0, 1.0 / 16581375.0));
+}
+// The lit fraction at this pixel: 1 in light, 0 in full shadow; four taps on a rotated grid.
+float litFraction(float ndl) {
+  PF vec3 q = v_ls.xyz / v_ls.w * 0.5 + 0.5;
+  if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0 || q.z > 1.0) return 1.0;
+  PF float bias = u_shp.z * (1.0 + 3.0 * (1.0 - ndl));
+  PF float z = q.z - bias;
+  PF float t = u_shp.y;
+  PF float s = (z > unpackDepth(texture2D(u_shadow, q.xy + vec2(-0.4, -1.2) * t)) ? 0.0 : 1.0)
+             + (z > unpackDepth(texture2D(u_shadow, q.xy + vec2(1.2, -0.4) * t)) ? 0.0 : 1.0)
+             + (z > unpackDepth(texture2D(u_shadow, q.xy + vec2(0.4, 1.2) * t)) ? 0.0 : 1.0)
+             + (z > unpackDepth(texture2D(u_shadow, q.xy + vec2(-1.2, 0.4) * t)) ? 0.0 : 1.0);
+  return s * 0.25;
+}
+#endif
 void main() {
   vec3 n = normalize(v_n);
   if (!gl_FrontFacing) n = -n;
   vec3 v = normalize(v_v);
   float ndl = max(dot(n, u_light), 0.0);
+  float glow = u_shade.x > 0.5 && v_mat > 2.5 ? 1.0 : 0.0;
+#ifdef HD_SHADOW
+  float shf = glow > 0.5 ? 1.0 : litFraction(u_shade.x > 0.5 ? ndl : 1.0);
+  float strength = u_shp.x;
+#else
+  float shf = 1.0;
+  float strength = 0.0;
+#endif
   float sky = 0.75 + 0.25 * n.z;
-  float lit = u_shade.y * sky + (1.0 - u_shade.y) * ndl;
+  float lit = u_shade.y * sky + (1.0 - u_shade.y) * ndl * shf;
   vec3 h = normalize(u_light + v);
-  float sp = pow(max(dot(n, h), 0.0), 40.0) * u_shade.z * step(0.0001, ndl);
-  float rim = pow(1.0 - max(dot(n, v), 0.0), 3.0) * u_shade.w;
+  float spec = u_shade.z, shin = 40.0, rimk = u_shade.w;
+  if (v_mat > 0.5 && v_mat < 1.5) { spec = 0.0; rimk *= 0.25; }
+  else if (v_mat > 1.5 && v_mat < 2.5) { spec = min(1.0, spec * 3.0 + 0.15); shin = 90.0; rimk = rimk * 1.6 + 0.06; lit *= 0.85; }
+  float sp = pow(max(dot(n, h), 0.0), shin) * spec * step(0.0001, ndl) * shf;
+  float rim = pow(1.0 - max(dot(n, v), 0.0), 3.0) * rimk;
   vec3 base = v_c.rgb;
   if (v_fp.y > 0.0) {
     PF float s;
@@ -389,10 +565,28 @@ void main() {
     else s = oct(v_np, 4.0, 0.05) + oct(v_np, 1.0, 0.04);
     base *= 1.0 + s * v_fp.y;
   }
-  vec3 shaded = base * (lit + rim) + vec3(sp);
+  vec3 shaded = glow > 0.5 ? base : base * (lit + rim) + vec3(sp);
+  vec3 flatc = base * mix(1.0 - strength, 1.0, shf);
   // min() keeps the length inside mediump's range far outside the ring
   float ring = 1.0 - smoothstep(0.85, 1.0, length(min(abs(v_ring), vec2(8.0))));
-  gl_FragColor = vec4(mix(base, shaded, u_shade.x) * v_dim.rgb, v_c.a * v_dim.a * ring);
+  gl_FragColor = vec4(mix(flatc, shaded, u_shade.x) * v_dim.rgb, v_c.a * v_dim.a * ring);
+}
+`;
+
+// The shadow map's fragment stage: depth packed in RGBA8. No uniforms (so none can be shared
+// with the vertex stage). A mark under half alpha, or a GLOW mark, casts nothing.
+const ZFS = `
+precision mediump float;
+varying mediump float v_mat;
+varying lowp vec4 v_c;
+varying mediump vec4 v_dim;
+varying PF vec2 v_ring;
+void main() {
+  float ring = 1.0 - smoothstep(0.85, 1.0, length(min(abs(v_ring), vec2(8.0))));
+  if (v_c.a * v_dim.a * ring < 0.5 || v_mat > 2.5) discard;
+  PF vec4 e = fract(gl_FragCoord.z * vec4(1.0, 255.0, 65025.0, 16581375.0));
+  e -= e.yzww * vec4(1.0 / 255.0, 1.0 / 255.0, 1.0 / 255.0, 0.0);
+  gl_FragColor = e;
 }
 `;
 
@@ -408,7 +602,7 @@ attribute vec4 i_color;
 attribute vec4 i_meta;   // kind, detail, flags, variant as 0..255
 uniform vec2 u_view;     // viewport width and height in pixels
 uniform vec3 u_soffset;
-uniform float u_smode;   // 0 rectangle, 1 circle, 2 line, 3 run
+uniform float u_smode;   // 0 rectangle, 1 circle, 2 line, 3 run or image
 uniform vec4 u_sparams[8];
 varying PF vec2 v_a;     // max(v_a, v_b) = |local| - (half - radius): small near every edge
 varying PF vec2 v_b;
@@ -475,7 +669,8 @@ uniform sampler2D u_t0;
 uniform sampler2D u_t1;
 uniform sampler2D u_t2;
 uniform sampler2D u_t3;
-uniform mediump float u_fmode;   // 0 shape, 1 run
+uniform sampler2D u_img;
+uniform mediump float u_fmode;   // 0 shape, 1 run, 2 image
 varying PF vec2 v_a;
 varying PF vec2 v_b;
 varying PF vec2 v_uv;
@@ -485,6 +680,11 @@ varying lowp vec4 v_c;
 varying mediump float v_fade;
 void main() {
   float cov;
+  if (u_fmode > 1.5) {
+    vec4 im = texture2D(u_img, v_uv);
+    gl_FragColor = vec4(im.rgb * v_c.rgb, im.a * v_c.a * v_fade);
+    return;
+  }
   if (u_fmode > 0.5) {
     if (v_page < 0.5) cov = texture2D(u_t0, v_uv).a;
     else if (v_page < 1.5) cov = texture2D(u_t1, v_uv).a;
@@ -575,6 +775,47 @@ function capsuleMesh(sides, rings) {
   return { v, ix };
 }
 
+// An arc's tube: the capsule with `segs` body segments, so the vertex stage can bend it.
+function arcCapsuleMesh(sides, rings, segs) {
+  const prof = [];
+  for (let k = rings; k >= 0; k--) { const f = (Math.PI / 2) * (k / rings); prof.push([Math.cos(f), -Math.sin(f), -Math.sin(f)]); }
+  for (let i = 1; i < segs; i++) prof.push([1, i / segs, 0]);
+  for (let k = 0; k <= rings; k++) { const f = (Math.PI / 2) * (k / rings); prof.push([Math.cos(f), 1 + Math.sin(f), Math.sin(f)]); }
+  const v = [], ix = [], w = sides + 1;
+  for (const [r, z, nz] of prof) {
+    for (let j = 0; j <= sides; j++) {
+      const f = (2 * Math.PI * j) / sides, x = Math.cos(f), y = Math.sin(f);
+      v.push(x * r, y * r, z, x * r, y * r, nz);
+    }
+  }
+  for (let i = 0; i + 1 < prof.length; i++) {
+    for (let j = 0; j < sides; j++) {
+      const a = i * w + j, b = a + 1, c = b + w, d = a + w;
+      ix.push(a, b, c, a, c, d);
+    }
+  }
+  return { v, ix };
+}
+
+// An arc's flat ribbon: the stadium with `segs` body segments (a strip), and a fan per end.
+function arcRibbonMesh(arc, segs) {
+  const v = [], ix = [];
+  for (let i = 0; i <= segs; i++) {
+    v.push(-1, 0, i / segs, 0, 1, 0, 1, 0, i / segs, 0, 1, 0);
+    if (i > 0) { const a = 2 * (i - 1); ix.push(a, a + 1, a + 3, a, a + 3, a + 2); }
+  }
+  for (const end of [0, 1]) {
+    const c = v.length / 6;
+    v.push(0, 0, end, 0, 1, 0);
+    for (let k = 0; k <= arc; k++) {
+      const a = (Math.PI * k) / arc;
+      v.push(Math.cos(a), 0, end ? 1 + Math.sin(a) : -Math.sin(a), 0, 1, 0);
+      if (k > 0) ix.push(c, c + k, c + k + 1);
+    }
+  }
+  return { v, ix };
+}
+
 // A line as a flat ribbon, in the tube's x-z plane (y = 0, normal +y): a stadium, drawn as a
 // fan. The same z convention as the capsule.
 function ribbonMesh(arc) {
@@ -627,10 +868,11 @@ function discMesh(sides) {
 }
 
 // ---- slots: how a kind is drawn. Index = kind; 11 and 12 are the coarse sphere and rod. ----
-// mode: [vertex mode, radius scale or uniform-scale switch]; shade: [lit, specular, rim]; cull.
+// mode: [vertex mode (0 sphere, 1 tube, 2 scaled-and-turned, 3 bent tube), radius scale or uniform-scale switch]; shade: [lit, specular, rim]; cull.
 // The vertex stage's kind code: 1 quad, 2 patch, 3 line or arc, 4 disc, 5 box or prism, 0 the rest.
 const KIND_CODE = [0, 1, 3, 3, 4, 5, 5, 0, 0, 2, 0, 0, 0, 3, 3];
 const SLOT_COARSE_SPHERE = 11, SLOT_COARSE_ROD = 12, SLOT_FLAT_LINE = 13, SLOT_FLAT_ARC = 14, N_SLOT = 15;
+const SCREEN_ID = 15;   // the id of every screen slot, for a resident batch's vertex arrays (after the world slots' 0..14)
 
 function compile(gl, type, src) {
   const s = gl.createShader(type);
@@ -692,36 +934,50 @@ export function createDrawer(gl, options) {
   const PF = !options.forceMediump && hp && hp.precision > 0 ? 'highp' : 'mediump';
   const med = PF === 'mediump' ? '#define HD_MEDIUMP 1\n' : '';
   const headV = med + PF_HEAD_V, headF = med + PF_HEAD_F;
-  const vs = compile(gl, gl.VERTEX_SHADER, headV + VS);
-  const fs = compile(gl, gl.FRAGMENT_SHADER, headF + FS);
-  const program = gl.createProgram();
-  gl.attachShader(program, vs);
-  gl.attachShader(program, fs);
-  gl.bindAttribLocation(program, A_P, 'a_p');
-  gl.bindAttribLocation(program, A_N, 'a_n');
-  gl.bindAttribLocation(program, I_POS, 'i_pos');
-  gl.bindAttribLocation(program, I_SIZE, 'i_size');
-  gl.bindAttribLocation(program, I_AUX, 'i_aux');
-  gl.bindAttribLocation(program, I_ANGLE, 'i_angle');
-  gl.bindAttribLocation(program, I_COLOR, 'i_color');
-  gl.bindAttribLocation(program, I_META, 'i_meta');
-  gl.linkProgram(program);
-  gl.deleteShader(vs);
-  gl.deleteShader(fs);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    const log = gl.getProgramInfoLog(program);
-    gl.deleteProgram(program);
-    throw new Error('holon-draw: program did not link: ' + log);
+  // Two world programs: without shadows (what every draw() without opts.shadow uses, at no
+  // cost from them) and with them (HD_SHADOW: the light-space varying and the four-tap lookup).
+  function worldProgram(defs, fsrc) {
+    const vs = compile(gl, gl.VERTEX_SHADER, defs + headV + VS);
+    const fs = compile(gl, gl.FRAGMENT_SHADER, defs + headF + fsrc);
+    const program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.bindAttribLocation(program, A_P, 'a_p');
+    gl.bindAttribLocation(program, A_N, 'a_n');
+    gl.bindAttribLocation(program, I_POS, 'i_pos');
+    gl.bindAttribLocation(program, I_SIZE, 'i_size');
+    gl.bindAttribLocation(program, I_AUX, 'i_aux');
+    gl.bindAttribLocation(program, I_ANGLE, 'i_angle');
+    gl.bindAttribLocation(program, I_COLOR, 'i_color');
+    gl.bindAttribLocation(program, I_META, 'i_meta');
+    gl.linkProgram(program);
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      const log = gl.getProgramInfoLog(program);
+      gl.deleteProgram(program);
+      throw new Error('holon-draw: program did not link: ' + log);
+    }
+    const u = (n) => gl.getUniformLocation(program, n);
+    return {
+      program, uVP: u('u_vp'), uOffset: u('u_offset'), uEye: u('u_eye'), uMode: u('u_mode'),
+      uLight: u('u_light'), uShade: u('u_shade'), uPix: u('u_pix'), uWView: u('u_wview'),
+      uParams: u('u_params[0]'), uLvp: u('u_lvp'), uLno: u('u_lno'), uShadow: u('u_shadow'),
+      uShp: u('u_shp'), samplerSet: false, last: new Float32Array(32).fill(NaN),
+    };
   }
-  const uVP = gl.getUniformLocation(program, 'u_vp');
-  const uOffset = gl.getUniformLocation(program, 'u_offset');
-  const uEye = gl.getUniformLocation(program, 'u_eye');
-  const uMode = gl.getUniformLocation(program, 'u_mode');
-  const uLight = gl.getUniformLocation(program, 'u_light');
-  const uShade = gl.getUniformLocation(program, 'u_shade');
-  const uPix = gl.getUniformLocation(program, 'u_pix');
-  const uWView = gl.getUniformLocation(program, 'u_wview');
-  const uParams = gl.getUniformLocation(program, 'u_params[0]');
+  const WP = worldProgram('', FS);
+
+  // The shadow programs (the world one with HD_SHADOW, and the depth one: the world vertex
+  // stage with ZFS), compiled on the first draw() that asks for shadows, before any GL state
+  // of that draw() is changed. A host that never asks pays nothing for them.
+  let WS = null, Z = null;
+  function shadowPrograms() {
+    if (!WS) WS = worldProgram('#define HD_SHADOW 1\n', FS);
+    if (!Z) Z = worldProgram('', ZFS);
+  }
+  // The shadow map, made on first use: an RGBA8 texture and a 16-bit depth buffer.
+  let zTex = null, zDepth = null, zFbo = null, zSize = 0;
 
   // The screen program.
   const svs = compile(gl, gl.VERTEX_SHADER, headV + SVS);
@@ -742,7 +998,7 @@ export function createDrawer(gl, options) {
   if (!gl.getProgramParameter(sprogram, gl.LINK_STATUS)) {
     const log = gl.getProgramInfoLog(sprogram);
     gl.deleteProgram(sprogram);
-    gl.deleteProgram(program);
+    gl.deleteProgram(WP.program);
     throw new Error('holon-draw: screen program did not link: ' + log);
   }
   const uView = gl.getUniformLocation(sprogram, 'u_view');
@@ -751,6 +1007,7 @@ export function createDrawer(gl, options) {
   const uSParams = gl.getUniformLocation(sprogram, 'u_sparams[0]');
   const uFMode = gl.getUniformLocation(sprogram, 'u_fmode');
   const uTex = [0, 1, 2, 3].map((i) => gl.getUniformLocation(sprogram, 'u_t' + i));
+  const uImg = gl.getUniformLocation(sprogram, 'u_img');
   let samplersSet = false;
   const text = options.text || null;
 
@@ -775,6 +1032,8 @@ export function createDrawer(gl, options) {
   const mRodCoarse = mesh(tubeMesh(8, true));
   const mLine = mesh(capsuleMesh(8, 3));
   const mRibbon = mesh(ribbonMesh(10));
+  const mArc = mesh(arcCapsuleMesh(8, 3, 16));
+  const mArcRibbon = mesh(arcRibbonMesh(10, 16));
   const mBox = mesh(boxMesh());
   const mQuad = mesh(quadMesh());
   const mDisc = mesh(discMesh(24));
@@ -782,12 +1041,12 @@ export function createDrawer(gl, options) {
   // slot -> { mesh, kind (whose instance buffer), mode x, mode y, lit, spec, rim, cull, vao }
   const slots = new Array(N_SLOT).fill(null);
   const slot = (i, kind, m, mx, my, lit, spec, rim, cull) => {
-    slots[i] = { mesh: m, kind, mx, my, lit, spec, rim, cull, vao: null, kc: KIND_CODE[i] };
+    slots[i] = { mesh: m, kind, mx, my, lit, spec, rim, cull, vao: null, kc: KIND_CODE[i], id: i };
   };
   slot(KIND.QUAD, KIND.QUAD, mQuad, 2, 0, 0, 0, 0, false);
   slot(KIND.PATCH, KIND.PATCH, mQuad, 2, 0, 0, 0, 0, false);
   slot(KIND.LINE, KIND.LINE, mLine, 1, 0.5, 0, 0, 0, true);
-  slot(KIND.ARC, KIND.ARC, mLine, 1, 0.5, 0, 0, 0, true);
+  slot(KIND.ARC, KIND.ARC, mArc, 3, 0.5, 0, 0, 0, true);
   slot(KIND.DISC, KIND.DISC, mDisc, 2, 1, 0, 0, 0, false);
   slot(KIND.GLYPH, KIND.GLYPH, mDisc, 2, 1, 0, 0, 0, false);
   slot(KIND.BOX, KIND.BOX, mBox, 2, 0, 1, 0.05, 0, true);
@@ -797,10 +1056,10 @@ export function createDrawer(gl, options) {
   slot(SLOT_COARSE_SPHERE, KIND.SPHERE, mSphereCoarse, 0, 0, 1, 0.3, 0.18, true);
   slot(SLOT_COARSE_ROD, KIND.ROD, mRodCoarse, 1, 1, 1, 0.18, 0.08, true);
   slot(SLOT_FLAT_LINE, KIND.LINE, mRibbon, 1, 0.5, 0, 0, 0, false);
-  slot(SLOT_FLAT_ARC, KIND.ARC, mRibbon, 1, 0.5, 0, 0, 0, false);
+  slot(SLOT_FLAT_ARC, KIND.ARC, mArcRibbon, 3, 0.5, 0, 0, 0, false);
 
   // Screen slots, by kind: vertex mode (0 rectangle, 1 circle, 2 line, 3 run).
-  const sslots = new Array(12).fill(null);
+  const sslots = new Array(13).fill(null);
   sslots[KIND.QUAD] = { kind: KIND.QUAD, smode: 0 };
   sslots[KIND.PATCH] = { kind: KIND.PATCH, smode: 0 };
   sslots[KIND.DISC] = { kind: KIND.DISC, smode: 1 };
@@ -808,6 +1067,11 @@ export function createDrawer(gl, options) {
   sslots[KIND.LINE] = { kind: KIND.LINE, smode: 2 };
   sslots[KIND.ARC] = { kind: KIND.ARC, smode: 2 };
   if (text) sslots[KIND.RUN] = { kind: KIND.RUN, smode: 3 };
+  sslots[KIND.IMAGE] = { kind: KIND.IMAGE, smode: 3, image: true };
+  for (const s of sslots) if (s) { s.id = SCREEN_ID; s.mesh = mQuad; }   // every screen slot draws the quad mesh
+  // the host's textures, by slot (setImage)
+  const images = new Map();
+  const IMAGE_UNIT = 5;
   let screenVAO = null;
 
   function meshAttribs(m) {
@@ -846,15 +1110,17 @@ export function createDrawer(gl, options) {
   // One instance buffer per kind, grown as needed and reused. Within one draw() every batch
   // of a kind is written at its own offset in that buffer, so a later batch never overwrites
   // bytes an earlier draw call of the same frame still reads.
-  const instBuf = new Array(12).fill(null);
-  const instCap = new Int32Array(12);
-  const need = new Int32Array(12);
-  const cursor = new Int32Array(12);
+  const instBuf = new Array(13).fill(null);
+  const instCap = new Int32Array(13);
+  const need = new Int32Array(13);
+  const cursor = new Int32Array(13);
 
   // Scratch, allocated once.
   const light = new Float32Array(3);
+  const lvp = new Float32Array(16);
+  let wAt = new Int32Array(64);   // per batch: where its records were uploaded this draw(), or -1
   const inv = new Float64Array(16);
-  const st = { drawCalls: 0, instances: 0, bytesUploaded: 0, paramUploads: 0 };
+  const st = { drawCalls: 0, instances: 0, bytesUploaded: 0, paramUploads: 0, missingImages: 0, residentBuffers: 0, residentBytes: 0 };
   let dead = false;
   let flat = false;   // lines as flat ribbons, for the draw() in progress
 
@@ -888,7 +1154,7 @@ export function createDrawer(gl, options) {
   // The slot a batch is drawn with, or null if it is not drawn.
   function slotOf(b) {
     const k = b.kind | 0;
-    if (k < 1 || k > 11) return null;
+    if (k < 1 || k > 12) return null;
     if (b.screen === true) return sslots[k];
     if (k > 10) return null;
     if (flat) {
@@ -904,7 +1170,6 @@ export function createDrawer(gl, options) {
 
   // The settings last uploaded to each program (a program keeps its uniforms between
   // frames, so these do too). NaN at the start: the first batch always uploads.
-  const lastW = new Float32Array(32).fill(NaN);
   const lastS = new Float32Array(32).fill(NaN);
   function settings(loc, last, src) {
     if (!src) src = PARAMS_NEUTRAL;
@@ -918,8 +1183,8 @@ export function createDrawer(gl, options) {
     st.paramUploads++;
   }
 
-  // Upload one batch at its kind's cursor and point the instanced attributes at it.
-  function feed(b, k, len) {
+  // Upload one `bytes` batch at its kind's cursor; its offset in that kind's buffer.
+  function upload(b, k, len) {
     const at = cursor[k];
     cursor[k] = at + len;
     gl.bindBuffer(gl.ARRAY_BUFFER, instBuf[k]);
@@ -927,26 +1192,172 @@ export function createDrawer(gl, options) {
     if (bytes.byteLength === len) gl.bufferSubData(gl.ARRAY_BUFFER, at, bytes);
     else if (isGL2) gl.bufferSubData(gl.ARRAY_BUFFER, at, bytes, 0, len);
     else gl.bufferSubData(gl.ARRAY_BUFFER, at, bytes.subarray(0, len)); // the one view made; pass exact-length bytes to avoid it
+    st.bytesUploaded += len;
+    return at;
+  }
+  // Point the instanced attributes at records `at` bytes into `buf`.
+  function pointers(buf, at) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.vertexAttribPointer(I_POS, 3, gl.FLOAT, false, INSTANCE_BYTES, at);
     gl.vertexAttribPointer(I_SIZE, 3, gl.FLOAT, false, INSTANCE_BYTES, at + 12);
     gl.vertexAttribPointer(I_AUX, 3, gl.FLOAT, false, INSTANCE_BYTES, at + 24);
     gl.vertexAttribPointer(I_ANGLE, 1, gl.FLOAT, false, INSTANCE_BYTES, at + 36);
     gl.vertexAttribPointer(I_COLOR, 4, gl.UNSIGNED_BYTE, true, INSTANCE_BYTES, at + 40);
     gl.vertexAttribPointer(I_META, 4, gl.UNSIGNED_BYTE, false, INSTANCE_BYTES, at + 48);
+  }
+
+  // ---- resident buffers (RESIDENT BUFFERS at the top) ----
+  // handles[h]: { buf, cap (bytes allocated), size (bytes of records now), vaos: Map(first * 32 + slot id -> vertex array) }
+  const handles = [null];
+  const freeHandles = [];
+  const VAO_CAP = 256;
+  function handleOf(h, what) {
+    const r = typeof h === 'number' ? handles[h] : undefined;
+    if (!r) throw new Error('holon-draw: ' + what + ': no resident buffer with handle ' + h);
+    return r;
+  }
+  function recordBytes(bytes, what) {
+    if (!bytes || typeof bytes.byteLength !== 'number' || bytes.byteLength % INSTANCE_BYTES !== 0) {
+      throw new Error('holon-draw: ' + what + ' takes whole 52-byte records (an ArrayBufferView whose byteLength is a multiple of 52)');
+    }
+  }
+  /** Upload records once; returns their handle (see RESIDENT BUFFERS at the top). */
+  function resident(bytes) {
+    if (dead) throw new Error('holon-draw: resident() after destroy()');
+    recordBytes(bytes, 'resident()');
+    const prev = gl.getParameter(gl.ARRAY_BUFFER_BINDING);
+    const r = { buf: gl.createBuffer(), cap: bytes.byteLength, size: bytes.byteLength, vaos: hasVAO ? new Map() : null };
+    gl.bindBuffer(gl.ARRAY_BUFFER, r.buf);
+    gl.bufferData(gl.ARRAY_BUFFER, bytes, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, prev);
+    const h = freeHandles.length ? freeHandles.pop() : handles.length;
+    handles[h] = r;
+    st.residentBuffers++;
+    st.residentBytes += r.cap;
+    return h;
+  }
+  /** New records for a handle: in place when they fit, else reallocated; the handle stays. */
+  function update(h, bytes) {
+    if (dead) throw new Error('holon-draw: update() after destroy()');
+    const r = handleOf(h, 'update()');
+    recordBytes(bytes, 'update()');
+    const prev = gl.getParameter(gl.ARRAY_BUFFER_BINDING);
+    gl.bindBuffer(gl.ARRAY_BUFFER, r.buf);
+    if (bytes.byteLength <= r.cap) {
+      if (bytes.byteLength > 0) gl.bufferSubData(gl.ARRAY_BUFFER, 0, bytes);
+    } else {
+      // The same buffer object, so the vertex arrays that point into it stay good.
+      gl.bufferData(gl.ARRAY_BUFFER, bytes, gl.STATIC_DRAW);
+      st.residentBytes += bytes.byteLength - r.cap;
+      r.cap = bytes.byteLength;
+    }
+    r.size = bytes.byteLength;
+    gl.bindBuffer(gl.ARRAY_BUFFER, prev);
+  }
+  /** Free a handle's buffer (and its vertex arrays); the number may be handed out again. */
+  function release(h) {
+    const r = handleOf(h, 'release()');
+    if (r.vaos) { for (const v of r.vaos.values()) deleteVAO(v); r.vaos.clear(); }
+    gl.deleteBuffer(r.buf);
+    handles[h] = null;
+    freeHandles.push(h);
+    st.residentBuffers--;
+    st.residentBytes -= r.cap;
+  }
+
+  // Make batch b's records the instanced attributes' source for a draw with slot s: `at` is
+  // where a `bytes` batch was uploaded this draw() (pointed at through `vao`, the slot's own
+  // vertex array), or -2 for a resident batch (its own vertex array, or the bare pointers).
+  // `bound` is the vertex array this draw() last bound (null at its start).
+  let bound = null;
+  function attach(b, s, at, vao, count) {
     st.drawCalls++;
-    st.instances += b.count | 0;
-    st.bytesUploaded += len;
+    st.instances += count;
+    if (at >= 0) {
+      if (hasVAO && bound !== vao) { bindVAO(vao); bound = vao; }
+      pointers(instBuf[s.kind], at);
+      return;
+    }
+    const r = handles[b.handle], first = b.first | 0;
+    if (!hasVAO) { pointers(r.buf, first * INSTANCE_BYTES); return; }
+    const key = first * 32 + s.id;
+    let v = r.vaos.get(key);
+    if (v !== undefined) {
+      if (bound !== v) { bindVAO(v); bound = v; }
+      return;
+    }
+    if (r.vaos.size < VAO_CAP) {
+      v = createVAO();
+      r.vaos.set(key, v);
+      bindVAO(v);
+      bound = v;
+      meshAttribs(s.mesh);
+    } else if (bound !== vao) {
+      bindVAO(vao);
+      bound = vao;
+    }
+    pointers(r.buf, first * INSTANCE_BYTES);
+  }
+
+  // The light's orthographic view-projection over the sphere (c, r), into lvp.
+  function lightMatrix(c, r) {
+    const lx = light[0], ly = light[1], lz = light[2];
+    const ex = c[0] + lx * 2 * r, ey = c[1] + ly * 2 * r, ez = c[2] + lz * 2 * r;
+    // view axes: f toward the light (z of the view), s and u across it
+    let ux = 0, uy = 0, uz = 1;
+    if (Math.abs(lz) > 0.99) { ux = 1; uz = 0; }
+    let sx = uy * lz - uz * ly, sy = uz * lx - ux * lz, sz = ux * ly - uy * lx;
+    let sl = Math.hypot(sx, sy, sz) || 1; sx /= sl; sy /= sl; sz /= sl;
+    const vx = ly * sz - lz * sy, vy = lz * sx - lx * sz, vz = lx * sy - ly * sx;
+    const n = 0.01 * r, f = 4 * r, k = 1 / r, zz = -2 / (f - n), zw = -(f + n) / (f - n);
+    // ortho * view, column-major
+    lvp[0] = k * sx; lvp[1] = k * vx; lvp[2] = zz * lx; lvp[3] = 0;
+    lvp[4] = k * sy; lvp[5] = k * vy; lvp[6] = zz * ly; lvp[7] = 0;
+    lvp[8] = k * sz; lvp[9] = k * vz; lvp[10] = zz * lz; lvp[11] = 0;
+    lvp[12] = -k * (sx * ex + sy * ey + sz * ez);
+    lvp[13] = -k * (vx * ex + vy * ey + vz * ez);
+    lvp[14] = -zz * (lx * ex + ly * ey + lz * ez) + zw;
+    lvp[15] = 1;
+  }
+
+  function shadowTarget(size) {
+    if (zFbo && zSize === size) return;
+    if (!zTex) { zTex = gl.createTexture(); zDepth = gl.createRenderbuffer(); zFbo = gl.createFramebuffer(); }
+    zSize = size;
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, zTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.activeTexture(gl.TEXTURE0);
+    const prevRB = gl.getParameter(gl.RENDERBUFFER_BINDING);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, zDepth);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, size, size);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, prevRB);
+    const prevFB = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, zFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, zTex, 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, zDepth);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, prevFB);
   }
 
   /**
-   * @param {Array<{kind:number, offset?:ArrayLike<number>, count:number, bytes:Uint8Array, screen?:boolean, coarse?:boolean, params?:ArrayLike<number>}>} batches
+   * @param {Array<{kind:number, offset?:ArrayLike<number>, count:number, bytes?:Uint8Array, handle?:number, first?:number, slot?:number, screen?:boolean, coarse?:boolean, params?:ArrayLike<number>, shade?:ArrayLike<number>}>} batches
+   *   each batch has `bytes` (uploaded now) or `handle` (a resident buffer, see RESIDENT
+   *   BUFFERS; `first` its first record, and `slot` on a resident image batch).
+   *   `shade`, optional on a world batch of a lit kind: [specular, rim] for that batch in place
+   *   of the kind's own (box and prism 0.05, 0; sphere 0.3, 0.18; rod 0.18, 0.08).
    * @param {Float32Array} vp column-major, 16 (world batches only)
-   * @param {{light?:ArrayLike<number>, ambient?:number, flatLit?:boolean, viewport?:ArrayLike<number>, pixelsPerUnit?:number, depthTest?:boolean, flatLines?:boolean}} [opts]
+   * @param {{light?:ArrayLike<number>, ambient?:number, flatLit?:boolean, viewport?:ArrayLike<number>, pixelsPerUnit?:number, depthTest?:boolean, flatLines?:boolean, shadow?:{center:ArrayLike<number>, radius:number, size?:number, strength?:number, bias?:number}}} [opts]
+   *   A world batch may also carry `castShadow: false`.
    */
   function draw(batches, vp, opts) {
     if (dead) throw new Error('holon-draw: draw() after destroy()');
-    st.drawCalls = 0; st.instances = 0; st.bytesUploaded = 0; st.paramUploads = 0;
+    st.drawCalls = 0; st.instances = 0; st.bytesUploaded = 0; st.paramUploads = 0; st.missingImages = 0;
     flat = !!opts && (opts.flatLines === true || (opts.flatLines !== false && opts.depthTest === false));
+    if (opts && opts.shadow && opts.shadow.center && opts.shadow.radius > 0) shadowPrograms();
     const nb = batches.length;
 
     // Pass 1: bytes needed per kind; how many world and screen batches there are.
@@ -957,15 +1368,25 @@ export function createDrawer(gl, options) {
       if (c <= 0) continue;
       const s = slotOf(b);
       if (!s) continue;
-      if (b.bytes.byteLength < c * INSTANCE_BYTES) {
-        throw new Error('holon-draw: batch ' + i + ' (kind ' + b.kind + ') has ' + b.bytes.byteLength + ' bytes for ' + c + ' records of ' + INSTANCE_BYTES);
+      if (b.handle !== undefined) {
+        const r = handleOf(b.handle, 'batch ' + i), first = b.first === undefined ? 0 : b.first;
+        if (first !== (first | 0) || first < 0 || (first + c) * INSTANCE_BYTES > r.size) {
+          throw new Error('holon-draw: batch ' + i + ' (kind ' + b.kind + ') asks for records ' + first + '..' + (first + c - 1) + ' of a resident buffer that holds ' + r.size / INSTANCE_BYTES);
+        }
+        if (s.image && !(b.slot === (b.slot | 0) && b.slot >= 0 && b.slot <= 255)) {
+          throw new Error('holon-draw: batch ' + i + ' is a resident image batch: it needs `slot` (0..255), since its first record is not in hand');
+        }
+      } else {
+        if (b.bytes.byteLength < c * INSTANCE_BYTES) {
+          throw new Error('holon-draw: batch ' + i + ' (kind ' + b.kind + ') has ' + b.bytes.byteLength + ' bytes for ' + c + ' records of ' + INSTANCE_BYTES);
+        }
+        need[s.kind] += c * INSTANCE_BYTES;
       }
-      need[s.kind] += c * INSTANCE_BYTES;
       if (b.screen === true) nScreen++; else nWorld++;
     }
     if (nWorld + nScreen === 0) return;
 
-    for (let k = 1; k <= 11; k++) {
+    for (let k = 1; k <= 12; k++) {
       cursor[k] = 0;
       if (need[k] <= instCap[k]) continue;
       let cap = instCap[k] || 64 * INSTANCE_BYTES;
@@ -977,6 +1398,7 @@ export function createDrawer(gl, options) {
     }
 
     // Frame state.
+    bound = null;
     gl.enable(gl.BLEND);
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.enable(gl.DEPTH_TEST);
@@ -987,50 +1409,131 @@ export function createDrawer(gl, options) {
     gl.enable(gl.CULL_FACE);
     let culling = true;
 
-    // Pass 2: the world batches, in the order given.
+    // Pass 2: the world batches, in the order given (uploaded once, read by the shadow pass
+    // too). wAt[i]: where batch i was uploaded; -2 resident (nothing to upload); -1 not drawn.
     if (nWorld > 0) {
-      gl.useProgram(program);
-      gl.uniformMatrix4fv(uVP, false, vp);
-      eyeFrom(vp);
-      gl.uniform4f(uEye, inv[0], inv[1], inv[2], inv[3]);
+      if (wAt.length < nb) wAt = new Int32Array(Math.max(nb, 2 * wAt.length));
+      for (let i = 0; i < nb; i++) {
+        const b = batches[i], c = b.count | 0;
+        const s = c > 0 && b.screen !== true ? slotOf(b) : null;
+        wAt[i] = !s ? -1 : b.handle !== undefined ? -2 : upload(b, s.kind, c * INSTANCE_BYTES);
+      }
       let lx = 0.35, ly = -0.5, lz = 0.8;
       const L = opts && opts.light;
       if (L) { lx = +L[0]; ly = +L[1]; lz = +L[2]; }
       let ll = Math.sqrt(lx * lx + ly * ly + lz * lz);
       if (!(ll > 0) || !isFinite(ll)) { lx = 0; ly = 0; lz = 1; ll = 1; }
       light[0] = lx / ll; light[1] = ly / ll; light[2] = lz / ll;
-      gl.uniform3fv(uLight, light);
       let ambient = opts && typeof opts.ambient === 'number' ? opts.ambient : 0.25;
       ambient = ambient < 0 ? 0 : ambient > 1 ? 1 : ambient;
       const flatLit = !!(opts && opts.flatLit);
       const V = opts && opts.viewport;
       const vw = V ? V[2] : gl.drawingBufferWidth, vh = V ? V[3] : gl.drawingBufferHeight;
       const halfH = 0.5 * vh;
-      gl.uniform2f(uWView, vw, vh);
-      if (opts && opts.depthTest === false) gl.disable(gl.DEPTH_TEST);
       const ppu = opts && opts.pixelsPerUnit > 0 ? +opts.pixelsPerUnit : 0;
+      eyeFrom(vp);
 
-      let cur = null;
+      // The shadow map, drawn from the light, before the picture.
+      const so = opts && opts.shadow;
+      const shadowsOn = !!(so && so.center && so.radius > 0);
+      if (shadowsOn) {
+        const size = Math.max(64, Math.min(so.size | 0 || 1024, gl.getParameter(gl.MAX_TEXTURE_SIZE)));
+        shadowTarget(size);
+        lightMatrix(so.center, +so.radius);
+        const prevFB = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+        const prevClear = gl.getParameter(gl.COLOR_CLEAR_VALUE), prevDepthClear = gl.getParameter(gl.DEPTH_CLEAR_VALUE);
+        const HV = V || gl.getParameter(gl.VIEWPORT);   // the host's, put back after
+        const scissor = gl.isEnabled(gl.SCISSOR_TEST);
+        if (scissor) gl.disable(gl.SCISSOR_TEST);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, zFbo);
+        gl.viewport(0, 0, size, size);
+        gl.clearColor(1, 1, 1, 1);
+        gl.clearDepth(1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.disable(gl.BLEND);
+        gl.useProgram(Z.program);
+        gl.uniformMatrix4fv(Z.uVP, false, lvp);
+        gl.uniform4f(Z.uEye, light[0], light[1], light[2], 0);
+        gl.uniform2f(Z.uWView, size, size);
+        gl.cullFace(gl.FRONT);
+        let zcur = null;
+        for (let i = 0; i < nb; i++) {
+          if (wAt[i] === -1) continue;
+          const b = batches[i];
+          if (b.castShadow === false) continue;
+          const s = slotOf(b);
+          if (!(s.lit || ((s.kind === KIND.LINE || s.kind === KIND.ARC) && !flat))) continue;
+          if (s !== zcur) {
+            zcur = s;
+            if (!hasVAO) meshAttribs(s.mesh);
+            gl.uniform2f(Z.uMode, s.mx, s.my);
+            gl.uniform3f(Z.uPix, 0.5 * size, ppu, s.kc);
+            if (s.cull !== culling) {
+              culling = s.cull;
+              if (culling) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
+            }
+          }
+          attach(b, s, wAt[i], s.vao, b.count | 0);
+          settings(Z.uParams, Z.last, b.params);
+          const o = b.offset;
+          if (o) gl.uniform3f(Z.uOffset, o[0], o[1], o[2]); else gl.uniform3f(Z.uOffset, 0, 0, 0);
+          drawInstanced(s.mesh.n, b.count | 0);
+        }
+        gl.cullFace(gl.BACK);
+        gl.enable(gl.BLEND);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, prevFB);
+        gl.viewport(HV[0], HV[1], HV[2], HV[3]);
+        gl.clearColor(prevClear[0], prevClear[1], prevClear[2], prevClear[3]);
+        gl.clearDepth(prevDepthClear);
+        if (scissor) gl.enable(gl.SCISSOR_TEST);
+        gl.activeTexture(gl.TEXTURE4);
+        gl.bindTexture(gl.TEXTURE_2D, zTex);
+        gl.activeTexture(gl.TEXTURE0);
+      }
+
+      const W = shadowsOn ? WS : WP;
+      gl.useProgram(W.program);
+      gl.uniformMatrix4fv(W.uVP, false, vp);
+      gl.uniform4f(W.uEye, inv[0], inv[1], inv[2], inv[3]);
+      gl.uniform3fv(W.uLight, light);
+      gl.uniform2f(W.uWView, vw, vh);
+      if (shadowsOn) {
+        gl.uniformMatrix4fv(W.uLvp, false, lvp);
+        // look the shadow up a texel and a half out along the normal: no self-shadow banding
+        gl.uniform1f(W.uLno, 3 * +so.radius / zSize);
+        if (!W.samplerSet) { W.samplerSet = true; gl.uniform1i(W.uShadow, 4); }
+        gl.uniform4f(W.uShp,
+          typeof so.strength === 'number' ? Math.max(0, Math.min(1, so.strength)) : 0.55,
+          1 / zSize,
+          typeof so.bias === 'number' ? so.bias : 0.0006, 0);
+      }
+      if (opts && opts.depthTest === false) gl.disable(gl.DEPTH_TEST);
+
+      let cur = null, curSpec = -1, curRim = -1;
       for (let i = 0; i < nb; i++) {
+        if (wAt[i] === -1) continue;
         const b = batches[i], c = b.count | 0;
-        if (c <= 0 || b.screen === true) continue;
         const s = slotOf(b);
-        if (!s) continue;
+        const sh = b.shade;
+        const spec = sh ? +sh[0] : s.spec, rim = sh ? +sh[1] : s.rim;
+        if (s !== cur || spec !== curSpec || rim !== curRim) {
+          curSpec = spec; curRim = rim;
+          gl.uniform4f(W.uShade, s.lit || flatLit ? 1 : 0, ambient, spec, rim);
+        }
         if (s !== cur) {
           cur = s;
-          if (hasVAO) bindVAO(s.vao); else meshAttribs(s.mesh);
-          gl.uniform2f(uMode, s.mx, s.my);
-          gl.uniform3f(uPix, halfH, ppu, s.kc);
-          gl.uniform4f(uShade, s.lit || flatLit ? 1 : 0, ambient, s.spec, s.rim);
+          if (!hasVAO) meshAttribs(s.mesh);
+          gl.uniform2f(W.uMode, s.mx, s.my);
+          gl.uniform3f(W.uPix, halfH, ppu, s.kc);
           if (s.cull !== culling) {
             culling = s.cull;
             if (culling) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
           }
         }
-        feed(b, s.kind, c * INSTANCE_BYTES);
-        settings(uParams, lastW, b.params);
+        attach(b, s, wAt[i], s.vao, c);
+        settings(W.uParams, W.last, b.params);
         const o = b.offset;
-        if (o) gl.uniform3f(uOffset, o[0], o[1], o[2]); else gl.uniform3f(uOffset, 0, 0, 0);
+        if (o) gl.uniform3f(W.uOffset, o[0], o[1], o[2]); else gl.uniform3f(W.uOffset, 0, 0, 0);
         drawInstanced(s.mesh.n, c);
       }
     }
@@ -1042,23 +1545,31 @@ export function createDrawer(gl, options) {
       if (culling) { gl.disable(gl.CULL_FACE); culling = false; }
       const V = (opts && opts.viewport) || gl.getParameter(gl.VIEWPORT);
       gl.uniform2f(uView, V[2], V[3]);
-      if (hasVAO) {
-        bindVAO(screenVAO);
-      } else {
-        meshAttribs(mQuad);
-      }
-      let smode = -1, textured = false;
+      if (!hasVAO) meshAttribs(mQuad);
+      let smode = -1, fmode = -1, textured = false, imageUnitSet = false;
       for (let i = 0; i < nb; i++) {
         const b = batches[i], c = b.count | 0;
         if (c <= 0 || b.screen !== true) continue;
         const s = slotOf(b);
         if (!s) continue;
+        if (s.image) {
+          const img = images.get(b.handle !== undefined ? b.slot : b.bytes[51]);
+          if (!img) { st.missingImages++; continue; }
+          if (!imageUnitSet) { imageUnitSet = true; gl.uniform1i(uImg, IMAGE_UNIT); }
+          gl.activeTexture(gl.TEXTURE0 + IMAGE_UNIT);
+          gl.bindTexture(gl.TEXTURE_2D, img.tex);
+          gl.activeTexture(gl.TEXTURE0);
+        }
         if (s.smode !== smode) {
           smode = s.smode;
           gl.uniform1f(uSMode, smode);
-          gl.uniform1f(uFMode, smode === 3 ? 1 : 0);
         }
-        if (smode === 3 && !textured) {
+        const fm = s.image ? 2 : smode === 3 ? 1 : 0;
+        if (fm !== fmode) {
+          fmode = fm;
+          gl.uniform1f(uFMode, fm);
+        }
+        if (smode === 3 && !s.image && !textured) {
           // Once per draw(): the atlas pages on units 0..3. Pages are bound here, at draw
           // time, so a page the provider made or refilled this frame is the one sampled.
           textured = true;
@@ -1074,7 +1585,7 @@ export function createDrawer(gl, options) {
           }
           gl.activeTexture(gl.TEXTURE0);
         }
-        feed(b, s.kind, c * INSTANCE_BYTES);
+        attach(b, s, b.handle !== undefined ? -2 : upload(b, s.kind, c * INSTANCE_BYTES), screenVAO, c);
         settings(uSParams, lastS, b.params);
         const o = b.offset;
         if (o) gl.uniform3f(uSOffset, o[0], o[1], 0); else gl.uniform3f(uSOffset, 0, 0, 0);
@@ -1097,14 +1608,57 @@ export function createDrawer(gl, options) {
     if (!culling) gl.enable(gl.CULL_FACE);
   }
 
-  /** The counts of the last draw(). The SAME object every call (no allocation); copy it to keep it. */
+  /**
+   * drawCalls, instances, bytesUploaded, paramUploads and missingImages are the last draw()'s
+   * (bytesUploaded counts `bytes` batches only: 0 for a draw() of resident batches);
+   * residentBuffers and residentBytes are what is resident now. The SAME object every call
+   * (no allocation); copy it to keep it.
+   */
   function stats() {
     return st;
   }
 
+  /** Put a texture in an image slot (0..255); see IMAGES in the header. */
+  function setImage(slot, source, o) {
+    if (dead) throw new Error('holon-draw: setImage() after destroy()');
+    slot = slot | 0;
+    if (slot < 0 || slot > 255) throw new Error('holon-draw: an image slot is 0..255');
+    let img = images.get(slot);
+    if (!img) {
+      img = { tex: gl.createTexture() };
+      images.set(slot, img);
+    }
+    const nearest = !!(o && o.nearest);
+    const was = gl.getParameter(gl.TEXTURE_BINDING_2D);
+    const flip = gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL), pre = gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL);
+    gl.bindTexture(gl.TEXTURE_2D, img.tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    const f = nearest ? gl.NEAREST : gl.LINEAR;
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, f);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, f);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, pre);
+    gl.bindTexture(gl.TEXTURE_2D, was);
+  }
+
+  /** Free an image slot's texture. */
+  function deleteImage(slot) {
+    const img = images.get(slot | 0);
+    if (!img) return;
+    gl.deleteTexture(img.tex);
+    images.delete(slot | 0);
+  }
+
   function destroy() {
     if (dead) return;
+    for (let h = 1; h < handles.length; h++) if (handles[h]) release(h);
     dead = true;
+    for (const img of images.values()) gl.deleteTexture(img.tex);
+    images.clear();
     for (const m of meshes) {
       gl.deleteBuffer(m.vbo);
       gl.deleteBuffer(m.ibo);
@@ -1118,9 +1672,12 @@ export function createDrawer(gl, options) {
       for (const s of slots) if (s && s.vao) deleteVAO(s.vao);
       deleteVAO(screenVAO);
     }
-    gl.deleteProgram(program);
+    gl.deleteProgram(WP.program);
     gl.deleteProgram(sprogram);
+    if (WS) gl.deleteProgram(WS.program);
+    if (Z) gl.deleteProgram(Z.program);
+    if (zTex) { gl.deleteTexture(zTex); gl.deleteRenderbuffer(zDepth); gl.deleteFramebuffer(zFbo); }
   }
 
-  return { draw, stats, destroy, instancing: isGL2 ? 'webgl2' : 'ANGLE_instanced_arrays', vertexArrays: hasVAO, screenPrecision: PF };
+  return { draw, stats, destroy, setImage, deleteImage, resident, update, release, instancing: isGL2 ? 'webgl2' : 'ANGLE_instanced_arrays', vertexArrays: hasVAO, screenPrecision: PF };
 }

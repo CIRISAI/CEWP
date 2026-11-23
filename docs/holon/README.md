@@ -8,10 +8,10 @@ twin's JS builder (`tlBuildLeaf`), float for float; the JS builder stays, as the
 
 | | |
 |---|---|
-| source | CIRISHolon commit `842fe76`, `engine/crates/holon-draw` |
+| source | CIRISHolon commit `fb3a3df`, `engine/crates/holon-draw` (resident buffers) |
 | build | `sh engine/crates/holon-draw/build-web.sh <outdir>` (release, LTO, one codegen unit, `panic=abort`, stripped) |
-| `holon_draw.wasm` | 86,077 bytes, sha256 `8acbdf79cc71c3a7e4d7ea7579e8d6eecca720fcc1ea77fc92992b6f9a362842` |
-| `draw.js` | the crate's `web/draw.js` at CIRISHolon `05f70d4`, copied unchanged (the same file as at `842fe76` but for one line of its header comment); sha256 `ad1b725ff3f6186752cce248766f09578b3cc88edb78cf66f5e0f60ef79e7b64` |
+| `holon_draw.wasm` | 83,912 bytes, sha256 `2d69cf58441092044683ad32580dec2bdd1cc530e52999159e9ddce0cb400e47` |
+| `draw.js` | the crate's `web/draw.js` at CIRISHolon `fb3a3df`, copied unchanged; sha256 `c24e92ed95c56a4d09652f757aac351148fbf0cd0e42900dba687a2a83744603` |
 
 Exports used: `hd_in(which, len)` (input buffers: 0 roads, 1 buildings, 2 meta, 3 street ends, 4 roof tones,
 5 the style), `hd_style()`, `hd_style_len()` (97), `hd_build_leaf(id, ox, oy, sx, pph, road r, g, b, has_tones)` and
@@ -25,7 +25,31 @@ terrain's two ground colours and roof factor, the field's origin and switch, lea
 ring's fade) taken from the same values the tiling's own program takes, and the land stencil left as the page set it. It
 differs from the default on purpose in four ways: discs are circles, not hexagons; within a tile all yards come before all
 garden trees and all shadows before all roofs; colours are 8-bit; the ring's fade is per pixel. It is not the default: the
-backend still uploads every record every frame, and it is not timed until a tile's records can stay on the GPU.
+backend uploaded every record every frame.
+
+**Now resident, and timed (2026-11-22).** A tile's eight groups are held in one GPU buffer (`draw.js`'s `resident()`),
+written when the tile's leaves change, drawn every frame as eight ranges of it with no upload, and released with the tile.
+`tools/page/hd_timing/run.py --assert` times the street tier both ways at 1280 x 800 on the machine's GPU (Chrome through
+EGL, ANGLE on Mesa Intel RPL-S), unthrottled. Its stakes were written before the first run: at every stop, `?hd=2`'s median
+frame at most 1.10 x `?hd=1`'s, and its uploads no more than `?hd=1`'s. **It FAILS, so `?hd=2` stays opt-in.**
+
+| stop | `?hd=1` median / p95 ms | `?hd=2` median / p95 ms | ratio |
+|---|---|---|---|
+| dense, 3 m a pixel | 16.2 / 49.1 | 15.5 / 46.1 | 0.957 |
+| dense, 10 | 27.0 / 44.4 | 25.5 / 43.6 | 0.944 |
+| suburban, 3 | 5.8 / 22.4 | 5.5 / 21.3 | 0.948 |
+| suburban, 10 | 7.1 / 23.5 | 7.3 / 41.7 | 1.028 |
+| village, 3 | 4.1 / 14.1 | 4.7 / 21.5 | **1.146** |
+| village, 10 | 3.8 / 14.3 | 5.0 / 21.5 | **1.316** |
+
+- Where the street is dense, holon-draw's path is 4 to 6 % faster.
+- Where it is sparse (a village: many tiles of few leaves), it is 0.6 to 1.2 ms slower. The page makes one `draw()` call
+  per tile, each with its own matrix and full state setup, so the per-call cost is what shows. The fix is holon-draw's to
+  make: many tiles in one call, with a matrix per batch.
+- The upload stake also failed, by noise. The resident path adds no upload; the two paths' per-frame bytes are within
+  7 % of each other both ways. But the whole page uploads 0.02 to 3.4 MB every frame whatever draws the street, so "no
+  more than `?hd=1`" fails on noise. The stake is kept as written. A finding for the twin itself: what re-uploads 3.4 MB a
+  frame at a dense street, on either path, is not the leaves.
 
 Checked, both ways:
 

@@ -76,14 +76,14 @@ function tlDoorChanged(){
   if (typeof wasm === "undefined" || !wasm || !wasm.door_versions) return 0;
   const n = wasm.door_versions(), v = new Float64Array(wasm.memory.buffer, wasm.holon_buf_ptr(0) >>> 0, n); let gone = 0;
   for (const [k, e] of TL.lay){ const f = e.form; if (!f || [0, 1, 2, 3].every((s) => !(f.read & (1 << s)) || f.v[s] === v[s])) continue;
-    TL.lay.delete(k); TL.bytes -= e.bytes; gone++; const bt = TL.batch.get(e.tile); if (bt){ gl.deleteBuffer(bt.vbo); TL.batch.delete(e.tile); }
+    TL.lay.delete(k); TL.bytes -= e.bytes; gone++; const bt = TL.batch.get(e.tile); if (bt){ gl.deleteBuffer(bt.vbo); tlHdFree(bt); TL.batch.delete(e.tile); }
     if (typeof M !== "undefined" && M && M.leaf === k){ M = null; MICRO_GEN++; } }
   if (gone && typeof gfxDirty === "function") gfxDirty(800);
   return gone;
 }
 function tlRebuild(){
   TL.T = null; TL.l0.clear(); tlPP.clear(); TL.lay.clear(); TL.bytes = 0;
-  for (const [, bt] of TL.batch) gl.deleteBuffer(bt.vbo); TL.batch.clear();
+  for (const [, bt] of TL.batch){ gl.deleteBuffer(bt.vbo); tlHdFree(bt); } TL.batch.clear();
   if (typeof M !== "undefined" && M && M.leaf !== undefined) M = null;
   if (typeof incellReset === "function") incellReset();
   if (typeof gfxDirty === "function") gfxDirty(1500);
@@ -143,14 +143,23 @@ function tlHdLeaf(id, ox, oy, sx, R, B, meta, S, TN, cls){
 // leaves change), the tile's settings from the same values the tiling's own program takes, a flat-map matrix from the tile's
 // affine. Groups: 0 ground, 1 mottling and trees, 2 yards, 3 garden trees, 4 casings, 5 streets, 6 shadows, 7 roofs.
 const TL_HD_P = new Float32Array(32), TL_HD_VP = new Float32Array(16);
+function tlHdFree(bt){ if (bt && bt.hdH && TL_HD.drawer){ TL_HD.drawer.release(bt.hdH); } if (bt){ bt.hdH = 0; bt.hdKey = ""; } }
 function tlHdTile(bt, list, A, F, kA, groups, mh, ring){
   const D = TL_HD.drawer, P = TL_HD.mod.PARAM, dpr = window.devicePixelRatio || 1;
-  if (bt.hdKey !== bt.key){ const G = []; for (let g = 0; g < 8; g++){ let n = 0, kind = 0;
+  // RESIDENT: a tile's eight groups live in one GPU buffer (draw.js resident()), written when the tile's leaves change and
+  // drawn every frame with no upload; each group is a range of it. Released with the tile (tlHdFree).
+  if (bt.hdKey !== bt.key){ let total = 0; const spans = [];
+    for (let g = 0; g < 8; g++){ let n = 0, kind = 0;
       for (const e of list){ const q = e.inst && e.inst.g[g]; if (q){ n += q[2]; kind = q[0] || kind; } }
-      const bytes = new Uint8Array(n * 52); let at = 0;
-      for (const e of list){ const q = e.inst && e.inst.g[g]; if (!q || !q[2]) continue; bytes.set(e.inst.bytes.subarray(q[1] * 52, (q[1] + q[2]) * 52), at); at += q[2] * 52; }
-      G.push({ kind, bytes, count: n, params: TL_HD_P }); }
-    bt.hdG = G; bt.hdKey = bt.key; }
+      spans.push([kind, total, n]); total += n; }
+    const bytes = new Uint8Array(total * 52); let at = 0;
+    for (let g = 0; g < 8; g++) for (const e of list){ const q = e.inst && e.inst.g[g]; if (!q || !q[2]) continue; bytes.set(e.inst.bytes.subarray(q[1] * 52, (q[1] + q[2]) * 52), at); at += q[2] * 52; }
+    if (!total){ tlHdFree(bt); bt.hdG = spans.map(([kind]) => ({ kind, count: 0, bytes: new Uint8Array(0), params: TL_HD_P })); }
+    else {
+      if (bt.hdH) D.update(bt.hdH, bytes); else bt.hdH = D.resident(bytes);
+      bt.hdG = spans.map(([kind, first, count]) => ({ kind, handle: bt.hdH, first, count, params: TL_HD_P }));
+    }
+    bt.hdKey = bt.key; }
   const Pm = TL_HD_P; Pm.fill(0);
   Pm[P.DIM] = Pm[P.DIM + 1] = Pm[P.DIM + 2] = bt.night; Pm[P.FADE] = 1;
   Pm.set(bt.terr.g0, P.RAMP0); Pm.set(bt.terr.g1, P.RAMP1); Pm.set(bt.terr.roof, P.TINT);
@@ -188,13 +197,13 @@ function tlHdCompare(a, b){ const C = TL_HD.cmp; C.leaves++;
   C.floats += a.length; }
 function tlHdLoad(){
   if (TL_HD.off || TL_HD.x || typeof WebAssembly === "undefined") return;
-  WebAssembly.instantiateStreaming(fetch("holon/holon_draw.wasm?v=2"), {}).then(({ instance }) => {
+  WebAssembly.instantiateStreaming(fetch("holon/holon_draw.wasm?v=3"), {}).then(({ instance }) => {
     const X = instance.exports;
     if (X.hd_style_len() !== TL_STYLE.length) throw new Error("holon-draw style length " + X.hd_style_len() + ", the twin's " + TL_STYLE.length);
     const sp = X.hd_in(5, TL_STYLE.length); new Float64Array(X.memory.buffer, sp, TL_STYLE.length).set(TL_STYLE); // the pointer first: hd_in may grow the memory
     if (!X.hd_style()) throw new Error("holon-draw refused the style");
     TL_HD.x = X; TL_HD.on = true;
-    if (TL_HD.inst) return import("./holon/draw.js?v=1").then((mod) => { TL_HD.mod = mod; TL_HD.drawer = mod.createDrawer(gl, {}); });
+    if (TL_HD.inst) return import("./holon/draw.js?v=2").then((mod) => { TL_HD.mod = mod; TL_HD.drawer = mod.createDrawer(gl, {}); });
   }).catch((e) => { TL_HD.err = String(e.message || e); console.warn("holon-draw: " + TL_HD.err + "; the JS leaf builder draws"); });
 }
 const tlMix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -630,7 +639,7 @@ function tlDraw(w, h, mpp, sun){
   }
   tlNoAttribs(); gl.disable(gl.STENCIL_TEST);
   // tile buffers not drawn for a while go; leaves are an LRU by holon id under a byte budget
-  for (const [tk, bt] of TL.batch) if (frame - (bt.used || 0) > 120){ gl.deleteBuffer(bt.vbo); TL.batch.delete(tk); }
+  for (const [tk, bt] of TL.batch) if (frame - (bt.used || 0) > 120){ gl.deleteBuffer(bt.vbo); tlHdFree(bt); TL.batch.delete(tk); }
   for (const [k, e] of TL.lay){ if (TL.bytes <= TL_BYTE_CAP) break; if (keep.has(e)) continue; TL.bytes -= e.bytes; TL.lay.delete(k); }
   TL.drawn = live.size; TL.agg = agg.length; TL.pending = pending; TL.draws = byTile.size;
 }
