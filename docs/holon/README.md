@@ -11,7 +11,7 @@ twin's JS builder (`tlBuildLeaf`), float for float; the JS builder stays, as the
 | source | CIRISHolon commit `fb3a3df`, `engine/crates/holon-draw` (resident buffers) |
 | build | `sh engine/crates/holon-draw/build-web.sh <outdir>` (release, LTO, one codegen unit, `panic=abort`, stripped) |
 | `holon_draw.wasm` | 83,912 bytes, sha256 `2d69cf58441092044683ad32580dec2bdd1cc530e52999159e9ddce0cb400e47` |
-| `draw.js` | the crate's `web/draw.js` at CIRISHolon `7b698c4` (branch `holon-draw/twin-24`: kind 13 TRIANGLE, GLOBE, BLEND 'multiply', and the eye's CORRECTION), copied unchanged; sha256 `dd0aa36334b0d8488d822022eda984097ba137c576c4b98c423c164e1edde93f`. CORRECTION 2026-11-23: until this commit the row said `fb3a3df` (sha256 `c24e92ed...`), but the file here was already `f206a4f`'s (sha256 `f2bc0c7e...`), copied in for the matrix per batch; the row was not updated then |
+| `draw.js` | the crate's `web/draw.js` at CIRISHolon `2972b29` (on main; it was `7b698c4` on the branch before a rebase, the same bytes: kind 13 TRIANGLE, GLOBE, BLEND 'multiply', and the eye's CORRECTION), copied unchanged; sha256 `dd0aa36334b0d8488d822022eda984097ba137c576c4b98c423c164e1edde93f`. CORRECTION 2026-11-23: until this commit the row said `fb3a3df` (sha256 `c24e92ed...`), but the file here was already `f206a4f`'s (sha256 `f2bc0c7e...`), copied in for the matrix per batch; the row was not updated then |
 
 Exports used: `hd_in(which, len)` (input buffers: 0 roads, 1 buildings, 2 meta, 3 street ends, 4 roof tones,
 5 the style), `hd_style()`, `hd_style_len()` (97), `hd_build_leaf(id, ox, oy, sx, pph, road r, g, b, has_tones)` and
@@ -119,10 +119,10 @@ fade and veil identical at every view (max 0). lines held at every view (on the 
 to 0.54, over_32 0 to 0.10 %; unfiltered, max 80 to 180 at the lines' edges). land identical (max 0 or 1) at continent,
 region and city, and FAILED at the planet: over_8 0.204 % (stake 0.1), a band of land one to three pixels wide along the
 rim that holon-draw left out. The cause was the engine's: the eye it derives from `vp` was wrong for any camera that turns
-(CIRISHolon `7b698c4`, a CORRECTION), and the GLOBE limb reads it. S6 FAILED at the planet (ratio 7.0) and was measuring the
+(CIRISHolon `2972b29`, a CORRECTION), and the GLOBE limb reads it. S6 FAILED at the planet (ratio 7.0) and was measuring the
 wrong thing (frame intervals in bursts, medians below the draw's own CPU time); it is amended in the next commit, alone.
 
-**`hd_globe`, run 2 (2026-11-23, S6 as amended; draw.js at `7b698c4`; load 4 to 6): FAIL, so nothing is made a default.**
+**`hd_globe`, run 2 (2026-11-23, S6 as amended; draw.js at `2972b29`; load 4 to 6): FAIL, so nothing is made a default.**
 Every picture stake held at every view: fade and veil max 0; land max 1 (mean_abs 0, over_8 0); lines on the box-filtered
 pictures mean_abs 0.04 to 0.54 and over_32 0 to 0.10 % (raw max 87 to 180, at the lines' antialiased edges). S6 FAILED: the
 synchronous frame with the lines and the land on is 1.32 x (planet), 2.57 x (continent), 1.88 x (region) and 1.26 x (city)
@@ -137,7 +137,7 @@ own programs draw. Before, after and difference pictures of run 2: not committed
 all four views, max 17 to 30; veil at all four, max 4 to 15; land (ground and tiles at 0.8) at planet, continent and
 region (mean_abs 0.77 to 2.79), NOT at the city view; lines (twice as wide) only at the continent view (box mean_abs 1.50,
 over_32 1.82 %), NOT at the other three, so the lines' stake is a weak witness away from the continent view. On this branch
-(defaults unchanged but for draw.js at `7b698c4`), every page witness held at load 4 to 7: story_zoom, story_planet_arcs,
+(defaults unchanged but for draw.js at `2972b29`), every page witness held at load 4 to 7: story_zoom, story_planet_arcs,
 layer_zoom, holon_leaf (both ways), no_highp (both ways, and with `--query ?hdg=1`), zoom_range, story_freeze, hd_timing
 (ratios 0.69 to 0.95). The unchanged page at `04e3b4b`, run earlier at load 40 to 47, failed zoom_range (18 long tasks)
 and hd_timing (ratios up to 2.0): the machine's load, not the page; recorded, not rerun.
