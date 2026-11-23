@@ -124,9 +124,10 @@ const TL_STYLE = [TL_PPH, ...TL_ROAD[0], ...TL_ROOF_TONES.flatMap((c) => c || [0
 // builder draws. With ?hdcheck=1 every leaf is built both ways and compared (TL_HD.cmp), the witness's real-leaf check.
 const TL_HD = { on: false, x: null, err: null, check: typeof location !== "undefined" && /[?&]hdcheck=1(&|$)/.test(location.search),
   off: typeof location !== "undefined" && /[?&]hd=0(&|$)/.test(location.search), cmp: { leaves: 0, floats: 0, differ: 0, length: 0 },
-  // ?hd=2: leaves drawn from holon-draw's instance records by its backend (docs/holon/draw.js) into this context, between the
-  // tiling's own passes; under trial, not the default
-  inst: typeof location !== "undefined" && /[?&]hd=2(&|$)/.test(location.search), drawer: null, mod: null };
+  // THE DEFAULT since 2026-11-23 (hd_timing held its stakes): leaves drawn from holon-draw's instance records by its backend
+  // (docs/holon/draw.js) into this context, between the tiling's own passes. ?hd=1 keeps the tiling's own program on the
+  // wasm-built stream, ?hd=0 the JS builder; ?hd=2 is the default said aloud.
+  inst: typeof location !== "undefined" && !/[?&]hd=[01](&|$)/.test(location.search), drawer: null, mod: null };
 function tlHdLeaf(id, ox, oy, sx, R, B, meta, S, TN, cls){
   const X = TL_HD.x, put = (i, a) => { const n = a ? a.length : 0, q = X.hd_in(i, n); if (n) new Float64Array(X.memory.buffer, q, n).set(a); };
   put(0, R); put(1, B); put(2, meta); put(3, S); put(4, TN);
@@ -142,7 +143,10 @@ function tlHdLeaf(id, ox, oy, sx, R, B, meta, S, TN, cls){
 // One tile's leaves through draw.js: the eight groups of each leaf's records concatenated per group (rebuilt when the tile's
 // leaves change), the tile's settings from the same values the tiling's own program takes, a flat-map matrix from the tile's
 // affine. Groups: 0 ground, 1 mottling and trees, 2 yards, 3 garden trees, 4 casings, 5 streets, 6 shadows, 7 roofs.
-const TL_HD_P = new Float32Array(32), TL_HD_VP = new Float32Array(16);
+// Every tile of a pass goes to draw.js in ONE call (tlHdFlush), each batch carrying its tile's own matrix and settings
+// (draw.js batch.vp, batch.pixelsPerUnit). One call a tile paid draw.js's whole setup per tile, which showed where the
+// street is many small tiles (tools/page/hd_timing: villages).
+const TL_HD_Q = [], TL_HD_OPTS = { depthTest: false, viewport: [0, 0, 1, 1] };
 function tlHdFree(bt){ if (bt && bt.hdH && TL_HD.drawer){ TL_HD.drawer.release(bt.hdH); } if (bt){ bt.hdH = 0; bt.hdKey = ""; } }
 function tlHdTile(bt, list, A, F, kA, groups, mh, ring){
   const D = TL_HD.drawer, P = TL_HD.mod.PARAM, dpr = window.devicePixelRatio || 1;
@@ -154,13 +158,14 @@ function tlHdTile(bt, list, A, F, kA, groups, mh, ring){
       spans.push([kind, total, n]); total += n; }
     const bytes = new Uint8Array(total * 52); let at = 0;
     for (let g = 0; g < 8; g++) for (const e of list){ const q = e.inst && e.inst.g[g]; if (!q || !q[2]) continue; bytes.set(e.inst.bytes.subarray(q[1] * 52, (q[1] + q[2]) * 52), at); at += q[2] * 52; }
-    if (!total){ tlHdFree(bt); bt.hdG = spans.map(([kind]) => ({ kind, count: 0, bytes: new Uint8Array(0), params: TL_HD_P })); }
+    if (!bt.hdP){ bt.hdP = new Float32Array(32); bt.hdVP = new Float32Array(16); }
+    if (!total){ tlHdFree(bt); bt.hdG = spans.map(([kind]) => ({ kind, count: 0, bytes: new Uint8Array(0), params: bt.hdP, vp: bt.hdVP, pixelsPerUnit: 1 })); }
     else {
       if (bt.hdH) D.update(bt.hdH, bytes); else bt.hdH = D.resident(bytes);
-      bt.hdG = spans.map(([kind, first, count]) => ({ kind, handle: bt.hdH, first, count, params: TL_HD_P }));
+      bt.hdG = spans.map(([kind, first, count]) => ({ kind, handle: bt.hdH, first, count, params: bt.hdP, vp: bt.hdVP, pixelsPerUnit: 1 }));
     }
     bt.hdKey = bt.key; }
-  const Pm = TL_HD_P; Pm.fill(0);
+  const Pm = bt.hdP; Pm.fill(0);
   Pm[P.DIM] = Pm[P.DIM + 1] = Pm[P.DIM + 2] = bt.night; Pm[P.FADE] = 1;
   Pm.set(bt.terr.g0, P.RAMP0); Pm.set(bt.terr.g1, P.RAMP1); Pm.set(bt.terr.roof, P.TINT);
   const [la, lo] = tlCentre(list[0].t), no = tlNoiseOrigin(la, lo); Pm[P.NOISE] = no[0]; Pm[P.NOISE + 1] = no[1]; Pm[P.NOISE + 2] = no[2]; Pm[P.NOISE + 3] = 1;
@@ -168,10 +173,17 @@ function tlHdTile(bt, list, A, F, kA, groups, mh, ring){
   Pm[P.FLOOR_CASING] = (mh + 0.5) * dpr; Pm[P.FLOOR] = mh * dpr;
   Pm[P.A_GROUND] = kA[0]; Pm[P.A_CASING] = kA[1]; Pm[P.A_ROAD] = kA[2]; Pm[P.A_ROOF] = kA[3];
   Pm[P.RING] = ring[0] * dpr; Pm[P.RING + 1] = ring[1] * dpr; Pm[P.RING + 2] = ring[2] * dpr;
-  const V = TL_HD_VP; V.fill(0); V[0] = A.a * 2 / F.w; V[1] = -A.b * 2 / F.h; V[4] = A.c * 2 / F.w; V[5] = -A.d * 2 / F.h; V[10] = 1;
+  const V = bt.hdVP; V.fill(0); V[0] = A.a * 2 / F.w; V[1] = -A.b * 2 / F.h; V[4] = A.c * 2 / F.w; V[5] = -A.d * 2 / F.h; V[10] = 1;
   V[12] = A.e * 2 / F.w - 1; V[13] = 1 - A.f * 2 / F.h; V[15] = 1;
-  D.draw(groups.map((g) => bt.hdG[g]), V, { depthTest: false, pixelsPerUnit: A.ppm * dpr, viewport: [0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight] });
-  // draw.js leaves depth test, culling and its blend on: back to the tiling's state
+  const ppu = A.ppm * dpr;
+  for (const g of groups){ const b = bt.hdG[g]; if (b.count > 0){ b.pixelsPerUnit = ppu; TL_HD_Q.push(b); } }
+}
+// The queued tiles of this pass, in one call; then the tiling's own GL state back (draw.js leaves the depth test, culling and
+// its own program on).
+function tlHdFlush(){
+  if (!TL_HD_Q.length) return;
+  TL_HD_OPTS.viewport[2] = gl.drawingBufferWidth; TL_HD_OPTS.viewport[3] = gl.drawingBufferHeight;
+  TL_HD.drawer.draw(TL_HD_Q, null, TL_HD_OPTS); TL_HD_Q.length = 0;
   gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.useProgram(tlProg);
 }
 // ?hdcheck=1&hd=2: the leaf's records expanded back into the vertex stream (hd_inst_expand) against the vertex builder's
@@ -203,7 +215,7 @@ function tlHdLoad(){
     const sp = X.hd_in(5, TL_STYLE.length); new Float64Array(X.memory.buffer, sp, TL_STYLE.length).set(TL_STYLE); // the pointer first: hd_in may grow the memory
     if (!X.hd_style()) throw new Error("holon-draw refused the style");
     TL_HD.x = X; TL_HD.on = true;
-    if (TL_HD.inst) return import("./holon/draw.js?v=2").then((mod) => { TL_HD.mod = mod; TL_HD.drawer = mod.createDrawer(gl, {}); });
+    if (TL_HD.inst) return import("./holon/draw.js?v=3").then((mod) => { TL_HD.mod = mod; TL_HD.drawer = mod.createDrawer(gl, {}); });
   }).catch((e) => { TL_HD.err = String(e.message || e); console.warn("holon-draw: " + TL_HD.err + "; the JS leaf builder draws"); });
 }
 const tlMix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -619,7 +631,8 @@ function tlDraw(w, h, mpp, sun){
       gl.bindBuffer(gl.ARRAY_BUFFER, bt.vbo); tlAttribs();
       gl.uniform3f(tlLoc.X, A.a, A.c, A.e); gl.uniform3f(tlLoc.Y, A.b, A.d, A.f); gl.uniform1f(tlLoc.ppm, A.ppm); gl.uniform1f(tlLoc.ppmF, A.ppm);
       gl.drawArrays(gl.TRIANGLES, 0, bt.n);
-    } };
+    }
+    if (TL_HD.drawer) tlHdFlush(); };
     // with a data map on, the leaves' ground first (marking stencil bit 2 where it lands), the map's tint over that ground
     // (incell.js dmOverMosaic), then the streets, homes and roofs over the tint, so they stay readable at one street
     const mapOn = landVerts && typeof dmOverMosaic === "function" && typeof DATAMAP !== "undefined" && (DATAMAP.active || DATAMAP.prev);

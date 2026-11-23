@@ -1111,7 +1111,7 @@ function zoomHi(){ return ZRANGE.band ? zoomMax() : zoomOfMpp(Math.pow(10, ZR_IN
 // holon-draw's ladder (docs/ladder/, CIRISHolon; docs/ladder/README.md): loaded at idle, only once the switch is off
 function zrLadder(){
   if (ZRANGE.band || ZRANGE.ladder || typeof window === "undefined") return; ZRANGE.ladder = "loading";
-  (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => import("./ladder/holon-ladder.js?v=2")
+  (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => import("./ladder/holon-ladder.js?v=3")
     .then((m) => m.install({ wasm: "ladder/holon_draw_ladder.wasm?v=2" }))
     // its first draw's setup (programs compiled, the first tiles and text built) done here at idle, not in the first frame past an edge
     .then((H) => new Promise((ok) => (window.requestIdleCallback || ((f) => setTimeout(f, 200)))(() => { try { if (H.prepare && ZRANGE.view) H.prepare(gl, ZRANGE.view); } catch (e) {} ok(); }, { timeout: 2000 })))

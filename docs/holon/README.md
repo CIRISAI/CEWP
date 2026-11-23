@@ -18,7 +18,7 @@ Exports used: `hd_in(which, len)` (input buffers: 0 roads, 1 buildings, 2 meta, 
 `hd_out()`; for the instance path, `hd_build_leaf_instances` (the same arguments), `hd_out_instances()`,
 `hd_inst_groups()`, `hd_inst_group(g, which)` and, for the check, `hd_inst_expand()`.
 
-**The instance path, on trial (`?hd=2`).** Each leaf is also built as 52-byte instance records in eight groups (ground,
+**The instance path (`?hd=2`; on trial until 2026-11-23, the default since).** Each leaf is also built as 52-byte instance records in eight groups (ground,
 mottling and trees, yards, garden trees, casings, streets, shadows, roofs), concatenated per group across a tile's leaves,
 and drawn by `draw.js` into the page's own WebGL context between the tiling's passes, with the tile's settings (night, the
 terrain's two ground colours and roof factor, the field's origin and switch, least widths, alpha by surface class, the
@@ -50,6 +50,45 @@ frame at most 1.10 x `?hd=1`'s, and its uploads no more than `?hd=1`'s. **It FAI
   7 % of each other both ways. But the whole page uploads 0.02 to 3.4 MB every frame whatever draws the street, so "no
   more than `?hd=1`" fails on noise. The stake is kept as written. A finding for the twin itself: what re-uploads 3.4 MB a
   frame at a dense street, on either path, is not the leaves.
+
+**One call a frame (2026-11-23).** holon-draw gained a matrix per batch (CIRISHolon `f206a4f`: `batch.vp`,
+`batch.pixelsPerUnit`), and `tlHdTile` now queues every tile of a pass for ONE `draw()` call (`tlHdFlush`), each batch with
+its own tile's matrix and settings. `hd_timing` again, under the SAME stakes, on a quiet machine (load 3):
+
+| stop | `?hd=1` median / p95 ms | `?hd=2` median / p95 ms | ratio |
+|---|---|---|---|
+| dense, 3 m a pixel | 11.15 / 46.1 | 11.6 / 62.5 | 1.040 |
+| dense, 10 | 11.8 / 46.4 | 12.3 / 46.8 | 1.042 |
+| suburban, 3 | 3.3 / 14.6 | 3.3 / 15.5 | 1.000 |
+| suburban, 10 | 4.0 / 40.5 | 3.9 / 55.0 | 0.975 |
+| village, 3 | 2.8 / 13.9 | 2.9 / 13.4 | 1.036 |
+| village, 10 | 2.9 / 14.5 | 2.8 / 36.5 | 0.966 |
+
+- The frame stake (at most 1.10 x at every stop) now HOLDS, the villages included.
+- The witness still says FAIL, on the upload stake: `?hd=2` uploads 2, 28 and 29 bytes a frame more than `?hd=1` at three
+  stops, out of 20 thousand to 1.9 million. That stake compares the whole page's uploads, which the street does not make;
+  the difference is the rounding of bytes over frames. It measures the wrong thing, and it is amended in the next commit,
+  alone and before any further run: the amended stake reads holon-draw's own uploads.
+- The p95 frame is not better: it is higher at three stops (62.5 against 46.1 at the dense street). The stake is on the
+  median and says nothing of it.
+
+**The default (2026-11-23).** Under the amended stake (`tools/page/hd_timing/run.py`, the amendment committed alone before
+the run), on a quiet machine (load 2 to 3), two runs:
+
+| stop | ratio, run 1 | draw.js bytes / calls |
+|---|---|---|
+| dense, 3 m a pixel | 1.081 | 0 / 330 |
+| dense, 10 | 1.085 | 0 / 330 |
+| suburban, 3 | 1.000 | 0 / 1165 |
+| suburban, 10 | 0.974 | 0 / 504 |
+| village, 3 | 1.036 | 0 / 1287 |
+| village, 10 | 1.036 | 0 / 1090 |
+
+Both runs OK. The dense street is near the stake (1.08 against 1.10), and the stake is on the median: the p95 frame was
+higher with holon-draw at two stops. With that said, the street is now drawn by holon-draw unless the address says
+otherwise: `?hd=1` is the tiling's own program on the wasm-built stream, `?hd=0` the JS builder. Every page witness was
+run on the new default and held: story_zoom, story_planet_arcs, layer_zoom, holon_leaf (both ways), no_highp (both ways),
+zoom_range, story_freeze, hd_timing.
 
 Checked, both ways:
 
