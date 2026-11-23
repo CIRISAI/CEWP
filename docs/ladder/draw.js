@@ -33,6 +33,7 @@
 //                     has no RAMP t (aux is taken), so in RAMP mode it reads t = 0.
 //   7 sphere          centre pos, radius size[0]
 //   8 rod             capped cylinder from pos to aux, radius size[0]
+//   13 triangle       a filled triangle whose corners are pos, size and aux (2026-11-23; see TRIANGLE)
 // Boxes, prisms, spheres and rods are lit. Flat marks and lines are drawn in their exact
 // colour unless `opts.flatLit` is set.
 //
@@ -98,7 +99,7 @@
 //                                      else the buffer is reallocated; the handle stays h
 //   drawer.release(h)                  frees it; h may be handed out again by resident()
 //   batch = { kind, handle: h, first, count, offset, params, screen?, coarse?, shade?,
-//             castShadow?, slot?, vp?, pixelsPerUnit?, blend? }
+//             castShadow?, slot?, vp?, pixelsPerUnit?, blend?, globe? }
 //                                      records first .. first + count - 1 of that buffer,
 //                                      drawn with NO upload. `first` defaults to 0.
 // Everything else about a resident batch is a `bytes` batch's: one handle may hold many
@@ -306,6 +307,41 @@
 // (tools/webgpu_parity.py's tiles modes check exactly that on both backends).
 // What switching costs: see WHAT A BATCH COSTS IN GL CALLS below.
 //
+// TRIANGLE (kind 13, 2026-11-23). A record is one filled triangle: its three corners are `pos`,
+// `size` and `aux` (each plus the tile's offset), drawn on a three-vertex mesh whose vertices are
+// the barycentric weights of the corners, so a corner lands exactly where its record says. Flat:
+// unlit (lit under `flatLit`, by the normal of pos -> size x pos -> aux, either face), not
+// culled, in no surface class (no class alpha, no field), casting no shadow and receiving one as
+// any flat mark does. Colour modes as for any kind; in RAMP its t is `angle` (as on a line).
+// WORLD ONLY: a triangle in a screen batch is skipped. Any mesh a host holds as triangles (a
+// land fill, a terrain, a sphere for GLOBE below) is drawn as such records, one draw call per
+// batch, resident or not. Two triangles drawing a square draw exactly what one QUAD record of
+// that square draws, pixel for pixel, when they split it along the quad mesh's own diagonal
+// (corner 0 to corner 2: (x0, y0), (x1, y0), (x1, y1) and (x0, y0), (x1, y1), (x0, y1)). The
+// core (lib.rs) does not emit this kind: its `Kind` stops at 12. A host packing its own records
+// uses it; INTERFACE.md §16 says so.
+//
+// GLOBE (2026-11-23), per WORLD batch: `globe: { sun, centre?, day?, rgb?, alpha?, lambert?,
+// limb? }` lights the batch's marks as the day and night sides of a sphere, unlit by the frame's
+// light. For each vertex, n = the unit vector from `centre` (default the origin) to the vertex,
+// s = n . sun (sun: the direction toward the sun, normalised here) and e = n . v (v: the unit
+// vector from the vertex toward the viewer, as for specular). s and e are interpolated as varyings
+// and, in the fragment stage, after the mark's own colour, DIM, FADE and RING:
+//   day = smoothstep(day[0], day[1], s)                                     default day [-0.1, 0.1]
+//   rgb *= mix(rgb[0], rgb[1], day * mix(1, max(s, 0), lambert))            default rgb [1, 1], lambert 0
+//   alpha *= mix(alpha[0], alpha[1], day)                                   default alpha [1, 1]
+//   alpha *= smoothstep(limb[0], limb[1], e)    only with `limb`            (a sphere's rim, seen orthographically)
+// so rgb [0.4, 1] darkens the night side; rgb [1, 0] keeps only the night side (a glow of lights at
+// night); lambert 1 shades the day side by the sun's height; limb [0, 0.1] fades what lies on the
+// sphere's far side and at its rim. A mark need not lie ON the sphere: n is its direction from the
+// centre. The terminator is per pixel to the extent s is interpolated linearly between vertices: a
+// mark whose vertices are far apart along the sphere (a great circle as one long line) gets a
+// chord's s, not the sphere's; a host splits such marks. Screen batches ignore `globe`.
+// draw() throws, before it changes any state, on a `globe` with no `sun` or a zero one, any field
+// of the wrong length or not finite, and on any world batch with a `globe` when `opts.shadow` is
+// set (the GL shadow program uses all eight of WebGL 1's varying vectors, so the globe's varying
+// exists only in the program without shadows; WebGPU refuses the same, so the two agree).
+//
 // BLEND (2026-11-23), per batch: `blend: 'add'` draws a batch ADDITIVELY, for light that adds
 // (a glow, lit windows at night): colour = destination + source rgb x source alpha (clamped by
 // the target), destination alpha unchanged, i.e. blendFuncSeparate(SRC_ALPHA, ONE, ZERO, ONE)
@@ -318,17 +354,28 @@
 // marks. The switch is one blendFuncSeparate and one depthMask each way, made only where two
 // consecutive batches differ; draw() returns with the frame's blend and depthMask(true) in
 // every case.
+// `blend: 'multiply'` (2026-11-23, a second date the same day) is the 2x MULTIPLY: colour =
+// 2 x destination x mix(0.5, source rgb, source alpha), clamped by the target; destination
+// alpha unchanged. So a source of mid grey (0.5) leaves what is drawn as it is, darker darkens and
+// lighter lightens, and alpha (FADE, a mark's coverage at its antialiased edge) fades the effect
+// toward none rather than toward black: shading laid over a drawn colour, as the twin's relief is.
+// The fragment stage writes mix(0.5, rgb, alpha) with alpha 1 (a uniform switch, u_blendm or
+// u_sblendm, set only where it changes) and the blend is blendFuncSeparate(DST_COLOR, SRC_COLOR,
+// ZERO, ONE). Like 'add': world and screen, resident or `bytes`, WRITES NO DEPTH, CASTS NO SHADOW,
+// and draw() returns with the frame's blend and depthMask(true).
 //
 // PRECISION (INTERFACE.md §7): NO UNIFORM NAME APPEARS IN BOTH SHADER STAGES, in either
 // program. World programs: the vertex stage owns u_vp, u_offset, u_eye, u_mode, u_pix,
-// u_wview, u_params (and, with HD_SHADOW, u_lvp and u_lno); the fragment stage owns u_light,
-// u_shade (and, with HD_SHADOW, u_shadow and u_shp). The shadow program is the world vertex
+// u_wview, u_params, u_gsun, u_gcen (and, with HD_SHADOW, u_lvp and u_lno); the fragment stage
+// owns u_light, u_shade, u_gk, u_gd, u_gl, u_blendm (and, with HD_SHADOW, u_shadow and u_shp). The shadow program is the world vertex
 // stage compiled with HD_ZPASS (which adds u_cvp, the camera's vp, to the vertex stage) with a
 // fragment stage that has no uniforms. The world program with shadows uses EIGHT varying
 // vectors as GLSL ES packs them (v_ls, v_c, v_dim; v_n, v_v, v_fp, v_ring with v_mat in a
 // spare column; v_np and v_sp sharing one), which is WebGL 1's guaranteed minimum: there is no
-// room for another varying there without packing it into one of these. Screen program: the vertex stage owns
-// u_view, u_soffset, u_smode, u_sparams; the fragment stage owns u_fmode, u_t0..u_t3. So
+// room for another varying there without packing it into one of these. The program WITHOUT shadows
+// has one more, v_glb (GLOBE), which makes eight there too; it is not declared under HD_SHADOW,
+// which is why a globe is refused with shadows. Screen program: the vertex stage owns
+// u_view, u_soffset, u_smode, u_sparams; the fragment stage owns u_fmode, u_t0..u_t3, u_sblendm. So
 // there is no pair whose precision could disagree at link. The tile settings are read in
 // the VERTEX stage only; what the fragment stage needs of them arrives as varyings.
 // Lighting is `mediump`. Three things want more where the device has it: the field's
@@ -355,12 +402,13 @@
 //   - the current program (left as one of this drawer's two programs);
 //   - BLEND enabled, blendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE, ONE_MINUS_SRC_ALPHA)
 //     on return in every case; while a `blend: 'add'` batch is drawn it is (SRC_ALPHA, ONE,
-//     ZERO, ONE) (see BLEND). The blend equation is not touched: a host that uses another must
+//     ZERO, ONE), while a `blend: 'multiply'` batch is drawn (DST_COLOR, SRC_COLOR, ZERO, ONE)
+//     (see BLEND). The blend equation is not touched: a host that uses another must
 //     restore FUNC_ADD first;
 //   - DEPTH_TEST enabled, depthFunc(LEQUAL), depthMask(true) (the test is off while screen
 //     batches are drawn, and for world batches under `opts.depthTest: false`; it is
-//     enabled again on return in every case; depthMask is false while an additive batch is
-//     drawn and true on return in every case);
+//     enabled again on return in every case; depthMask is false while an additive or
+//     multiplying batch is drawn and true on return in every case);
 //   - CULL_FACE is off while flat marks are drawn and enabled again on return;
 //   - CULL_FACE (left enabled), cullFace(BACK), frontFace(CCW);
 //   - ARRAY_BUFFER binding (left null);
@@ -401,7 +449,7 @@
 export const INSTANCE_BYTES = 52;
 
 export const KIND = Object.freeze({
-  QUAD: 1, LINE: 2, ARC: 3, DISC: 4, BOX: 5, PRISM: 6, SPHERE: 7, ROD: 8, PATCH: 9, GLYPH: 10, RUN: 11, IMAGE: 12,
+  QUAD: 1, LINE: 2, ARC: 3, DISC: 4, BOX: 5, PRISM: 6, SPHERE: 7, ROD: 8, PATCH: 9, GLYPH: 10, RUN: 11, IMAGE: 12, TRIANGLE: 13,
 });
 
 // Attribute slots, bound before link. Slot 0 is a mesh attribute (never instanced), which
@@ -618,6 +666,8 @@ uniform vec3 u_pix;        // half the viewport's height; pixels per world unit 
                            // (0 other, 1 quad, 2 patch, 3 line or arc, 4 disc, 5 box or prism, 6 glyph)
 uniform vec4 u_wview;      // the CAMERA's viewport as GL has it: x, y (from the bottom), width, height, in pixels
 uniform vec4 u_params[8];  // the tile's settings
+uniform vec4 u_gsun;       // GLOBE: xyz the unit direction toward the sun, w 1 on (0 off)
+uniform vec3 u_gcen;       // GLOBE: the sphere's centre
 #ifdef HD_ZPASS
 uniform mat4 u_cvp;        // the camera's view-projection (the shadow pass's u_vp is the light's)
 #endif
@@ -637,6 +687,9 @@ varying PF vec3 v_fp;      // pixels per field unit; the field's amplitude (0 of
                            // (a FLOW line, which has no field: x is pixels per dash cycle, y and z 0)
 varying PF vec2 v_sp;      // x: 0; a glyph's shape (1..15); 16 a FLOW line. y: the glyph's half size in pixels;
                            // the flow's upper clamp
+#ifndef HD_SHADOW
+varying mediump vec2 v_glb;  // GLOBE: x the unit normal about the centre dotted with the sun, y with the view vector
+#endif
 varying PF vec3 v_ring;    // the RING. Picture: the ring's centre in WINDOW pixels (GL's, from the bottom) and
                            // its radius, the same at every vertex; 0 when off. Shadow pass (HD_ZPASS): the
                            // camera's (pixel - centre) / radius times the camera's clip w, and that w;
@@ -664,7 +717,15 @@ void main() {
   vec3 p;
   vec3 n;
   vec3 o = i_pos + u_offset;
-  if (u_mode.x < 0.5) {
+  bool tri = u_mode.x > 3.5;             // a TRIANGLE: pos, size and aux are its three corners
+  if (tri) {
+    vec3 tb = i_size + u_offset;
+    vec3 tc = i_aux + u_offset;
+    p = o * a_p.x + tb * a_p.y + tc * a_p.z;
+    vec3 tn = cross(tb - o, tc - o);
+    float tl = length(tn);
+    n = tl > 1e-30 ? tn / tl : vec3(0.0, 0.0, 1.0);
+  } else if (u_mode.x < 0.5) {
     n = a_n;
     p = o + a_p * i_size.x;
   } else if (u_mode.x < 1.5 || u_mode.x > 2.5) {
@@ -761,14 +822,25 @@ void main() {
   }
   v_n = n;
   v_v = normalize(u_eye.xyz - p * u_eye.w);
+#ifndef HD_SHADOW
+  // GLOBE: the point's direction from the sphere's centre against the sun and the view (per vertex, as a varying)
+  if (u_gsun.w > 0.5) {
+    vec3 gn = p - u_gcen;
+    float gl = length(gn);
+    gn = gl > 1e-30 ? gn / gl : vec3(0.0, 0.0, 1.0);
+    v_glb = vec2(dot(gn, u_gsun.xyz), dot(gn, v_v));
+  } else {
+    v_glb = vec2(0.0);
+  }
+#endif
   float cm = floor(var / 64.0);
   bool ramp = cm > 0.5 && cm < 1.5;
   bool tint = cm > 1.5 && cm < 2.5;
-  bool tube = u_mode.x > 0.5 && u_mode.x < 1.5 || u_mode.x > 2.5;
+  bool tube = u_mode.x > 0.5 && u_mode.x < 1.5 || u_mode.x > 2.5 && u_mode.x < 3.5;
   vec3 rgb = i_color.rgb;
   float dens = 0.0;
   if (ramp) {
-    dens = clamp(tube ? i_angle : orient ? 0.0 : i_aux.x, 0.0, 1.0);
+    dens = clamp(tube || tri ? i_angle : orient ? 0.0 : i_aux.x, 0.0, 1.0);
     rgb = mix(u_params[1].rgb, u_params[2].rgb, dens);
   } else if (tint) {
     rgb *= u_params[3].rgb;
@@ -896,7 +968,7 @@ float litFraction(float ndl) {
   return s * 0.25;
 }
 #endif
-void main() {
+void hd_main() {
   // The ring, from this fragment's own window position (v_ring: the centre in window pixels).
   float ring = 1.0;
   if (v_ring.z > 0.0) {
@@ -950,6 +1022,27 @@ void main() {
   vec3 shaded = glow > 0.5 ? base : base * (lit + rim) + vec3(sp);
   vec3 flatc = base * mix(1.0 - strength, 1.0, shf);
   gl_FragColor = vec4(mix(flatc, shaded, u_shade.x) * v_dim.rgb, v_c.a * v_dim.a * ring * flowA);
+}
+// GLOBE and BLEND 'multiply' (the header's), applied to what the mark's own drawing gave.
+uniform vec4 u_gk;        // GLOBE: the rgb factor at night and by day; the alpha factor at night and by day
+uniform vec4 u_gd;        // GLOBE: the terminator's lo and hi; the Lambert share; w 1 on (0 off)
+uniform vec3 u_gl;        // GLOBE: the limb's lo and hi; z 1 on (0 off)
+uniform float u_blendm;   // 1 while a MULTIPLY batch is drawn
+#ifndef HD_SHADOW
+varying mediump vec2 v_glb;
+#endif
+void main() {
+  hd_main();
+#ifndef HD_SHADOW
+  if (u_gd.w > 0.5) {
+    float day = smoothstep(u_gd.x, u_gd.y, v_glb.x);
+    gl_FragColor.rgb *= mix(u_gk.x, u_gk.y, day * mix(1.0, max(v_glb.x, 0.0), u_gd.z));
+    float ga = mix(u_gk.z, u_gk.w, day);
+    if (u_gl.z > 0.5) ga *= smoothstep(u_gl.x, u_gl.y, v_glb.y);
+    gl_FragColor.a *= ga;
+  }
+#endif
+  if (u_blendm > 0.5) gl_FragColor = vec4(mix(vec3(0.5), gl_FragColor.rgb, gl_FragColor.a), 1.0);
 }
 `;
 
@@ -1096,7 +1189,7 @@ varying mediump float v_fade;
 varying lowp vec3 v_k;
 varying PF vec2 v_fl;
 HD_GLYPH_SOURCE
-void main() {
+void hd_smain() {
   float cov;
   if (u_fmode > 1.5) {
     vec4 im = texture2D(u_img, v_uv);
@@ -1125,7 +1218,34 @@ void main() {
   }
   gl_FragColor = vec4(v_c.rgb, v_c.a * cov * v_fade);
 }
+uniform mediump float u_sblendm;   // 1 while a MULTIPLY batch is drawn (BLEND)
+void main() {
+  hd_smain();
+  if (u_sblendm > 0.5) gl_FragColor = vec4(mix(vec3(0.5), gl_FragColor.rgb, gl_FragColor.a), 1.0);
+}
 `;
+
+// GLOBE (at the top): what draw() refuses in a world batch's `globe`, before any state is changed.
+// Exported for draw-webgpu.js, which refuses the same; a host has no use for it.
+export function checkGlobe(g, i, wantShadow) {
+  if (g === undefined || g === null) return;
+  const bad = (why) => { throw new Error('holon-draw: batch ' + i + ' has a `globe` ' + why); };
+  if (typeof g !== 'object') bad('that is not an object');
+  const nums = (v, n, name, need) => {
+    if (v === undefined || v === null) { if (need) bad('with no `' + name + '`'); return; }
+    if (!(v.length >= n)) bad('whose `' + name + '` is not ' + n + ' numbers');
+    for (let k = 0; k < n; k++) if (!isFinite(v[k])) bad('whose `' + name + '` is not ' + n + ' finite numbers');
+  };
+  nums(g.sun, 3, 'sun', true);
+  if (!(Math.hypot(g.sun[0], g.sun[1], g.sun[2]) > 0)) bad('whose `sun` has no length');
+  nums(g.centre, 3, 'centre', false);
+  nums(g.day, 2, 'day', false);
+  nums(g.rgb, 2, 'rgb', false);
+  nums(g.alpha, 2, 'alpha', false);
+  nums(g.limb, 2, 'limb', false);
+  if (g.lambert !== undefined && !isFinite(g.lambert)) bad('whose `lambert` is not a finite number');
+  if (wantShadow) bad('and this draw() asks for shadows (opts.shadow): a globe is lit by its own sun, and the shadow program has no room for its varying. Draw globe batches in a draw() without opts.shadow');
+}
 
 // ---- unit meshes: interleaved position (3) and normal (3), 16-bit indices ----
 
@@ -1285,6 +1405,11 @@ function quadMesh() {
   };
 }
 
+// A TRIANGLE's mesh: three vertices whose positions are barycentric weights of the record's corners.
+function triMesh() {
+  return { v: [1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1], ix: [0, 1, 2] };
+}
+
 function discMesh(sides) {
   const v = [0, 0, 0, 0, 0, 1], ix = [];
   for (let j = 0; j < sides; j++) {
@@ -1298,9 +1423,11 @@ function discMesh(sides) {
 // ---- slots: how a kind is drawn. Index = kind; 11 and 12 are the coarse sphere and rod. ----
 // mode: [vertex mode (0 sphere, 1 tube, 2 scaled-and-turned, 3 bent tube), radius scale or uniform-scale switch]; shade: [lit, specular, rim]; cull.
 // The vertex stage's kind code: 1 quad, 2 patch, 3 line or arc, 4 disc, 5 box or prism, 6 glyph, 0 the rest.
-const KIND_CODE = [0, 1, 3, 3, 4, 5, 5, 0, 0, 2, 6, 0, 0, 3, 3];
-const SLOT_COARSE_SPHERE = 11, SLOT_COARSE_ROD = 12, SLOT_FLAT_LINE = 13, SLOT_FLAT_ARC = 14, N_SLOT = 15;
-const SCREEN_ID = 15;   // the id of every screen slot, for a resident batch's vertex arrays (after the world slots' 0..14)
+// Slot 15 is the TRIANGLE (kind 13; vertex mode 4).
+const KIND_CODE = [0, 1, 3, 3, 4, 5, 5, 0, 0, 2, 6, 0, 0, 3, 3, 0];
+const SLOT_COARSE_SPHERE = 11, SLOT_COARSE_ROD = 12, SLOT_FLAT_LINE = 13, SLOT_FLAT_ARC = 14, SLOT_TRIANGLE = 15, N_SLOT = 16;
+const SCREEN_ID = 16;   // the id of every screen slot, for a resident batch's vertex arrays (after the world slots' 0..15)
+const N_KIND = 14;      // instance buffers by kind, 1..13
 
 function compile(gl, type, src) {
   const s = gl.createShader(type);
@@ -1393,6 +1520,8 @@ export function createDrawer(gl, options) {
       uLight: u('u_light'), uShade: u('u_shade'), uPix: u('u_pix'), uWView: u('u_wview'),
       uParams: u('u_params[0]'), uLvp: u('u_lvp'), uLno: u('u_lno'), uShadow: u('u_shadow'),
       uShp: u('u_shp'), uCvp: u('u_cvp'), samplerSet: false, last: new Float32Array(32).fill(NaN),
+      uGsun: u('u_gsun'), uGcen: u('u_gcen'), uGk: u('u_gk'), uGd: u('u_gd'), uGl: u('u_gl'), uBlendM: u('u_blendm'),
+      cGsun: nan(4), cGcen: nan(3), cGk: nan(4), cGd: nan(4), cGl: nan(3), cBlendM: nan(1),
       // What each uniform holds now (a program keeps its uniforms between frames): an upload is
       // skipped when the value is the same, number by number. NaN at the start: the first uploads.
       cVP: nan(16), cEye: nan(4), cOff: nan(3), cShade: nan(4), cMode: nan(2), cPix: nan(3),
@@ -1441,6 +1570,7 @@ export function createDrawer(gl, options) {
   const uFMode = gl.getUniformLocation(sprogram, 'u_fmode');
   const uTex = [0, 1, 2, 3].map((i) => gl.getUniformLocation(sprogram, 'u_t' + i));
   const uImg = gl.getUniformLocation(sprogram, 'u_img');
+  const uSBlendM = gl.getUniformLocation(sprogram, 'u_sblendm');
   let samplersSet = false;
   const text = options.text || null;
 
@@ -1470,6 +1600,7 @@ export function createDrawer(gl, options) {
   const mBox = mesh(boxMesh());
   const mQuad = mesh(quadMesh());
   const mDisc = mesh(discMesh(24));
+  const mTri = mesh(triMesh());
 
   // slot -> { mesh, kind (whose instance buffer), mode x, mode y, lit, spec, rim, cull, vao }
   const slots = new Array(N_SLOT).fill(null);
@@ -1490,6 +1621,7 @@ export function createDrawer(gl, options) {
   slot(SLOT_COARSE_ROD, KIND.ROD, mRodCoarse, 1, 1, 1, 0.18, 0.08, true);
   slot(SLOT_FLAT_LINE, KIND.LINE, mRibbon, 1, 0.5, 0, 0, 0, false);
   slot(SLOT_FLAT_ARC, KIND.ARC, mArcRibbon, 3, 0.5, 0, 0, 0, false);
+  slot(SLOT_TRIANGLE, KIND.TRIANGLE, mTri, 4, 0, 0, 0, 0, false);
 
   // Screen slots, by kind: vertex mode (0 rectangle, 1 circle, 2 line, 3 run).
   const sslots = new Array(13).fill(null);
@@ -1543,10 +1675,10 @@ export function createDrawer(gl, options) {
   // One instance buffer per kind, grown as needed and reused. Within one draw() every batch
   // of a kind is written at its own offset in that buffer, so a later batch never overwrites
   // bytes an earlier draw call of the same frame still reads.
-  const instBuf = new Array(13).fill(null);
-  const instCap = new Int32Array(13);
-  const need = new Int32Array(13);
-  const cursor = new Int32Array(13);
+  const instBuf = new Array(N_KIND).fill(null);
+  const instCap = new Int32Array(N_KIND);
+  const need = new Int32Array(N_KIND);
+  const cursor = new Int32Array(N_KIND);
 
   // Scratch, allocated once.
   const light = new Float32Array(3);
@@ -1587,8 +1719,9 @@ export function createDrawer(gl, options) {
   // The slot a batch is drawn with, or null if it is not drawn.
   function slotOf(b) {
     const k = b.kind | 0;
-    if (k < 1 || k > 12) return null;
-    if (b.screen === true) return sslots[k];
+    if (k < 1 || k > 13) return null;
+    if (b.screen === true) return sslots[k] || null;
+    if (k === KIND.TRIANGLE) return slots[SLOT_TRIANGLE];
     if (k > 10) return null;
     if (flat) {
       if (k === KIND.LINE) return slots[SLOT_FLAT_LINE];
@@ -1605,7 +1738,7 @@ export function createDrawer(gl, options) {
   // frames, so these do too). NaN at the start: the first batch always uploads.
   const lastS = new Float32Array(32).fill(NaN);
   // The screen program's uniform values now, as a world program's cOff and pRef.
-  const SP = { cOff: nan(3), cView: nan(2), pRef: undefined };
+  const SP = { cOff: nan(3), cView: nan(2), cBlendM: nan(1), pRef: undefined };
   // P: the program's record (its pRef is the params object of the batch before in this draw();
   // the same object again is not compared: nothing can change it during one draw()).
   function settings(loc, last, src, P) {
@@ -1658,14 +1791,40 @@ export function createDrawer(gl, options) {
   function setOffset(loc, c, o) {
     if (o) set3(loc, c, o[0], o[1], o[2]); else set3(loc, c, 0, 0, 0);
   }
-  // Blend for one batch: 'alpha' (the frame's) or 'add'; an additive batch writes no depth.
-  let adding = false;
-  function blendFor(add) {
-    if (add === adding) return;
-    adding = add;
-    if (add) gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ZERO, gl.ONE);
+  // Blend for one batch (BLEND at the top): 0 'alpha' (the frame's), 1 'add', 2 'multiply'. An
+  // additive or multiplying batch writes no depth.
+  let blendMode = 0;
+  const blendOf = (b) => (b.blend === 'add' ? 1 : b.blend === 'multiply' ? 2 : 0);
+  function blendFor(m) {
+    if (m === blendMode) return;
+    blendMode = m;
+    if (m === 1) gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ZERO, gl.ONE);
+    else if (m === 2) gl.blendFuncSeparate(gl.DST_COLOR, gl.SRC_COLOR, gl.ZERO, gl.ONE);
     else gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    gl.depthMask(!add);
+    gl.depthMask(m === 0);
+  }
+  // The fragment stage's multiply switch (u_blendm, u_sblendm), through the program's record.
+  function setMul(loc, c, on) {
+    const v = on ? 1 : 0;
+    if (c[0] === v) return;
+    c[0] = v;
+    gl.uniform1f(loc, v);
+  }
+  // GLOBE (at the top) for one world batch; off when the batch has none.
+  function setGlobe(P, g) {
+    if (!g) {
+      set4(P.uGsun, P.cGsun, 0, 0, 0, 0);
+      set4(P.uGd, P.cGd, 0, 0, 0, 0);
+      return;
+    }
+    const sn = g.sun, sl = Math.hypot(sn[0], sn[1], sn[2]);
+    set4(P.uGsun, P.cGsun, sn[0] / sl, sn[1] / sl, sn[2] / sl, 1);
+    const c = g.centre;
+    if (c) set3(P.uGcen, P.cGcen, c[0], c[1], c[2]); else set3(P.uGcen, P.cGcen, 0, 0, 0);
+    const d = g.day, r = g.rgb, a = g.alpha, l = g.limb;
+    set4(P.uGk, P.cGk, r ? r[0] : 1, r ? r[1] : 1, a ? a[0] : 1, a ? a[1] : 1);
+    set4(P.uGd, P.cGd, d ? d[0] : -0.1, d ? d[1] : 0.1, g.lambert > 0 ? Math.min(1, +g.lambert) : 0, 1);
+    if (l) set3(P.uGl, P.cGl, l[0], l[1], 1); else set3(P.uGl, P.cGl, 0, 0, 0);
   }
 
   // Upload one `bytes` batch at its kind's cursor; its offset in that kind's buffer.
@@ -1787,10 +1946,11 @@ export function createDrawer(gl, options) {
   // The per-batch fields of BATCH MATRIX and BLEND (at the top): what draw() refuses.
   function checkBatch(b, i, vp, wantShadow) {
     const bl = b.blend;
-    if (bl !== undefined && bl !== 'alpha' && bl !== 'add') {
-      throw new Error('holon-draw: batch ' + i + ' has blend ' + JSON.stringify(bl) + ': a batch\'s blend is \'alpha\' (the default) or \'add\'');
+    if (bl !== undefined && bl !== 'alpha' && bl !== 'add' && bl !== 'multiply') {
+      throw new Error('holon-draw: batch ' + i + ' has blend ' + JSON.stringify(bl) + ': a batch\'s blend is \'alpha\' (the default), \'add\' or \'multiply\'');
     }
     if (b.screen === true) return;
+    checkGlobe(b.globe, i, wantShadow);
     const m = b.vp;
     if (m !== undefined && m !== null) {
       if (!(m.length >= 16)) throw new Error('holon-draw: batch ' + i + ' has a `vp` that is not a 4x4 matrix (16 numbers, column-major)');
@@ -1853,7 +2013,8 @@ export function createDrawer(gl, options) {
    *   `shade`, optional on a world batch of a lit kind: [specular, rim] for that batch in place
    *   of the kind's own (box and prism 0.05, 0; sphere 0.3, 0.18; rod 0.18, 0.08).
    *   `vp` and `pixelsPerUnit`, optional on a world batch: its own (BATCH MATRIX at the top);
-   *   `blend`, optional on any batch: 'alpha' (default) or 'add' (BLEND at the top).
+   *   `blend`, optional on any batch: 'alpha' (default), 'add' or 'multiply' (BLEND at the top).
+   *   `globe`, optional on a world batch: { sun, centre?, day?, rgb?, alpha?, lambert?, limb? } (GLOBE at the top).
    * @param {Float32Array|null} vp column-major, 16 (world batches without their own; null if every one has its own)
    * @param {{light?:ArrayLike<number>, ambient?:number, flatLit?:boolean, viewport?:ArrayLike<number>, pixelsPerUnit?:number, depthTest?:boolean, flatLines?:boolean, shadow?:{center:ArrayLike<number>, radius:number, size?:number, strength?:number, bias?:number}}} [opts]
    *   A world batch may also carry `castShadow: false`.
@@ -1894,7 +2055,7 @@ export function createDrawer(gl, options) {
     }
     if (nWorld + nScreen === 0) return;
 
-    for (let k = 1; k <= 12; k++) {
+    for (let k = 1; k < N_KIND; k++) {
       cursor[k] = 0;
       if (need[k] <= instCap[k]) continue;
       let cap = instCap[k] || 64 * INSTANCE_BYTES;
@@ -1907,7 +2068,7 @@ export function createDrawer(gl, options) {
 
     // Frame state.
     bound = null;
-    adding = false;
+    blendMode = 0;
     WP.pRef = undefined; if (WS) WS.pRef = undefined; if (Z) Z.pRef = undefined; SP.pRef = undefined;
     gl.enable(gl.BLEND);
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -1971,7 +2132,7 @@ export function createDrawer(gl, options) {
         for (let i = 0; i < nb; i++) {
           if (wAt[i] === -1) continue;
           const b = batches[i];
-          if (b.castShadow === false || b.blend === 'add') continue;
+          if (b.castShadow === false || b.blend === 'add' || b.blend === 'multiply') continue;
           const s = slotOf(b);
           if (!(s.lit || ((s.kind === KIND.LINE || s.kind === KIND.ARC) && !flat))) continue;
           if (s !== zcur) {
@@ -2036,7 +2197,10 @@ export function createDrawer(gl, options) {
             if (culling) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
           }
         }
-        blendFor(b.blend === 'add');
+        const bm = blendOf(b);
+        blendFor(bm);
+        setMul(W.uBlendM, W.cBlendM, bm === 2);
+        if (!shadowsOn) setGlobe(W, b.globe);
         attach(b, s, wAt[i], s.vao, c);
         settings(W.uParams, W.last, b.params, W);
         setOffset(W.uOffset, W.cOff, b.offset);
@@ -2091,7 +2255,9 @@ export function createDrawer(gl, options) {
           }
           gl.activeTexture(gl.TEXTURE0);
         }
-        blendFor(b.blend === 'add');
+        const bm = blendOf(b);
+        blendFor(bm);
+        setMul(uSBlendM, SP.cBlendM, bm === 2);
         attach(b, s, b.handle !== undefined ? -2 : upload(b, s.kind, c * INSTANCE_BYTES), screenVAO, c);
         settings(uSParams, lastS, b.params, SP);
         const o = b.offset;
@@ -2100,7 +2266,7 @@ export function createDrawer(gl, options) {
       }
     }
     gl.enable(gl.DEPTH_TEST);
-    blendFor(false);   // the frame's blend and depthMask(true) again, if the last batch added
+    blendFor(0);   // the frame's blend and depthMask(true) again, if the last batch added or multiplied
 
     // Leave as documented at the top of this file.
     if (hasVAO) {

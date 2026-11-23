@@ -11,7 +11,7 @@ twin's JS builder (`tlBuildLeaf`), float for float; the JS builder stays, as the
 | source | CIRISHolon commit `fb3a3df`, `engine/crates/holon-draw` (resident buffers) |
 | build | `sh engine/crates/holon-draw/build-web.sh <outdir>` (release, LTO, one codegen unit, `panic=abort`, stripped) |
 | `holon_draw.wasm` | 83,912 bytes, sha256 `2d69cf58441092044683ad32580dec2bdd1cc530e52999159e9ddce0cb400e47` |
-| `draw.js` | the crate's `web/draw.js` at CIRISHolon `fb3a3df`, copied unchanged; sha256 `c24e92ed95c56a4d09652f757aac351148fbf0cd0e42900dba687a2a83744603` |
+| `draw.js` | the crate's `web/draw.js` at CIRISHolon `01811e8` (branch `holon-draw/twin-24`: kind 13 TRIANGLE, GLOBE, BLEND 'multiply'), copied unchanged; sha256 `cd1614a9464fbc507bc5beae709e005737898f1fb7c15dfb253d65c255c44de9`. CORRECTION 2026-11-23: until this commit the row said `fb3a3df` (sha256 `c24e92ed...`), but the file here was already `f206a4f`'s (sha256 `f2bc0c7e...`), copied in for the matrix per batch; the row was not updated then |
 
 Exports used: `hd_in(which, len)` (input buffers: 0 roads, 1 buildings, 2 meta, 3 street ends, 4 roof tones,
 5 the style), `hd_style()`, `hd_style_len()` (97), `hd_build_leaf(id, ox, oy, sx, pph, road r, g, b, has_tones)` and
@@ -102,3 +102,13 @@ Checked, both ways:
   times the largest record's size; normals and widths 1e-3; colours half an 8-bit step.
 
 `?hd=0` turns the wasm builder off (the JS builder draws).
+
+**The globe's own passes, one layer at a time (2026-11-23, CEWP#24).** `docs/hdglobe.js` draws four of the globe's passes
+through the same `draw.js` (the street tier's drawer when it has one, else its own), each behind `?hdg=`: `fade` (the
+zoom hand-off fade) and `veil` (a data map's veil over the land) as one screen quad, their colour exact through DIM;
+`lines` (coasts, borders, rivers, ETOPO shores) as world lines of no width of their own, FLOOR giving the width in device
+pixels, drawn as tubes, one resident buffer per line set; `land` (the ground and the population tiles) as kind 13 TRIANGLE
+records in one resident buffer, inside the land stencil the twin's own fan still writes. Lines and land are lit by the
+engine's GLOBE light with the numbers of the twin's own shaders (gfx.js AF, globe.js GF). `?hdg=1` turns all four on,
+`?hdg=fade,land` some, `?hdg=0` none; without it, `HDG_DEFAULT`. Each twin program stays and draws whenever its layer is
+off. `tools/page/hd_globe/run.py` is the gate (stakes in its header, written before its first run).
