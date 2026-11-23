@@ -8,6 +8,9 @@
 #      edge the twin draws nothing (w 0) and the pill says the view is past the street and the globe.
 #   4. Back in the band, each view is drawn as before: the share of pixels moved by more than DELTA is at most SAME_MAX, or
 #      the share two frames of the view moved by before any trip (the clock held and the arcs off, little else moves), plus SAME_MAX.
+#      The street's detail ring is held with the clock (HOLON.governor made a no-op), and both street frames wait until the
+#      street has finished laying out its leaves (TL.cut 0): the disc of detail ends at the
+#      nearest leaf with no layout yet and grows as generation catches up, which on a busy machine is still going a minute in.
 #   5. Reloaded: the switch is still off.
 #   6. Past each edge holon-draw's ladder draws (window.HOLON_LADDER, loaded once the switch is off): at the deepest and the
 #      farthest point of the trips, at least LIT_MIN of the picture (the page's interface hidden) is not the background.
@@ -55,6 +58,11 @@ async def trip(pg, factor, target_z, edge_key):
             if direction == -1 and st["side"] is None and abs(st["z"] - st[edge_key]) > 0.05: break
             await pg.evaluate("(f) => zoomBy(f)", factor if direction == 1 else 1 / factor); await asyncio.sleep(0.08)
     return seen, far
+async def laid_out(pg, limit=180):
+    for _ in range(limit):
+        if await pg.evaluate("() => typeof TL !== 'undefined' && (TL.cut || 0) === 0"): return True
+        await asyncio.sleep(1)
+    return False
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(channel="chrome", headless=True, args=["--use-angle=gl-egl", "--ignore-gpu-blocklist"])
@@ -79,10 +87,16 @@ async def main():
         # 2. warm both views, hold the clock, reference frames
         await pg.evaluate(CAM, list(GLOBE)); await asyncio.sleep(15)
         await pg.evaluate(CAM, list(STREET)); await asyncio.sleep(30)
-        await pg.evaluate("() => { if (typeof SIM !== 'undefined'){ SIM.rate = 0; SIM.t = SIM.tTick = 43200; } microTimeScale = 0; showArcs = false; }")
+        # the clock held, and the street's detail ring too: HOLON.governor shrinks it while frames are slow (the trip's frames
+        # past the edge are), and at a frame between its thresholds it holds, so without this the street after the trip is
+        # drawn with a smaller disc of detail whatever the zoom switch did (the governor's recovery is reported apart)
+        await pg.evaluate("() => { if (typeof SIM !== 'undefined'){ SIM.rate = 0; SIM.t = SIM.tTick = 43200; } microTimeScale = 0; showArcs = false; HOLON.governor = (s) => s; }")
         for _ in range(120): # the lit hour slews toward the held clock at a capped rate: wait until it has arrived
             if await pg.evaluate("() => drawnHour !== null && Math.abs(drawnHour - getSimUtcHours(getTime())) < 1e-6"): break
             await asyncio.sleep(1)
+        # the camera put back where the trip will return it to: over the warm-up it drifts by a few microradians, which at 3 m a
+        # pixel is a pixel or two, and the comparison would read that drift as the switch's doing
+        await pg.evaluate(CAM, list(STREET)); await laid_out(pg)
         await asyncio.sleep(3); ref_street = await shot(pg); await asyncio.sleep(2); ref_street2 = await shot(pg)
         await pg.evaluate(CAM, list(GLOBE)); await asyncio.sleep(6); ref_globe = await shot(pg); await asyncio.sleep(2); ref_globe2 = await shot(pg)
         # 3. off, through the More menu; the trips
@@ -97,7 +111,7 @@ async def main():
         s0 = await pg.evaluate(STATE)
         inward, far_in = await trip(pg, 1.6, s0["street"] - 1.0, "street")
         await pg.evaluate(CAM, list(STREET)); await asyncio.sleep(3)
-        await pg.evaluate("() => { window.__ZR.on = false; }"); back_street = await shot(pg)
+        await pg.evaluate("() => { window.__ZR.on = false; }"); await laid_out(pg); back_street = await shot(pg)
         await pg.evaluate(CAM, list(GLOBE)); await asyncio.sleep(6)
         await pg.evaluate("() => { window.__ZR.on = true; }")
         g0 = await pg.evaluate(STATE)
