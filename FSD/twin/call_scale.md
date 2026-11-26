@@ -162,6 +162,11 @@ The twin has no admission model, so only arithmetic on the measurement is possib
 - Seating 1000 needs either batched Adds (one commit seats many) or a stream epoch decoupled from
   room churn.
 
+**SLOT (pending, from the server's per-run timeline): the 12-person seating steps.** Per seat, the
+time of each step (request, commit, Welcome, wraps, roster, first row read by every member), for
+both runs. Until it lands, the per-seat time above is the measurement divided by twelve and the
+1000-seat figure is a lower bound; no step is modelled.
+
 ## 5. What a 1000-person call puts on the seat
 
 - **The canonical is not the room's hub: nothing per member joined (DERIVED).**
@@ -225,6 +230,15 @@ nothing to it unless the canonical hubs a room (section 5).
     stale-while-revalidate every subject is re-read once a TTL, so the 10-minute sum is the
     walked set.
 - Then g = (S2 / S1 - 1) / (N2 / N1 - 1).
+
+**SLOT (pending, from the server): `key_publish_set` with its file:line and a size read on the
+canonical.** Until it lands, the knee stays the interval above with g (FRONTIER) as the named
+hinge; no point value is quoted.
+
+**SLOT (pending, from the server's matrix): the canonical's share of a call member's non-media**
+(one canonical node per cell, split approximate). Until it lands, the 94 to 115 kbit/s of
+identity-plane replication on the capped member (section 3) is not split between the canonical
+and the other members.
 
 ## 7. What this model cannot say
 
