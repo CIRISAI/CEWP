@@ -47,6 +47,8 @@ use crate::qoe::{amp_buckets, score_recovery, score_session, AmpBucket, QoeRules
 /// FSD §8.2 class of a media-model number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MTag {
+    /// Measured on edge (the source names the bench or matrix run and the edge version).
+    Measured,
     /// Read from edge / leviculum source at the pinned commit; the source names the symbol.
     Derived,
     /// A stated modelling choice with no measurement behind it.
@@ -60,6 +62,7 @@ impl MTag {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::Measured => "MEASURED",
             Self::Derived => "DERIVED",
             Self::Model => "MODEL",
             Self::Frontier => "FRONTIER",
@@ -118,7 +121,10 @@ pub const REORDER_GAP_PRIOR_US: u64 = 50_000;
 pub const MEDIA_STALE_BUDGET_US: u64 = 800_000;
 /// edge `av_call.rs` `WATCH_TICK`.
 pub const WATCH_TICK_US: u64 = 250_000;
-/// edge `av_call/alm.rs` `PUBLISHER_INITIAL_FANOUT`.
+/// edge `av_call/alm.rs` `PUBLISHER_INITIAL_FANOUT` at 8e46165. OWED: edge 45.2.0 (6c67851)
+/// replaced it with a slow start, `PUBLISHER_INITIAL_PROBE` = 2 and `STALL_PROBE_HOLD_MS` 10 s
+/// (v45.2.1 alm.rs :59, :62); the engine below still runs the 8e46165 rule, so its seeded
+/// findings stay comparable with `FSD/twin/media.md`. Re-running them on the slow start is owed.
 pub const PUBLISHER_INITIAL_FANOUT: u32 = 8;
 /// edge `controller/admission.rs` `MAX_PROBE_STREAMS`.
 pub const MAX_PROBE_STREAMS: u32 = 16;
@@ -221,6 +227,25 @@ pub fn frame_loss_closed_form(p: f64, n: u32) -> f64 {
     1.0 - (1.0 - p).powi(n as i32)
 }
 
+// ------------------------------------------------------------------ MEASURED (edge v45.2.1)
+
+/// RNS bytes of one full media chunk (a 246 B frame) on the wire, MEASURED on edge v45.2.1's own
+/// mesh witness with a socket-level FIFO shaper (2026-11-25): 504 B, 532 B with IPv4/UDP. The
+/// measured split: chunk header 52 (stream id 32, epoch 8, chunk_seq 8, codec/layer 4), two AEAD
+/// tags 32, trailer 72, E1 seal 25, RNS link token ~53 (IV 16 + HMAC 32 + padding), RNS header
+/// 19, framing ~5.
+pub const MEASURED_CHUNK_RNS_BYTES: u32 = 504;
+/// What the measured chunk carries beyond [`chunk_rns_bytes`] of a full frame (499 B): 5 B, not
+/// traced to a symbol (the derivation has 1 B of AES padding and the 4 B datagram sequence
+/// where the measured split names ~5 B padding and ~5 B framing). MEASURED minus DERIVED.
+pub const MEASURED_CHUNK_RESIDUAL: u32 = MEASURED_CHUNK_RNS_BYTES - chunk_rns_bytes(frame_budget(RNS_BASE_MTU));
+/// One 30 fps copy on the bench: 30.3 chunks a second, ~127 kbit/s with IPv4/UDP (MEASURED,
+/// bench, edge v45.2.1); bits per second.
+pub const MEASURED_COPY_BPS_BENCH: u64 = 127_000;
+/// One copy as the server's container matrix sends it (its codec frames are larger), ~190
+/// kbit/s (MEASURED, matrix, edge v45.2.1; also edge alm.rs :57 "three copies of ~190").
+pub const MEASURED_COPY_BPS_MATRIX: u64 = 190_000;
+
 // ------------------------------------------------------------------ MODEL defaults
 
 /// IPv4 + UDP header per datagram (bytes).
@@ -247,12 +272,15 @@ pub const MEDIA_PARAM_SPECS: &[MParam] = &[
     MParam { name: "frame_budget", value: frame_budget(RNS_BASE_MTU) as i64, unit: "B", tag: MTag::Derived, source: "edge av_call.rs LegInfo::frame_budget = media_limit - AV_CHUNK_WIRE_OVERHEAD 84 - CHUNK_TRAILER_LEN 72" },
     MParam { name: "fragment_payload", value: (frame_budget(RNS_BASE_MTU) - FRAGMENT_MARKER_LEN) as i64, unit: "B", tag: MTag::Derived, source: "edge av_call/frame.rs split: budget - FRAGMENT_MARKER_LEN 8" },
     MParam { name: "full_chunk_wire", value: (chunk_rns_bytes(frame_budget(RNS_BASE_MTU)) + IP_UDP_HEADER) as i64, unit: "B", tag: MTag::Derived, source: "rns_packet_bytes(431) = 19 + 16 + 432 + 32, + IPv4/UDP 28" },
+    MParam { name: "measured_chunk_wire", value: (MEASURED_CHUNK_RNS_BYTES + IP_UDP_HEADER) as i64, unit: "B", tag: MTag::Measured, source: "edge v45.2.1 mesh witness, socket-level FIFO shaper (2026-11-25): 504 B RNS + 28 IPv4/UDP for a 246 B frame; 5 B above full_chunk_wire, untraced (MEASURED_CHUNK_RESIDUAL)" },
+    MParam { name: "measured_copy_bench", value: MEASURED_COPY_BPS_BENCH as i64, unit: "bit/s", tag: MTag::Measured, source: "edge v45.2.1 bench: one 30 fps copy, 30.3 chunks/s, ~122 kbit/s of frames, ~127 with IPv4/UDP" },
+    MParam { name: "measured_copy_matrix", value: MEASURED_COPY_BPS_MATRIX as i64, unit: "bit/s", tag: MTag::Measured, source: "server container matrix on edge v45.2.1: one copy ~190 kbit/s (its codec frames are larger); the engine's video_bitrate stays the MODEL phone camera" },
     MParam { name: "reorder_window_min", value: REORDER_WINDOW_MIN_US as i64, unit: "us", tag: MTag::Derived, source: "edge av_call.rs REORDER_WINDOW_MIN" },
     MParam { name: "reorder_window_max", value: REORDER_WINDOW_MAX_US as i64, unit: "us", tag: MTag::Derived, source: "edge av_call.rs REORDER_WINDOW_MAX" },
     MParam { name: "reorder_gap_prior", value: REORDER_GAP_PRIOR_US as i64, unit: "us", tag: MTag::Derived, source: "edge av_call.rs REORDER_GAP_PRIOR (window = 2x gap EWMA)" },
     MParam { name: "media_stale_budget", value: MEDIA_STALE_BUDGET_US as i64, unit: "us", tag: MTag::Derived, source: "edge av_call.rs MEDIA_STALE_BUDGET (inbound queue age drop)" },
     MParam { name: "watch_tick", value: WATCH_TICK_US as i64, unit: "us", tag: MTag::Derived, source: "edge av_call.rs WATCH_TICK (leg checks)" },
-    MParam { name: "publisher_initial_fanout", value: PUBLISHER_INITIAL_FANOUT as i64, unit: "streams", tag: MTag::Derived, source: "edge av_call/alm.rs PUBLISHER_INITIAL_FANOUT; probe = clamp(members-1, 1, 8)" },
+    MParam { name: "publisher_initial_fanout", value: PUBLISHER_INITIAL_FANOUT as i64, unit: "streams", tag: MTag::Derived, source: "edge av_call/alm.rs PUBLISHER_INITIAL_FANOUT at 8e46165; probe = clamp(members-1, 1, 8). OWED: v45.2.1 slow-starts at PUBLISHER_INITIAL_PROBE 2 (alm.rs :59, 45.2.0 6c67851); the engine keeps the 8e46165 rule" },
     MParam { name: "max_probe_streams", value: MAX_PROBE_STREAMS as i64, unit: "streams", tag: MTag::Derived, source: "edge controller/admission.rs MAX_PROBE_STREAMS" },
     MParam { name: "probe_clean_windows", value: PROBE_CLEAN_WINDOWS as i64, unit: "windows", tag: MTag::Derived, source: "edge ControllerConfig::interactive" },
     MParam { name: "join_jitter", value: JOIN_JITTER_US as i64, unit: "us", tag: MTag::Derived, source: "edge ControllerConfig::interactive join_jitter_ms" },
@@ -756,6 +784,8 @@ impl Ledger {
 /// Not counted, because the engine has no such event: control traffic (SUBSCRIBE, C3 frames,
 /// bindings, RNS keepalives and link setup), storage (a call stores nothing), a radio's tail
 /// after its last packet (the energy package's parameter; `idle_gap_hist` lets it be priced).
+/// The control traffic MEASURED on edge v45.2.1 (offers, their proofs, announces) is priced
+/// per member in closed form by [`crate::call_scale`], not by this engine.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct NodeEnergy {
     /// Time in the call (join to leave or run end, us).
@@ -2642,6 +2672,26 @@ mod tests {
         // 4096 fragments of 238 B is 974,848 B: a 1 MiB frame is refused at the base MTU.
         assert_eq!(fragments(974_848, 246), Some(4_096));
         assert_eq!(fragments(974_849, 246), None);
+    }
+
+    /// The packet MEASURED on edge v45.2.1 (504 B for a 246 B frame) against the derivation
+    /// (499 B): the 258 B measured overhead and the derived 253 B differ by 5 B, and since the
+    /// derived packet already sits 1 B under the RNS MTU, those 5 B cannot be inside the RNS
+    /// packet: they are framing outside it on the measured path (untraced).
+    #[test]
+    fn the_measured_packet_is_the_derived_one_plus_framing_outside_the_mtu() {
+        let derived = chunk_rns_bytes(frame_budget(RNS_BASE_MTU));
+        assert_eq!(derived, 499);
+        assert_eq!(MEASURED_CHUNK_RNS_BYTES, 504);
+        assert_eq!(MEASURED_CHUNK_RESIDUAL, 5);
+        assert!(MEASURED_CHUNK_RNS_BYTES > RNS_BASE_MTU, "so the residual is outside the RNS packet");
+        // the measured split: 52 + 32 + 72 + 25 + ~53 + 19 + ~5 = 258
+        assert_eq!(MEASURED_CHUNK_RNS_BYTES - frame_budget(RNS_BASE_MTU), 52 + 32 + 72 + 25 + 53 + 19 + 5);
+        assert_eq!(AV_CHUNK_WIRE_OVERHEAD, 52 + 32);
+        // 30.3 chunks a second of 532 B is the bench's ~127 kbit/s copy (within 1%)
+        let bps = 30.3 * f64::from(MEASURED_CHUNK_RNS_BYTES + IP_UDP_HEADER) * 8.0;
+        assert!((bps / MEASURED_COPY_BPS_BENCH as f64 - 1.0).abs() < 0.02, "{bps}");
+        assert!(MEDIA_PARAM_SPECS.iter().filter(|p| p.tag == MTag::Measured).count() == 3);
         for p in MEDIA_PARAM_SPECS {
             assert!(!p.name.is_empty() && !p.source.is_empty());
         }

@@ -165,7 +165,7 @@ params! {
     SuburbanDensity = "suburban_density", 250.0, Model, "people/km2 above which the patch is suburban; below it a village";
     StartLocalHour = "start_local_hour", 9.0, Model, "local clock at build (the page passes its own)";
     ClaimedShare = "claimed_share", 0.70, Model, "share of person devices with an owner (claimed); servers, seats and CI runners are always claimed";
-    BundleBootstrap = "bundle_bootstrap", 1.0, Model, "edge #881 bundle bootstrap: on, the v45 LTS default (ruled; CIRISEdge#971 c580298, required-set Pull); 0 = off, as on v44. A round here is the one Revocation round per cadence a device keeps with each seat; its other planes go by subject Pull, costed in capacity.rs";
+    BundleBootstrap = "bundle_bootstrap", 1.0, Model, "edge #881 bundle bootstrap: on, the v45 LTS default (ruled; CIRISEdge#971 e3c20ec in 8e46165, cited before as c580298; required-set Pull); 0 = off, as on v44. A round here is the one Revocation round per cadence a device keeps with each seat; its other planes go by subject Pull, costed in capacity.rs";
     SeatKmMin = "seat_km_min", 1_500.0, Model, "nearest a seat is drawn from the street: one seat serves the whole mesh, so it is usually a continent away (no real site is used); 120 in design_multi_seat";
     SeatKmMax = "seat_km_max", 8_000.0, Model, "farthest a seat is drawn; 650 in design_multi_seat";
     LateHoldS = "late_hold_s", 43_200.0, Model, "a held message counts as late after 12 h, the longest wait MESH-0 reports a share for; a readout bound, no delivery decision reads it";

@@ -123,6 +123,12 @@ macro_rules! cost_params {
 pub mod edge_971 {
     /// The commit read.
     pub const COMMIT: &str = "8e46165";
+    /// The newest edge every needle below and the three plane lists were checked against
+    /// (2026-11-25): tag v45.2.1, d175963. Line numbers in the sources still cite [`COMMIT`];
+    /// the texts hold at both. Between them edge added seat-load counters (S0), range-fingerprint
+    /// answers (shipped off, an environment switch), the wrap courier and the Welcome read site;
+    /// none changes a constant the seat model rests on.
+    pub const VERIFIED_AT: &str = "d175963 (v45.2.1)";
     /// runtime.rs `BUNDLE_PULL_PLANES` (:1113): subject-Pulled toward a no-consent seat.
     pub const BUNDLE_PULL_PLANES: [&str; 4] =
         ["Key", "IdentityOccurrence", "TransportDestination", "IdentityOccurrenceRevocation"];
@@ -368,6 +374,10 @@ cost_params! {
     SeatInitiatorDeviceShare = "seat_initiator_device_share", 0.0, Frontier, "share of devices the server's host names as the seat's own replication peers, so the seat INITIATES a round to each on the five bootstrap planes every cadence (it lists to build its Summary and receives a reply); a node initiates only to host-named peers (8e46165 runtime.rs set_peers :2637), bundle seats (bundle_bootstrap_peers :1162) and homed nodes (HomedPeers::register :1243), so this is the server's choice and not read; 0 unless the server names devices";
     // ---- rounds that carry a new row --------------------------------------
     IngestReadsPerRow = "ingest_reads_per_row", 3.0, Model, "counted reads to admit one new row (dedup, supersede, standing) beside its verify";
+    // ---- a room whose hub is this seat (calls; ADDED 2026-11-25) -------------
+    RoomAttRoundsPerCadence = "room_att_rounds_per_cadence", 1.0, Model, "Attestation rounds per cadence a member of a room whose hub is this seat opens with it: the member's host names the hub a consent peer (v45.2.1 runtime.rs set_peers), so it rounds on every plane, Attestation included, where the room's rows (call rows, roster, MLS) ride; star rooms route every row through the hub (v45.2.1 wrap_courier.rs header: members are contacts of the founder; 'the room seat kicks after it grants'). Whether the canonical is a room's hub is the server's choice (FRONTIER, Scenario::room_members = 0 by default)";
+    RoomRowsPerJoin = "room_rows_per_join", 4.0, Model, "rows one join lands at the hub: the attendee's call row and its share (2: v45.2.1 av_call.rs PersistCallRecord::record_join, 'two rows, like any chat row'), one roster row, one MLS commit; key-grant wraps and the Welcome go to their recipient only and are left out; interval [2, 6]; not counted on the bench";
+    RoomDeliveryReadsPerRow = "room_delivery_reads_per_row", 1.0, Model, "store reads the hub makes to deliver one room row to one member on that member's next Attestation round (the Diff's row read); booked like a proxy's row pull";
 }
 
 /// Number of cost parameters.
@@ -1346,6 +1356,15 @@ pub struct Scenario {
     pub memo_rebuild: MemoRebuild,
     /// The reach rule of 6244795 (in 8e46165): an unowned subject's reach reads the store.
     pub reach_rule: bool,
+    /// Devices (of `devices`) that are members of a room whose hub is this seat: they round on
+    /// every bootstrap plane and on Attestation each cadence (`room_att_rounds_per_cadence`).
+    /// 0 unless the server makes the canonical a room's hub (FRONTIER).
+    pub room_members: f64,
+    /// Joins per minute into those rooms: each lands `room_rows_per_join` rows at the hub and
+    /// each row is delivered to every other member of the room (`room_size` - 1).
+    pub room_joins_per_min: f64,
+    /// Members of the room the joins go to (for the delivery fan-out).
+    pub room_size: f64,
 }
 
 impl Scenario {
@@ -1364,6 +1383,9 @@ impl Scenario {
             listing_fix: ListingFix { cache: false, budget: false },
             memo_rebuild: MemoRebuild::Whole,
             reach_rule: false,
+            room_members: 0.0,
+            room_joins_per_min: 0.0,
+            room_size: 0.0,
         }
     }
 
@@ -1582,7 +1604,19 @@ pub fn run(p: &CostParams, s: &Scenario) -> Outcome {
         reach_rule: s.reach_rule,
         ..RoundMix::sized(p, nodes, 1.0)
     };
-    add_devices(p, &mut m, at_seat_fleet * share, s.shape);
+    // Room members whose hub is this seat round as consent peers (every bootstrap plane, as on
+    // v44) and on Attestation, where the room's rows ride; the rest of the fleet as `shape`.
+    let room = s.room_members.clamp(0.0, at_seat_fleet * share);
+    add_devices(p, &mut m, at_seat_fleet * share - room, s.shape);
+    if room > 0.0 {
+        add_devices(p, &mut m, room, RoundShape::WholePlane);
+        m.rounds_per_min[Plane::Attestation as usize] += room * per_min * p.get(C::RoomAttRoundsPerCadence);
+    }
+    if s.room_joins_per_min > 0.0 {
+        let rows = s.room_joins_per_min * p.get(C::RoomRowsPerJoin);
+        m.ingest_rows_per_min += rows;
+        m.row_pulls_per_min += rows * (s.room_size - 1.0).max(0.0) * p.get(C::RoomDeliveryReadsPerRow);
+    }
     // key:record rows landing at the seat (enrolment, re-publish, rotation).
     m.key_record_writes_per_min += s.devices * p.get(C::KeyRecordWritesPerDeviceDay) / 1_440.0;
     // Devices the server names as the seat's own peers: the seat initiates a round to each on
@@ -2398,6 +2432,9 @@ pub fn offload_table(p: &CostParams, devices: f64, shape: RoundShape) -> String 
                     listing_fix: ListingFix::default(),
                     memo_rebuild: MemoRebuild::Whole,
                     reach_rule: false,
+                    room_members: 0.0,
+                    room_joins_per_min: 0.0,
+                    room_size: 0.0,
                 };
                 let o = run(p, &sc);
                 cells.push(fmt_n(o.seat_load.cpu_cores));
@@ -2877,7 +2914,41 @@ mod tests {
             let src = &files.iter().find(|(f, _)| *f == n.file).expect("read").1;
             assert!(src.contains(n.text), "{} ({}) changed since {}: {}", n.what, n.file, edge_971::COMMIT, n.text);
         }
-        eprintln!("edge_971_constants_match_the_source: {} needles and 3 plane lists match edge at {}", edge_971::NEEDLES.len(), edge_971::COMMIT);
+        eprintln!(
+            "edge_971_constants_match_the_source: {} needles and 3 plane lists match the edge source named (cited at {}, last verified at {})",
+            edge_971::NEEDLES.len(),
+            edge_971::COMMIT,
+            edge_971::VERIFIED_AT
+        );
+    }
+
+    /// A room whose hub is the seat: its members round as consent peers and on Attestation, so
+    /// each adds that plane's listing permits and composer reads; joins add their rows once and
+    /// one delivery read per other member. Zero members leaves every scenario as it was.
+    #[test]
+    fn a_room_on_the_seat_costs_attestation_rounds_per_member() {
+        let p = CostParams::calibrated();
+        let base = Scenario::v45(1_349.0);
+        let o0 = run(&p, &base);
+        let mut sc = base;
+        sc.room_members = 100.0;
+        let o1 = run(&p, &sc);
+        let att = |o: &Outcome| o.seat.summaries_per_s;
+        // 100 members x (5 bootstrap planes + 1 Attestation) / 30 s, less their one v45 Revocation round
+        assert!(within(att(&o1) - att(&o0), 100.0 * (6.0 - 1.0) / 30.0, 1e-9), "{}", att(&o1) - att(&o0));
+        assert!(o1.seat.composer_per_s - o0.seat.composer_per_s > 100.0 / 30.0 * p.get(C::ComposerPerAttRound) * 0.999);
+        assert!(o1.seat_load.cpu_cores > o0.seat_load.cpu_cores && o1.seat_load.rho_permit > o0.seat_load.rho_permit);
+        // joins: rows once, deliveries to the other members
+        let mut j = base;
+        j.room_joins_per_min = 6.0;
+        j.room_size = 1_000.0;
+        let oj = run(&p, &j);
+        let rows = 6.0 * p.get(C::RoomRowsPerJoin);
+        // (each admitted row also marks the store feed dirty: one more feed read)
+        let per_row = p.get(C::IngestReadsPerRow) + 999.0 * p.get(C::RoomDeliveryReadsPerRow) + 1.0;
+        assert!(within((oj.seat.other_reads_per_s - o0.seat.other_reads_per_s) * 60.0, rows * per_row, 1e-6), "{}", (oj.seat.other_reads_per_s - o0.seat.other_reads_per_s) * 60.0);
+        // the default is the server's choice: no room on the seat
+        assert!(within(Scenario::v45(1.0).room_members, 0.0, 0.0));
     }
 
     /// Each fix moves its own term: the read fix the drains and probes; (b) the listing hold and

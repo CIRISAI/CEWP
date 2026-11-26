@@ -61,6 +61,7 @@ pub mod tiling;
 pub mod builtform;
 pub mod door;
 pub mod capacity;
+pub mod call_scale;
 pub mod reach;
 pub mod netgraph;
 pub mod social;
