@@ -681,3 +681,84 @@ mod tests {
         assert!(r.contains("Call scale") && !r.contains("NaN"));
     }
 }
+
+// ---- a check against a live sample (not a fit) --------------------------------------------------
+
+/// The seat model at one fleet size against a live sample, without fitting to it.
+#[derive(Debug, Clone, Copy)]
+pub struct SeatCheck {
+    /// Devices.
+    pub devices: f64,
+    /// Seat cores, calibrated point.
+    pub cores: f64,
+    /// Seat cores, outer interval over every input interval.
+    pub cores_interval: seat_calibration::Interval,
+    /// Modelled seat egress, bytes/s: the devices' idle rounds and Pulls (`Outcome::seat_egress_bytes_per_s`).
+    pub egress_devices_bps: f64,
+    /// Today's peers' whole-plane offers, bytes/s: window B's responder rounds a minute on the five
+    /// key and route planes, each a whole-plane offer (DERIVED from the model's own bytes; not in
+    /// the model's egress term).
+    pub egress_today_peers_bps: f64,
+    /// `today_rounds_scale` that would bring the point to `target_cores` (other terms held).
+    pub rounds_scale_for: (f64, f64),
+    /// `cpu_per_byte_s` factor that would bring the point to the target (other terms held).
+    pub cpu_factor_for: (f64, f64),
+}
+
+/// Check the model at `devices` against target cores `[lo, hi]`.
+#[must_use]
+pub fn seat_check(p: &CostParams, devices: f64, target: (f64, f64)) -> SeatCheck {
+    let sc = Scenario::v45(devices);
+    let o = capacity::run(p, &sc);
+    let inputs = seat_calibration::input_intervals(p);
+    let pr = seat_calibration::propagate(p, &inputs, |q| capacity::run(q, &sc).seat_load.cpu_cores);
+    let nodes = devices.max(p.get(C::StoreFloorNodes));
+    let whole = capacity::bytes_per_cadence(p, capacity::RoundShape::WholePlane, nodes);
+    // window B: 10 to 11 rounds a minute per plane = about 5 peers each rounding every 30 s
+    let peers_equiv = capacity::window_b::ROUNDS.iter().sum::<f64>() / 4.0 / (60.0 / p.get(C::CadenceS));
+    let solve = |f: &dyn Fn(f64) -> f64, t: f64| {
+        let (mut lo, mut hi) = (0.0_f64, 1_000.0_f64);
+        for _ in 0..200 {
+            let mid = 0.5 * (lo + hi);
+            if f(mid) < t { lo = mid } else { hi = mid }
+        }
+        lo
+    };
+    let by_rounds = |x: f64| {
+        let mut q = p.clone();
+        q.set(C::TodayRoundsScale, x);
+        capacity::run(&q, &sc).seat_load.cpu_cores
+    };
+    let c0 = p.get(C::CpuPerByte);
+    let by_cpu = |x: f64| {
+        let mut q = p.clone();
+        q.set(C::CpuPerByte, c0 * x);
+        capacity::run(&q, &sc).seat_load.cpu_cores
+    };
+    SeatCheck {
+        devices,
+        cores: o.seat_load.cpu_cores,
+        cores_interval: pr.interval,
+        egress_devices_bps: o.seat_egress_bytes_per_s,
+        egress_today_peers_bps: peers_equiv * whole / p.get(C::CadenceS),
+        rounds_scale_for: (solve(&by_rounds, target.0), solve(&by_rounds, target.1)),
+        cpu_factor_for: (solve(&by_cpu, target.0), solve(&by_cpu, target.1)),
+    }
+}
+
+#[cfg(test)]
+mod check_tests {
+    use super::*;
+
+    /// The check runs and says how far the model is from a sample; it fits nothing.
+    #[test]
+    fn the_seat_check_reports_and_does_not_fit() {
+        let p = CostParams::calibrated();
+        let c = seat_check(&p, 1_349.0, (1.31, 1.74));
+        assert!(c.cores > 0.0 && c.cores_interval.lo <= c.cores && c.cores_interval.hi >= c.cores);
+        assert!(c.egress_devices_bps > 0.0 && c.egress_today_peers_bps > 0.0);
+        assert!(c.rounds_scale_for.1 >= c.rounds_scale_for.0 && c.cpu_factor_for.1 >= c.cpu_factor_for.0);
+        // the calibrated parameters are untouched
+        assert!((CostParams::calibrated().get(C::CpuPerByte) - p.get(C::CpuPerByte)).abs() == 0.0);
+    }
+}

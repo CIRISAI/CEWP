@@ -35,4 +35,14 @@ fn main() {
             l.key_planes[2].subjects, l.key_planes[0].subjects, l.key_planes[1].subjects
         );
     }
+    // A live sample, canonical-1 on edge v45.2.1, 38 min just after a roll (MEASURED, not a fit):
+    // 131 to 174 % of a core, replication out ~8.4 Mbit/s, in ~2.0 Mbit/s.
+    for d in [1_349.0, 5_646.0] {
+        let c = call_scale::seat_check(&p, d, (1.31, 1.74));
+        println!(
+            "\ncheck at {d:.0} devices: model cores {:.3} (interval {:.3} to {:.3}) against 1.31 to 1.74 MEASURED; to reach it today_rounds_scale {:.1} to {:.1} or cpu_per_byte x {:.2} to {:.2}; egress modelled (devices) {:.1} kbit/s = {:.1} bit/s per device, today's peers' whole-plane offers (derived, not in the term) {:.0} kbit/s; against ~8,400 kbit/s MEASURED",
+            c.cores, c.cores_interval.lo, c.cores_interval.hi, c.rounds_scale_for.0, c.rounds_scale_for.1, c.cpu_factor_for.0, c.cpu_factor_for.1,
+            c.egress_devices_bps * 8.0 / 1e3, c.egress_devices_bps * 8.0 / d, c.egress_today_peers_bps * 8.0 / 1e3
+        );
+    }
 }

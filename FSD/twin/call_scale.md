@@ -254,6 +254,42 @@ interval, 4 cores at a 70 % ceiling):
 
 The previous table (g, 4,882 to 75,879, CPU binding from g = 0.25) is superseded.
 
+**Check against canonical-1 (not a fit).** Sample: edge v45.2.1, server 0.5.254, 38 min just
+after a roll, so not steady state (MEASURED, with that caveat). It shows 131 to 174 % of a core,
+replication out ~8.4 Mbit/s and in ~2.0 Mbit/s. `call_scale::seat_check`:
+
+| devices | model seat cores (point, interval) | model egress, devices' term | today's peers' whole-plane offers (DERIVED, not in the term) |
+|---|---|---|---|
+| 1,349 | 0.26 (0.11 to 0.56) | 228 kbit/s, 169 bit/s a device | 557 kbit/s |
+| 5,646 (the announced count the occurrence set implies) | 0.58 (0.21 to 1.35) | 954 kbit/s | 2,324 kbit/s |
+
+- **CPU.**
+  - The model is 5 to 7 times low at 1,349 and 2.3 to 3.0 times low at 5,646. Only the top of
+    the 5,646 interval touches the sample's low end.
+  - No single term closes it plausibly. `today_rounds_scale` would have to be 27 to 38 (19 to
+    30 at 5,646), or the fitted `cpu_per_byte_s` 12 to 16 times larger (4.5 to 6.5).
+  - What the model lacks:
+    - a CPU term for serving bytes: Deliver bodies, the #927 proactive push of the self-publish
+      set (runtime.rs :2072-2077), cursor-plane pages, and framing;
+    - the post-roll re-sweep;
+    - a bias in its fit window. Window B is a quiet minute at 0.652 cores, while the same seat
+      averaged 1.28 cores over the 45-minute pre-roll window (MEASURED, a different meter),
+      so the fit alone is about 2 times low.
+- **Egress.**
+  - The model's egress term counts only the devices' idle Revocation round and amortised Pull
+    replies.
+  - With today's peers' whole-plane offers added, it is about 0.8 Mbit/s at 1,349 (11 times
+    low) and 3.3 Mbit/s at 5,646 (2.5 times low).
+  - Measured per node: 6.2 kbit/s per relay-reported announced node, or 1.5 kbit/s per node of
+    the selector's implied set (DERIVED from MEASURED).
+  - The model has no Deliver-body, proactive-push or cursor-page bytes.
+- **What it means for the ratio.**
+  - The knee binds on permits with CPU at 0.50 to 0.57 of the ceiling. If the missing CPU
+    scales with devices, CPU binds first and the knee falls. If it is the re-sweep or a fixed
+    cost, it does not.
+  - The like-for-like steady reading decides it, together with v45.2.1's seat-load counters
+    (replication I/O by plane, persist reads by caller label).
+
 **SLOT (pending, from the server): sizes read on canonical-1.** The Key and occurrence publish
 sets and the announced-node count the selector reads, and the Global set (own ∪ start-time
 peers). The Global size replaces the 4 to 8,698 interval. A second reading at a different fleet
