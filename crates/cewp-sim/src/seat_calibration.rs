@@ -19,9 +19,10 @@
 //!   busiest lock), where it is monotone, and takes `[min lo, min hi]` over the terms: the knee
 //!   is a minimum that switches term across the box, so the vertex method on the knee itself
 //!   is not a bound (a failing test found that). An outer bound, not a probability.
-//! * **Growth axis.** How the server's `key_publish_set` grows with the fleet is not known to
-//!   the twin (FRONTIER). [`knee_by_growth`] sweeps it from 0 (today's size) to 1 (with
-//!   announced nodes) instead of choosing one.
+//! * **Growth axis.** The server's selector (announced_relay.rs :164, server 0.5.254) puts every
+//!   ANNOUNCED node, and on the Key plane its owner, in the Key and occurrence publish sets, so
+//!   they grow with the share of new devices that announce (`announced_fraction`, MODEL).
+//!   [`knee_by_growth`] sweeps it from 0 (no new device announces) to 1 (every one does).
 
 use std::cell::RefCell;
 
@@ -170,7 +171,7 @@ pub fn window_spreads() -> WindowSpreads {
 
 /// Every input with an interval. Measured inputs first (their ends computed from the windows
 /// where two windows count them, else a borrowed band named in `how`), then the derived and
-/// modelled inputs the knee rests on (bands stated, MODEL). `key_publish_set_growth` is not
+/// modelled inputs the knee rests on (bands stated, MODEL). `announced_fraction` is not
 /// here: it is the swept axis.
 #[must_use]
 pub fn input_intervals(p: &CostParams) -> Vec<InputInterval> {
@@ -202,7 +203,8 @@ pub fn input_intervals(p: &CostParams) -> Vec<InputInterval> {
         InputInterval { param: C::DrainPageRevS, lo: 0.25 * p.get(C::DrainPageRevS), hi: p.get(C::DrainPageRevS), how: "MEASURED (debug wall time): up to 4x faster in release (MODEL)" },
         InputInterval { param: C::DrainPageIorS, lo: 0.25 * p.get(C::DrainPageIorS), hi: p.get(C::DrainPageIorS), how: "MEASURED (debug wall time): up to 4x faster in release (MODEL)" },
         // ---- DERIVED and MODEL inputs the knee rests on -----------------------
-        InputInterval { param: C::GlobalSubjectsAtSeat, lo: p.get(C::KeySubjectsAtSeat), hi: p.get(C::SeatKeyRows), how: "DERIVED: own ∪ cohort lies between the Key publish set (8,211) and every key held (8,698)" },
+        InputInterval { param: C::GlobalSubjectsAtSeat, lo: 4.0, hi: p.get(C::SeatKeyRows), how: "FRONTIER until the canonical is read: self_provider (the server's own keys, 4) ∪ the start-time cohort (v45.2.1 runtime.rs :2069), between own keys alone and every key held (8,698)" },
+        InputInterval { param: C::NewOwnersPerAnnounced, lo: 0.0, hi: 1.0, how: "MODEL: new owners per new announced node, none to one each" },
         InputInterval { param: C::IoSubjectsAtSeat, lo: 5_600.0, hi: 5_700.0, how: "DERIVED: ~5.6k to 5.7k (withhold-rate's source answer)" },
         InputInterval { param: C::StoreReadS, lo: 1.0e-3, hi: 3.0e-3, how: "DERIVED ~2 ms from a key-plane refill, not measured on a Pull: 1 to 3 ms, MODEL band" },
         InputInterval { param: C::WarmListingS, lo: 0.1e-3, hi: 0.4e-3, how: "MODEL: a cache hit's set comparison at 8,211 subjects, 0.1 to 0.4 ms" },
@@ -377,13 +379,14 @@ pub fn knee_interval(p: &CostParams, sc: &Scenario) -> KneeInterval {
     }
 }
 
-/// The growth axis the knee is swept over (FRONTIER: the server's `key_publish_set` rule).
+/// The axis the knee is swept over: `announced_fraction` f (MODEL), the share of new devices the
+/// server lists as announced; Key and occurrence grow by it (server announced_relay.rs :164).
 pub const GROWTH_AXIS: [f64; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
 
 /// One row of [`knee_by_growth`].
 #[derive(Debug, Clone)]
 pub struct GrowthRow {
-    /// `key_publish_set_growth`.
+    /// `announced_fraction`.
     pub growth: f64,
     /// v45.0.0, no old peers, the seat names no device.
     pub knee: KneeInterval,
@@ -393,13 +396,13 @@ pub struct GrowthRow {
     pub initiator_1pct: Interval,
 }
 
-/// v45.0.0's knee (8e46165, one seat) against `key_publish_set` growth, MODEL with an interval.
+/// The v45 knee (one seat) against the announced fraction, MODEL with an interval.
 #[must_use]
 pub fn knee_by_growth(p: &CostParams) -> Vec<GrowthRow> {
     GROWTH_AXIS
         .iter()
         .map(|&g| {
-            let q = with_value(p, C::KeyPublishSetGrowth, g);
+            let q = with_value(p, C::AnnouncedFraction, g);
             let sc = Scenario::v45(1.0);
             let old = with_value(&q, C::OldPeerShare, 0.25);
             let init = with_value(&q, C::SeatInitiatorDeviceShare, 0.01);
@@ -417,7 +420,7 @@ pub fn knee_by_growth(p: &CostParams) -> Vec<GrowthRow> {
 #[must_use]
 pub fn growth_table(p: &CostParams) -> String {
     let mut s = String::from(
-        "| key_publish_set growth g (FRONTIER) | v45.0.0 knee, devices (MODEL, interval) | binds at the low end | binds at the high end | with 25% of devices on v44 (MODEL, interval) | seat initiating to 1% of devices (MODEL, interval) |\n|---|---|---|---|---|---|\n",
+        "| announced fraction f (MODEL) | v45 knee, devices (MODEL, interval) | binds at the low end | binds at the high end | with 25% of devices on v44 (MODEL, interval) | seat initiating to 1% of devices (MODEL, interval) |\n|---|---|---|---|---|---|\n",
     );
     for r in knee_by_growth(p) {
         s.push_str(&format!(
@@ -860,7 +863,7 @@ pub const MEASUREMENT_REQUESTS: &[&str] = &[
     "The release build: the seat runs v45 in release; with it, sweep_permit_wait_seconds sum and count per site, key_plane_sweep_ms, listing-cache hits, and the unread and stale gauges per plane (the Pull's permit hold and the cache hit's lock hold are MODEL until then).",
     "Per-term counters for the residuals: sweep_permits by site (holdings_index, plane_page, subject_pull, announced_testimony, key_plane_subject, feed_attestation, feed_route, send_set, advertise_page, advertise_required, accord_evidence), the initiator_peers gauges (host, bundle, homed), and the reach evaluations (announce_reads) per minute.",
     "Store composition at the start and end of each window: attestation, route and key row counts, announced nodes and owners, and the size of the host's key publish set and of own ∪ cohort (the Global set).",
-    "The server's rule for key_publish_set: what it includes and how it grows as devices join (it decides the knee between its ends, see the growth table).",
+    "The size of the Global set (self_provider ∪ the start-time cohort) and of the Key and occurrence publish sets read on the canonical, with the announced-node count the selector reads (the rule is known: server announced_relay.rs :164).",
     "Ownership events and host local-write doors per hour at the seat (each clears the reach memo), and key:record rows landing per hour.",
     "A second seat, if one is ever run: the same aggregates, to tell a seat property from a seat-1 property.",
 ];
@@ -873,7 +876,7 @@ pub fn report(p: &CostParams) -> String {
     s.push_str(&held_out_table(p));
     s.push_str("\n### Permit residuals, term by term\n\n");
     s.push_str(&residual_report(p));
-    s.push_str("\n### v45.0.0 knee against key_publish_set growth (MODEL, interval)\n\n");
+    s.push_str("\n### v45 knee against the announced fraction (MODEL, interval)\n\n");
     s.push_str(&format!(
         "One seat of {} cores, ceiling {:.0}%, edge {} (release/45.0.0, untagged when read). Each knee is an outer bound over every input interval below (each term's knee propagated alone by the vertex method, then the smallest lower and the smallest upper end), at one value of the growth axis; no single device count stands. 'Binds' names the term that reaches the ceiling first at each end.\n\n",
         p.get(C::SeatCores),
@@ -1055,7 +1058,7 @@ mod tests {
         for r in &rows {
             assert!(r.old_quarter.hi <= r.knee.devices.hi * 1.001);
             // the outer bound holds the knee at the point inputs
-            let q = with_value(&p, C::KeyPublishSetGrowth, r.growth);
+            let q = with_value(&p, C::AnnouncedFraction, r.growth);
             assert!(r.knee.devices.contains(knee(&q, &Scenario::v45(1.0))), "g {} {:?}", r.growth, r.knee.devices);
         }
     }

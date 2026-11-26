@@ -266,7 +266,7 @@ pub fn curve_devices() -> Vec<f64> {
 }
 
 fn params_for(scenario: u32) -> CostParams {
-    seat_calibration::with_value(&CostParams::calibrated(), C::KeyPublishSetGrowth, growth_of(scenario))
+    seat_calibration::with_value(&CostParams::calibrated(), C::AnnouncedFraction, growth_of(scenario))
 }
 
 /// Seat load against fleet size for growth scenario `scenario` (index into [`GROWTH_AXIS`]:

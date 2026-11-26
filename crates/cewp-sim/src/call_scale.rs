@@ -328,7 +328,9 @@ pub struct SeatPerMember {
     pub join_cores_at_1_per_s: f64,
 }
 
-/// Price `members` room members at the seat as the room's hub (the server's choice; MODEL).
+/// Price `members` room members at the seat as the room's hub. Not reachable on v45.2.x (the
+/// canonical is never a room member, and room rows are audience-gated to members); MODEL, kept
+/// for a server that seats its canonical in a room.
 #[must_use]
 pub fn seat_per_member(p: &CostParams, fleet: f64, members: f64) -> SeatPerMember {
     let base = Scenario::v45(fleet);
@@ -350,10 +352,10 @@ pub fn seat_per_member(p: &CostParams, fleet: f64, members: f64) -> SeatPerMembe
 }
 
 /// The fleet knee (MODEL, interval over every input interval) with `members` of the fleet in a
-/// room hubbed at the seat, at `key_publish_set` growth `g`.
+/// room hubbed at the seat, at announced fraction `g`.
 #[must_use]
 pub fn knee_with_room(p: &CostParams, g: f64, members: f64) -> seat_calibration::KneeInterval {
-    let q = seat_calibration::with_value(p, C::KeyPublishSetGrowth, g);
+    let q = seat_calibration::with_value(p, C::AnnouncedFraction, g);
     let mut sc = Scenario::v45(1.0);
     sc.room_members = members;
     seat_calibration::knee_interval(&q, &sc)
@@ -402,7 +404,7 @@ pub fn hub_room_term(p: &CostParams, fleet: f64, term: seat_calibration::Term) -
 #[must_use]
 pub fn hub_room(p: &CostParams, g: f64, fleet: f64) -> (f64, seat_calibration::Interval, &'static str) {
     use seat_calibration::Term;
-    let q = seat_calibration::with_value(p, C::KeyPublishSetGrowth, g);
+    let q = seat_calibration::with_value(p, C::AnnouncedFraction, g);
     let inputs = seat_calibration::input_intervals(&q);
     let terms = [(Term::Cpu, "CPU"), (Term::Permits, "sweep permits"), (Term::Lock, "a key-plane lock")];
     let mut point = f64::INFINITY;
@@ -511,7 +513,7 @@ pub fn seat_table(p: &CostParams) -> String {
 #[must_use]
 pub fn knee_table(p: &CostParams) -> String {
     let mut s = String::from(
-        "| key_publish_set growth g (FRONTIER) | no room at the seat: knee, devices (MODEL, interval) | binds low / high | a 1000-member room hubbed at the seat: knee (MODEL, interval) | binds low / high |\n|---|---|---|---|---|\n",
+        "| announced fraction f (MODEL) | no room at the seat: knee, devices (MODEL, interval) | binds low / high | a 1000-member room hubbed at the seat: knee (MODEL, interval) | binds low / high |\n|---|---|---|---|---|\n",
     );
     for &g in &[0.0, 1.0] {
         let a = knee_with_room(p, g, 0.0);
@@ -552,9 +554,9 @@ pub fn report(p: &CostParams) -> String {
     for &n in &SIZES {
         s.push_str(&format!("| {} | {:.0} | {:.2} |\n", n, roll_bytes_per_member_per_add(n), roll_seconds(n, 1_000.0)));
     }
-    s.push_str("\n### The seat, a room hubbed there (MODEL: the server's choice), fleet 1,349\n\n");
+    s.push_str("\n### The seat (v45.2.x: a call costs it nothing per member joined)\n\nThe canonical is never a call-room member and is refused any call relay; a room's rows are served to a peer only past persist's may_receive audience gate (v45.2.1 bridge.rs audience_withholds :6445-6468), so a canonical outside the room is never sent them and holds none to relay. The rows below price a room hubbed at the seat, a case v45.2.x does not reach; kept for a server that makes its canonical a room member.\n\n");
     s.push_str(&seat_table(p));
-    s.push_str("\n### The largest room the seat can hub, fleet 1,349 (MODEL; interval over every input interval)\n\n| key_publish_set growth g | members (point) | members (interval) | binds at the point |\n|---|---|---|---|\n");
+    s.push_str("\n### The largest room the seat can hub, fleet 1,349 (MODEL; interval over every input interval)\n\n| announced fraction f | members (point) | members (interval) | binds at the point |\n|---|---|---|---|\n");
     for &g in &[0.0, 1.0] {
         let (pt, iv, b) = hub_room(p, g, 1_349.0);
         s.push_str(&format!("| {} | {:.0} | {} | {} |\n", g, pt, iv.devices(), b));

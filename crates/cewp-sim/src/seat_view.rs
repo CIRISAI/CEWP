@@ -30,7 +30,7 @@ pub const SEAT_FLEET_STRIDE: usize = 18;
 #[must_use]
 pub fn seat_view_fleet(devices: f64, scenario: u32) -> Vec<f32> {
     let g = growth_of(scenario);
-    let p = seat_calibration::with_value(&CostParams::calibrated(), C::KeyPublishSetGrowth, g);
+    let p = seat_calibration::with_value(&CostParams::calibrated(), C::AnnouncedFraction, g);
     let inputs = input_intervals(&p);
     let sc = Scenario::v45(devices.max(0.0));
     let o = run(&p, &sc);

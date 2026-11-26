@@ -27,10 +27,13 @@ needles and the three plane lists hold there (`edge_971::VERIFIED_AT`), and
 | file:line | parameter | before (class) | now (class) | source |
 |---|---|---|---|---|
 | capacity.rs:131 | `edge_971::VERIFIED_AT` | (none) | d175963, v45.2.1 | every needle compared against the v45.2.1 tree |
-| capacity.rs:378 | `room_att_rounds_per_cadence` | (none) | 1 (MODEL) | a member of a room hubbed at the seat rounds Attestation with it, where the room's rows ride (v45.2.1 wrap_courier.rs header, runtime.rs set_peers) |
-| capacity.rs:379 | `room_rows_per_join` | (none) | 4, interval 2-6 (MODEL) | call row + its share (av_call.rs PersistCallRecord::record_join), roster row, MLS commit |
-| capacity.rs:380 | `room_delivery_reads_per_row` | (none) | 1 (MODEL) | the hub's row read to deliver a row to one member |
-| capacity.rs:1362 | `Scenario::room_members`, `room_joins_per_min`, `room_size` | (none) | 0 by default (FRONTIER: the server chooses whether the canonical hubs a room) | |
+| capacity.rs:379 | `room_att_rounds_per_cadence` | (none) | 1 (MODEL) | a member of a room hubbed at the seat rounds Attestation with it, where the room's rows ride; not reachable on v45.2.x (section 5) |
+| capacity.rs:380 | `room_rows_per_join` | (none) | 4, interval 2-6 (MODEL) | call row + its share (av_call.rs PersistCallRecord::record_join), roster row, MLS commit |
+| capacity.rs:381 | `room_delivery_reads_per_row` | (none) | 1 (MODEL) | the hub's row read to deliver a row to one member |
+| capacity.rs:1362 | `Scenario::room_members`, `room_joins_per_min`, `room_size` | (none) | 0 by default; not reachable on v45.2.x (section 5) | |
+| capacity.rs:334 | `global_subjects_at_seat` | 8,698, interval 8,211-8,698, scaled by g (DERIVED) | 8,698, interval 4-8,698, constant in the fleet (FRONTIER) | self_provider ∪ start-time cohort (v45.2.1 bridge.rs :8385, runtime.rs :2069); server self_provider = own keys (server compose.rs :5187) |
+| capacity.rs:335 | `announced_fraction` f (was `key_publish_set_growth` g) | g (FRONTIER): every set × (1 + g(N/N0 - 1)) | f (MODEL, swept 0-1): Key + f(1 + r) per new device, IO + f per new device, Global constant | server announced_relay.rs :164 `selection_for` |
+| capacity.rs:336 | `new_owners_per_announced` r | (none) | 0.5, interval 0-1 (MODEL) | owners in the Key set per new announced node |
 | media.rs:51 | `MTag::Measured` | (none) | the media table can say MEASURED | |
 | media.rs:237 | `MEASURED_CHUNK_RNS_BYTES` | (none; DERIVED `full_chunk_wire` 527 B) | 504 B RNS, 532 B with IPv4/UDP (MEASURED, bench) | 246 B frame; header 52, tags 32, trailer 72, E1 seal 25, token ~53, RNS header 19, framing ~5 |
 | media.rs:241 | `MEASURED_CHUNK_RESIDUAL` | (none) | 5 B (MEASURED minus DERIVED) | the derived packet is 499 B, 1 B under the 500 B RNS MTU, so the 5 B lie outside the RNS packet (untraced framing on the measured path) |
@@ -169,71 +172,92 @@ both runs. Until it lands, the per-seat time above is the measurement divided by
 
 ## 5. What a 1000-person call puts on the seat
 
-- **The canonical is not the room's hub: nothing per member joined (DERIVED).**
-  - Call rows, the roster and MLS rows ride the Attestation plane.
-  - A v45 device keeps one ordinary round with a seat, on Revocation (`BUNDLE_ROUND_PLANES`,
-    runtime.rs :1207), and Attestation-plane writes kick no Pull (`kick_wrote` returns for planes
-    outside `BUNDLE_PULL_PLANES`, runtime.rs :1491-1494).
-  - A member's keys already sit on the seat. Its 10-minute Pull and Revocation round are the
-    same in a call or out of one.
-- **The canonical hubs the room (MODEL; the server's choice).**
-  - Each member becomes a consent peer of the seat: whole-plane rounds on the five bootstrap
-    planes plus an Attestation round every 30 s.
-  - Per member at today's fleet, steady: 1.3e-3 to 2.3e-3 cores, 9.3e-4 to 6.9e-3 sweep-permit
-    utilisation and 14 to 20 counted reads/s (the low ends at 1000 members, the high ends at 12,
-    where the 10 s send-set read is shared by fewer).
-  - While joins arrive at one a second into a 1000-member room, the rows and their 999 deliveries
-    each add 0.63 cores.
-  - The largest room the seat can hub at today's fleet:
+**Nothing per member joined, on v45.2.x (DERIVED).**
+- The canonical is never a call-room member, and edge 45.2.x refuses a serve seat any call
+  relay (server 0.5.254).
+- A room's rows (the call row is shared `With::Community`, av_call.rs :1131-1140; the roster and
+  the MLS rows ride the same room scope) are served to a peer only past persist's `may_receive`
+  audience gate (`audience_withholds` on the fetch and advertise paths, bridge.rs :6445-6468).
+  A canonical outside the room is never sent them, holds none, and so cannot relay them in a
+  round.
+- A v45 device keeps one ordinary round with a seat, on Revocation (`BUNDLE_ROUND_PLANES`,
+  runtime.rs :1207), and Attestation-plane writes kick no Pull (`kick_wrote` returns for planes
+  outside `BUNDLE_PULL_PLANES`, runtime.rs :1491-1494).
+- A member's keys already sit on the seat. Its 10-minute Pull and Revocation round are the same
+  in a call or out of one.
+- The one path not costed: RNS packets of a member-to-member round may transit the canonical as
+  a Reticulum transport node. That is packet forwarding with no store read, outside the seat
+  ledger; this week's measurements do not show it.
 
-    | key_publish_set growth g | members (point) | members (interval) | binds at the point |
-    |---|---|---|---|
-    | 0 | 640 | 237 to 1,909 | sweep permits |
-    | 1 | 640 | 235 to 1,860 | sweep permits |
+**Not reachable on v45.2.x, kept as a term (MODEL):** a room hubbed at the seat, for a server
+that seats its canonical in a room (`Scenario::room_members`, 0 by default).
+- Each member would cost 1.3e-3 to 2.3e-3 cores, 9.3e-4 to 6.9e-3 sweep-permit utilisation and
+  14 to 20 reads/s.
+- The largest such room at today's fleet is 640 members at the point, 237 to 2,009 over the
+  intervals, bound by sweep permits.
 
-    The binding term is the two sweep permits held per Attestation and route listing page
-    (`att_listing_permits` 2-4 DERIVED, `td_listing_permits` MODEL, page hold = `page_cpu_s`,
-    FITTED CPU per byte × MODEL bytes per hash). A 1000-member room hubbed at the seat exceeds
-    the permit ceiling at the point estimate.
-  - The fleet knee with such a room: 259 to 24,169 devices at g = 0 and 257 to 7,920 at g = 1,
-    sweep permits at both ends.
-- **MLS.** The call's group is the room's (av_call.rs :10), so commits ride the room's rows
-  through the hub when there is one. Commit and ratchet-tree bytes for suite 0x004D are not
-  measured. The scale memo's estimates (~24 KB a commit, ~2.6 MB a tree at 1000) are not used here.
+**MLS.** The call's group is the room's (av_call.rs :10), so commits ride the room's rows among
+its members. Commit and ratchet-tree bytes for suite 0x004D are not measured.
 
 ## 6. The canonical-to-node ratio
 
-One v45 seat serves 4,882 to 75,879 devices (MODEL; outer interval over every input interval, one
-seat of 4 cores at a 70 % ceiling). Where in that range it falls is set by the server's
-`key_publish_set` growth g:
+**The rule (server 0.5.254, unchanged since CIRISServer#655, read from its code).**
+- `selection_for` (server announced_relay.rs :164), on a relaying canonical:
+  - Key publish set = own keys ∪ every ANNOUNCED node ∪ each announced node's owner;
+  - IdentityOccurrence publish set = own ∪ every announced node.
+  - Unannounced nodes are in neither.
+- The self_provider (server compose.rs :5187) is the server's own keys.
+- Revocation and occurrence withdrawal are not selected by the server. They walk edge's
+  Global set, `self_provider() ∪ cohort()` (v45.2.1 bridge.rs :8385-8390, `list_revocation_rows`
+  :14381). The cohort is the runtime's start-time snapshot of the host-named peers
+  (runtime.rs :2069-2070), never refreshed.
+- So Global does not grow with the fleet. Its size is set by the peers the server names at a
+  start: FRONTIER, 4 (own keys alone) to 8,698 (every key held: the key_plane_memo.rs header's
+  claim at #930, when the server's self_provider was its whole publish set). The point is 8,698,
+  the costlier end.
 
-| g | devices | binds at the low end | binds at the high end |
+**The twin now.**
+- Key(N) = 8,211 + f (1 + r)(N - 1,349) and IO(N) = 5,650 + f (N - 1,349).
+- f = `announced_fraction` (MODEL, the swept axis, 0 to 1): the share of new devices the
+  server lists as announced.
+- r = `new_owners_per_announced` (MODEL, 0.5, interval 0 to 1).
+- Global = `global_subjects_at_seat` (FRONTIER, interval 4 to 8,698), constant in N.
+- Under the server's rule, the twin's 5,650 occurrence subjects imply ~5,646 announced nodes in
+  the selector's set, against the relay report's 1,349. Which count the selector reads is for
+  the canonical reading to settle; the slope per new node is what matters for the knee.
+
+**One v45 seat serves 11,820 to 77,382 devices** (MODEL; outer interval over every input
+interval, 4 cores at a 70 % ceiling):
+
+| announced fraction f | devices | binds at the low end | binds at the high end |
 |---|---|---|---|
-| 0 | 14,253 to 75,879 | sweep permits | CPU |
-| 0.25 | 7,961 to 24,430 | CPU | CPU |
-| 0.5 | 6,316 to 18,438 | CPU | CPU |
-| 0.75 | 5,440 to 15,534 | CPU | CPU |
-| 1 | 4,882 to 13,723 | CPU | CPU |
+| 0 | 14,253 to 77,382 | sweep permits | sweep permits |
+| 0.25 | 13,550 to 74,124 | sweep permits | sweep permits |
+| 0.5 | 12,914 to 71,004 | sweep permits | sweep permits |
+| 0.75 | 12,355 to 68,102 | sweep permits | sweep permits |
+| 1 | 11,820 to 65,483 | sweep permits | sweep permits |
 
-This is unchanged from v45.0.0: no seat-side constant moved between 8e46165 and v45.2.1. Calls add
-nothing to it unless the canonical hubs a room (section 5).
+**What binds, at the calibrated point.**
+- Point knee: 30,813 devices at f = 0 and 25,167 at f = 1 (MODEL, one input point; the
+  interval above is the claim).
+- The two sweep permits reach 0.70 first; CPU is at 0.50 to 0.57 and the busiest key-plane
+  lock at 0.21 to 0.25.
+- 59 to 73 % of the held permit time is the devices' 10-minute subject Pulls: 8 permits a cycle
+  (MEASURED on a debug build, contact-4413), each held one store read (~2 ms, DERIVED, interval
+  1 to 3 ms). The rest is listing pages and, at f = 1, key-plane refills over the larger Key
+  set (43,938 subjects).
+- **What it hinges on.** It hinges on the permit hold per Pull read on a release build
+  (unmeasured), not on the publish sets. Under the server's rule the sets grow by one or two
+  subjects per announced node, so f moves the knee by about a fifth. Before this rule was read
+  the twin grew them by 4.2 to 6.1 subjects per device (g = 1), and CPU on the Global walk bound
+  at 4,882 to 13,723.
 
-**What the twin needs from the server.**
-- The number is g in `subjects(N) = subjects_today × (1 + g (N / 1,349 - 1))`, for the
-  Key-plane publish set (8,211 today), the occurrence publish set (5,650) and the Global set
-  (own ∪ cohort, every key held, 8,698).
-- Either the rule, which does or does not list every key the seat holds as the fleet grows,
-  or two readings at different fleet sizes:
-  - the seat's `announced_nodes`;
-  - subjects re-read per key plane over one 10-minute `MEMO_TTL` window. v45.2.1 counts these
-    as `memo_reads` `key_plane.{key_record,occurrence_binding,revocation}.ttl`; with
-    stale-while-revalidate every subject is re-read once a TTL, so the 10-minute sum is the
-    walked set.
-- Then g = (S2 / S1 - 1) / (N2 / N1 - 1).
+The previous table (g, 4,882 to 75,879, CPU binding from g = 0.25) is superseded.
 
-**SLOT (pending, from the server): `key_publish_set` with its file:line and a size read on the
-canonical.** Until it lands, the knee stays the interval above with g (FRONTIER) as the named
-hinge; no point value is quoted.
+**SLOT (pending, from the server): sizes read on canonical-1.** The Key and occurrence publish
+sets and the announced-node count the selector reads, and the Global set (own ∪ start-time
+peers). The Global size replaces the 4 to 8,698 interval. A second reading at a different fleet
+size checks the slope f (1 + r).
 
 **SLOT (pending, from the server's matrix): the canonical's share of a call member's non-media**
 (one canonical node per cell, split approximate). Until it lands, the 94 to 115 kbit/s of
@@ -250,8 +274,9 @@ and the other members.
   per-class byte split (bindings and identity-plane replication are not separated).
 - The bench's copy (30 fps of one-chunk frames) and the matrix's copy (larger codec frames)
   bracket the rate. Neither is a phone camera.
-- The hub-room cost assumes a room member's Attestation round costs what today's peers' rounds
-  cost the seat (composer lookups 386.7 a round, MEASURED on today's peers).
+- The hub-room term (not reachable on v45.2.x) assumes a room member's Attestation round costs
+  what today's peers' rounds cost the seat (composer lookups 386.7 a round, MEASURED on today's
+  peers).
 - Admission has no model, only the measurement divided by twelve.
 
 ## 8. Owed
@@ -261,4 +286,8 @@ and the other members.
 - Line numbers in capacity.rs still cite 8e46165. The texts hold at v45.2.1.
 - From the bench: per-class byte counters (offers, proofs, bindings, announces, identity-plane
   replication) at N = 4 and 6, to replace the two FITTED terms and the subtraction.
-- From the server: g (section 6), and whether the canonical hubs any call room.
+- From the server: the set sizes read on canonical-1 (section 6).
+- The public page's seat-knee claim (cewp-evidence page_ledger.rs :983, 4,882 to 75,879 and the
+  "publish set grows or not" text) and the globe's g slider labels are stale under this rule. The
+  ledger, `docs/` and the wasm are other packages', so they are left unchanged.
+- FSD/SIMULATION_ENGINE.md's growth table (the g rows) is superseded by section 6.

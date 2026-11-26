@@ -329,10 +329,11 @@ cost_params! {
     // Source: v44.1.2 (the windows) and 8e46165 bridge.rs `key_plane_listing` (:7664),
     // `refresh_key_plane_memo` (:7883), key_plane_memo.rs, key_plane_rows.rs. Each plane's tokio Mutex is held for the whole
     // listing, its probe and any subject reads; a subject Pull reads the store directly, outside it.
-    KeySubjectsAtSeat = "key_subjects_at_seat", 8_211.0, Derived, "subjects a Key-plane listing walks at seat-1: self_own_subjects -> the host's KindPublishSelector (8e46165 bridge.rs :7465; edge source read 2026-11-10 at v44.1.2 (withhold-rate)); grows with the fleet by key_publish_set_growth";
-    IoSubjectsAtSeat = "io_subjects_at_seat", 5_650.0, Derived, "subjects an occurrence-plane listing walks at seat-1, ~5.6k to 5.7k, the same selector (edge source read 2026-11-10 at v44.1.2 (withhold-rate); 5,652 in 8e46165 key_plane_memo.rs :296 docs); grows with the fleet by key_publish_set_growth";
-    GlobalSubjectsAtSeat = "global_subjects_at_seat", 8_698.0, Derived, "subjects a Revocation or occurrence-withdrawal listing walks: subjects_for_projection(Global) = self_provider ∪ cohort (8e46165 bridge.rs :7478, :7492), which on a canonical is every key it holds (list_revocation_rows :13152 'Global is every key on a canonical'; key_plane_memo.rs header: 7,226 on the canonical at #930); seat-1 holds 8,698 keys (window A), the Key publish set is 8,211, so the interval is [8,211, 8,698]. CORRECTED: the twin had 30 ('tens', a MODEL pick) until 2026-11-11; grows with the fleet by key_publish_set_growth";
-    KeyPublishSetGrowth = "key_publish_set_growth", 1.0, Frontier, "how the host's publish sets (the server's key_publish_set, which self_provider and every KindPublishSelector answer from) grow with the fleet: subjects(N) = subjects_at_seat x (1 + g (N / announced_nodes - 1)); g = 1 grows with announced nodes like the store, g = 0 stays at today's size. Server-side, not read by the twin: an explicit scenario axis, swept 0 to 1 in seat_calibration::knee_by_growth";
+    KeySubjectsAtSeat = "key_subjects_at_seat", 8_211.0, Derived, "subjects a Key-plane listing walks at seat-1: self_own_subjects -> the host's KindPublishSelector (8e46165 bridge.rs :7465; edge source read 2026-11-10 at v44.1.2 (withhold-rate)); grows by 1 + new_owners_per_announced per new announced node (announced_fraction; server announced_relay.rs :164)";
+    IoSubjectsAtSeat = "io_subjects_at_seat", 5_650.0, Derived, "subjects an occurrence-plane listing walks at seat-1, ~5.6k to 5.7k, the same selector (edge source read 2026-11-10 at v44.1.2 (withhold-rate); 5,652 in 8e46165 key_plane_memo.rs :296 docs); grows by one per new announced node (announced_fraction). Under the server rule (own ∪ announced) this size implies ~5,646 nodes in the server announced set, more than the relay report announced_nodes 1,349: which count the selector reads is for the canonical reading to settle";
+    GlobalSubjectsAtSeat = "global_subjects_at_seat", 8_698.0, Frontier, "subjects a Revocation or occurrence-withdrawal listing walks: subjects_for_projection(Global) = self_provider() ∪ cohort() (v45.2.1 bridge.rs :8385-8390, list_revocation_rows :14381). The server's self_provider is its own keys (edge signer, actor, node signer, the owner once claimed; server compose.rs :5187, server 0.5.254), and the cohort is the runtime's START-TIME snapshot of the host-named peers (v45.2.1 runtime.rs :2069-2070), never refreshed: so the set does not grow with the fleet by edge's rule, only if the server names more peers at a start. Its size on the canonical is not read: the point 8,698 (every key held, the key_plane_memo.rs header's claim at #930, when the server's self_provider was its whole publish set) is the upper end, own keys alone (4) the lower; the server's reading on the canonical replaces it. CORRECTED 2026-11-25: held constant in the fleet (was scaled by key_publish_set_growth)";
+    AnnouncedFraction = "announced_fraction", 1.0, Model, "f: share of new devices the server lists as ANNOUNCED nodes, the one fleet input the Key and occurrence publish sets grow by. On a relaying canonical the server's selector (server announced_relay.rs :164 selection_for, server 0.5.254, unchanged since CIRISServer#655) answers Key = own ∪ every announced node ∪ each announced node's owner, IdentityOccurrence = own ∪ every announced node; unannounced nodes are never in either. So Key(N) = Key_today + f (1 + r) (N - N0) and IO(N) = IO_today + f (N - N0), N0 = announced_nodes. Swept 0 to 1 (seat_calibration::GROWTH_AXIS); not measured";
+    NewOwnersPerAnnounced = "new_owners_per_announced", 0.5, Model, "r: new owner keys per new announced node in the Key publish set (an owner of several nodes counts once, an unclaimed node adds none); interval [0, 1]; today's sets under the server's rule imply 8,211 - 5,650 = 2,561 owners beside ~5,646 announced nodes, 0.45 (DERIVED from the twin's two set sizes)";
     ListingProbeReads = "listing_probe_reads", 1.0, Derived, "as shipped at v44.1.2 (the calibration windows): change-probe pages per key-plane listing when under 500 rows landed since the cursor, one permit each (refresh_key_plane_memo, PROBE_PAGE 500, v44.1.2 bridge.rs:7233); at 8e46165 the probe is the shared feed (probe_per_s)";
     KeyPlaneWalkBaseS = "key_plane_walk_base_s", 20.0e-6, Model, "a in a + b x subjects: fixed seconds per key-plane listing (the call, the empty offer)";
     KeyPlaneWalkPerSubjectS = "key_plane_walk_per_subject_s", 0.55e-6, Derived, "b in a + b x subjects: a warm Key listing at 8,211 subjects takes ~3 to 6 ms (edge source read 2026-11-10 at v44.1.2 (withhold-rate)), 4.5 ms / 8,211; taken as the same per subject on every key plane (MODEL); at 8e46165 it is what a listing-cache MISS costs (the classify walk, bridge.rs key_plane_listing :7664)";
@@ -462,26 +463,25 @@ impl CostParams {
         }
     }
 
-    /// How the host's publish sets scale at `nodes` announced nodes against today's:
-    /// `1 + g (nodes / announced_nodes - 1)` with g = `key_publish_set_growth` (FRONTIER, the
-    /// server's choice), never below 0.
+    /// New announced nodes in the server's set at `nodes` devices: `f (nodes - announced_nodes)`,
+    /// f = `announced_fraction` (MODEL), never below 0.
     #[must_use]
-    pub fn publish_set_scale(&self, nodes: f64) -> f64 {
-        let g = self.get(C::KeyPublishSetGrowth);
-        (1.0 + g * (nodes / self.get(C::AnnouncedNodes) - 1.0)).max(0.0)
+    pub fn new_announced(&self, nodes: f64) -> f64 {
+        self.get(C::AnnouncedFraction).clamp(0.0, 1.0) * (nodes - self.get(C::AnnouncedNodes)).max(0.0)
     }
 
-    /// Subjects a key-plane listing walks when `nodes` nodes are announced. Key and occurrence
-    /// list the host's publish selector; the two Global planes list own ∪ cohort, which on a
-    /// seat is every key it holds (8e46165 bridge.rs :7492, :13152). All three are host-provided
-    /// sets and grow by [`Self::publish_set_scale`]. 0 for a plane with no memo.
+    /// Subjects a key-plane listing walks at `nodes` devices, by the server's selector rule
+    /// (server announced_relay.rs :164): Key = today's set + (1 + r) per new announced node,
+    /// occurrence = today's + 1 per new announced node. The two Global planes walk
+    /// self_provider ∪ the start-time cohort (v45.2.1 bridge.rs :8385, runtime.rs :2069), held
+    /// constant in the fleet. 0 for a plane with no memo.
     #[must_use]
     pub fn plane_subjects(&self, plane: Plane, nodes: f64) -> f64 {
-        let k = self.publish_set_scale(nodes);
+        let a = self.new_announced(nodes);
         match plane {
-            Plane::Key => self.get(C::KeySubjectsAtSeat) * k,
-            Plane::IdentityOccurrence => self.get(C::IoSubjectsAtSeat) * k,
-            Plane::Revocation | Plane::IdentityOccurrenceRevocation => self.get(C::GlobalSubjectsAtSeat) * k,
+            Plane::Key => self.get(C::KeySubjectsAtSeat) + a * (1.0 + self.get(C::NewOwnersPerAnnounced).max(0.0)),
+            Plane::IdentityOccurrence => self.get(C::IoSubjectsAtSeat) + a,
+            Plane::Revocation | Plane::IdentityOccurrenceRevocation => self.get(C::GlobalSubjectsAtSeat),
             Plane::TransportDestination | Plane::Attestation => 0.0,
         }
     }
@@ -1852,14 +1852,14 @@ pub fn drain_cores_debug(p: &CostParams, devices: f64, pages: f64, planes: &[Pla
 }
 
 /// Knees by version, each an interval over the input intervals (MODEL, interval) at this
-/// `key_publish_set_growth`: the seat knee and what binds at its two ends, the lock knee, the
+/// `announced_fraction`: the seat knee and what binds at its two ends, the lock knee, the
 /// seat knee with a quarter of the devices still on v44, and the seat's cores at today's fleet.
 #[must_use]
 pub fn versions_table(p: &CostParams) -> String {
     use crate::seat_calibration::{cores_interval, input_intervals, knee_interval, propagate};
     let mut s = format!(
-        "At key_publish_set_growth = {} (FRONTIER; swept in the growth table). Every figure is an interval over the input intervals.\n\n| version | seat knee, devices (MODEL, interval) | binds at the low / high end | lock knee, devices (MODEL, interval) | seat knee, 25% old peers (MODEL, interval) | today's fleet: seat CPU cores |\n|---|---|---|---|---|---|\n",
-        p.get(C::KeyPublishSetGrowth)
+        "At announced_fraction = {} (MODEL; swept in the growth table). Every figure is an interval over the input intervals.\n\n| version | seat knee, devices (MODEL, interval) | binds at the low / high end | lock knee, devices (MODEL, interval) | seat knee, 25% old peers (MODEL, interval) | today's fleet: seat CPU cores |\n|---|---|---|---|---|---|\n",
+        p.get(C::AnnouncedFraction)
     );
     let mut q = p.clone();
     q.set(C::OldPeerShare, 0.25);
@@ -2991,8 +2991,10 @@ mod tests {
         // a + b x subjects
         let two = run(&p, &Scenario::one_seat(2.0 * d, RoundShape::WholePlane, ReadSet::AsShipped)).seat;
         let walk = |g: &KeyPlaneLoad| p.get(C::KeyPlaneWalkBaseS) + p.get(C::KeyPlaneWalkPerSubjectS) * g.subjects;
-        assert!(within(key(&two).subjects, 2.0 * key(&base).subjects, 1e-9));
-        assert!(within(walk(&key(&two)) - walk(&key(&base)), p.get(C::KeyPlaneWalkPerSubjectS) * key(&base).subjects, 1e-6));
+        // the Key set grows by (1 + r) per new announced node (server announced_relay.rs :164)
+        let grown = p.get(C::AnnouncedFraction) * (1.0 + p.get(C::NewOwnersPerAnnounced)) * d;
+        assert!(within(key(&two).subjects - key(&base).subjects, grown, 1e-9));
+        assert!(within(walk(&key(&two)) - walk(&key(&base)), p.get(C::KeyPlaneWalkPerSubjectS) * grown, 1e-6));
     }
 
     /// The source facts the key-plane terms rest on, at seat-1 size: the Global planes walk every
@@ -3050,13 +3052,19 @@ mod tests {
         assert!(ledger(&p, &mix, ReadSet::AsShipped).rho_lock < 0.5, "production today is far from the lock");
         let k = lock_knee(&p, &Scenario::one_seat(1.0, RoundShape::RequiredSet, ReadSet::AsShipped));
         assert!(k > 1_000.0 && k < 1.0e9, "the lock saturates at a finite fleet: {k}");
-        // Whole-plane rounds list every key plane every 30 s per device over walks that grow
-        // with the fleet: after read minimisation a key-plane lock is what binds (the Global
-        // planes walk every key the seat holds, so any of the four can).
+        // Whole-plane rounds list every key plane every 30 s per device: after read minimisation
+        // the sweep permits bind first under the server's selector rule (the sets grow by one or
+        // two subjects per announced node); a key-plane lock binds only where the sets grow
+        // faster than that, as the twin assumed before 2026-11-25 (per device, x 6.1 on Key).
         let w = Scenario::one_seat(1.0, RoundShape::WholePlane, ReadSet::AfterReadMin);
         let mut at = w;
         at.devices = knee(&p, &w);
-        assert!(matches!(binding(&p, &at), Binding::Lock(_)), "{:?}", binding(&p, &at));
+        assert!(matches!(binding(&p, &at), Binding::Permits), "{:?}", binding(&p, &at));
+        let mut fast = p.clone();
+        fast.set(C::NewOwnersPerAnnounced, 50.0);
+        let mut at = w;
+        at.devices = knee(&fast, &w);
+        assert!(matches!(binding(&fast, &at), Binding::Lock(_)), "{:?}", binding(&fast, &at));
     }
 
     /// The cold restart is single flight under the lock: each listed plane reads every subject
@@ -3168,20 +3176,24 @@ mod tests {
         );
     }
 
-    /// The Global planes walk every key the seat holds and grow with the publish set: at g = 0
-    /// they stay at today's size, at g = 1 they grow with announced nodes, like Key and IO.
+    /// The server's selector rule (server announced_relay.rs :164): Key and occurrence grow by the
+    /// new announced nodes, Key with their owners; the Global planes walk self_provider ∪ the
+    /// start-time cohort (v45.2.1 bridge.rs :8385, runtime.rs :2069) and stay put as the fleet grows.
     #[test]
-    fn the_global_set_is_every_key_and_grows_by_the_publish_set() {
+    fn the_publish_sets_follow_the_servers_selector_and_global_stays_put() {
         let mut p = CostParams::calibrated();
         let n0 = p.get(C::AnnouncedNodes);
-        assert!(within(p.plane_subjects(Plane::Revocation, n0), p.get(C::SeatKeyRows), 0.0));
-        p.set(C::KeyPublishSetGrowth, 0.0);
-        assert!(within(p.plane_subjects(Plane::Revocation, 10.0 * n0), p.get(C::SeatKeyRows), 1e-12));
-        assert!(within(p.plane_subjects(Plane::Key, 10.0 * n0), p.get(C::KeySubjectsAtSeat), 1e-12));
-        p.set(C::KeyPublishSetGrowth, 1.0);
-        assert!(within(p.plane_subjects(Plane::Revocation, 10.0 * n0), 10.0 * p.get(C::SeatKeyRows), 1e-12));
-        p.set(C::KeyPublishSetGrowth, 0.5);
-        assert!(within(p.plane_subjects(Plane::IdentityOccurrence, 3.0 * n0), 2.0 * p.get(C::IoSubjectsAtSeat), 1e-12));
+        assert!(within(p.plane_subjects(Plane::Revocation, n0), p.get(C::GlobalSubjectsAtSeat), 0.0));
+        assert!(within(p.plane_subjects(Plane::Revocation, 10.0 * n0), p.get(C::GlobalSubjectsAtSeat), 0.0), "Global does not grow");
+        p.set(C::AnnouncedFraction, 0.0);
+        assert!(within(p.plane_subjects(Plane::Key, 10.0 * n0), p.get(C::KeySubjectsAtSeat), 1e-12), "unannounced nodes are in no set");
+        p.set(C::AnnouncedFraction, 0.5);
+        p.set(C::NewOwnersPerAnnounced, 1.0);
+        let extra = 0.5 * 9.0 * n0;
+        assert!(within(p.plane_subjects(Plane::IdentityOccurrence, 10.0 * n0), p.get(C::IoSubjectsAtSeat) + extra, 1e-12));
+        assert!(within(p.plane_subjects(Plane::Key, 10.0 * n0), p.get(C::KeySubjectsAtSeat) + 2.0 * extra, 1e-12));
+        let s = COST_SPECS.iter().find(|s| s.name == "global_subjects_at_seat").expect("spec");
+        assert_eq!(s.tag, CTag::Frontier);
     }
 
     /// At 8e46165 a v45 device's Revocation round is a listing-cache hit unless the memo moved:
